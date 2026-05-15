@@ -1,0 +1,246 @@
+{
+    "symbol": "HUB",
+    "companyName": "HUB",
+    "lastUpdated": "2026-05-10T18:53:13.292Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "HUB",
+            "San": "HOSE",
+            "Nganh": "Xây dựng",
+            "NgayGDDauTien": "26/02/2019",
+            "GiaDongCuaNGDDT": 20,
+            "VolumeStartDate": 15246000,
+            "VDL": 302428780000,
+            "KLCPNY": 30242878,
+            "KLCPLH": 30242878,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "2.43",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "2.43",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "5.66",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "21.50",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "0.61",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "415.84",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "34,140",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "30,242,878",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "30,242,878",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Số liệu EPS tính tới Quý I năm 2026",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "CORP_59742",
+                    "Name": "AFC VF Limited (AFC Vietnam Fund)",
+                    "Url": "AFC VF Limited (AFC Vietnam Fund)",
+                    "AssetVolume": "645.988",
+                    "AssetRate": "2,14",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85602",
+                    "Name": "Nguyễn Thị Kim Phụng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85602/nguyen-thi-kim-phung.chn'>Nguyễn Thị Kim Phụng</a>",
+                    "AssetVolume": "14.561",
+                    "AssetRate": "0,05",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_80897",
+                    "Name": "Đoàn Hữu Hà Vinh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80897/doan-huu-ha-vinh.chn'>Đoàn Hữu Hà Vinh</a>",
+                    "AssetVolume": "100.000",
+                    "AssetRate": "0,33",
+                    "UpdatedDate": "19/08/2025"
+                },
+                {
+                    "Code": "CEO_85607",
+                    "Name": "Phạm Trường Lâm",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85607/pham-truong-lam.chn'>Phạm Trường Lâm</a>",
+                    "AssetVolume": "35.398",
+                    "AssetRate": "0,12",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_03256",
+                    "Name": "Đoàn Hữu Thuận",
+                    "Url": "<a href='/du-lieu/ceo/CEO_03256/doan-huu-thuan.chn'>Đoàn Hữu Thuận</a>",
+                    "AssetVolume": "358.420",
+                    "AssetRate": "1,19",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "KLQ_81334",
+                    "Name": "Nguyễn Thị Phương Hoa",
+                    "Url": "Nguyễn Thị Phương Hoa",
+                    "AssetVolume": "1.026.680",
+                    "AssetRate": "3,39",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85611",
+                    "Name": "Lê Thị Khánh Vân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85611/le-thi-khanh-van.chn'>Lê Thị Khánh Vân</a>",
+                    "AssetVolume": "60.529",
+                    "AssetRate": "0,2",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_05180",
+                    "Name": "Lê Viết Liên",
+                    "Url": "<a href='/du-lieu/ceo/CEO_05180/le-viet-lien.chn'>Lê Viết Liên</a>",
+                    "AssetVolume": "157.943",
+                    "AssetRate": "0,52",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "HDC",
+                    "Name": "Công ty Cổ phần Phát triển nhà Bà Rịa-Vũng Tàu",
+                    "Url": "<a href='/du-lieu/hose/HDC-cong-ty-co-phan-phat-trien-nha-ba-riavung-tau.chn' title='Công ty Cổ phần Phát triển nhà Bà Rịa-Vũng Tàu'>Công ty Cổ phần Phát triển nhà Bà Rịa-Vũng Tàu</a>",
+                    "AssetVolume": "12.088.097",
+                    "AssetRate": "39,97",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85609",
+                    "Name": "Nguyễn Văn Quý",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85609/nguyen-van-quy.chn'>Nguyễn Văn Quý</a>",
+                    "AssetVolume": "227.459",
+                    "AssetRate": "0,75",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85604",
+                    "Name": "Nguyễn Thị Thanh Bình",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85604/nguyen-thi-thanh-binh.chn'>Nguyễn Thị Thanh Bình</a>",
+                    "AssetVolume": "23.741",
+                    "AssetRate": "0,08",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85608",
+                    "Name": "Nguyễn Thái Bình",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85608/nguyen-thai-binh.chn'>Nguyễn Thái Bình</a>",
+                    "AssetVolume": "2.759",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85605",
+                    "Name": "Nguyễn Chí Thành",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85605/nguyen-chi-thanh.chn'>Nguyễn Chí Thành</a>",
+                    "AssetVolume": "399.237",
+                    "AssetRate": "1,32",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85610",
+                    "Name": "Lê Văn Tài",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85610/le-van-tai.chn'>Lê Văn Tài</a>",
+                    "AssetVolume": "197.859",
+                    "AssetRate": "0,65",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85606",
+                    "Name": "Phan Văn Giáo",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85606/phan-van-giao.chn'>Phan Văn Giáo</a>",
+                    "AssetVolume": "115.384",
+                    "AssetRate": "0,38",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85599",
+                    "Name": "Lê Quý Định",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85599/le-quy-dinh.chn'>Lê Quý Định</a>",
+                    "AssetVolume": "664.207",
+                    "AssetRate": "2,2",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85603",
+                    "Name": "Trần Hữu Vinh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85603/tran-huu-vinh.chn'>Trần Hữu Vinh</a>",
+                    "AssetVolume": "109.338",
+                    "AssetRate": "0,36",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_85601",
+                    "Name": "Lê Văn Hậu",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85601/le-van-hau.chn'>Lê Văn Hậu</a>",
+                    "AssetVolume": "240.711",
+                    "AssetRate": "0,8",
+                    "UpdatedDate": "24/06/2025"
+                },
+                {
+                    "Code": "CEO_87503",
+                    "Name": "Nguyễn Thị Thùy Hân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_87503/nguyen-thi-thuy-han.chn'>Nguyễn Thị Thùy Hân</a>",
+                    "AssetVolume": "34.981",
+                    "AssetRate": "0,12",
+                    "UpdatedDate": "24/06/2025"
+                }
+            ],
+            "NuocNgoai": 1.3,
+            "NhaNuoc": 0,
+            "Khac": 98.7
+        }
+    },
+    "tcbs": {
+        "incomeStatement": null,
+        "balanceSheet": null
+    }
+}

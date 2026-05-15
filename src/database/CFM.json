@@ -1,0 +1,893 @@
+{
+    "symbol": "CFM",
+    "companyName": "CTCP Đầu tư CFM",
+    "lastUpdated": "2026-05-11T14:57:40.716Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "CFM",
+            "San": "UPCOM",
+            "Nganh": "Giáo dục",
+            "NgayGDDauTien": "25/01/2021",
+            "GiaDongCuaNGDDT": 14,
+            "VolumeStartDate": 2000000,
+            "VDL": 20000000000,
+            "KLCPNY": 3000000,
+            "KLCPLH": 3000000,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "0.57",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "0.57",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "18.09",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "19.84",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "0.76",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "30.90",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "70",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "3,000,000",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "3,000,000",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Số liệu EPS tính tới Quý IV năm 2025",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "CEO_872839",
+                    "Name": "Trần Thùy Linh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_872839/tran-thuy-linh.chn'>Trần Thùy Linh</a>",
+                    "AssetVolume": "100",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "24/11/2025"
+                },
+                {
+                    "Code": "CEO_874416",
+                    "Name": "Nguyễn Thị Nhâm",
+                    "Url": "<a href='/du-lieu/ceo/CEO_874416/nguyen-thi-nham.chn'>Nguyễn Thị Nhâm</a>",
+                    "AssetVolume": "200",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "24/11/2025"
+                },
+                {
+                    "Code": "CORP_900012",
+                    "Name": "Công ty cổ phần Thành Vinh International Ventures",
+                    "Url": "Công ty cổ phần Thành Vinh International Ventures",
+                    "AssetVolume": "150.000",
+                    "AssetRate": "5,0",
+                    "UpdatedDate": "19/01/2026"
+                },
+                {
+                    "Code": "CORP_52335",
+                    "Name": "CTCP Alchemist Investment Holdings",
+                    "Url": "CTCP Alchemist Investment Holdings",
+                    "AssetVolume": "1.910.000",
+                    "AssetRate": "63,67",
+                    "UpdatedDate": "06/02/2026"
+                },
+                {
+                    "Code": "CORP_66602",
+                    "Name": "CTCP B247 Invest",
+                    "Url": "CTCP B247 Invest",
+                    "AssetVolume": "150.000",
+                    "AssetRate": "5,0",
+                    "UpdatedDate": "24/11/2025"
+                },
+                {
+                    "Code": "CEO_73040",
+                    "Name": "Nguyễn Quốc Trung",
+                    "Url": "<a href='/du-lieu/ceo/CEO_73040/nguyen-quoc-trung.chn'>Nguyễn Quốc Trung</a>",
+                    "AssetVolume": "3.000",
+                    "AssetRate": "0,1",
+                    "UpdatedDate": "24/11/2025"
+                }
+            ],
+            "NuocNgoai": 0.3,
+            "NhaNuoc": 0,
+            "Khac": 99.7
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 13,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 13,
+                    "Y": 1030.9,
+                    "Region": "",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 21,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 15,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 36,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 9,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 41,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 40,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 25,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 41,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 42,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 34,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 41,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 37,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 34,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 31,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 16,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 36,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 38,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 38,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 39,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 3,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 7,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 34,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 23,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 6,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 27,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 20,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 23,
+                    "Y": 2551,
+                    "Region": "",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 12,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 5,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 13,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 13,
+                    "Y": 701.2,
+                    "Region": "",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 21,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 15,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 36,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 9,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 41,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 40,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 25,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 41,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 42,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 34,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 41,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 37,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 34,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 31,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 16,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 36,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 38,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 38,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 39,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 3,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 7,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 34,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 23,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 6,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 27,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 20,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 23,
+                    "Y": 1727.4,
+                    "Region": "",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 12,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 5,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/CFM.pdf"
+    },
+    "deepNewsData": [
+        {
+            "title": "Lịch sự kiện và tin vắn chứng khoán ngày 17/11/2025 - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMilAFBVV95cUxNZWJ1aWVEeVpPUkRYOWdTd282VlhhdTl5cy1vUzlVNUUzeGppTE44SU00dzZRZDFyX2cxSk1NVEZrenJ6VnFyU3ZRdXBESXNhNzhzVlVjY2Z4OG0yVmJiVVp3MDltTTFsc0hrcFFGLWxidkVTeHJfZG5JRjdsTXY5aF9OZUtMUjNIMGZ4VHdTYmVoZ3ND?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMilAFBVV95cUxNZWJ1aWVEeVpPUkRYOWdTd282VlhhdTl5cy1vUzlVNUUzeGppTE44SU00dzZRZDFyX2cxSk1NVEZrenJ6VnFyU3ZRdXBESXNhNzhzVlVjY2Z4OG0yVmJiVVp3MDltTTFsc0hrcFFGLWxidkVTeHJfZG5JRjdsTXY5aF9OZUtMUjNIMGZ4VHdTYmVoZ3ND?oc=5",
+            "content": "Tuệ Giang | 17-11-2025 - 05:00 AM | Thị trường chứng khoán CFM - Công ty cổ phần Đầu tư CFM : Ngày 25/11/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận tạm ứng cổ tức năm 2025 bằng tiền mặt, tỷ lệ 2% (tương ứng 1 cổ phiếu nhận về 200 đồng). Doanh nghiệp dự kiến thanh toán cổ tức tiền mặt vào ngày 19/12/2025. TBD - Tổng Công ty Thiết bị điện Đông Anh – Công ty cổ phần : Ngày 24/11/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận cổ tức năm 2024 bằng tiền mặt, tỷ lệ 20% (tương ứng 1 cổ phiếu nhận về 2.000 đồng). Doanh nghiệp dự kiến thanh toán cổ tức tiền mặt vào ngày 24/12/2025. SAB - Tổng Công ty cổ phần Bia - Rượu - Nước giải khát Sài Gòn: Ngày 13/1/2026 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận tạm ứng cổ tức năm 2025 bằng tiền mặt, tỷ lệ 20% (tương ứng 1 cổ phiếu nhận về 2.000 đồng). Doanh nghiệp dự kiến thanh toán cổ tức tiền mặt vào ngày 12/2/2026. MSH - Công ty cổ phần May Sông Hồng: Ngày 2/12/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận tạm ứng cổ tức năm 2025 bằng tiền mặt, tỷ lệ 40% (tương ứng 1 cổ phiếu nhận về 4.000 đồng). Doanh nghiệp dự kiến thanh toán cổ tức tiền mặt vào ngày 25/12/2025. NTH - Công ty cổ phần Thủy điện Nước trong: Ngày 9/12/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận tạm ứng cổ tức đợt 3 năm 2025 bằng tiền mặt, tỷ lệ 10% (tương ứng 1 cổ phiếu nhận về 1.000 đồng). Doanh nghiệp dự kiến thanh toán cổ tức tiền mặt vào ngày 25/12/2025. BWS - Công ty cổ phần Cấp nước Bà Rịa - Vũng Tàu: Ngày 1/12/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận tạm ứng cổ tức đợt 2 năm 2025 bằng tiền mặt, tỷ lệ 10% (tương ứng 1 cổ phiếu nhận về 1.000 đồng). Doanh nghiệp dự kiến thanh toán cổ tức tiền mặt vào ngày 10/12/2025 Kết quả giao dịch cổ phiếu của cổ đông DRL - Công ty Cổ phần Thủy điện - Điện lực 3 : Thành viên Hội đồng quản trị Nguyễn Xuân Dũng đã bán 30.000 CP. Số lượng cổ phiếu nắm giữ sau khi thực hiện giao dịch là 171.590 cổ phiếu (tỷ lệ: 1,81%). Giao dịch diễn ra từ ngày 22/10/2025 đến ngày 14/11/2025. LHC - CTCP Đầu tư và Xây dựng Thủy lợi Lâm Đồng : Bà Nguyễn Thị Mai Lan đã bán 85.600 CP. Số lượng cổ phiếu nắm giữ sau khi thực hiện giao dịch là 1.209.200 CP (tỷ lệ 8,4%). Bà Lan là mẹ Phó Chủ tịch HĐQT Trần Việt Thắng. Giao dịch diễn ra từ ngày 9/10/2025 đến ngày 7/11/2025. PTI - Tổng Công Ty Cổ Phần Bảo Hiểm Bưu Điện : Bà Vũ Thị Thư đã bán 6.000.000 CP. Số lượng cổ phiếu nắm giữ sau khi thực hiện giao dịch là 5.925.000 CP (tỷ lệ 4,91%), không còn là cổ đông lớn. Giao dịch diễn ra trong phiên 07/11/2025. PTI - Tổng Công Ty Cổ Phần Bảo Hiểm Bưu Điện : Bà Hoàng Thị Minh Phương đã bán toàn bộ 11.925.000 CP, không còn nắm giữ cổ phiếu sau khi thực hiện giao dịch. Giao dịch diễn ra trong phiên 07/11/2025. LHC - CTCP Đầu tư và Xây dựng Thủy lợi Lâm Đồng: Phó Chủ tịch HĐQT Trần Việt Thắng đã mua 111.500 CP. Số lượng cổ phiếu nắm giữ sau khi thực hiện giao dịch là 1.399.100 CP (tỷ lệ 9,72%). Giao dịch diễn ra từ ngày 9/10/2025 đến ngày 7/11/20",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Chứng khoán hôm nay 7/1: 6 doanh nghiệp giao dịch cổ phiếu số lượng lớn - bnews.vn",
+            "link": "https://news.google.com/rss/articles/CBMioAFBVV95cUxQaDA1ak96V01GZmVKU0RTZjJpSkg2RFAxc0NEZkZMRzVQRF9NalhkUHo1YkRIaENZYjlFV2FqRlVBSUo5QjY5QkdsT3VRSHpOT0d3Q255VG9MNUx1a3ZCLS1iY1hyeHY0TmVFZWtnNFR5RVVCMFNDVkJkR21sZkxFemtEZExoWUc3OU16N0psd1Y1Ul9jdExfbUNzWFRubU1i?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMioAFBVV95cUxQaDA1ak96V01GZmVKU0RTZjJpSkg2RFAxc0NEZkZMRzVQRF9NalhkUHo1YkRIaENZYjlFV2FqRlVBSUo5QjY5QkdsT3VRSHpOT0d3Q255VG9MNUx1a3ZCLS1iY1hyeHY0TmVFZWtnNFR5RVVCMFNDVkJkR21sZkxFemtEZExoWUc3OU16N0psd1Y1Ul9jdExfbUNzWFRubU1i?oc=5",
+            "content": "Việc các doanh nghiệp này giao dịch cổ phiếu số lượng lớn có thể tạo ra những biến động phiên giao dịch. Danh sách các doanh nghiệp giao dịch cổ phiếu số lượng lớn hôm nay: 1. Công ty cổ phần Vận tải Đa phương thức Duyên Hải (mã chứng khoán TCO): Tổng giám đốc Bùi Lê Quốc Bảo đăng ký bán toàn bộ hơn 6,31 triệu cổ phiếu TCO, tỷ lệ 20,16%. Giao dịch được thực hiện từ ngày 7/1 đến 31/1 theo phương thức thoả thuận và khớp lệnh. Cùng thời gian và phương thức, Chủ tịch Hội đồng Quản trị Nguyễn Hoàng Nam đăng ký bán toàn bộ hơn 5,61 triệu cổ phiếu TCO, tỷ lệ 17,9161%; 2. Công ty cổ phần Đại lý Vận tải SAFI (mã chứng khoán SFI): Ông Nguyễn Hải Minh là con Tổng giám đốc kiêm Thành viên Hội đồng quản trị Nguyễn Hoàng Anh; là em Thành viên Hội đồng quản trị Nguyễn Hải Nguyên, đăng ký mua 10 nghìn cổ phiếu SFI, tăng sở hữu lên 10 nghìn cổ phiếu SFI, tỷ lệ 0,04%. Giao dịch được thực hiện từ ngày 7/1 đến 5/2 theo phương thức khớp lệnh. 3. Công ty cổ phần Damsan (mã chứng khoán ADS): Bà Lương Thị Dung là vợ Chủ tịch Hội đồng quản trị Vũ Huy Đông đăng ký mua 1 triệu cổ phiếu ADS, tăng sở hữu lên gần 1,422 triệu cổ phiếu ADS, tỷ lệ 0,55%. Giao dịch được thực hiện từ ngày 7/1 đến 5/2 theo phương thức khớp lệnh hoặc thoả thuận. 4. Công ty cổ phần Nam Việt (mã chứng khoán ANV): Chủ tịch Hội đồng quản trị kiêm Phó Tổng Giám đốc ANV Đỗ Lập Nghiệp đăng ký bán toàn bộ 900 nghìn cổ phiếu ANV, tỷ lệ 0,34%. Giao dịch được thực hiện từ ngày 7/1 đến 5/2 theo phương thức khớp lệnh hoặc thoả thuận. 5. Công ty cổ phần Đầu tư CFM (mã chứng khoán CFM): Công ty Cổ phần Alchemist Investment Holdings, tổ chức có liên quan đến Kế toán trưởng Nguyễn Hồng Minh, đồng thời là Kế toán trưởng CFM; Chủ tịch Hội đồng quản trị Nguyễn Quốc Trung, đồng thời là Chủ tịch Hội đồng quản trị CFM; Giám đốc Nguyễn Thị Nhâm, đồng thời là Giám đốc; Người đại diện theo pháp luật CFM; Ủy viên Hội đồng quản trị Trần Thùy Linh, đồng thời là Ủy viên Hội đồng quản trị CFM, đăng ký bán 260 nghìn cổ phiếu CFM. Trước khi thực hiện giao dịch, Công ty Cổ phần Alchemist Investment Holdings nắm 2,02 triệu cổ phiếu CFM, tỷ lệ 67,33%. Giao dịch được thực hiện từ ngày 7/1 đến 5/2 theo phương thức thoả thuận và khớp lệnh. 6. Công ty cổ phần Tập đoàn EDX (mã chứng khoán DCS): Chủ tịch Hội đồng Quản trị Nguyễn Đình Hùng đăng ký mua 2,2 triệu cổ phiếu DCS. Trước khi thực hiện giao dịch, ông Hùng nắm 465.600 cổ phiếu DCS, tỷ lệ 0,77%. Giao dịch được thực hiện từ ngày 7/1 đến 30/1 theo phương thức khớp lệnh.. Sắc xanh lan tỏa trên diện rộng, đưa VN-Index chính thức vượt mốc tâm lý quan trọng và thiết lập đỉnh lịch sử. Thị trường sáng nay “xanh vỏ đỏ lòng”, số mã giảm chiếm ưu thế. Nhờ lực đỡ từ cổ phiếu Vingroup và nhóm dầu khí, VN-Index vẫn giữ được sắc xanh. Chốt phiên 13/5, chỉ số Kospi của Hàn Quốc tăng 2,63%, lên mức cao kỷ lục 7.844,01 điểm, trong khi chỉ số Nikkei 225 của Nhật Bản tăng 0,8%, lên 63.272,11 điểm. VN-Index mất mốc 1.900 điểm phiên 13/5 do áp lực bán ròng hơn 1.500 tỷ từ khối ngoại. Nhóm bất động sản giảm",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Các doanh nghiệp chốt trả cổ tức, tuần từ ngày 24 đến 28/11 - Báo Nhân Dân điện tử",
+            "link": "https://news.google.com/rss/articles/CBMilwFBVV95cUxPeWc0MGo3OGFINThyRjdpdWdMOUZVUngtRVNWS08xOVgwbU1URHpqUTFsdlNEem1hNTRIdHBZQVBveW42TnpiOXItbUJVZVF0Z2VUaGwzekhQZ2Q0R1Y2MFgyVDlfRHRiaFA0ZDBFQ1Q5clNhVVIxLXU5WFRwbzBsSzNfWHBMNFJfTFRFb2Fqa2VTUzNNMC1r?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMilwFBVV95cUxPeWc0MGo3OGFINThyRjdpdWdMOUZVUngtRVNWS08xOVgwbU1URHpqUTFsdlNEem1hNTRIdHBZQVBveW42TnpiOXItbUJVZVF0Z2VUaGwzekhQZ2Q0R1Y2MFgyVDlfRHRiaFA0ZDBFQ1Q5clNhVVIxLXU5WFRwbzBsSzNfWHBMNFJfTFRFb2Fqa2VTUzNNMC1r?oc=5",
+            "content": "Các ngày trong tuần từ 24 đến 28/11, có 14 doanh nghiệp chốt trả cổ tức, thưởng và phát hành thêm cổ phiếu cho cổ đông, trên 3 sàn HOSE, HNX và UPCoM. * Công ty cổ phần Thực phẩm G.C (UPCoM: GCF) thưởng cổ phiếu, tỷ lệ 10:1 (Người sở hữu 10 cổ phiếu sẽ được nhận 1 cổ phiếu mới), ngày giao dịch không hưởng quyền là 24/11/2025 và ngày đăng ký cuối cùng là 25/11/2025. * Ngày 19/12/2025, Công ty cổ phần Đầu tư CFM (UPCoM: CFM) trả cổ tức năm 2025 bằng tiền, 200 đồng/cổ phiếu (CP), ngày giao dịch không hưởng quyền là 24/11/2025 và ngày đăng ký cuối cùng là 25/11/2025. * Ngày 24/12/2025, Công ty cổ phần Công trình công cộng Vĩnh Long (UPCoM: VLP) trả cổ tức năm 2024 bằng tiền, 200 đồng/CP, ngày giao dịch không hưởng quyền là 24/11/2025 và ngày đăng ký cuối cùng là 25/11/2025. * Ngày 18/12/2025, Công ty cổ phần Cơ khí và Khoáng sản Hà Giang (HNX: HGM) trả cổ tức đợt 2/2025 bằng tiền, 8.500 đồng/CP, ngày giao dịch không hưởng quyền là 24/11/2025 và ngày đăng ký cuối cùng là 25/11/2025. * Ngày 10/12/2025, Công ty cổ phần Xây dựng và Giao thông Bình Dương (HOSE: BCE) trả cổ tức năm 2024 bằng tiền, 300 đồng/CP, ngày giao dịch không hưởng quyền là 24/11/2025 và ngày đăng ký cuối cùng là 25/11/2025. * Ngày 15/12/2025, Công ty cổ phần Nhiệt điện Bà Rịa (HOSE: BTP) trả cổ tức năm 2024 bằng tiền, 330 đồng/CP, ngày giao dịch không hưởng quyền là 24/11/2025 và ngày đăng ký cuối cùng là 25/11/2025. * Ngày 16/12/2025, Công ty cổ phần Nhiên liệu Sài Gòn (HOSE: SFC) trả cổ tức đợt 1/2025 bằng tiền, 1.700 đồng/CP, ngày giao dịch không hưởng quyền là 25/11/2025 và ngày đăng ký cuối cùng là 26/11/2025. * Ngày 5/12/2025, Công ty cổ phần Cảng xanh VIP (UPCoM: VGR) trả cổ tức năm 2025 bằng tiền, 2.000 đồng/CP, ngày giao dịch không hưởng quyền là 26/11/2025 và ngày đăng ký cuối cùng là 27/11/2025. * Công ty cổ phần Dược phẩm Agimexpharm (UPCoM: AGP) thực hiện quyền mua cổ phiếu phát hành thêm, tỷ lệ 20:3 (1 cổ phiếu được hưởng 1 quyền mua cổ phiếu, 20 quyền mua sẽ được mua 3 cổ phiếu mới), giá 25.000 đồng/CP, ngày giao dịch không hưởng quyền là 26/11/2025 và ngày đăng ký cuối cùng là 27/11/2025. * Ngày 15/12/2025, Công ty cổ phần Vật tư Bưu điện (UPCoM: PMJ) trả cổ tức năm 2024 bằng tiền, 1.000 đồng/CP, ngày giao dịch không hưởng quyền là 27/11/2025 và ngày đăng ký cuối cùng là 28/11/2025. * Ngày 10/12/2025, Tổng Công ty cổ phần Phong Phú (UPCoM: PPH) trả cổ tức năm 2025 bằng tiền, 1.500 đồng/CP, ngày giao dịch không hưởng quyền là 27/11/2025 và ngày đăng ký cuối cùng là 28/11/2025. * Tổng Công ty cổ phần Dịch vụ kỹ thuật dầu khí Việt Nam (HNX: PVS) trả cổ tức năm 2024 bằng cổ phiếu, tỷ lệ 7:100 (người sở hữu 100 cổ phiếu được nhận 7 cổ phiếu mới), ngày giao dịch không hưởng quyền là 27/11/2025 và ngày đăng ký cuối cùng là 28/11/2025. * Công ty cổ phần Tập đoàn Macstar (HNX: MAC) thực hiện quyền mua cổ phiếu phát hành thêm, tỷ lệ 1:1 (1 cổ phiếu được hưởng 1 quyền mua, 1 quyền mua được mua 1 cổ phiếu mới), giá 10.000 đồng/CP, ngày giao dịch không hưởng quyền là 27/11/2025 và",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "CFM: CTCP Đầu tư CFM (UPCOM) - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE5TODVCdk1sTUF1YjVnZ1NMM2hQN0xsVVVxZW5pNkVZek1sSGJEWUpWT1ZWYVBuejdaODhzenJLQVhTcnhHSzFHUG1fbFcyUjJlWEp1X2kwRWNaY0NTUkRNNg?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE5TODVCdk1sTUF1YjVnZ1NMM2hQN0xsVVVxZW5pNkVZek1sSGJEWUpWT1ZWYVBuejdaODhzenJLQVhTcnhHSzFHUG1fbFcyUjJlWEp1X2kwRWNaY0NTUkRNNg?oc=5",
+            "content": "S&P 500 VIX Short-Term Index MC TSEC CAPITALIZATION WEIGHTED ST OMX Baltic Industrial Goods and Công ty Cổ phần Đầu tư CFM (“Công ty”) thành lập theo Giấy chứng nhận Đăng ký Kinh doanh số 0107952805 do Sở Kế hoạch và Đầu tư thành phố Hà Nội cấp ngày 07 tháng 08 năm 2017 với 7 cồ đông sáng lập, vốn điều lệ đăng ký là 20.000.000.000 đồng. Lĩnh vực hoạt động kinh doanh của Công ty là Dịch vụ hỗ trợ giáo dục. Giá trị sổ sách/ cp (nghìn đồng) (*) Số liệu EPS tính tới Quý IV năm 2025 | Xem cách tính Ngày hiển thị là ngày GD không hưởng quyền Ngày hiển thị là ngày phát hành Ngày hiển thị là ngày GD không hưởng quyền Ngày hiển thị là ngày phát hành Địa chỉ: Tầng 21 Tòa nhà Center Building. Số 1 Nguyễn Huy Tưởng, Thanh Xuân, Hà Nội. Điện thoại: 024 73095555 Máy lẻ 322 Email: info@cafef.vn | Hotline: 0966 909 747 Chịu trách nhiệm nội dung: Ông Nguyễn Thế Tân Hotline: 0794463333 - 0961984388 © Copyright 2007 - 2026 - Công ty Cổ phần VCCorp. Giấy phép thiết lập trang thông tin điện tử tổng hợp trên mạng số 2216/GP-TTĐT do Sở Thông tin và Truyền thông Hà Nội cấp ngày 10 tháng 4 năm 2019. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Chứng khoán hôm nay 10/12: 8 doanh nghiệp giao dịch cổ phiếu số lượng lớn - bnews.vn",
+            "link": "https://news.google.com/rss/articles/CBMiowFBVV95cUxOWXowVDhjRmdMM05VR3lENlVVU01fWVl4QTNCUFktX2hoaGgxUjVzYW1rMmlhQVBmSm8yZ2NhdVRQMTVPVVNhQTZ3WGpwQV92VjJvY0FITUF2djdwRGVDT3kwSGV2UDh2dXhvNDU1Tm53QnpveVVCbDFaN2JXWk0xSm1kdFVEVURVZWZIS0JaM0JpTjhYTERJZlYwSUliRFlHR0ww?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiowFBVV95cUxOWXowVDhjRmdMM05VR3lENlVVU01fWVl4QTNCUFktX2hoaGgxUjVzYW1rMmlhQVBmSm8yZ2NhdVRQMTVPVVNhQTZ3WGpwQV92VjJvY0FITUF2djdwRGVDT3kwSGV2UDh2dXhvNDU1Tm53QnpveVVCbDFaN2JXWk0xSm1kdFVEVURVZWZIS0JaM0JpTjhYTERJZlYwSUliRFlHR0ww?oc=5",
+            "content": "Việc các doanh nghiệp này giao dịch cổ phiếu số lượng lớn có thể tạo ra những biến động phiên giao dịch. Danh sách các doanh nghiệp giao dịch cổ phiếu số lượng lớn hôm nay: 1. Tổng CTCP Dệt May Nam Định (mã chứng khoán NDT): Ủy viên HĐQT Nguyễn Văn Miêng đăng ký bán 305.100 cổ phiếu NDT. Trước khi thực hiện giao dịch, ông Miêng nắm 350.960 cổ phiếu NDT, tỷ lệ 2,24%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 31/12 theo phương thức khớp lệnh và thoả thuận. 2. CTCP Sữa Việt Nam – Vinamilk (mã chứng khoán VNM): Công ty TNHH MTV Đầu tư SCIC, tổ chức có liên quan đến Chủ tịch Hội đồng thành viên Vũ Trí Thức, đồng thời là Thành viên HĐQT VNM; người đại diện phần vốn sở hữu của Tổng công ty Đầu tư và Kinh doanh vốn Nhà nước – Chủ sở hữu của Công ty TNHH MTV Đầu tư SCIC Đặng Thị Thu Hà, đồng thời là Thành viên HĐQT VNM; người đại diện phần vốn sở hữu của Tổng công ty Đầu tư và Kinh doanh vốn Nhà nước – Chủ sở hữu của Công ty TNHH MTV Đầu tư SCIC Lê Thành Liêm, đồng thời là Thành viên HĐQT điều hành VNM, Giám đốc Điều hành tài chính của VNM, đăng ký bán toàn bộ 1,45 triệu cổ phiếu VNM, tỷ lệ 0,069%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 8/1/2026 theo phương thức khớp lệnh và hoặc thoả thuận. 3. CTCP Đầu tư CFM (mã chứng khoán CFM): CTCP Alchemist Investment Holdings là Công ty Mẹ của CFM đăng ký mua 1 triệu cổ phiếu CFM, tăng sở hữu lên hơn 2 triệu cổ phiếu CFM, tỷ lệ 67,33%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 15/12/2025 theo phương thức mua trực tiếp tại tổ chức phát hành thông qua đợt chảo bán cổ phiếu riêng lẻ. 4. CTCP May Thanh Trì (mã chứng khoán TTG): Ủy viên HĐQT Nguyễn Việt Dũng, đăng ký mua 500 nghìn cổ phiếu TTG. Trước khi thực hiện giao dịch, ông Dũng nắm 200 nghìn cổ phiếu TTG, tỷ lệ 5,88%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 8/1/2025 theo phương thức khớp lệnh và thoả thuận. -Công ty cổ phần Sông Đà 19, tổ chức có liên quan đến Trưởng Ban kiểm soát Lê Thị Hồng Nhung, đồng thời là Thành viên Ban kiểm soát TTG; Tổng Giám đốc Lý Nam Ninh, đồng thời là Tổng Giám đốc; Ủy viên HĐQT TTG; Chủ tịch HĐQT Nguyễn Việt Dũng, đồng thời là Ủy viên HĐQT, đăng ký bán toàn bộ 400 nghìn cổ phiếu TTG, tỷ lệ 11,76%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 31/12/2025 theo phương thức khớp lệnh và thoả thuận. 5. Tổng Công ty Tư vấn Xây dựng Thủy lợi Việt Nam -CTCP (mã chứng khoán HEJ): Phó Tổng Giám đốc Phạm Văn Tứ đăng ký bán toàn bộ 175 nghìn cổ phiếu HEJ, tỷ lệ 3,98%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 31/12/2025 theo phương thức khớp lệnh và thoả thuận. 6. CTCP Ánh Dương Việt Nam (mã chứng khoán VNS): Tổng Giám đốc Đặng Thành Duy đăng ký mua 1,5 triệu cổ phiếu VNS, tăng sở hữu lên gần 30,38 triệu cổ phiếu VNS, tỷ lệ 44,77%. Giao dịch được thực hiện từ ngày 10/12/2025 đến 8/1/2026 theo phương thức khớp lệnh hoặc thoả thuận. 7. Tổng Công ty Cổ phần Đầu tư Phát triển Xây dựng (mã chứng khoán DIG): Phó Tổng Giám đốc Trần Văn Đạt đăng ký mua 150 nghìn cổ phiếu DIG, tăng sở hữu lên 150.244 cổ phiếu, tỷ lệ 0",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Thêm 5 doanh nghiệp sắp chốt quyền trả cổ tức bằng tiền, cao nhất 85% - thuonghieucongluan.com.vn",
+            "link": "https://news.google.com/rss/articles/CBMitAFBVV95cUxORl9fbzBJSWRfRmFKSmE1MTFYQWxGcjdZdk1RNmZIYXhxUzhyMHRoV01MODN5V1U2S1MwSkQtVnJNZXN0a3NwWGNFdFB6TTlSWGtaT0hiRTVwYXMtaUxkMHFXUFllMEhzR2lScG1RTmVKdzlqZUNwX0tta1hDY1lGbWVSdXFXcWJSdElBY2dSdHU1RWlJdWNFTHEwT0NCM0VULTFwYTJZd1BHWXJLY2g4SUx5SmE?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMitAFBVV95cUxORl9fbzBJSWRfRmFKSmE1MTFYQWxGcjdZdk1RNmZIYXhxUzhyMHRoV01MODN5V1U2S1MwSkQtVnJNZXN0a3NwWGNFdFB6TTlSWGtaT0hiRTVwYXMtaUxkMHFXUFllMEhzR2lScG1RTmVKdzlqZUNwX0tta1hDY1lGbWVSdXFXcWJSdElBY2dSdHU1RWlJdWNFTHEwT0NCM0VULTFwYTJZd1BHWXJLY2g4SUx5SmE?oc=5",
+            "content": "12:40 19/11/2025 Thương hiệu Tài chính - Chứng khoán Ngày đăng ký cuối cùng: 24/11/2025 Tỷ lệ cổ tức năm 2024: 10% (1.000 đồng/cổ phiếu) Ngày đăng ký cuối cùng: 25/11/2025 Tỷ lệ cổ tức tạm ứng năm 2025: 2% (200 đồng/cổ phiếu) CTCP Cơ khí và Khoáng sản Hà Giang (Mã: HGM) Ngày đăng ký cuối cùng: 25/11/2025 Tỷ lệ cổ tức đợt 2 năm 2025: 85% (8.500 đồng/cổ phiếu) CTCP Khoáng sản và Vật liệu Xây dựng Lâm Đồng (Mã: LBM) Ngày đăng ký cuối cùng: 4/12/2025 Tỷ lệ cổ tức đợt 1 năm 2025: 25% (2.500 đồng/cổ phiếu) Ngày đăng ký cuối cùng: 15/12/2025 Tỷ lệ cổ tức đợt 1 năm 2025: 5% (500 đồng/cổ phiếu) VN-Index giữ quán tính tăng nhưng dòng tiền vẫn tỏ ra thận trọng, tạo nên nhịp đi lên trong nghi ngờ. Dù nhiều công ty chứng khoán duy trì đánh giá tích cực, thị trường đang tiến gần vùng cản 1.665 - 1.700 điểm và có thể xuất hiện rung lắc kiểm định trong các phiên tới. Công ty chứng khoán phân tích và đưa ra nhận định mua, bán đối với các cổ phiếu MSN, VRE, FRT. Thêm 6 doanh nghiệp niêm yết thông báo lịch chốt quyền trả cổ tức bằng tiền mặt, trong đó có 3 doanh nghiệp chi trả tỷ lệ hấp dẫn. 17:23 13/05 Thương hiệu Tài chính - Chứng khoán Nhóm cổ phiếu dầu khí tiếp tục khởi sắc, nhưng tâm điểm chính của phiên giao dịch chiều 13/5 chính là nhóm Vingroup khi thị trường rung lắc mạnh theo diễn biến giao dịch của nhóm này. 17:17 13/05 Thương hiệu Tài chính - Chứng khoán Kết quả kinh doanh 4 tháng đầu năm 2026 của Tập đoàn FPT (FPT - sàn HOSE) cho thấy, doanh nghiệp đã trở lại đà tăng trưởng hai chữ số ở cả doanh thu và lợi nhuận. 16:21 13/05 Thương hiệu Tài chính - Chứng khoán Fecon (mã chứng khoán: FCN) dự kiến phát hành riêng lẻ 1.250 trái phiếu với tổng giá trị tối đa 125 tỷ đồng, kỳ hạn 18 tháng. Song song với kế hoạch huy động vốn, doanh nghiệp cũng thông báo ngày 25/5 là ngày đăng ký cuối cùng để chốt danh sách cổ đông tham dự Đại hội đồng cổ đông (ĐHĐCĐ) thường niên năm 2026. 13:42 13/05 Thương hiệu Tài chính - Chứng khoán CTCP Nhựa Bình Minh (BMP - sàn HOSE) dự kiến chốt danh sách cổ đông vào ngày 20/5 để thanh toán cổ tức đợt 2/2025 bằng tiền mặt, tỷ lệ 83,6%, tương đương 8.360 đồng/cổ phiếu. 11:26 13/05 Thương hiệu Tài chính - Chứng khoán Sau khi lấy lại mốc 1.900 điểm ở phiên trước, VN-Index sáng 13/5 tiếp tục rung lắc trong trạng thái thanh khoản thận trọng. Trong bối cảnh nhóm bluechip phân hóa và cổ phiếu họ Vin suy yếu, EVF bất ngờ trở thành tâm điểm dòng tiền với thanh khoản dẫn đầu thị trường. 10:03 13/05 Thương hiệu Tài chính - Chứng khoán Sở Giao dịch Chứng khoán TP.HCM (HOSE) nhắc nhở CTCP Tập đoàn PC1 (mã PC1 - sàn HOSE) chậm công bố thông tin Báo cáo tài chính quý I/2026 lần 2. 09:58 13/05 Thương hiệu Tài chính - Chứng khoán CTCP Tập đoàn Dabaco Việt Nam (mã DBC - sàn HOSE) sẽ nâng vốn điều lệ từ 3.848,7 tỷ đồng, lên 4.310,5 tỷ đồng nếu thực hiện phát hành cổ phiếu trả cổ tức năm 2025. 06:16 13/05 Thương hiệu Tài chính - Chứng khoán Nhiều công ty chứng khoán tiếp tục đưa ra đánh giá tích cực đối với một số cổ phiếu thuộc nhóm ngân hàng và bất động",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Vietjet và CFM International ký kết thỏa thuận cho hơn 400 động cơ LEAP-1B - Nhadautu.vn",
+            "link": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxNZm1QUXdib1d1Wk4yVW5SMTE4QUVtbFcyNE1lWDJoelo3X242NlVrSDFjUS1JZXVOXzVzOE05d1FTSDcwaExXcHV5V1FuTDBaYlJDT0RTc2dUN25iOE1wU1dUM084RXZnZk9nd2pLbFV5RHFMQUZaOXNKOFlNZE5oeTBJSnpjVTBoQzctazRZTjZDX2Z4bmZxRlVvSnRtTTZ0UG9Wdkg5aDQ4dw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxNZm1QUXdib1d1Wk4yVW5SMTE4QUVtbFcyNE1lWDJoelo3X242NlVrSDFjUS1JZXVOXzVzOE05d1FTSDcwaExXcHV5V1FuTDBaYlJDT0RTc2dUN25iOE1wU1dUM084RXZnZk9nd2pLbFV5RHFMQUZaOXNKOFlNZE5oeTBJSnpjVTBoQzctazRZTjZDX2Z4bmZxRlVvSnRtTTZ0UG9Wdkg5aDQ4dw?oc=5",
+            "content": "Các động cơ này cung cấp cho hai đơn đặt hàng máy bay đã công bố trước đó vào năm 2016 và 2018 và các máy bay dự kiến sẽ bắt đầu được giao từ năm 2025. Vietjet là khách hàng lâu năm của CFM International, hiện đang khai thác 56 máy bay Airbus A321ceo và 17 máy bay A320ceo được trang bị động cơ CFM56-5B. Việc hợp tác sẽ đưa mối quan hệ giữa Vietjet và CFM lên một tầm cao mới, với chuyên môn hàng đầu trong ngành của Safran và CFM để cung cấp các sản phẩm công nghệ đột phá. Việc khai thác động cơ LEAP tiên tiến trong thời gian tới sẽ đáp ứng chiến lược tăng trưởng bền vững của Vietjet, cho phép hãng hàng không tối ưu hóa chi phí vận hành trên các tàu bay tiết kiệm nhiên liệu, đồng thời mang đến cho khách hàng những trải nghiệm bay tốt nhất. \"Trong hơn một thập kỷ, chúng tôi đã hợp tác chặt chẽ với Vietjet Air để giới thiệu các chương trình hỗ trợ về mặt quản lý kỹ thuật, đào tạo và cải thiện hiệu quả nhiên liệu cho đội bay CFM56 của hãng và mong muốn mở rộng các hoạt động này sang động cơ LEAP-1B mới\", ông Gaël Méheust, Chủ tịch và Tổng Giám đốc của CFM International cho biết. \"Chúng tôi vô cùng vinh dự sự tin tưởng lớn lao mà Vietjet đã thể hiện đối với CFM và chúng tôi hoan nghênh cơ hội này để củng cố hơn nữa mối quan hệ đặc biệt thiết lập trong năm nay đem đến kết quả tốt đẹp trong tương lai\". Dòng động cơ CFM LEAP cung cấp mức tiêu thụ nhiên liệu và lượng khí thải CO2 thấp hơn từ 15% đến 20%, cũng như cải thiện đáng kể tiếng ồn, so với các động cơ thế hệ trước. Với hơn 3.500 máy bay được trang bị LEAP đang hoạt động, động cơ này đã giúp khách hàng của CFM tránh xả hơn 35 triệu tấn khí thải CO2, là sản phẩm mới thành công nhất được giới thiệu trong lịch sử 50 năm của CFM, với tốc độ tăng giờ bay của động cơ nhanh nhất từ trước đến nay trong ngành - vượt qua 60 triệu giờ chỉ trong tám năm. Tiến sỹ Nguyễn Thị Phương Thảo, Chủ tịch hãng hàng không Vietjet tự hào chia sẻ: \"Chúng tôi trân trọng và vinh hạnh với mối quan hệ chiến lược giữa hai bên. Chính những nhà sản xuất động cơ tiên tiến như Safran, CFM đã cùng Vietjet mang lại cơ hội bay chi phí tiết kiệm cho hàng triệu người, đồng góp cho ngành hàng không phát triển tại khu vực châu Á-Thái Bình Dương năng động nhất thế giới, trong đó có Việt Nam. Thỏa thuận hôm nay, vận hành dòng động cơ tiết kiệm nhiên liệu nằm trong cam kết của Vietjet trong việc hướng đến phát triển bền vững và thân thiện với môi trường. Hành khách sẽ hưởng lợi nhiều hơn nữa trên những chuyến bay xanh của hãng\". Kể từ khi thiết lập quan hệ song phương đến nay, Việt Nam và Pháp luôn tạo dấu ấn trong quan hệ thương mại với những con số ấn tượng. Trong đó, quan hệ hợp tác chiến lược lâu dài giữa Vietjet và Safran/ CFM đã đóng góp vào kim ngạch thương mại, thúc đẩy du lịch, đầu tư chung giữa hai nước, đồng thời tạo thêm nhiều việc làm cho người dân Pháp. Các hợp tác giữa Vietjet và Safran không chỉ gồm cung cấp động cơ thông qua liên doanh CFM International, mà còn mở rộng nhiều lĩnh vực khác như ghế máy bay, nội thất buồng máy ba",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Lịch sự kiện và tin vắn chứng khoán ngày 20/10/2025 - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMilgFBVV95cUxOaWwzYVJ5T0R1YUROZUNOSFJOckd2eXJNWjhaWkJhUlkyOWczWmNEX01talEwdlVrNTdjYzBNTUxRRGNtZ00teUpPS0hPM0pmM1pvazVKbndsdVg1eXU2aG8zWng3d2dDOEoxOXB2eWFoUk9KYnlyMFpyTzIxYzktWlByQmdRZ1NMWXJ2aGlSNEpGVGQ4ZUE?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMilgFBVV95cUxOaWwzYVJ5T0R1YUROZUNOSFJOckd2eXJNWjhaWkJhUlkyOWczWmNEX01talEwdlVrNTdjYzBNTUxRRGNtZ00teUpPS0hPM0pmM1pvazVKbndsdVg1eXU2aG8zWng3d2dDOEoxOXB2eWFoUk9KYnlyMFpyTzIxYzktWlByQmdRZ1NMWXJ2aGlSNEpGVGQ4ZUE?oc=5",
+            "content": "Tuệ Giang | 20-10-2025 - 05:00 AM | Thị trường chứng khoán LCG - Công ty cổ phần LIZEN: Ngày 29/10/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận cổ tức năm 2024 bằng cổ phiếu, tỷ lệ 100:7 (Người sở hữu 100 cổ phiếu được nhận 07 cổ phiếu mới). NJC - Công ty cổ phần May Nam Định: Ngày 28/10/2025 là ngày đăng ký cuối cùng để chốt danh sách cổ đông nhận cổ tức năm 2024 bằng cổ phiếu, tỷ lệ 10:1 (cổ đông sở hữu 10 cổ phiếu được nhận 01 cổ phiếu mới). DP1 - CTCP Dược phẩm Trung Ương CPC1: Công bố đơn từ nhiệm chức vụ Thành viên Hội đồng quản trị của của bà Bùi Thị Thanh Hải. Kết quả giao dịch cổ phiếu của cổ đông CFM - CTCP Đầu tư CFM: Ủy viên HĐQT Trần Thùy Linh đã bán 9.900 CP. Số lượng cổ phiếu nắm giữ sau khi thực hiện giao dịch là 100 CP (tỷ lệ 0%). Giao dịch diễn ra trong phiên 29/9/2025. CFM - CTCP Đầu tư CFM: Chủ tịch HĐQT Nguyễn Quốc Trung đã bán 2.900 CP. Số lượng cổ phiếu nắm giữ sau khi thực hiện giao dịch là 100 CP (tỷ lệ 0%). Giao dịch diễn ra trong phiên 30/9/2025. HD6 - CTCP Đầu tư và Phát triển Nhà số 6 Hà Nội: Ủy viên HĐQT, Phó Tổng Giám đốc Đinh Ngọc Linh đã bán 47.421 CP, không còn nắm giữ cổ phiếu sau khi thực hiện giao dịch. Giao dịch diễn ra trong phiên 13/10/2025. DNP - Công ty cổ phần DNP Holding: Công ty TNHH Tasco Investment đăng ký mua 91.633.650 cổ phiếu. Giao dịch dự kiến diễn ra từ ngày 21/10/2025 đến ngày 20/11/2025. NSH - CTCP Tập đoàn Nhôm Sông Hồng Shalumi: Phó Chủ tịch HĐQT Nguyễn Minh Kế đăng ký bán 300.000 CP. Giao dịch dự kiến diễn ra từ ngày 21/10/2025 đến ngày 14/11/2025. HNI - CTCP May Hữu Nghị: Giám đốc Hà Hải Ninh đăng ký mua 300.000 CP. Giao dịch dự kiến diễn ra từ ngày 21/10/2025 đến ngày 19/11/2025. BDG - Công ty Cổ phần May mặc Bình Dương: Công ty TNHH Một Thành Viên Quốc tế Protrade đăng ký mua 150.000 CP. Giao dịch dự kiến diễn ra từ ngày 21/10/2025 đến ngày 19/11/2025. AFX - CTCP Xuất nhập khẩu Nông sản Thực phẩm An Giang: Kế toán trưởng, Giám đốc tài chính Nguyễn Thị Hường đăng ký mua 1.000.000 CP. Giao dịch dự kiến diễn ra từ ngày 20/10/2025 đến ngày 10/11/2025. Địa chỉ: Tầng 21 Tòa nhà Center Building. Số 01, phố Nguyễn Huy Tưởng, phường Thanh Xuân, thành phố Hà Nội Điện thoại: 024 7309 5555 Máy lẻ 292. Fax: 024-39744082 Email: info@cafef.vn | Hotline: 0926 864 344 Chịu trách nhiệm nội dung: Ông Nguyễn Thế Tân © Copyright 2007 - 2026 - Công ty Cổ phần VCCorp. Giấy phép thiết lập trang thông tin điện tử tổng hợp trên mạng số 2216/GP-TTĐT do Sở Thông tin và Truyền thông Hà Nội cấp ngày 10 tháng 4 năm 2019. ",
+            "date": "13/5/2026"
+        }
+    ]
+}

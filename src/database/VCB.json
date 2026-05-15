@@ -1,0 +1,1155 @@
+{
+    "symbol": "VCB",
+    "companyName": "Ngân hàng Thương mại cổ phần Ngoại thương Việt Nam",
+    "lastUpdated": "2026-05-13T19:28:29.925Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "VCB",
+            "San": "HOSE",
+            "Nganh": "Ngân hàng thương mại",
+            "NgayGDDauTien": "30/06/2009",
+            "GiaDongCuaNGDDT": 60,
+            "VolumeStartDate": 112285426,
+            "VDL": 83556914350000,
+            "KLCPNY": 8355675094,
+            "KLCPLH": 8355675094,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "4.30",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "4.30",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "13.97",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "28.00",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "2.15",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "502,176.07",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "7,371,610",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "8,355,675,094",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "8,355,675,094",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Số liệu EPS tính tới Quý I năm 2026",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "CORP_80096",
+                    "Name": "GIC Private Limited",
+                    "Url": "GIC Private Limited",
+                    "AssetVolume": "180.160.290",
+                    "AssetRate": "2,16",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CORP_01176",
+                    "Name": "Ngân hàng Nhà nước Việt Nam (SBV)",
+                    "Url": "Ngân hàng Nhà nước Việt Nam (SBV)",
+                    "AssetVolume": "5.292.412.023",
+                    "AssetRate": "63,34",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_51685",
+                    "Name": "Đinh Thị Thái",
+                    "Url": "<a href='/du-lieu/ceo/CEO_51685/dinh-thi-thai.chn'>Đinh Thị Thái</a>",
+                    "AssetVolume": "186",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00903",
+                    "Name": "Nguyễn Thị Tâm",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00903/nguyen-thi-tam.chn'>Nguyễn Thị Tâm</a>",
+                    "AssetVolume": "14.455",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00670",
+                    "Name": "Trương Lệ Hiền",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00670/truong-le-hien.chn'>Trương Lệ Hiền</a>",
+                    "AssetVolume": "9.635",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_85639",
+                    "Name": "Đặng Hoài Đức",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85639/dang-hoai-duc.chn'>Đặng Hoài Đức</a>",
+                    "AssetVolume": "14",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_82549",
+                    "Name": "Lê Hoàng Tùng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_82549/le-hoang-tung.chn'>Lê Hoàng Tùng</a>",
+                    "AssetVolume": "9.538",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00105",
+                    "Name": "Đỗ Thị Mai Hương",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00105/do-thi-mai-huong.chn'>Đỗ Thị Mai Hương</a>",
+                    "AssetVolume": "10.116",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00750",
+                    "Name": "Nguyễn Hòa Bình",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00750/nguyen-hoa-binh.chn'>Nguyễn Hòa Bình</a>",
+                    "AssetVolume": "16.860",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CORP_30068",
+                    "Name": "Mizuho Bank, Ltd",
+                    "Url": "Mizuho Bank, Ltd",
+                    "AssetVolume": "1.061.275.647",
+                    "AssetRate": "12,7",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CBBank",
+                    "Name": "Ngân hàng Thương mại TNHH MTV Ngoại thương Công nghệ số",
+                    "Url": "<a href='/du-lieu/otc/CBBank-ngan-hang-thuong-mai-tnhh-mtv-ngoai-thuong-cong-nghe-so.chn' title='Ngân hàng Thương mại TNHH MTV Ngoại thương Công nghệ số'>Ngân hàng Thương mại TNHH MTV Ngoại thương Công nghệ số</a>",
+                    "AssetVolume": "58.757",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_50530",
+                    "Name": "Nghiêm Xuân Thành",
+                    "Url": "<a href='/du-lieu/ceo/CEO_50530/nghiem-xuan-thanh.chn'>Nghiêm Xuân Thành</a>",
+                    "AssetVolume": "112.595",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_30014",
+                    "Name": "Phùng Nguyễn Hải Yến",
+                    "Url": "<a href='/du-lieu/ceo/CEO_30014/phung-nguyen-hai-yen.chn'>Phùng Nguyễn Hải Yến</a>",
+                    "AssetVolume": "52.339",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/02/2026"
+                },
+                {
+                    "Code": "CEO_80526",
+                    "Name": "Nguyễn Mạnh Hùng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80526/nguyen-manh-hung.chn'>Nguyễn Mạnh Hùng</a>",
+                    "AssetVolume": "4.329",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_06845",
+                    "Name": "Nguyễn Phước Thanh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_06845/nguyen-phuoc-thanh.chn'>Nguyễn Phước Thanh</a>",
+                    "AssetVolume": "12.042",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00249",
+                    "Name": "Lê Thị Hoa",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00249/le-thi-hoa.chn'>Lê Thị Hoa</a>",
+                    "AssetVolume": "12.042",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_61043",
+                    "Name": "Nguyễn Thị Kim Oanh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_61043/nguyen-thi-kim-oanh.chn'>Nguyễn Thị Kim Oanh</a>",
+                    "AssetVolume": "7.475",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_61044",
+                    "Name": "Lại Hữu Phước",
+                    "Url": "<a href='/du-lieu/ceo/CEO_61044/lai-huu-phuoc.chn'>Lại Hữu Phước</a>",
+                    "AssetVolume": "9.635",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00979",
+                    "Name": "Nguyễn Văn Tuân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00979/nguyen-van-tuan.chn'>Nguyễn Văn Tuân</a>",
+                    "AssetVolume": "6.527",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_85638",
+                    "Name": "Nguyễn Thanh Tùng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_85638/nguyen-thanh-tung.chn'>Nguyễn Thanh Tùng</a>",
+                    "AssetVolume": "18.904",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_82882",
+                    "Name": "Hồng Quang",
+                    "Url": "<a href='/du-lieu/ceo/CEO_82882/hong-quang.chn'>Hồng Quang</a>",
+                    "AssetVolume": "2",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_02715",
+                    "Name": "Đào Hảo",
+                    "Url": "<a href='/du-lieu/ceo/CEO_02715/dao-hao.chn'>Đào Hảo</a>",
+                    "AssetVolume": "15.742",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00252",
+                    "Name": "Lê Thị Kim Nga",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00252/le-thi-kim-nga.chn'>Lê Thị Kim Nga</a>",
+                    "AssetVolume": "25.965",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00080",
+                    "Name": "Đào Minh Tuấn",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00080/dao-minh-tuan.chn'>Đào Minh Tuấn</a>",
+                    "AssetVolume": "11.082",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_82154",
+                    "Name": "Nguyễn Mỹ Hào",
+                    "Url": "<a href='/du-lieu/ceo/CEO_82154/nguyen-my-hao.chn'>Nguyễn Mỹ Hào</a>",
+                    "AssetVolume": "13.375",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00877",
+                    "Name": "Nguyễn Thị Hoa",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00877/nguyen-thi-hoa.chn'>Nguyễn Thị Hoa</a>",
+                    "AssetVolume": "8.952",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_09052",
+                    "Name": "Phạm Thanh Hà",
+                    "Url": "<a href='/du-lieu/ceo/CEO_09052/pham-thanh-ha.chn'>Phạm Thanh Hà</a>",
+                    "AssetVolume": "6.258",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_878105",
+                    "Name": "Nguyễn Tuấn Anh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_878105/nguyen-tuan-anh.chn'>Nguyễn Tuấn Anh</a>",
+                    "AssetVolume": "18.000",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "26/02/2026"
+                },
+                {
+                    "Code": "CEO_00513",
+                    "Name": "Phạm Quang Dũng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00513/pham-quang-dung.chn'>Phạm Quang Dũng</a>",
+                    "AssetVolume": "6.258",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_07449",
+                    "Name": "Nguyễn Thị Lan",
+                    "Url": "<a href='/du-lieu/ceo/CEO_07449/nguyen-thi-lan.chn'>Nguyễn Thị Lan</a>",
+                    "AssetVolume": "8",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_61042",
+                    "Name": "Nguyễn Thị Dũng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_61042/nguyen-thi-dung.chn'>Nguyễn Thị Dũng</a>",
+                    "AssetVolume": "5.921",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_05940",
+                    "Name": "Nguyễn Danh Lương",
+                    "Url": "<a href='/du-lieu/ceo/CEO_05940/nguyen-danh-luong.chn'>Nguyễn Danh Lương</a>",
+                    "AssetVolume": "41.226",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_30536",
+                    "Name": "Lê Đắc Cù",
+                    "Url": "<a href='/du-lieu/ceo/CEO_30536/le-dac-cu.chn'>Lê Đắc Cù</a>",
+                    "AssetVolume": "3.034",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CORP_10051",
+                    "Name": "Quỹ đầu tư Chính Phủ Singapore",
+                    "Url": "Quỹ đầu tư Chính Phủ Singapore",
+                    "AssetVolume": "139.503.641",
+                    "AssetRate": "1,67",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_00194",
+                    "Name": "La Thị Hồng Minh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00194/la-thi-hong-minh.chn'>La Thị Hồng Minh</a>",
+                    "AssetVolume": "6.258",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_80001",
+                    "Name": "Phạm Mạnh Thắng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80001/pham-manh-thang.chn'>Phạm Mạnh Thắng</a>",
+                    "AssetVolume": "375",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                },
+                {
+                    "Code": "CEO_60672",
+                    "Name": "Trương Thị Thúy Nga",
+                    "Url": "<a href='/du-lieu/ceo/CEO_60672/truong-thi-thuy-nga.chn'>Trương Thị Thúy Nga</a>",
+                    "AssetVolume": "4.094",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "03/10/2025"
+                }
+            ],
+            "NuocNgoai": 20.01,
+            "NhaNuoc": 0,
+            "Khac": 79.99
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 16,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 13,
+                    "Y": 1030.9,
+                    "Region": "",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 29,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 9,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 38,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 20,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 38,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 40,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 36,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 30,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 17,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 31,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 3,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 40,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 19,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 41,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 24,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 8,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 31,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 41,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 41,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 29,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 37,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 41,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 10,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 38,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 37,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 35,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 15,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 11,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 45,
+                    "Y": 2551,
+                    "Region": "VCB",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 21,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 18,
+                    "Y": 701.2,
+                    "Region": "",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 19,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 26,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 33,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 23,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 30,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 42,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 37,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 30,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 38,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 30,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 19,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 30,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 42,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 14,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 8,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 20,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 7,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 31,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 36,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 38,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 3,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 26,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 34,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 23,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 32,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 28,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 27,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 4,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 45,
+                    "Y": 1727.4,
+                    "Region": "VCB",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/VCB.pdf"
+    },
+    "deepNewsData": [
+        {
+            "title": "Chứng khoán hôm nay 23/4: Cổ phiếu Vingroup và Vietcombank gánh thị trường - VnExpress",
+            "link": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxNYzJmVHRWTTFJUW12N0ptbnlVZ3Nnd3JuN1NrWF94eHlJR05Ick1DbEhXSlU1SXdYVDRfa0VEaWhkNk5sWVQxVEdCbkZBN1JnTTY4MXpTblB0cFNIOUQyQnpUWmFnSkVEUGdnSkE2dWkxVnJZQzg3cURIRHlZbGpoc3k3US1JV1lCV0dZ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxNYzJmVHRWTTFJUW12N0ptbnlVZ3Nnd3JuN1NrWF94eHlJR05Ick1DbEhXSlU1SXdYVDRfa0VEaWhkNk5sWVQxVEdCbkZBN1JnTTY4MXpTblB0cFNIOUQyQnpUWmFnSkVEUGdnSkE2dWkxVnJZQzg3cURIRHlZbGpoc3k3US1JV1lCV0dZ?oc=5",
+            "content": "Mã Vingroup và Vietcombank lần lượt tăng 3,5% và 5,7% đã kéo VN-Index cao hơn tham chiếu 13 điểm dù sàn chứng khoán có hơn 200 cổ phiếu giảm. Đồ thị VN-Index hôm nay phần lớn được khoác sắc xanh. Trong buổi sáng, chỉ số này chủ yếu giao dịch trong vùng 1.870-1.880 điểm, có lúc kiểm tra mốc 1.890 điểm nhưng chưa thành công. Điểm số cải thiện nhưng số lượng cổ phiếu tăng và giảm trên sàn HoSE khá cân bằng. Gần cuối buổi sáng, chứng khoán còn rơi vào trạng thái \"xanh vỏ, đỏ lòng\" khi bên giảm dần chiếm ưu thế. Sang buổi chiều, số lượng cổ phiếu giảm giá bắt đầu vượt mốc 200 mã, gấp đôi bên tăng nhưng chỉ số chung vẫn cao hơn tham chiếu. Sau 14h, hơn ba phần tư cổ phiếu sàn HoSE bị nhuộm đỏ. Đây cũng là thời điểm VN-Index rơi về dưới tham chiếu nhưng không quá sâu và nhanh chóng phục hồi trở lại. Đóng cửa tăng hơn 13 điểm, VN-Index đạt trên 1.870 điểm. Chứng khoán đang ở mức cao nhất kể từ đầu tháng 3. Kết phiên, bên giảm giá vẫn chiếm ưu thế trên sàn HoSE với 208 mã giảm. Trong khi đó, chỉ 104 cổ phiếu tăng giá, ít hơn một nửa. Điều này cho thấy mức độ đồng thuận trên thị trường không cao. Chỉ số chung được nâng đỡ chủ yếu bởi VIC và VCB. Hai mã này lần lượt đóng góp hơn 12 điểm và hơn 6 điểm cho VN-Index. VIC của Vingroup hôm nay tăng 3,5% lên 214.500 đồng một cổ phiếu - giá đóng cửa cao nhất lịch sử. Thanh khoản đạt hơn 910 tỷ đồng với một nửa khớp lệnh đến từ bên mua chủ động. Trong khi đó, VCB của Vietcombank là cổ phiếu được giao dịch sôi động nhất thị trường với hơn 2.195 tỷ đồng. Trên 53% lượng khớp lệnh là mua chủ động. Mã này đóng cửa tăng 5,7% lên 62.800 đồng một đơn vị. Trong phiên, VCB có lúc tăng hết biên độ với khối lượng giao dịch lớn. Theo đà tăng của VIC và VCB, các cổ phiếu thuộc ngành bất động sản và ngân hàng cũng ghi nhận diễn biến tích cực. NVL tăng 2,4% dù trong phiên có lúc áp sát giá trần. BID đóng cửa cao hơn tham chiếu khoảng 3,4% hay CTG tích lũy 1,7%. Thanh khoản sàn HoSE hôm nay tăng mạnh gần 37% lên gần 29.300 tỷ đồng. Đây là mức cao nhất trong vòng nửa tháng qua. Tuy nhiên, thị trường bị ảnh hưởng bởi giao dịch của khối ngoại khi họ tiếp tục bán ròng khoảng 1.653 tỷ đồng. Các cổ phiếu bị bán ròng trên trăm tỷ gồm FPT, ACB, VHM, VCB, CTG và BSR. Như vậy, chứng khoán đã có hai phiên liên tiếp được nâng đỡ chủ yếu bởi một số cổ phiếu nhất định, nổi bật là Vingroup. Trong báo cáo hôm qua, Chứng khoán Vietcombank (VCBS) cho rằng trước bối cảnh thị trường phân hóa mạnh, nhà đầu tư có thể tận dụng các nhịp điều chỉnh hoặc rung lắc trong phiên để giải ngân thăm dò. Ưu tiên sẽ là các nhóm cổ phiếu đã tạo nền tích lũy ở vùng giá chiết khấu sâu hoặc các nhóm vừa bứt phá khỏi nền giá. ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu đáng chú ý ngày 11/5: VCB, VRE, KDH - nguoiquansat.vn",
+            "link": "https://news.google.com/rss/articles/CBMigwFBVV95cUxNTGR4R19wOWpFUkJxRmV3WnJuTmxDcDJRNXlLRUV1YzUyUkNyR29XSm5qUWhHelB1WS01TEd2UTJNY3Qxc1NuQ3Mza2s1VmVJaWxVQVRZSGVGQWxjZVUxQ2Y1amIycGpfeGRzazlCcHkwNVppYlQtNDVVZHNUVkxrNWFqSQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMigwFBVV95cUxNTGR4R19wOWpFUkJxRmV3WnJuTmxDcDJRNXlLRUV1YzUyUkNyR29XSm5qUWhHelB1WS01TEd2UTJNY3Qxc1NuQ3Mza2s1VmVJaWxVQVRZSGVGQWxjZVUxQ2Y1amIycGpfeGRzazlCcHkwNVppYlQtNDVVZHNUVkxrNWFqSQ?oc=5",
+            "content": "Công ty chứng khoán phân tích và đưa ra nhận định mua, bán đối với các cổ phiếu VCB, VRE, KDH. Vietcombank (VCB): Khuyến nghị tăng tỷ trọng, giá mục tiêu 70.000 đồng/cp Kết phiên 8/5, cổ phiếu VCB tăng 0,7% lên 60.700 đồng/cp. Thanh khoản đạt gần 10 triệu đơn vị, tương ứng giá trị giao dịch khoảng 609 tỷ đồng. Theo Chứng khoán Agriseco, trên đồ thị kỹ thuật, VCB duy trì xu hướng tăng trong trung và dài hạn khi vận động ổn định trên các đường trung bình động quan trọng như MA20 và MA50. Sau nhịp điều chỉnh khoảng 25% từ đỉnh tháng 1/2026, cổ phiếu hiện tích lũy chặt chẽ quanh vùng 59.000–60.000 đồng/cp. Nhà đầu tư có thể tăng tỷ trọng tại vùng giá này và chủ động cắt lỗ với tỷ lệ khoảng 8%. Về định giá, VCB hiện giao dịch ở mức P/B 2,1 lần, thấp hơn trung bình 5 năm (3,2 lần). Lợi nhuận năm 2026 dự kiến duy trì tăng trưởng trên 10%, ROE cải thiện lên khoảng 18%. Agriseco kỳ vọng cổ phiếu sẽ hưởng lợi từ câu chuyện nâng hạng FTSE trong thời gian tới, qua đó thu hút dòng vốn ngoại (room còn trên 8%). Mới đây, Vietcombank công bố báo cáo tài chính quý I/2026 với nhiều điểm đáng chú ý. Tính đến cuối quý I, dư nợ tín dụng đạt 1,755 triệu tỷ đồng, tăng 4,8% so với đầu năm, chủ yếu nhờ cho vay khách hàng doanh nghiệp. Lợi nhuận trước thuế đạt 11.803 tỷ đồng, tăng 9% so với cùng kỳ, nhờ thu nhập lãi thuần tăng mạnh 29%, bù đắp chi phí dự phòng rủi ro tín dụng tăng gấp 3,3 lần. Thu nhập từ dịch vụ tăng 17%, góp phần giúp tổng thu nhập hoạt động tăng 23%. Dù chịu áp lực chi phí vốn gia tăng, NIM quý I vẫn cải thiện lên 2,64% nhờ tăng trưởng tín dụng tích cực. Tỷ lệ CIR giảm xuống còn 34,6%. Chất lượng tài sản tiếp tục thuộc nhóm tốt nhất hệ thống, với tỷ lệ nợ xấu (NPL) ở mức 0,62%, tăng nhẹ so với 0,58% cuối năm 2025 nhưng vẫn thấp hơn đáng kể so với mức bình quân ngành (khoảng 2%). Tỷ lệ bao phủ nợ xấu đạt 253,4%. Tỷ lệ LDR ở mức 83%, dưới ngưỡng trần 85%, trong khi CAR đạt 11,7%, đảm bảo an toàn. Agriseco Research kỳ vọng kết quả kinh doanh năm 2026 của VCB tiếp tục tăng trưởng với lợi nhuận trước thuế tăng khoảng 10–15% so với cùng kỳ, nhờ tăng trưởng tín dụng trên 13%, biên lãi ròng (NIM) cải thiện lên khoảng 2,7% và chất lượng tài sản duy trì ổn định với tỷ lệ nợ xấu thấp cùng bộ đệm dự phòng cao trong ngành. Vincom Retail (VRE): Khuyến nghị nắm giữ, giá mục tiêu 40.100 đồng/cp Kết phiên 8/5, cổ phiếu VRE giảm 1,6% xuống 35.900 đồng/cp. Thanh khoản đạt 8,1 triệu đơn vị, tương ứng giá trị giao dịch khoảng 291 tỷ đồng. Theo Chứng khoán BIDV (BSC), kể từ báo cáo cập nhật gần nhất, VRE ghi nhận mức tăng giá vượt trội 31,5%, cao hơn đáng kể so với mức tăng 9,2% của VN-Index. Ở mức giá hiện tại, cổ phiếu đang giao dịch tại EV/EBITDA 2025F khoảng 13,6 lần, tương đương mức trung bình 5 năm. Do triển vọng hoạt động kinh doanh cốt lõi và kế hoạch mở mới trung tâm thương mại (TTTM) vẫn phù hợp với kỳ vọng, BSC duy trì khuyến nghị theo dõi đối với VRE, với giá mục tiêu 40.100 đồng/cp. Trong thời gian tới, tiến độ xây dựng và lưu lượng khách đến các dự án bất động",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu đáng chú ý phiên 11/5: KBC và VCB tiếp tục được kỳ vọng tích cực - thuonghieucongluan.com.vn",
+            "link": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxPbnVPRWxkUm9lR2g3TkppQjdTMHBwLUNQZjVMUmZXWU80MFBoSDVrc2V5aVpaUlh2c3p5dVR4RW9ueG4yY0xuMDZOZ090Z3VESFlZOEF0M2xlb0NJOHN6WHlLdE5LY2diWmdZaWsxOVNhSUJtQ2M0TWdSRllXLVpQNVRIQlRUdzFKSXdldEpqaFJ5bzg3RldXcGVuWVR5WGFkcmkxSDBLM2ZUTmxxamh5V0FiVVd4RXNuNk5F?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxPbnVPRWxkUm9lR2g3TkppQjdTMHBwLUNQZjVMUmZXWU80MFBoSDVrc2V5aVpaUlh2c3p5dVR4RW9ueG4yY0xuMDZOZ090Z3VESFlZOEF0M2xlb0NJOHN6WHlLdE5LY2diWmdZaWsxOVNhSUJtQ2M0TWdSRllXLVpQNVRIQlRUdzFKSXdldEpqaFJ5bzg3RldXcGVuWVR5WGFkcmkxSDBLM2ZUTmxxamh5V0FiVVd4RXNuNk5F?oc=5",
+            "content": "06:14 11/05/2026 Thương hiệu Tài chính - Chứng khoán Theo báo cáo của CTCK BIDV (BSC), cổ phiếu Tổng công ty Phát triển Đô thị Kinh Bắc (KBC) tiếp tục được duy trì khuyến nghị mua với giá mục tiêu 42.400 đồng/cổ phiếu. Động lực chính đến từ kỳ vọng tăng trưởng tích cực của hoạt động cho thuê khu công nghiệp trong năm 2026. BSC cho rằng tiến độ bàn giao đất khu công nghiệp của KBC đang được cải thiện nhờ doanh nghiệp đẩy mạnh xây dựng hạ tầng, đồng thời các nhà đầu tư FDI cũng tích cực hoàn thiện thủ tục pháp lý để triển khai dự án tại Việt Nam. Dù vậy, công ty chứng khoán này cũng lưu ý tiến độ triển khai Khu đô thị Tràng Cát hiện chậm hơn dự kiến. Doanh nghiệp mới chủ yếu thực hiện các công đoạn san lấp và hoàn thiện mặt bằng, vì vậy BSC đã áp dụng mức chiết khấu 20% đối với định giá dự án này trong báo cáo mới nhất. Theo dự báo, năm 2026 KBC có thể ghi nhận doanh thu hơn 10.400 tỷ đồng và lợi nhuận sau thuế khoảng 2.834 tỷ đồng, tăng trưởng lần lượt 53% và 35% so với cùng kỳ. Nếu loại trừ các khoản thu nhập bất thường trong năm trước, lợi nhuận từ hoạt động cốt lõi của doanh nghiệp được kỳ vọng tăng tới 60%. Ở nhóm bán lẻ, BSC tiếp tục duy trì khuyến nghị nắm giữ đối với cổ phiếu Vincom Retail (VRE) với giá mục tiêu 40.100 đồng/cổ phiếu. Theo đánh giá của công ty chứng khoán này, VRE đã có mức tăng mạnh trong thời gian qua, vượt đáng kể so với diễn biến chung của VN-Index. Hiện tại, hoạt động kinh doanh cốt lõi của VRE vẫn duy trì ổn định, đặc biệt là kế hoạch mở rộng hệ thống trung tâm thương mại trong thời gian tới. BSC cho rằng tiến độ triển khai các dự án bất động sản thuộc hệ sinh thái Vingroup cùng lưu lượng khách tại các đại đô thị sẽ tiếp tục là yếu tố hỗ trợ hiệu quả kinh doanh của doanh nghiệp. Trong khi đó, CTCK Agriseco (AGR) đánh giá cao triển vọng của cổ phiếu Ngân hàng TMCP Ngoại thương Việt Nam (VCB) và đưa ra khuyến nghị tăng tỷ trọng với giá mục tiêu 70.000 đồng/cổ phiếu. Theo AGR, VCB đang sở hữu mức định giá hấp dẫn khi hệ số P/B hiện thấp hơn đáng kể so với mức trung bình 5 năm gần đây. Bên cạnh đó, ngân hàng được kỳ vọng duy trì tăng trưởng lợi nhuận trên 10% trong năm 2026 nhờ tín dụng tăng trưởng ổn định, biên lãi ròng cải thiện và chất lượng tài sản tiếp tục được kiểm soát tốt. Một yếu tố khác hỗ trợ cho triển vọng của VCB là khả năng thu hút dòng vốn ngoại nếu thị trường chứng khoán Việt Nam được FTSE nâng hạng trong thời gian tới. Với tỷ lệ sở hữu nước ngoài còn dư địa, VCB được xem là một trong những cổ phiếu ngân hàng có thể hưởng lợi từ xu hướng này. Các chuyên gia cho rằng, trong bối cảnh thị trường đang xuất hiện sự phân hóa mạnh giữa các nhóm ngành, nhà đầu tư nên ưu tiên các cổ phiếu có nền tảng cơ bản tốt, triển vọng tăng trưởng rõ ràng và được hỗ trợ bởi dòng tiền dài hạn. SSI dự kiến phát hành 10 triệu cổ phiếu ESOP cho 295 cán bộ, nhân viên. Trong đó, Chủ tịch Nguyễn Duy Hưng là người được mua nhiều nhất. Sau nhiêu phiên giảm giá liên tiếp, cổ phiếu NVL của CTCP Tập đoàn Đầu tư Địa ốc No Va (Novaland) đã đư",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Khuyến nghị cổ phiếu VRE và VCB: Tiềm năng tăng giá từ 10-16% - bnews.vn",
+            "link": "https://news.google.com/rss/articles/CBMikgFBVV95cUxOd0pOemZSVXgzbWxlWmU2azY5UVducHZ0YUtCZXBqcndjYUI0ZVJWS2JWcDhxajBkMWVFbjVkOVhtaUVudW5PcURzTjRTTm1RbkhVeklaOEVORHRubDExamV2ejJvRzBGTXAydkVIank0RVZwempnVWQ3OXdZbzlmYUplR0hFek5SaGZYM0RWRjZuQQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMikgFBVV95cUxOd0pOemZSVXgzbWxlWmU2azY5UVducHZ0YUtCZXBqcndjYUI0ZVJWS2JWcDhxajBkMWVFbjVkOVhtaUVudW5PcURzTjRTTm1RbkhVeklaOEVORHRubDExamV2ejJvRzBGTXAydkVIank0RVZwempnVWQ3OXdZbzlmYUplR0hFek5SaGZYM0RWRjZuQQ?oc=5",
+            "content": "Công ty Chứng khoán BIDV (BSC) khuyến nghị nhà đầu tư tiếp tục nắm giữ cổ phiếu Công ty cổ phần Vincom Retail (mã chứng khoán: VRE). Kể từ báo cáo cập nhật gần nhất, cổ phiếu VRE đã tăng giá 31,5%, cao hơn nhiều so với mức tăng 9,2% của chỉ số VN-Index. Hiện nay, định giá của VRE đang ở mức tương đương trung bình 5 năm gần đây, cho thấy cổ phiếu không còn quá rẻ nhưng vẫn được đánh giá có tiềm năng ổn định trong dài hạn. BSC cho biết hoạt động kinh doanh chính của Vincom Retail cùng kế hoạch mở thêm các trung tâm thương mại mới vẫn diễn ra đúng như kỳ vọng. Vì vậy, công ty chứng khoán này tiếp tục khuyến nghị nhà đầu tư theo dõi cổ phiếu VRE, với mức giá mục tiêu khoảng 40.100 đồng/cổ phiếu, cao hơn khoảng 10% so với giá hiện tại. BSC cho rằng tiến độ xây dựng và lưu lượng du khách/người mua nhà đến các dự án bất động sản thuộc Vingroup sẽ là một trong những chất xúc tác lớn đến hiệu suất đầu tư của VRE. Công ty cổ phần Chứng khoán Agribank (Agriseco) khuyến nghị tăng tỷ trọng dành cho cổ phiếu VCB, do cổ phiếu này đang được đánh giá có mức giá khá hấp dẫn so với nhiều năm gần đây. Theo Agriseco, lợi nhuận của Vietcombank trong năm 2026 có thể tiếp tục tăng khoảng 10 - 15%, nhờ tín dụng tăng trưởng tốt, hoạt động cho vay cải thiện hiệu quả và chất lượng nợ vẫn được kiểm soát ở mức thấp. Ngân hàng cũng được đánh giá có nền tảng tài chính vững, với mức dự phòng rủi ro cao thuộc nhóm dẫn đầu ngành. Ngoài ra, Agriseco kỳ vọng VCB có thể hưởng lợi nếu thị trường chứng khoán Việt Nam được FTSE nâng hạng vào tháng 9 tới, qua đó thu hút thêm dòng vốn từ nhà đầu tư nước ngoài. Hiện cổ phiếu này vẫn còn “room ngoại” hơn 8%, tức nhà đầu tư nước ngoài vẫn còn dư địa để mua thêm. Với triển vọng trên, Agriseco khuyến nghị tăng tỷ trọng cổ phiếu VCB và đưa ra mức giá mục tiêu 70.000 đồng/cổ phiếu, cao hơn khoảng 16% so với hiện tại. Trong tuần tới từ ngày 11-15/5, có 18 doanh nghiệp chốt quyền họp đại hội cổ đông; trong đó có 5 doanh nghiệp trên HoSE; 4 doanh nghiệp trên HNX và 9 doanh nghiệp trên UPCoM. VN-Index ngày 8/5 lập kỷ lục lịch sử 1.915,37 điểm nhờ nhóm bất động sản và tài chính nâng đỡ, bất chấp áp lực phân hóa mạnh và khối ngoại bán ròng 888 tỷ đồng. Chốt phiên 13/5, chỉ số Kospi của Hàn Quốc tăng 2,63%, lên mức cao kỷ lục 7.844,01 điểm, trong khi chỉ số Nikkei 225 của Nhật Bản tăng 0,8%, lên 63.272,11 điểm. VN-Index mất mốc 1.900 điểm phiên 13/5 do áp lực bán ròng hơn 1.500 tỷ từ khối ngoại. Nhóm bất động sản giảm sâu trong khi cổ phiếu năng lượng bứt phá ngược dòng. Hôm nay 13/5, có 3 doanh nghiệp bắt đầu giao dịch cổ phiếu số lượng lớn gồm: ONW, MSR và SAV. Các chỉ số chứng khoán Mỹ diễn biến trái chiều trong phiên 12/5 khi giá dầu leo thang và lạm phát gia tăng, khiến giới đầu tư cho rằng Cục Dự trữ liên bang Mỹ (Fed) sẽ khó giảm lãi suất trong năm nay. VN-Index kết phiên 12/5 tăng lên 1.901,10 điểm, giữ vững mốc tâm lý quan trọng. Dòng tiền phân hóa mạnh, tập trung vào nhóm ngân hàng, dầu khí. Chứng khoán châu Á giao dịch trái chiều trong",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Chứng khoán bứt tốc với sóng cổ phiếu ngân hàng - Laodong.vn",
+            "link": "https://news.google.com/rss/articles/CBMikwFBVV95cUxQOEt5emVvOVhzdEk5ckRiSEtJQUlBS2NBekZnRENQXzVCX25mWUltN1NyZ0tVSFU5RTNtMExZaFBNSXo2MGxXVzdKclpIVTQzcUJEOXFpYjk0c3QzOVNtTlRsRmQ4V3NheF9ucDVkSjl4SGNMNFdBUVp4eFZyR0RidXB4NGhQMHRIb0hhUi02TGRJV1E?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMikwFBVV95cUxQOEt5emVvOVhzdEk5ckRiSEtJQUlBS2NBekZnRENQXzVCX25mWUltN1NyZ0tVSFU5RTNtMExZaFBNSXo2MGxXVzdKclpIVTQzcUJEOXFpYjk0c3QzOVNtTlRsRmQ4V3NheF9ucDVkSjl4SGNMNFdBUVp4eFZyR0RidXB4NGhQMHRIb0hhUi02TGRJV1E?oc=5",
+            "content": "Nhóm cổ phiếu ngân hàng bật tăng mạnh đã giúp thị trường chứng khoán có phiên giao dịch khởi sắc trong sáng 23.4. Thị trường chứng khoán bước vào phiên giao dịch hôm nay với điểm tựa vẫn là nhóm cổ phiếu nhà Vingroup. Bên cạnh đó là đà tăng mạnh của các mã cổ phiếu các ngân hàng có vốn Nhà nước chi phối, đã giúp VN-Index tiếp tục tiến bước. Sắc xanh nở rộ toàn ngành ngân hàng, thậm chí mã lớn VCB và BID có thời điểm kéo trần thành công với VCB dư mua trần tới gần 1 triệu đơn vị. Tuy nhiên, sau đó, khối lượng này đã được hấp thụ hết và VCB vẫn giữ mức tăng khá tốt quanh vùng giá trần. Hiện top 5 mã giao dịch sôi động nhất thị trường có tới 4 mã ngân hàng xuất hiện, đáng kể là sự góp mặt của các cổ phiếu có vốn Nhà nước chi phối gồm VCB, BID và CTG với trên 10-20 triệu đơn vị khớp lệnh. Kết phiên sáng 23.4, VN-Index tăng 17,33 điểm (+0,93%) lên 1.874,63 điểm với 135 mã tăng và 147 mã giảm. Tổng khối lượng giao dịch đạt 410,5 triệu đơn vị, giá trị 12.464 tỉ đồng, tăng 43,2% về khối lượng và 45,8% về giá trị so với phiên sáng qua. Trong đó, giao dịch thỏa thuận đóng góp 23,5 triệu đơn vị, giá trị 421,3 tỉ đồng. Xét về nhóm ngành, nhóm cổ phiếu ngân hàng là nhóm tăng tốt nhất thị trường nhờ điểm sáng là các cổ phiếu có vốn Nhà nước chi phối. Trong đó, VCB, BID và CTG lần lượt tăng 5,7%, 3,9% và 2,6%, với thanh khoản vẫn thuộc top 5 dẫn đầu thị trường, tương ứng đạt 26,65 triệu đơn vị, 16,9 triệu đơn vị và 16,25 triệu đơn vị. Nhóm cổ phiếu bất động sản cũng khởi sắc nhờ sự đóng góp tích cực của mã lớn VIC. Trong khi đó, ở top vừa và nhỏ của nhóm này, cổ phiếu NVL tiếp tục duy trì đà tăng. Nhận định về tiềm năng của nhóm cổ phiếu ngân hàng, Công ty Chứng khoán DSC cho rằng, triển vọng tăng trưởng nguồn thu từ lãi trong năm 2026 vẫn tiếp tục đến từ tăng trưởng tín dụng, dù tốc độ được dự báo chậm lại. Lợi thế tăng trưởng tín dụng sẽ thuộc về các ngân hàng tham gia tái cấu trúc tổ chức tín dụng yếu kém như VCB, MBB, HDB và VPB, trong khi các ngân hàng có tốc độ tăng trưởng tín dụng phụ thuộc lớn vào thị trường bất động sản sẽ chịu tác động kém tích cực hơn. Đối với thu nhập ngoài lãi, tăng trưởng được dự báo sẽ chậm lại do hoạt động kinh doanh vốn và chứng khoán kém thuận lợi khi lợi suất trái phiếu chính phủ có xu hướng tăng; hoạt động thu hồi nợ xấu giảm tốc do thanh khoản thị trường bất động sản chịu áp lực. Về chất lượng tài sản, khi kinh tế phục hồi, chất lượng tài sản của hệ thống ngân hàng đã xuất hiện dấu hiệu cải thiện. DSC duy trì quan điểm ngành ngân hàng vẫn đang trong chu kỳ tăng trưởng, với tăng trưởng tín dụng ở mức cao và nền kinh tế tiếp tục xu hướng mở rộng. Các chỉ số về khả năng sinh lời và chất lượng tài sản đều ghi nhận sự cải thiện so với giai đoạn 2023 - 2024. Tuy nhiên, rủi ro hệ thống cũng gia tăng khi nền kinh tế phụ thuộc lớn vào tín dụng ngân hàng, trong khi khả năng chống chịu về thanh khoản và vốn của ngành thấp hơn so với giai đoạn trước. Trong kịch bản cơ sở, tăng trưởng tín dụng tiếp tục được duy trì ở mức cao để hỗ trợ n",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Agriseco khuyến nghị tăng tỷ trọng cổ phiếu VCB với tiềm năng tăng trưởng 2026 - Báo Sức khỏe & Đời sống",
+            "link": "https://news.google.com/rss/articles/CBMinAFBVV95cUxNRC1KcmFwWERsakVyVWlwUlJYQi1hNlpOX3A1MW1DQktNTUd5dHRMbmg2SDI4VFpXR29RWEtfTlpBa0JvNkpWa216N3ZKTVFtN0ZUa0Zrbkk0TXpVTC1EMU05bGozaFhBMTRoWEV5MjQtd3BoQmhtSUxRSXU2c1hFME9XSm1rZEhmSnR0YnRiVllDUkhHMlQxbWV5ci0?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMinAFBVV95cUxNRC1KcmFwWERsakVyVWlwUlJYQi1hNlpOX3A1MW1DQktNTUd5dHRMbmg2SDI4VFpXR29RWEtfTlpBa0JvNkpWa216N3ZKTVFtN0ZUa0Zrbkk0TXpVTC1EMU05bGozaFhBMTRoWEV5MjQtd3BoQmhtSUxRSXU2c1hFME9XSm1rZEhmSnR0YnRiVllDUkhHMlQxbWV5ci0?oc=5",
+            "content": "Theo đánh giá của Agriseco, hiện tại, cổ phiếu VCB đang giao dịch tại mức định giá hấp dẫn với tỷ lệ P/B 2,1x, thấp hơn so với bình quân 5 năm gần đây (3,2x). Triển vọng tăng trưởng lợi nhuận năm 2026 dự kiến duy trì trên 10% và tỷ lệ ROE tiếp tục cải thiện lên 18%. Agriseco kỳ vọng, cổ phiếu VCB đạt mức 70.000 đồng/CP (ảnh minh họa). Agriseco kỳ vọng, cổ phiếu VCB sẽ là một trong những cổ phiếu được hưởng lợi khi thời điểm nâng hạng FTSE được công bố vào tháng 9 tới, thu hút dòng tiền khối ngoại (room ngoại còn trên 8%). Agriseco Research kỳ vọng kết quả kinh doanh năm 2026 của VCB duy trì đà tăng trưởng với lợi nhuận trước thuế khoảng 10-15%. Theo Agriseco, tăng trưởng tín dụng năm 2026 của VCB đạt trên 13%, biên lãi ròng NIM cải thiện lên mức 2,7%, chất lượng tài sản ổn định với tỷ lệ nợ xấu thấp và bộ đệm dự phòng cao đầu ngành. Đồng thời, cổ phiếu VCB đang có mức định giá hấp dẫn với tỷ lệ P/B thấp (2,1x lần), phù hợp để nắm giữ trong trung và dài hạn. Từ những luận điểm trên, Chứng khoán Agriseco khuyến nghị, nhà đầu tư tăng tỷ trọng cổ phiếu VCB với giá mục tiêu 70.000 đồng/cp (upside 16%). Đăng nhập để tham gia bình luận Phó Tổng Biên tập: TÔ QUANG TRUNG (Thường trực), TRẦN YẾN CHÂU, NGUYỄN NGỌC ĐỨC, NGUYỄN CHÍ LONG Giấy phép hoạt động báo chí số 390/GP-BTTTT do Bộ Thông tin và Truyền thông cấp ngày 25/06/2021 © Bản quyền thuộc Báo điện tử Sức khỏe và Đời sống - Cơ quan ngôn luận của Bộ Y tế. THÔNG TIN TÒA SOẠN Trụ sở chính: 138A Giảng Võ, phường Giảng Võ, TP Hà Nội Địa chỉ nhận công văn, tài liệu và thư bạn đọc: Tầng 11 Trụ sở các cơ quan Bộ Y tế, ngõ 19 Duy Tân, phường Cầu Giấy, TP Hà Nội Điện thoại: 024.6688.8900 - Fax: 024.3844.3144 Đường dây nóng: 0904.852.222 Email: toasoan@suckhoedoisong.vn Điện thoại: 0888.669.909 - Email: ads@suckhoedoisong.vn - Văn phòng đại diện phía Bắc: 55 Tuệ Tĩnh, phường Vinh Phú, tỉnh Nghệ An. - Văn phòng đại diện TPHCM: 213 Điện Biên Phủ, phường Xuân Hoà, TPHCM và 495 Điện Biên Phủ, phường Bàn Cờ, TPHCM. ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu ngân hàng nổi sóng, VIC và VCB kéo VN-Index tăng hơn 13 điểm - Báo Tuổi Trẻ",
+            "link": "https://news.google.com/rss/articles/CBMirgFBVV95cUxPNi1UekdQdGRmRUR4TjdSZHZzSlZfVHQ0RmJrRk5vaVlMV2RqUEtsQjE2Y0kwXzduTE1jRUJ4Nk5sUF91VjI0R3I2bEIzbGhrVjFackFiRzJQU0xMejY1OEt0MmdQbW1talV4bUszZXVJUXVzY0xRYm44RWp0QXEzdzhDaEtYXzdBMnhWV014SEtHaFE3eWZDdXdZd19IamI2U1ZCeG5VX1R5elpQY3c?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirgFBVV95cUxPNi1UekdQdGRmRUR4TjdSZHZzSlZfVHQ0RmJrRk5vaVlMV2RqUEtsQjE2Y0kwXzduTE1jRUJ4Nk5sUF91VjI0R3I2bEIzbGhrVjFackFiRzJQU0xMejY1OEt0MmdQbW1talV4bUszZXVJUXVzY0xRYm44RWp0QXEzdzhDaEtYXzdBMnhWV014SEtHaFE3eWZDdXdZd19IamI2U1ZCeG5VX1R5elpQY3c?oc=5",
+            "content": "Cổ phiếu nhóm ngân hàng giữ đà tăng cho VN-Index trong phiên 23-4 - Ảnh: HỮU HẠNH Mở cửa phiên giao dịch sáng 23-4, nhóm cổ phiếu Vingroup kéo VN-Index lên mức cao. Sau đó, chỉ số duy trì sắc xanh nhờ lực đỡ từ nhóm ngành khác, có thời điểm VN-Index tăng hơn 31 điểm, neo ở mức 1.888,69 điểm. Điểm nổi bật trong phiên sáng là đà tăng của nhóm ngân hàng. VCB gây ấn tượng mạnh, có thời điểm chạm trần với thanh khoản gần 24 triệu cổ phiếu, gấp 3 lần bình quân một năm trở lại đây. Các mã khác cũng hưởng ứng tích cực như BID tăng 4%, CTG tăng gần 3%. Tuy nhiên lực bán tăng dần về cuối phiên sáng. Sang đến phiên chiều, đà hưng phấn hạ nhiệt, có thời điểm VN-Index giảm 1,72 điểm so với mức mở cửa. Kết phiên giao dịch ngày 23-4, VN-Index tăng 13,06 điểm, tương ứng 0,7%, lên mức 1.870,36 điểm. Chỉ số VN30-Index giảm nhẹ 0,67 điểm (-0,03%) về 2.024,74 điểm. Trên sàn Hà Nội, HNX-Index giảm 2,13 điểm (-0,83%) về 253,23 điểm, UPCoM-Index cũng giảm 0,64 điểm (-0,5%) xuống 128,86 điểm. Nhìn chung độ rộng thị trường nghiêng về trạng thái giảm điểm, khi ghi nhận 227 mã tăng giá, 428 mã giảm giá, trong đó có 22 mã tăng trần và 17 mã giảm sàn, cùng 866 mã đứng giá. Thanh khoản VN-Index đạt 28.360 tỉ đồng, tăng khoảng 35,51% so với phiên trước. Điểm nhấn nổi bật trong phiên 23-4 là dòng tiền bất ngờ nổi sóng ở nhóm ngân hàng, đặc biệt là nhóm quốc doanh. Thị trường kỳ vọng Vietcombank có thể công bố cập nhật về kế hoạch phát hành riêng lẻ trong cuộc họp đại hội đồng cổ đông năm 2026 diễn ra vào ngày 24-4. Ngày mai, BIDV và VietinBank cũng tổ chức đại hội đồng cổ đông thường niên. VCB đóng cửa tại 62.800 đồng/cổ phiếu, tăng 5,7% so với giá mở cửa. Cổ phiếu này đóng góp 6,03 điểm vào mức tăng của VN-Index. BID kết phiên tại 41.600 đồng/cổ phiếu, tăng 3,4%. CTG cũng tăng 1,7%. Các cổ phiếu ngân hàng khác cũng kết phiên trong sắc xanh như TCB (+0,9%), MBB (+0,8%), KLB (2,8%) và BAB (+0,9%). Ở chiều ngược lại, một số cổ phiếu ngân hàng giảm điểm như STB (-1,7%), LPB (-1,1%), EIB (-1,1%), SHB (-2,6%), VBB (-3,6%). Đối với nhóm Vingroup, VIC đóng cửa tại 214.500 đồng/cổ phiếu, tăng 3,5% - mức đỉnh lịch sử mới. VHM kết phiên tại 149.000 đồng/cổ phiếu, giảm 0,9% so với giá mở cửa. VRE đóng cửa tại 29.050 đồng/cổ phiếu, giảm 3%. VIC đóng góp 11,94 điểm, VHM kéo 1,13 điểm cho chỉ số chung. Đối với nhóm bất động sản, cổ phiếu NVL tăng phiên thứ 5 liên tiếp, đóng cửa tại 19.200 đồng/cổ phiếu, tăng 2,4%, khớp lượng giao dịch hơn 41,7 triệu đơn vị. Nhóm chứng khoán diễn biến phân hóa với SSI (-0,7%), TCI (-1,9%), TCX (-0,8%), trong khi VCI (+2,3%), VCK (+0,4%), HCM (-1,7%). Ở nhóm dầu khí, diễn biến tiêu cực với đa số cổ phiếu giảm giá, PVD (-0,8%), PVS (-1,6%), BSR (-3,7%), OIL (-2,7%). Nhóm bán lẻ đa phần kết phiên trong sắc đỏ, MWG giảm 2,2%, DGW giảm 2,2%, FRT giảm 2,1%. Trong phiên 23-4, khối ngoại mua khoảng 2.497,37 tỉ đồng và bán ra 4.213,1 tỉ đồng, chung quy mức bán ròng là gần 1.716 tỉ đồng. PVT là mã được mua ròng mạnh nhất với giá trị 72,36 tỉ đồng, tiếp đến là VNM (+54,",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Loạt cổ phiếu trụ ngân hàng đột ngột hút dòng tiền - VnEconomy",
+            "link": "https://news.google.com/rss/articles/CBMigAFBVV95cUxOQWhiVEpSZEdqS0x2aDgzY1VveXhXZExGWGJULW0tUW1NVVVmNVNYc3lCSGxEOVhoMnh6QUhUVHlIeEVnRVYwSjdtWHNOM2FVZ091bnItX3FfUnlsbnVLSk4wVzlXZ2JKdUFReGZRODVhYkdlS3BpV0FHQ011Q1drOQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMigAFBVV95cUxOQWhiVEpSZEdqS0x2aDgzY1VveXhXZExGWGJULW0tUW1NVVVmNVNYc3lCSGxEOVhoMnh6QUhUVHlIeEVnRVYwSjdtWHNOM2FVZ091bnItX3FfUnlsbnVLSk4wVzlXZ2JKdUFReGZRODVhYkdlS3BpV0FHQ011Q1drOQ?oc=5",
+            "content": "Trong khi khối ngoại xả mạnh cổ phiếu ngân hàng, dòng tiền trong nước còn khỏe hơn, đẩy giá các mã dẫn dắt nhóm này tăng bùng nổ. Thanh khoản nhóm ngân hàng sàn HoSE chiếm tới 43,5% tổng giá trị khớp lệnh sàn này sáng nay, tỷ trọng cao kỷ lục. VCB đang cho thấy tiềm năng “lặp lại lịch sử” hồi đầu năm khi xuất hiện giao dịch đột biến hơn 1.660 tỷ đồng. Mới phiên sáng mà VCB đã thanh khoản gần bằng ngưỡng kỷ lục lịch sử của phiên ngày 9/1/2026. Giá VCB cũng tăng mạnh 5,72%. Hồi đầu năm 2026 VCB cũng có một nhịp tăng dữ dội 6 phiên liên tục với biên độ tối đa hơn 37%. Điều bất ngờ là đóng cửa hôm qua, giá VCB cũng đã quay lại sát thời điểm đầu năm. Ngoài trụ lớn nhất nhóm ngân hàng nói trên, có thêm BID, CTG thanh khoản rất ấn tượng. BID khớp 706,3 tỷ đồng, giá tăng 3,85%. CTG khớp 582,5 tỷ, giá tăng 2,58%. Cũng giống VCB, giá BID và CTG đã điều chỉnh quay lại ngưỡng đầu năm 2026. Một điều cũng khá “trớ trêu” là sóng ngân hàng đầu năm nay chủ đạo do các ngân hàng có vốn nhà nước dẫn dắt. Hôm nay cũng vậy, ngoài 3 cổ phiếu kể trên, chỉ vài mã ngân hàng khác đồng pha là KLB tăng 2,84%, TCB tăng 1,36%, MBB tăng 0,95%, còn lại đều không đáng kể. Với nhóm trụ Vin, VIC còn tăng 2,32% sau khi chịu áp lực bán rất lớn. Cổ phiếu này đã khớp khoảng 2,45 triệu cổ tương đương 524,5 tỷ đồng và giá bị ép lùi xuống đáng kể 3,15% so với đỉnh. VHM cũng thanh khoản tới 422,3 tỷ đồng và giá bị ép mạnh, lùi xuống 2,42% thành đảo chiều giảm 0,86% so với tham chiếu. Rổ VN30 sáng nay phân hóa về sức mạnh, tuy độ rộng thể hiện 17 mã tăng/10 mã giảm nhưng chỉ số tăng yếu 0,46%. Nguyên nhân là đa số cổ phiếu dao động yếu khi không có dòng tiền đủ mạnh. Mặc dù tổng thanh khoản rổ blue-chips đạt gần 7.623 tỷ đồng chưa kể thỏa thuận, tăng 70% so với sáng hôm qua nhưng là do nhóm ngân hàng. Cụ thể, cổ phiếu ngân hàng trong rổ VN30 chiếm tới 65% tổng giá trị khớp lệnh. Nếu cùng trừ đi thanh khoản của các mã ngân hàng thì giao dịch rổ này sáng nay thậm chí giảm nhẹ 5% so với sáng hôm qua. Với phần còn lại của thị trường thanh khoản có dấu hiệu cải thiện nhẹ. Cụ thể, tổng giá trị khớp lệnh sàn HoSE tăng 59%, đạt gần 12.043 tỷ đồng. Nếu cùng trừ đi giao dịch của nhóm ngân hàng, thanh khoản sàn này vẫn tăng 19%. Dòng tiền có tín hiệu tốt hơn giúp thị trường duy trì độ phân hóa rõ nét hơn. VN-Index chốt phiên sáng tăng 0,93% (+17,33 điểm) với 135 mã tăng/147 mã giảm. Tuy vậy, đại đa số cổ phiếu nằm trong diện dao động rất hẹp. Cụ thể, chỉ có 43 cổ phiếu đạt mức tăng vượt 1% và 52 mã giảm quá 1%. Nhóm tăng giá có sự xuất sắc của một số cổ phiếu ngân hàng và nhóm này cũng chiếm phần lớn thanh khoản. Tuy vậy cũng chỉ có tổng cộng 18 cổ phiếu đạt giao dịch từ 10 tỷ đồng trở lên. Ngoài ngân hàng, nổi bật là NVL tăng 3,2%, PVT tăng 4,04%, HAH tăng 1,43%, VCG tăng 1,62%, DIG tăng 1,06%, GMD tăng 2,04%... Ở phía giảm sâu nhất, sức ép nhẹ cũng chỉ khiến chừng 17 mã có giao dịch quá 10 tỷ đồng. Blue-chips có 3 mã giảm quá 1% là DGC giảm 1,82%, VPL giảm 1,31%, MWG giảm 1,04%. Midcap chiếm phần lớ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Vietcombank: Thông qua kế hoạch phát hành hơn 1 tỷ cổ phiếu, hiện diện tại Trung tâm tài chính quốc tế - baochinhphu.vn",
+            "link": "https://news.google.com/rss/articles/CBMi3gFBVV95cUxNTnA1Z181M0dTUERiSlU5bTRPVGdtdURsYjIyOWN3LWw3RlJ3Q0pnbkxINlItb21iNXY1ME9hSVBaYnBXMlM4YVQxQ0V3TWZFTXFXUm5lXy1EOWRabnExc0VMZkFUYWt4Z0Z3bGNfeVJFTENSeEcxdXJqOXBFejFLMjEzOTJ0Q1RVNGNSY0pLOUctVEhuM0Z4TkJDYWFpdFNlLVpCYlNkTmZWZXRFbUc3QlJzcU10LUhKVHA5Y2RLVnNvUkZBRVpsdXpsSm1ydmpfNWRncHFwbkxfY1FZOWc?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMi3gFBVV95cUxNTnA1Z181M0dTUERiSlU5bTRPVGdtdURsYjIyOWN3LWw3RlJ3Q0pnbkxINlItb21iNXY1ME9hSVBaYnBXMlM4YVQxQ0V3TWZFTXFXUm5lXy1EOWRabnExc0VMZkFUYWt4Z0Z3bGNfeVJFTENSeEcxdXJqOXBFejFLMjEzOTJ0Q1RVNGNSY0pLOUctVEhuM0Z4TkJDYWFpdFNlLVpCYlNkTmZWZXRFbUc3QlJzcU10LUhKVHA5Y2RLVnNvUkZBRVpsdXpsSm1ydmpfNWRncHFwbkxfY1FZOWc?oc=5",
+            "content": "chính phủ nước cộng hòa xã hội chủ nghĩa việt nam Đại hội đồng cổ đông thường niên Vietcombank năm 2026 - Ảnh: VGP Giữ vững vị thế dẫn đầu với nền tảng tài chính ổn định Ngày 24/4, Vietcombank tổ chức Đại hội đồng cổ đông thường niên, thảo luận và thông qua nhiều nội dung quan trọng liên quan đến kết quả năm 2025 và định hướng năm 2026. Trong bối cảnh ngành ngân hàng tiếp tục chuyển dịch mạnh theo hướng số hóa, đồng thời yêu cầu nâng cao năng lực tài chính, Vietcombank vẫn duy trì vị thế dẫn đầu về quy mô và hiệu quả hoạt động. Cụ thể, tổng tài sản năm 2025 đạt trên 2,4 triệu tỷ đồng, tăng khoảng 17% so với cuối năm 2024. Huy động vốn thị trường I đạt khoảng 1,7 triệu tỷ đồng, tăng hơn 10,4% và vượt kế hoạch Đại hội giao. Dư nợ tín dụng đạt khoảng 1,7 triệu tỷ đồng, tăng 15%, tập trung vào các lĩnh vực sản xuất kinh doanh và lĩnh vực ưu tiên. Qua đó, ngân hàng góp phần hỗ trợ phục hồi và phát triển kinh tế. Lợi nhuận trước thuế hợp nhất đạt trên 44.000 tỷ đồng, tăng 4,2% so với năm trước. Các chỉ số hiệu quả tiếp tục duy trì ở mức cao, với ROA khoảng 1,6% và ROE trên 16%. Vietcombank cũng tiếp tục là ngân hàng niêm yết có quy mô vốn hóa lớn nhất thị trường chứng khoán Việt Nam. Đáng chú ý, chất lượng tài sản được kiểm soát chặt chẽ khi tỷ lệ nợ xấu dưới 1%, thấp hơn đáng kể so với mặt bằng chung. Tỷ lệ dự phòng bao nợ xấu duy trì ở mức cao. Bên cạnh đó, hệ số an toàn vốn đáp ứng chuẩn Basel II và từng bước tiệm cận Basel III. Vietcombank cũng giữ mức xếp hạng tín nhiệm cao nhất Việt Nam, tương đương mức trần tín nhiệm quốc gia từ các tổ chức quốc tế như S&P, Moody’s và Fitch Ratings. Những kết quả này cho thấy nền tảng tài chính vững chắc, năng lực điều hành ổn định, đồng thời thể hiện khả năng thích ứng linh hoạt trong bối cảnh thị trường còn nhiều biến động. Ông Nguyễn Thanh Tùng - Chủ tịch HĐQT Vietcombank phát biểu khai mạc và trình bày Báo cáo của HĐQT về hoạt động năm 2025 và định hướng năm 2026 - Ảnh: VGP Tại Đại hội, cổ đông đã thông qua định hướng hoạt động năm 2026 với mục tiêu tăng trưởng hợp lý, gắn với kiểm soát rủi ro và nâng cao hiệu quả. Theo đó, Vietcombank tiếp tục điều hành theo phương châm \"Đổi mới - Hiệu quả - Bền vững\", gắn với quan điểm \"Trách nhiệm - Kỷ cương - Kết nối - Sáng tạo\". Trọng tâm là đẩy mạnh chuyển đổi số, hiện đại hóa hạ tầng công nghệ, nâng cao năng lực quản trị và hiệu quả vận hành. Đồng thời, ngân hàng tăng cường kiểm soát nội bộ, quản trị rủi ro theo thông lệ quốc tế, nhằm bảo đảm tăng trưởng đi đôi với an toàn. Về kế hoạch kinh doanh, Vietcombank định hướng tăng trưởng tổng tài sản ở mức hợp lý, phù hợp với hạn mức tín dụng được giao. Dư nợ tín dụng thực hiện theo chỉ tiêu của Ngân hàng Nhà nước; huy động vốn tăng trưởng tương ứng với nhu cầu tín dụng. Tỷ lệ nợ xấu được kiểm soát dưới 1,5%, phản ánh định hướng duy trì chất lượng tài sản. Ông Lê Quang Vinh - Thành viên HĐQT, Tổng Giám đốc Vietcombank trình bày Báo cáo của Ban Điều hành về hoạt động kinh doanh năm 2025 và định hướng năm 2026 - Ảnh: VGP Một ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Chứng khoán ngày 8/1: VCB tím trần, VN-Index điều chỉnh - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMimAFBVV95cUxNeHhvd1E2RFYyWGlPeGZQR2Zta2IxWFYxTzAwd1dFNUJ2UkNjZ1NQQXl1eEVUbHRTUXA3RVh3OTBMenlkWUFRTG9MaDVLcVlIcjRyZlhTN3YwUDczUmpCSGhXMzNzX1daZlc5Y3YxNkJWTlVBUTYwYTM5R2IyR05OUE9DRGQyRVMtMVh3bF8yVDZwTFlBTzNocA?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMimAFBVV95cUxNeHhvd1E2RFYyWGlPeGZQR2Zta2IxWFYxTzAwd1dFNUJ2UkNjZ1NQQXl1eEVUbHRTUXA3RVh3OTBMenlkWUFRTG9MaDVLcVlIcjRyZlhTN3YwUDczUmpCSGhXMzNzX1daZlc5Y3YxNkJWTlVBUTYwYTM5R2IyR05OUE9DRGQyRVMtMVh3bF8yVDZwTFlBTzNocA?oc=5",
+            "content": "Theo Hoàng Lam (t/h) | 08-01-2026 - 17:25 PM | Thị trường chứng khoán Phiên 8/1, VN-Index giảm 6,02 điểm (-0,32%) xuống 1.855,56 điểm với 144 mã tăng và 183 mã giảm. Nhóm VN30-Index đóng cửa giảm hơn 22 điểm, dù khá cân bằng với 12 mã tăng và 16 mã giảm. Trong đó, VHM và VRE đều nằm sàn với thanh khoản đạt hơn 15-16 triệu đơn vị, với VRE dư bán sàn hơn 1,9 triệu đơn vị, còn VHM dư bán sàn gần nửa triệu đơn vị. VIC giảm 1,3%, VPL cũng giảm tới 6,4%. Tổng cộng 4 mã này đã lấy đi hơn 16 điểm của VN-Index. Trong khi đó, nhóm ngân hàng thành trụ đỡ chính của thị trường. Nổi bật là VCB tăng 6,9% lên mức giá trần 63.700 đồng/CP với thanh khoản lên tới hơn 27,1 triệu đơn vị, qua đó đóng góp tới hơn 7 điểm cho VN-Index. BID tăng 5,1% lên mức 43.050 đồng/CP với thanh khoản sôi động, đạt hơn 17,5 triệu đơn vị. CTG tăng 2% lên mức 38.200 đồng/CP với thanh khoản đạt xấp xỉ 32 triệu đơn vị. SHB với gần 136 triệu đơn vị khớp lệnh, đóng cửa mã này tăng nhẹ 0,6% và được khối ngoại mua ròng tới xấp xỉ 15 triệu đơn vị. TPB tăng 1,15%; MSB, STB, SHB, EIB tăng gần 1%. Ngược lại, HDB giảm 1,03%, TCB giảm 1,1%; MBB, ACB, VIB, OCB, LPB, ABB giảm gần 1%. Nhóm chứng khoán với TCX tăng 3,7%, VND tăng 2,6%, SSI tăng 1,5%, HCM tăng 1,1%. Trong đó, VIX vẫn là cổ phiếu có thanh khoản tốt nhất ngành, với gần 47,5 triệu đơn vị khớp lệnh, đóng cửa mã này tăng nhẹ 0,7%. Nhóm dầu khí với GAS tăng 3,5%, PLX nhích nhẹ, BSR tăng 3,6%, PVD tăng 1,3%... Nhóm bất động sản ngoài cổ phiếu Vingroup, đa số các cổ phiếu cũng giảm điểm: IDC giảm 2,57%, DXG giảm 1,49%, KDH giảm 2,71%, PDR giảm 1,6%, VPI giảm 2,46%... Khối ngoại bán ròng phiên thứ 3 liên tục trên sàn HoSE nhưng giá trị bán ròng giảm mạnh, chỉ gần 71 tỷ đồng. Các cổ phiếu được mua mạnh là VIC +285 tỷ đồng, SHB +250,8 tỷ đồng, TCX +183,4 tỷ đồng, VCB +164,5 tỷ đồng, GAS +138,9 tỷ đồng, HPG +124,9 tỷ đồng, MBB +116,8 tỷ đồng, BSR +76 tỷ đồng, VIX +67,9 tỷ đồng. Phía bán ròng có MCH -668,4 tỷ đồng, VHM -325,2 tỷ đồng, ACB -83 tỷ đồng, DXG -77 tỷ đồng… Tổng khối lượng giao dịch đạt hơn 1,26 tỷ đơn vị, giá trị 40.106 tỷ đồng, tăng 26% về khối lượng và 21,9% về giá trị so với phiên hôm qua. Trong đó, giao dịch thỏa thuận đóng góp xấp xỉ 90 triệu đơn vị, giá trị 3.997,4 tỷ đồng. HNX-Index giảm 0,3 điểm (-0,12%) xuống 249,1 điểm với 77 mã tăng và 72 mã giảm. Tổng khối lượng giao dịch đạt 101,55 triệu đơn vị, giá trị 2.349 tỷ đồng, tăng 31,55% về khối lượng và 50,77% về giá trị so với phiên hôm qua. Trong đó, giao dịch thỏa thuận đóng góp 7,65 triệu đơn vị, giá trị 224,6 tỷ đồng. UPCoM-Index tăng 0,55 điểm (+0,45%) lên 121,59 điểm với 160 mã tăng và 102 mã giảm. Tổng khối lượng giao dịch đạt 59,6 triệu đơn vị, giá trị 859 tỷ đồng, trong đó giao dịch thỏa thuận đóng góp 17,7 triệu đơn vị, giá trị 385,2 tỷ đồng. Địa chỉ: Tầng 21 Tòa nhà Center Building. Số 01, phố Nguyễn Huy Tưởng, phường Thanh Xuân, thành phố Hà Nội Điện thoại: 024 7309 5555 Máy lẻ 292. Fax: 024-39744082 Email: info@cafef.vn | Hotline: 0926 864 344 Chịu trách nhiệm nội dun",
+            "date": "14/5/2026"
+        }
+    ]
+}
