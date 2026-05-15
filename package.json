@@ -1,0 +1,27 @@
+{
+  "name": "projectfinance",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.16.0",
+    "ccxt": "^4.2.86",
+    "chalk": "^5.6.2",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "google-it": "^1.6.4",
+    "mongoose": "^9.6.2",
+    "puppeteer": "^24.43.0",
+    "yahoo-finance2": "^2.11.3"
+  }
+}
