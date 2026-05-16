@@ -1,10 +1,49 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { init, dispose, registerIndicator } from 'klinecharts';
+import { init, dispose, registerIndicator, registerOverlay } from 'klinecharts';
 import { 
   Pencil, MoveHorizontal, Baseline, Type, Trash2, 
   Settings2, ChevronDown, Check, BarChart2, Clock, RefreshCw, ChevronLeft, ChevronRight
 } from 'lucide-react';
-
+// ==========================================================
+// ĐĂNG KÝ CÔNG CỤ VẼ CHỮ (CUSTOM TEXT OVERLAY LÕI CỨNG)
+// ==========================================================
+registerOverlay({
+  name: 'omni_text_v2', 
+  totalStep: 1, // 🚀 KHẲNG ĐỊNH CHỈ CẦN 1 CLICK LÀ VẼ XONG
+  needDefaultPointFigure: false,  
+  needDefaultXAxisFigure: false,
+  needDefaultYAxisFigure: false,
+  createPointFigure: ({ overlay, coordinates }) => { 
+    if (!coordinates || coordinates.length === 0) return [];
+    
+    // Lấy màu từ cấu hình Tool
+    const color = overlay.styles?.text?.color || '#FF9600';
+    
+    const figures = [
+      {
+        type: 'text',
+        attrs: {
+          x: coordinates[0].x, 
+          y: coordinates[0].y,
+          text: overlay.extendData || '',
+          align: 'center', // 🚀 Đổi thành center cho nó ngay chính giữa mũi tên chuột
+          baseline: 'middle'
+        },
+        styles: { color: color, size: 14, family: 'Inter, sans-serif', weight: 'bold' }
+      }
+    ];
+    
+    // Nút tròn kéo thả
+    if (overlay.selected) {
+      figures.push({
+        type: 'circle',
+        attrs: { x: coordinates[0].x, y: coordinates[0].y, r: 4 }, 
+        styles: { color: color, style: 'fill' }
+      });
+    }
+    return figures;
+  }
+});
 // ==========================================================
 // LÕI CUSTOM VOLUME & BẮN TỌA ĐỘ KÉP (CHẠY VĨNH VIỄN)
 // ==========================================================
@@ -30,33 +69,26 @@ registerIndicator({
 
     const showVol = indicator.calcParams[0];
 
+    // 🚀 BƯỚC 1: TÍNH barWidth VÀ maxVol TRƯỚC KHI VẼ
+    const p0 = xAxis.convertToPixel(0);
+    const p1 = xAxis.convertToPixel(1);
+    const barWidth = Math.max(Math.abs(p1 - p0) * 0.8, 1); 
+
     let maxVol = 0;
+    // Quét tìm Max Volume trong vùng đang nhìn thấy để tính tỷ lệ độ cao cột
     for (let i = visibleRange.from; i < visibleRange.to; i++) {
-      const data = dataList[i];
-          if (!data) continue;
-          const vol = data.volume || 0;
-          const isUp = data.close >= data.open;
-          
-          const x = xAxis.convertToPixel(i);
-          let barHeight = maxVol > 0 ? (vol / maxVol) * (height * 0.25) : 0;
-
-          if (vol > 0 && barHeight < 1) barHeight = 1; 
-
-          const y = height - barHeight;
-
-          ctx.fillStyle = isUp ? 'rgba(8, 153, 129, 0.45)' : 'rgba(242, 54, 69, 0.45)';
-          ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+        if (dataList[i] && dataList[i].volume > maxVol) maxVol = dataList[i].volume;
     }
-    
+
+    // 🚀 BƯỚC 2: CẬP NHẬT TỌA ĐỘ KÉP (DÙNG CHO NHÃN GIÁ BÁM MÉP)
+
     const latestData = dataList[dataLen - 1];
-    let edgeIndex = visibleRange.to - 1;
-    if (edgeIndex >= dataLen) edgeIndex = dataLen - 1;
+    let edgeIndex = Math.min(visibleRange.to - 1, dataLen - 1);
     const edgeData = dataList[edgeIndex];
 
-    // BỘ MÁY QUÉT TỌA ĐỘ: LUÔN CHẠY BẤT CHẤP VOL BẬT HAY TẮT
     if (latestData && edgeData && yAxis) {
         window.__omniduck_dual_tags = {
-            showVol: showVol, // Gửi cờ ra ngoài để React biết ẩn/hiện Nhãn Volume
+            showVol: showVol,
             latest: {
                 price: latestData.close,
                 priceY: yAxis.convertToPixel(latestData.close),
@@ -76,25 +108,19 @@ registerIndicator({
         window.dispatchEvent(new Event('omniduck_update_dual_tags'));
     }
 
-    // CHỈ VẼ CỘT KHI VOL ĐƯỢC BẬT
-    if (showVol) {
-        const p0 = xAxis.convertToPixel(0);
-        const p1 = xAxis.convertToPixel(1);
-        let barWidth = Math.abs(p1 - p0) * 0.8;
-        if (isNaN(barWidth) || barWidth < 1) barWidth = 1;
-
+    // 🚀 BƯỚC 3: VẼ CỘT VOLUME (CHỈ VẼ KHI ĐƯỢC BẬT)
+    if (showVol && maxVol > 0) {
         for (let i = visibleRange.from; i < visibleRange.to; i++) {
           const data = dataList[i];
-          if (!data) continue;
-          const vol = data.volume || 0;
-          const isUp = data.close >= data.open;
+          if (!data || !data.volume) continue;
           
+          const isUp = data.close >= data.open;
           const x = xAxis.convertToPixel(i);
-          const barHeight = maxVol > 0 ? (vol / maxVol) * (height * 0.25) : 0;
-          const y = height - barHeight;
+          const barHeight = (data.volume / maxVol) * (height * 0.25);
+          const y = height - Math.max(barHeight, 1);
 
           ctx.fillStyle = isUp ? 'rgba(8, 153, 129, 0.35)' : 'rgba(242, 54, 69, 0.35)';
-          ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+          ctx.fillRect(x - barWidth / 2, y, barWidth, Math.max(barHeight, 1));
         }
     }
     return true; 
@@ -102,10 +128,11 @@ registerIndicator({
   createTooltipDataSource: () => ({ name: '', calcParamsText: '', values: [] })
 });
 
-export default function TradingChart({ data, theme, onIntervalChange }) {
+export default function TradingChart({ data, theme, onIntervalChange, currentInterval }) {
   const chartContainerRef = useRef(null);
   const chartInstance = useRef(null);
-  const [interval, setInterval] = useState('1 ngày');
+  const [interval, setInterval] = useState(currentInterval || '1 ngày');
+
   const [showIntervalMenu, setShowIntervalMenu] = useState(false);
   const priceLabelLatestRef = useRef(null); 
   const volLabelLatestRef = useRef(null);   
@@ -118,6 +145,41 @@ export default function TradingChart({ data, theme, onIntervalChange }) {
   const [activeMain, setActiveMain] = useState([]); 
   const [activeSub, setActiveSub] = useState(['VOL']); 
   const [chartType, setChartType] = useState('candle_solid'); 
+
+  const [activeOverlay, setActiveOverlay] = useState(null);
+const [inlineInput, setInlineInput] = useState(null);
+  const isAddingTextRef = useRef(false);
+  const [isAddingTextState, setIsAddingTextState] = useState(false); 
+  const [overlayColor, setOverlayColor] = useState('#FF9600');
+  const isFinishingRef = useRef(false); 
+  const [textColor, setTextColor] = useState('#FF9600');
+  const handleFinishText = (text) => {
+      if (isFinishingRef.current) return;
+      isFinishingRef.current = true;
+
+      if (text && text.trim() && inlineInput) {
+          // Bắt buộc phải có thêm dataIndex phòng hờ click vào khoảng trắng
+          const point = { value: inlineInput.value };
+          if (inlineInput.timestamp) point.timestamp = inlineInput.timestamp;
+          if (inlineInput.dataIndex !== undefined) point.dataIndex = inlineInput.dataIndex;
+
+          chartInstance.current?.createOverlay({
+              name: 'custom_text', 
+              extendData: { text: text.trim(), color: overlayColor }, // 🚀 BẮN MÀU VÀ CHỮ VÀO LÕI
+              points: [point], 
+              lock: false,
+              onSelected: (info) => {
+                  if (info) setActiveOverlay({ id: info.overlay?.id || info.id });
+              },
+              onDeselected: () => setActiveOverlay(null)
+          });
+      }
+      
+      setInlineInput(null); 
+      setIsAddingTextState(false);
+      isAddingTextRef.current = false;
+      setTimeout(() => { isFinishingRef.current = false; }, 100);
+  };
 const handleScrollLeft = () => {
     if (chartInstance.current) chartInstance.current.scrollByDistance(chartInstance.current.getBarSpace());
   };
@@ -155,19 +217,35 @@ const handleScrollLeft = () => {
     const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.12)'; 
     chart.setCustomApi({
         formatDate: (dateTimeFormat, timestamp, format, type) => {
-            const d = new Date(timestamp);
+            const d = new Date(timestamp); 
             const dd = String(d.getDate()).padStart(2, '0');
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const mm = d.getMonth() + 1; // 1 đến 12
             const yyyy = d.getFullYear();
             const hh = String(d.getHours()).padStart(2, '0');
             const min = String(d.getMinutes()).padStart(2, '0');
             
-            // Nếu là cái nhãn màu đen bám theo con trỏ chuột
-            if (type === 'crosshair') {
-                return `${hh}:${min} | ${dd} Tháng ${mm}, ${yyyy}`;
+            // 🚀 XỬ LÝ TRỤC X ĐÁY BIỂU ĐỒ (Zoom linh hoạt như TradingView)
+            if (type === 2 || type === 'xAxis') {
+                switch (format) {
+                    case 'YYYY': return `${yyyy}`; // Zoom cực xa chỉ hiện Năm
+                    case 'YYYY-MM': return `${String(mm).padStart(2,'0')}/${yyyy}`; // Xa vừa
+                    case 'MM-DD': return `${dd}/${String(mm).padStart(2,'0')}`; // Gần
+                    case 'YYYY-MM-DD': return `${dd}/${String(mm).padStart(2,'0')}/${yyyy}`;
+                    case 'HH:mm': return `${hh}:${min}`; // Khung siêu nhỏ
+                    case 'MM-DD HH:mm': return `${dd}/${String(mm).padStart(2,'0')} ${hh}:${min}`;
+                    default: return `${dd}/${String(mm).padStart(2,'0')}/${yyyy}`;
+                }
             }
-            // Nếu là các nhãn cố định nằm dưới trục X
-            return `${dd} Tháng ${mm}, ${yyyy}`;
+            
+            // 🚀 XỬ LÝ NHÃN CON TRỎ CHUỘT BÁM THEO (Loại bỏ 7h sáng rác)
+            // Nếu giờ là 07:00 hoặc 00:00 -> Đích thị là nến Ngày/Tuần/Tháng -> Bỏ giờ phút đi
+            const isDaily = (hh === '07' && min === '00') || (hh === '00' && min === '00');
+            
+            if (isDaily) {
+                return `${dd} Tháng ${mm}, ${yyyy}`;
+            } else {
+                return `${dd} Tháng ${mm}, ${yyyy} ${hh}:${min}`;
+            }
         }
     });
     chart.setStyles({
@@ -208,10 +286,59 @@ const handleScrollLeft = () => {
         show: true,
         horizontal: { line: { show: true, style: 'dashed', color: isDark ? '#4B5563' : '#9CA3AF' }, text: { show: true, color: '#ffffff', size: 11, family: 'Inter, sans-serif', paddingLeft: 4, paddingRight: 4, paddingTop: 4, paddingBottom: 4, backgroundColor: isDark ? '#374151' : '#6B7280' } },
         vertical: { line: { show: true, style: 'dashed', color: isDark ? '#4B5563' : '#9CA3AF' }, text: { show: true, color: '#ffffff', size: 11, family: 'Inter, sans-serif', paddingLeft: 4, paddingRight: 4, paddingTop: 4, paddingBottom: 4, backgroundColor: isDark ? '#374151' : '#6B7280' } }
+      },
+      overlay: {
+        point: {
+          color: '#df8d1aff',
+          borderColor: 'rgba(255, 150, 0, 0.3)',
+          borderSize: 4,
+          radius: 3, // Làm to chấm tròn lên 6px để dễ cầm nắm
+          activeColor: '#FF9600',
+          activeBorderColor: 'rgba(255, 150, 0, 0.5)',
+          activeBorderSize: 4,
+          activeRadius: 5, // Khi chạm vào sẽ nở to ra 8px
+        },
+        line: { color: '#FF9600', size: 2 },
+        polygon: { style: 'fill', color: '#FF9600', fill: { color: 'rgba(255, 150, 0, 0.1)' } }
       }
     });
+
+    const handleChartClick = (e) => {
+        if (isAddingTextRef.current && chartContainerRef.current) {
+            const rect = chartContainerRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const coords = chart.convertFromPixel([{ x, y }], { paneId: 'candle_pane' });
+            
+            if (coords && coords.length > 0) {
+                isAddingTextRef.current = false;
+                setIsAddingTextState(false); 
+                
+                setInlineInput({ 
+                    x, y, 
+                    timestamp: coords[0].timestamp, 
+                    dataIndex: coords[0].dataIndex, // 🚀 BẮT BUỘC PHẢI CÓ DÒNG NÀY 
+                    value: coords[0].value 
+                });
+            }
+        }
+    };
+
+    const domContainer = chartContainerRef.current;
+    // Dùng tham số "true" (Capture phase) để chặn bắt click trước khi KlineCharts kịp "nuốt"
+    domContainer.addEventListener('click', handleChartClick, true);
+
+    chart.subscribeAction('onScroll', () => setActiveOverlay(null));
+    chart.subscribeAction('onZoom', () => setActiveOverlay(null));
+
+    // Dọn dẹp sự kiện khi component load lại
+    return () => {
+        domContainer.removeEventListener('click', handleChartClick, true);
+    };
   }, [theme, isDark, chartType]);
 
+  
   // ==========================================================
   // 1.5. VÒNG ĐỜI HỦY BIỂU ĐỒ (TÁCH RIÊNG)
   // ==========================================================
@@ -226,28 +353,62 @@ const handleScrollLeft = () => {
       }
     };
   }, []);
-
-  // ==========================================================
+// ==========================================================
   // 2. NẠP DỮ LIỆU & THUẬT TOÁN HEIKIN ASHI
   // ==========================================================
   useEffect(() => {
     if (!chartInstance.current || !data || data.length === 0) return;
     
+    // 🚀 LÕI PHÂN TÍCH NGÀY THÁNG "BỌC THÉP" (Xử lý mọi định dạng từ Backend)
     const formattedData = data.map(d => {
-      let timeStr = d.time;
-      // 🚀 FIX LỖI 1: Trình duyệt không hiểu dấu cách, phải đổi thành chữ T (Chuẩn ISO 8601)
-      if (typeof timeStr === 'string' && timeStr.includes(' ') && !timeStr.includes('T')) {
-          timeStr = timeStr.replace(' ', 'T'); 
-      }
-      return {
-        timestamp: new Date(timeStr).getTime(), 
-        open: Number(d.open), 
-        high: Number(d.high), 
-        low: Number(d.low), 
-        close: Number(d.close), 
-        volume: Number(d.value) || Number(d.volume) || 0
-      };
-    }).filter(d => !isNaN(d.timestamp)).sort((a, b) => a.timestamp - b.timestamp); // Lọc nến lỗi để chống sập biểu đồ
+        let parsedTimestamp = 0;
+        let timeVal = d.time || d.date; // Đề phòng API trả về biến d.date thay vì d.time
+
+        if (timeVal !== undefined && timeVal !== null) {
+            // Trường hợp 1: Backend trả về chuỗi số (VD: "1715669400") -> Ép về kiểu Số
+            if (typeof timeVal === 'string' && !isNaN(timeVal) && timeVal.trim() !== '') {
+                timeVal = Number(timeVal);
+            }
+
+            // Trường hợp 2: Số nguyên (UNIX Timestamp)
+            if (typeof timeVal === 'number') {
+                parsedTimestamp = timeVal > 9999999999 ? timeVal : timeVal * 1000;
+            } 
+            // Trường hợp 3: Chuỗi văn bản Ngày Tháng
+            else if (typeof timeVal === 'string') {
+                if (timeVal.includes('/')) {
+                    const datePart = timeVal.split(' ')[0]; 
+                    const parts = datePart.split('/');
+                    
+                    if (parts.length === 3) {
+                        // Nếu là định dạng YYYY/MM/DD
+                        if (parts[0].length === 4) {
+                            parsedTimestamp = new Date(parts[0], parseInt(parts[1]) - 1, parts[2]).getTime();
+                        } else {
+                            // Mặc định: DD/MM/YYYY (Việt Nam)
+                            parsedTimestamp = new Date(parts[2], parseInt(parts[1]) - 1, parts[0]).getTime();
+                        }
+                    } else if (parts.length === 2) {
+                        // Nếu là MM/YYYY (Gom nến theo tháng)
+                        parsedTimestamp = new Date(parts[1], parseInt(parts[0]) - 1, 1).getTime();
+                    }
+                } else {
+                    // Chuẩn quốc tế YYYY-MM-DD
+                    let timeStr = timeVal.includes(' ') && !timeVal.includes('T') ? timeVal.replace(' ', 'T') : timeVal;
+                    parsedTimestamp = new Date(timeStr).getTime();
+                }
+            }
+        }
+
+        return {
+            timestamp: parsedTimestamp, 
+            open: Number(d.open) || 0, 
+            high: Number(d.high) || 0, 
+            low: Number(d.low) || 0, 
+            close: Number(d.close) || 0, 
+            volume: Number(d.value) || Number(d.volume) || 0
+        };
+    }).filter(d => !isNaN(d.timestamp) && d.timestamp > 0).sort((a, b) => a.timestamp - b.timestamp);
 
     let displayData = formattedData;
 
@@ -315,9 +476,17 @@ const handleScrollLeft = () => {
         const valColor = isDark ? '#F1F5F9' : '#111827';
         const bgColor = isDark ? 'rgba(11, 15, 20, 0.7)' : 'rgba(255, 255, 255, 0.8)';
         
-        const d = new Date(dData.timestamp);
-        const timeStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         
+        const d = new Date(dData.timestamp); 
+        let hh = String(d.getHours()).padStart(2, '0');
+        let min = String(d.getMinutes()).padStart(2, '0');
+        
+        const isDaily = (hh === '07' && min === '00') || (hh === '00' && min === '00');
+        
+        const timeStr = isDaily 
+            ? `${String(d.getDate()).padStart(2,'0')} Tháng ${d.getMonth()+1}, ${d.getFullYear()}`
+            : `${String(d.getDate()).padStart(2,'0')} Tháng ${d.getMonth()+1}, ${d.getFullYear()} ${hh}:${min}`;
+
         let volStr = dData.volume.toString();
         if (dData.volume >= 1000000) volStr = (dData.volume / 1000000).toFixed(2) + 'M';
         else if (dData.volume >= 1000) volStr = (dData.volume / 1000).toFixed(1) + 'K';
@@ -452,8 +621,25 @@ const handleScrollLeft = () => {
     }
   };
 
+    useEffect(() => {
+    const handleKeyDown = (e) => {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && activeOverlay) {
+            if (chartInstance.current) {
+                chartInstance.current.removeOverlay(activeOverlay.id);
+                setActiveOverlay(null);
+            }
+        }
+    };
+    
+    // Chỉ sử dụng handleKeyDown, đã xóa bỏ handleInteraction gây lỗi
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeOverlay]);
+  
   return (
- 
+  
     <div className="w-full h-full relative flex flex-col">
       
       {/* 1. TOOLBAR CHỨA MENU THẢ XUỐNG ĐÃ SỬA LỖI CHÌM */}
@@ -575,13 +761,54 @@ const handleScrollLeft = () => {
         
         {/* SIDEBAR VẼ KỸ THUẬT */}
         <div className={`w-14 shrink-0 border-r flex flex-col items-center py-4 gap-4 z-[100] relative ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-          {['segment', 'horizontalStraightLine', 'fibonacciLine', 'text'].map((t, i) => (
-            <button key={t} onClick={() => chartInstance.current?.createOverlay({ name: t, lock: false })} className="p-3 hover:bg-yellow-400 hover:text-black rounded-xl text-slate-500 transition-all shadow-sm">
+          {['segment', 'straightLine', 'fibonacciLine', 'text'].map((t, i) => (
+            <button 
+              key={t} 
+              title={['Vẽ Đoạn thẳng (Trendline)', 'Vẽ Đường thẳng (Infinite)', 'Thước Fibonacci', 'Chèn Text'][i]}
+              onClick={(e) => {
+                  e.stopPropagation();
+                  if (t === 'text') {
+                      isAddingTextRef.current = true;
+                      setIsAddingTextState(true);
+                  } else {
+                      isAddingTextRef.current = false;
+                      setIsAddingTextState(false);
+                      chartInstance.current?.createOverlay({ 
+                          name: t, 
+                          lock: false,
+                          // 🚀 ÁP DỤNG ĐỒNG BỘ MÀU CHUNG CHO CÁC TOOL CÒN LẠI
+                          styles: {
+                              line: { color: overlayColor, size: 2 },
+                              polygon: { style: 'fill', color: overlayColor, fill: { color: `${overlayColor}20` } }, // Cả nền Fibo cũng đổi màu theo
+                              point: { color: overlayColor, borderColor: `${overlayColor}40`, activeColor: overlayColor, activeBorderColor: `${overlayColor}80` }
+                          },
+                          onSelected: (info) => {
+                              if (info) setActiveOverlay({ id: info.overlay?.id || info.id });
+                          },
+                          onDeselected: () => setActiveOverlay(null)
+                      });
+                  }
+              }} 
+              className={`p-3 rounded-xl transition-all shadow-sm ${
+                 (t === 'text' && isAddingTextState) 
+                 ? 'bg-yellow-400 text-black' 
+                 : 'hover:bg-yellow-400 hover:text-black text-slate-500'
+              }`}
+            >
               {[<Pencil size={18} key="pencil"/>, <MoveHorizontal size={18} key="move"/>, <Baseline size={18} key="baseline"/>, <Type size={18} key="type"/>][i]}
             </button>
           ))}
           <div className="w-8 h-px bg-white/5 my-2"></div>
-          <button onClick={() => chartInstance.current?.removeOverlay()} className="p-3 hover:bg-red-500 hover:text-white rounded-xl text-red-500 transition-all">
+          
+          {/* NÚT XÓA TẤT CẢ */}
+          <button 
+            onClick={() => { 
+                chartInstance.current?.removeOverlay(); 
+                setActiveOverlay(null); 
+            }} 
+            title="Xóa tất cả hình vẽ"
+            className="p-3 hover:bg-red-500 hover:text-white rounded-xl text-red-500 transition-all"
+          >
             <Trash2 size={18} />
           </button>
         </div>
@@ -590,6 +817,75 @@ const handleScrollLeft = () => {
         <div className="flex-1 relative w-full h-full overflow-hidden">
           <div ref={chartContainerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
           
+          {/* 🚀 BẢNG CHỌN MÀU CHO TẤT CẢ CÔNG CỤ VẼ */}
+          <div className="absolute top-3 right-4 z-[85] flex items-center gap-2 bg-[#10151C]/90 border border-white/10 px-3 py-2 rounded-xl backdrop-blur-md shadow-2xl">
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider mr-1">Màu vẽ:</span>
+            {[
+              { hex: '#FF9600', name: 'Cam' },
+              { hex: '#089981', name: 'Xanh lá' },
+              { hex: '#F23645', name: 'Đỏ' },
+              { hex: '#2196F3', name: 'Xanh dương' },
+              { hex: '#EAB308', name: 'Vàng' },
+              { hex: '#FFFFFF', name: 'Trắng' }
+            ].map(c => (
+              <button
+                key={c.hex}
+                title={c.name}
+                onClick={() => setOverlayColor(c.hex)}
+                className={`w-4 h-4 rounded-full transition-all border relative ${overlayColor === c.hex ? 'scale-125 border-white shadow-[0_0_10px_rgba(255,255,255,0.6)]' : 'border-transparent hover:scale-110'}`}
+                style={{ backgroundColor: c.hex }}
+              />
+            ))}
+          </div>
+
+          {/* 🚀 KHUNG MỜ GÕ CHỮ TRỰC TIẾP TRÊN CHART (ĐÃ FIX LỖI DOUBLE ENTER) */}
+          {inlineInput && (
+              <input
+                 autoFocus
+                 type="text"
+                 placeholder="GHI CHÚ..."
+                 className="absolute bg-[#10151C] font-black px-4 py-2 rounded-lg border-2 shadow-[0_0_20px_rgba(0,0,0,0.5)] outline-none"
+                 style={{ 
+                    zIndex: 999999, 
+                    left: inlineInput.x, 
+                    top: inlineInput.y, 
+                    transform: 'translate(0, -50%)', 
+                    minWidth: '150px',
+                    color: overlayColor, // Chữ đang gõ sẽ đổi màu theo bảng màu luôn!
+                    borderColor: overlayColor, 
+                    caretColor: overlayColor
+                 }}
+                 onBlur={(e) => handleFinishText(e.target.value)}
+                 onKeyDown={(e) => {
+                     if (e.key === 'Enter') handleFinishText(e.target.value);
+                     if (e.key === 'Escape') { 
+                         setInlineInput(null); 
+                         setIsAddingTextState(false); 
+                     }
+                 }}
+              />
+          )}
+          {activeOverlay && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-[#10151C]/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 shadow-2xl animate-in slide-in-from-top-4">
+                <div className="flex items-center gap-2 text-yellow-500">
+                    <Pencil size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Đã chọn đường vẽ</span>
+                </div>
+                <div className="w-px h-4 bg-white/10"></div>
+                <button
+                    className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase transition-all border border-red-500/20 hover:border-red-500"
+                    onClick={(e) => {
+                        e.stopPropagation(); 
+                        if (chartInstance.current) {
+                            chartInstance.current.removeOverlay(activeOverlay.id);
+                            setActiveOverlay(null);
+                        }
+                    }}
+                >
+                    <Trash2 size={14} /> Xóa bỏ
+                </button>
+            </div>
+          )}
           {/* THÔNG TIN NẾN REALTIME OVERLAY */}
           <div ref={topBarRef} style={{ position: 'absolute', top: '8px', left: '16px', zIndex: 50, pointerEvents: 'none', fontSize: '11px', fontWeight: '600' }} />
 
