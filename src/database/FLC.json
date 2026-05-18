@@ -1,0 +1,932 @@
+{
+    "symbol": "FLC",
+    "companyName": "Công ty cổ phần Tập đoàn FLC",
+    "lastUpdated": "2026-05-14T09:14:37.156Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "FLC",
+            "San": "UPCOM",
+            "Nganh": "Phát triển bất động sản",
+            "NgayGDDauTien": "03/03/2023",
+            "GiaDongCuaNGDDT": 3.5,
+            "VolumeStartDate": 709997807,
+            "VDL": 7099978070000,
+            "KLCPNY": 709997807,
+            "KLCPLH": 709997807,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "-2.65",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "-2.65",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "-1.32",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "10.77",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "0.31",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "2,484.99",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "n/a",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "709,997,807",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "709,997,807",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Tổng LNST 4Q âm hoặc chưa đủ số liệu tính",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "CORP_94688",
+                    "Name": "CTCP Đào tạo Golf VPGA",
+                    "Url": "CTCP Đào tạo Golf VPGA",
+                    "AssetVolume": "62.580.853",
+                    "AssetRate": "8,81",
+                    "UpdatedDate": "14/08/2018"
+                },
+                {
+                    "Code": "CORP_80385",
+                    "Name": "Công ty TNHH Đầu tư Thương mại và Xuất nhập khẩu Vietexco",
+                    "Url": "Công ty TNHH Đầu tư Thương mại và Xuất nhập khẩu Vietexco",
+                    "AssetVolume": "52.150.710",
+                    "AssetRate": "7,35",
+                    "UpdatedDate": "14/08/2018"
+                },
+                {
+                    "Code": "CORP_80742",
+                    "Name": "Vaneck Vectors ETF Trust - Vaneck Vectors - Vietnam ETF",
+                    "Url": "Vaneck Vectors ETF Trust - Vaneck Vectors - Vietnam ETF",
+                    "AssetVolume": "28.911.403",
+                    "AssetRate": "4,07",
+                    "UpdatedDate": "14/08/2018"
+                },
+                {
+                    "Code": "CEO_80068",
+                    "Name": "Hương Trần Kiều Dung",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80068/huong-tran-kieu-dung.chn'>Hương Trần Kiều Dung</a>",
+                    "AssetVolume": "27.775",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "31/12/2021"
+                },
+                {
+                    "Code": "CEO_871900",
+                    "Name": "Doãn Hữu Đoàn",
+                    "Url": "<a href='/du-lieu/ceo/CEO_871900/doan-huu-doan.chn'>Doãn Hữu Đoàn</a>",
+                    "AssetVolume": "40",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "30/06/2024"
+                },
+                {
+                    "Code": "CORP_80337",
+                    "Name": "CTCP Đầu tư Fujikaen Việt Nam",
+                    "Url": "CTCP Đầu tư Fujikaen Việt Nam",
+                    "AssetVolume": "23.989.326",
+                    "AssetRate": "3,38",
+                    "UpdatedDate": "14/08/2018"
+                },
+                {
+                    "Code": "CORP_80339",
+                    "Name": "CTCP Đầu tư Tài chính và Quản lý tài sản Magnus Capital",
+                    "Url": "CTCP Đầu tư Tài chính và Quản lý tài sản Magnus Capital",
+                    "AssetVolume": "37.210.276",
+                    "AssetRate": "5,24",
+                    "UpdatedDate": "14/08/2018"
+                },
+                {
+                    "Code": "CEO_86959",
+                    "Name": "Đặng Thị Lưu Vân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_86959/dang-thi-luu-van.chn'>Đặng Thị Lưu Vân</a>",
+                    "AssetVolume": "20.000",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "31/12/2022"
+                },
+                {
+                    "Code": "ART",
+                    "Name": "Công ty cổ phần Tập đoàn FLC",
+                    "Url": "<a href='/du-lieu/upcom/ART-cong-ty-co-phan-chung-khoan-artex.chn' title='Công ty Cổ phần Chứng khoán Artex'>Công ty Cổ phần Chứng khoán Artex</a>",
+                    "AssetVolume": "200.483",
+                    "AssetRate": "0,03",
+                    "UpdatedDate": "31/12/2021"
+                },
+                {
+                    "Code": "CEO_11019",
+                    "Name": "Trịnh Văn Quyết",
+                    "Url": "<a href='/du-lieu/ceo/CEO_11019/trinh-van-quyet.chn'>Trịnh Văn Quyết</a>",
+                    "AssetVolume": "215.436.257",
+                    "AssetRate": "30,34",
+                    "UpdatedDate": "31/12/2022"
+                }
+            ],
+            "NuocNgoai": 2.16,
+            "NhaNuoc": 0,
+            "Khac": 97.84
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 31,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 31,
+                    "Y": 1030.9,
+                    "Region": "",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 33,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 24,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 26,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 14,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 42,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 8,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 21,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 5,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 6,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 5,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 37,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 41,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 18,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 17,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 4,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 43,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 23,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 6,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 38,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 18,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 10,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 17,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 13,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 6,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 42,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 6,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 34,
+                    "Y": 2551,
+                    "Region": "",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 18,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 9,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 30,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 40,
+                    "Y": 701.2,
+                    "Region": "",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 18,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 23,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 11,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 18,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 5,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 16,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 42,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 33,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 19,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 34,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 43,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 11,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 13,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 40,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 3,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 7,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 14,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 30,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 25,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 14,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 29,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 21,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 38,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 14,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 36,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 21,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 7,
+                    "Y": 1727.4,
+                    "Region": "",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 14,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 40,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/FLC.pdf"
+    },
+    "deepNewsData": [
+        {
+            "title": "Cổ phiếu FLC được giao dịch lại: Cởi nút thanh khoản, nhưng nhà đầu tư cần lưu ý điều này - Báo Tuổi Trẻ",
+            "link": "https://news.google.com/rss/articles/CBMixwFBVV95cUxOY2R1MUVVZVdDejVpb2xMNWd4aTBGYnVpOHlnV3I4RXpaUElzcVI1a050QTJ4LVZIMVlEa0JKcUZrYmJVWHo3ZmpkVkVqdGhGZDh4RUF5QWxqdTlaUWQ0U3ZfRWR5ajBoakEwMC01OGtObDFfNXJMRzFwWFotVnI3X3JmZ0xMcFhRZmtQN1BycnhleGNyWU15bkFmcUlidkRYcGdhbnlEdHdkMzQxWUY3SGoza0F3bjNRUGRBYVFSOHVQcnJxNklF?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMixwFBVV95cUxOY2R1MUVVZVdDejVpb2xMNWd4aTBGYnVpOHlnV3I4RXpaUElzcVI1a050QTJ4LVZIMVlEa0JKcUZrYmJVWHo3ZmpkVkVqdGhGZDh4RUF5QWxqdTlaUWQ0U3ZfRWR5ajBoakEwMC01OGtObDFfNXJMRzFwWFotVnI3X3JmZ0xMcFhRZmtQN1BycnhleGNyWU15bkFmcUlidkRYcGdhbnlEdHdkMzQxWUY3SGoza0F3bjNRUGRBYVFSOHVQcnJxNklF?oc=5",
+            "content": "\"Giao dịch tự do” được hiểu là giao dịch chuyển nhượng cổ phần ngoài hệ thống khớp lệnh tập trung - Ảnh: HỮU HẠNH FLC thông báo cổ phiếu của tập đoàn đã được \"giao dịch tự do\" sau 3 năm dừng giao dịch. Chứng khoán Artex sẽ là đầu mối quản lý danh sách/sổ cổ đông. Trước đó, theo số liệu từ phiên họp bất thường vào tháng 11 năm ngoái, tập đoàn này có hơn 64.300 cổ đông. Với thủ tục thực hiện, FLC hướng dẫn cổ đông làm theo hợp đồng giao dịch theo mẫu có xác nhận tại Artex. Thông báo của FLC được đưa ra sau khi tập đoàn này bị hủy tư cách đại chúng, gần 710 triệu cổ phiếu FLC bị hủy đăng ký tại VSDC. Như vậy nhà đầu tư cần lưu ý \"giao dịch tự do\" không có nghĩa FLC quay lại giao dịch tập trung như một cổ phiếu niêm yết hay trên sàn UPCoM. Thay vào đó cổ đông có một đầu mối pháp lý là công ty chứng khoán do FLC chỉ định để chuyển nhượng cổ phần trực tiếp, cập nhật quyền sở hữu trên sổ đăng ký cổ đông thay vì bị \"kẹt\" sau khi rời hệ thống đăng ký, lưu ký tập trung. Việc giao dịch chuyển nhượng cổ phần sẽ diễn ra ngoài hệ thống khớp lệnh tập trung. Nhưng muốn giao dịch được, cổ đông phải tới Chứng khoán Artex làm thủ tục nhận giấy chứng nhận sở hữu cổ phần. Người mua và người bán tự tìm nhau, tự thỏa thuận giá, khối lượng, điều kiện thanh toán; sau đó nộp hồ sơ để Artex xác nhận và cập nhật thay đổi sở hữu vào sổ cổ đông. Nói cách khác đây là thị trường thỏa thuận trực tiếp, không phải thị trường có bảng điện, không có cơ chế khớp lệnh liên tục, không có biên độ giá ngày, không có thanh toán bù trừ theo kiểu chứng khoán đang lưu ký tập trung... Việc chuyển quyền sở hữu được hợp thức hóa thông qua đơn vị quản lý sổ cổ đông, chứ không phải thông qua hệ thống giao dịch của HoSE, HNX hay UPCoM. Với một cổ phiếu từng bị dừng giao dịch trong thời gian dài, điều nhà đầu tư thiếu nhất là tính thanh khoản. Sau gần 3 năm bị dừng giao dịch, cổ phiếu FLC đã được giao dịch trở lại để \"đảm bảo quyền lợi cho các cổ đông về mặt thanh khoản\". Nhưng nhà đầu tư cũng cần lưu ý, có thanh khoản không đồng nghĩa có thanh khoản cao. Liệu có người mua hay không, hai bên có chấp nhận mức giá chung hay không và hồ sơ chuyển quyền diễn ra như thế nào. Cơ hội thoát hàng đã mở ra, nhưng mức độ dễ dàng sẽ thấp hơn rất nhiều so với một cổ phiếu giao dịch công khai. Vậy các nhà đầu tư trong trường hợp còn cầm nắm giữ cổ phiếu nên làm như thế nào? Bước đầu tiên là xác minh quyền sở hữu. FLC cho biết cổ đông có thể làm thủ tục nhận giấy chứng nhận sở hữu cổ phần trực tiếp tại Artex hoặc ủy quyền cho người khác với giấy ủy quyền công chứng hợp lệ. Bước thứ hai là xác định mục tiêu của mình. Nếu nhà đầu tư cần thoát hàng để thu hồi vốn, trọng tâm là tìm đối tác mua và chấp nhận mức giá thị trường thực tế. Nếu nhà đầu tư tin vào khả năng tái cấu trúc doanh nghiệp, có thể chưa vội bán mà ưu tiên hoàn thiện hồ sơ sở hữu trước, chờ các diễn biến tiếp theo từ FLC. Cần lưu ý nên thực hiện giao dịch khi quy trình thanh toán và chuyển quyền được thiết kế an toàn. Còn với người có dự định mua cổ p",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "CỔ PHIẾU FLC ĐÃ ĐƯỢC GIAO DỊCH TRỞ LẠI TRÊN HỆ THỐNG LƯU KÝ TẠI CÔNG TY CPCK ARTEX - FLC Group",
+            "link": "https://news.google.com/rss/articles/CBMirwFBVV95cUxOTTdmYmxNOThNdDQ1bjdSbVUyTFZlY3N1NGFxdDdRWlF2WUZ4d1kyWkUzb0RhN2hkcWZTaEJOeHRpb3FBUWxuNGNVaEluWDRmYkludUVoQVgtMmM5NzhoR1RoSVNEYml5NjA1TlNMVlFWQWdweTMxY2FBMXdWQll4aVRZck51dzEybGMxUmJvcDdFaEZuWVVWWktfaGlocFdSdFJKN3M4RlN0SGtwUTVv?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirwFBVV95cUxOTTdmYmxNOThNdDQ1bjdSbVUyTFZlY3N1NGFxdDdRWlF2WUZ4d1kyWkUzb0RhN2hkcWZTaEJOeHRpb3FBUWxuNGNVaEluWDRmYkludUVoQVgtMmM5NzhoR1RoSVNEYml5NjA1TlNMVlFWQWdweTMxY2FBMXdWQll4aVRZck51dzEybGMxUmJvcDdFaEZuWVVWWktfaGlocFdSdFJKN3M4RlN0SGtwUTVv?oc=5",
+            "content": "Hà Nội, ngày 06 tháng 03 năm 2026 Để đảm bảo quyền vào lợi ích của cổ đông, ngay sau khi CTCP Tập đoàn FLC không còn là công ty đại chúng, Ban lãnh đạo Tập đoàn đã nhanh chóng thực hiện xúc tiến các thủ tục pháp lý để cổ phiếu FLC sớm được giao dịch tự do. Trên cơ sở Hợp đồng Đại lý quản lý sổ cổ đông ký kết với CTCP Chứng khoán Artex, CTCP Tập đoàn FLC xin thông báo đến toàn thể Quý cổ đông như sau: Kể từ ngày 6/3/2026, CTCP Chứng khoán Artex sẽ là đơn vị quản lý danh sách/ sổ cổ đông của CTCP Tập đoàn FLC. Theo đó: 1. Thủ tục nhận giấy chứng nhận sở hữu cổ phần Có hai cách để cổ đông nhận giấy chứng nhận sở hữu cổ phần, gồm: 2. Với các giao dịch cổ phiếu FLC: Kể từ ngày 6/3/2026, các cổ đông sở hữu cổ phiếu FLC có thể trực tiếp và tự do giao dịch toàn bộ cổ phiếu. Thủ tục chi tiết các giao dịch này sẽ thực hiện dựa trên hợp đồng giao dịch giao dịch theo mẫu có xác nhận tại CTCP Chứng khoán Artex. Địa điểm tiếp nhận hồ sơ tại tầng 1, tòa nhà FLC Landmark Tower, đường Lê Đức Thọ, Hà Nội. Như vậy, sau gần 3 năm bị dừng giao dịch, cổ phiếu FLC đã được tự do giao dịch trở lại, đảm bảo quyền lợi cho các cổ đông về mặt thanh khoản. Ngoài ra, toàn thể Ban lãnh đạo và cán bộ công nhân viên Tập đoàn đang nỗ lực để thực hiện quá trình tái cấu trúc toàn diện các mặt hoạt động, nhằm xây dựng FLC phát triển vững mạnh, đảm bảo quyền lợi cao nhất cho các cổ đông cũng như tri ân sự tin tưởng của Quý cổ đông đã dành cho Tập đoàn trong suốt thời gian vừa qua. ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu FLC sẽ rời sàn chứng khoán từ ngày 31/12 - VnExpress",
+            "link": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQUnFURk81YjNsdGFWbk9mUHVRaHR4MWpoaTZMdWcyMUE3bVBpMkdoZC03X2hLdUU5WGNBaFdGLTY2cjdpaU5YbFpnVmNBbnNqcFBTMnMtbmdncmRKUE5EY1lDdnVzeFFJTzM4enRQakhWQkpEWVVzcEpoU0xCd3QwY2JqZVY2enFaTVE5dw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQUnFURk81YjNsdGFWbk9mUHVRaHR4MWpoaTZMdWcyMUE3bVBpMkdoZC03X2hLdUU5WGNBaFdGLTY2cjdpaU5YbFpnVmNBbnNqcFBTMnMtbmdncmRKUE5EY1lDdnVzeFFJTzM4enRQakhWQkpEWVVzcEpoU0xCd3QwY2JqZVY2enFaTVE5dw?oc=5",
+            "content": "Cổ phiếu FLC sẽ dừng giao dịch trên sàn UPCoM kể từ ngày 31/12, sau khi doanh nghiệp bị hủy tư cách công ty đại chúng. Theo quyết định của Sở Giao dịch Chứng khoán Hà Nội (HNX), 710 triệu cổ phiếu FLC sẽ giao dịch phiên cuối cùng trên sàn UPCoM vào ngày 30/12. Nguyên nhân là Ủy ban Chứng khoán hủy tư cách công ty đại chúng của Tập đoàn FLC cách đây một tuần. Khi bị hủy niêm yết, giá trị cổ phiếu nhà đầu tư nắm giữ không thay đổi. Tuy nhiên, họ sẽ không thể giao dịch số cổ phần đó trên các sàn chứng khoán tập trung. Trước đó, nhà chức trách từng hủy niêm yết mã FLC trên sàn HoSE đầu năm 2023 và đình chỉ giao dịch trên UPCoM với cổ phiếu này do vi phạm công bố thông tin. Ngoài FLC, một số cổ phiếu khác trong hệ sinh thái này như GAB, HAI, KLF cũng bị hủy giao dịch trên UPCoM từ ngày 31/12 với lý do tương tự. Dự án chung cư trên đường Phạm Hùng, TP Hà Nội của tập đoàn FLC. Ảnh: FLC Đầu tháng 11, Tổng giám đốc FLC Bùi Hải Huyền từng khẳng định cổ phiếu của công ty này có thể giao dịch trở lại sớm nhất trên UPCoM vào quý I/2026, sau khi doanh nghiệp phát hành các báo cáo tài chính. Công ty này đã không công bố kết quả kinh doanh kể từ giữa năm 2022. Việc mất tư cách công ty đại chúng khiến lộ trình này gặp khó. FLC là tập đoàn hoạt động trong nhiều lĩnh vực như bất động sản, du lịch nghỉ dưỡng, đầu tư tài chính, hàng không. Doanh nghiệp này đã hoàn thiện một số quần thể nghỉ dưỡng, khách sạn tại Gia Lai (Bình Định cũ), Thanh Hóa, Phú Thọ (Vĩnh Phúc cũ), Quảng Ninh, Quảng Trị... Tuy nhiên, hoạt động của tập đoàn gặp khó sau khi cựu Chủ tịch Trịnh Văn Quyết vướng vòng lao lý về tội \"lừa đảo chiếm đoạt tài sản\" và \"thao túng thị trường chứng khoán\". ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "FLC phát thông báo quan trọng sau khi ông Trịnh Văn Quyết trở lại - Znews",
+            "link": "https://news.google.com/rss/articles/CBMioAFBVV95cUxNZkpmdWRmNko1NEFxd0NKWHFva1pHR3czUHNrb1hYbFR0Q1d3X1I2UnJlZmlMVll0M2lBVkxTR2Nvb09aY0Rfdl9oazdKWUh5Q0pEQ19KcGhiSm9Ub1ZJMm9NdHNVMzV0aUJ5aFFaRTRIc0NRaS13SW0wRkx5TVJGeVlfdTZuWkxybS15dGk3Y3FCZ2xQWmZzWUg3MmdMLW01?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMioAFBVV95cUxNZkpmdWRmNko1NEFxd0NKWHFva1pHR3czUHNrb1hYbFR0Q1d3X1I2UnJlZmlMVll0M2lBVkxTR2Nvb09aY0Rfdl9oazdKWUh5Q0pEQ19KcGhiSm9Ub1ZJMm9NdHNVMzV0aUJ5aFFaRTRIc0NRaS13SW0wRkx5TVJGeVlfdTZuWkxybS15dGk3Y3FCZ2xQWmZzWUg3MmdMLW01?oc=5",
+            "content": "Từ ngày 6/3, Công ty Chứng khoán Artex sẽ là đơn vị đầu mối trực tiếp thực hiện các công việc liên quan đến quản lý danh sách cổ đông của Tập đoàn FLC. Gần 710 triệu cổ phiếu FLC sẽ chuyển sang cho Công ty Chứng khoán Artex quản lý. Ảnh: Đức Anh. CTCP Tập đoàn FLC vừa thông báo tới cổ đông về việc thay đổi đơn vị quản lý danh sách cổ đông của doanh nghiệp. Theo đó, gần 710 triệu cổ phiếu FLC do hơn 64.000 cổ đông đang nắm giữ sẽ hủy đăng ký tại VSDC từ ngày 6/3. Trước đó, VSDC đã ngừng cung cấp các dịch vụ lưu ký, rút và chuyển quyền sở hữu đối với toàn bộ cổ phiếu FLC từ ngày 27/2. Theo FLC, để đảm bảo việc quản lý danh sách cổ đông được thực hiện chuyên nghiệp, liên tục và đáp ứng kịp thời các yêu cầu của cổ đông cũng như hỗ trợ các thủ tục chuyển nhượng/thay đổi thông tin cổ đông, doanh nghiệp đã lựa chọn CTCP Chứng khoán Artex là đơn vị quản lý danh sách cổ đông của công ty. Như vậy, từ ngày 6/3, Công ty Chứng khoán Artex sẽ là đơn vị đầu mối trực tiếp thực hiện các công việc liên quan đến quản lý danh sách cổ đông của FLC, bao gồm quản lý, cập nhật sổ đăng ký cổ đông; tiếp nhận, thực hiện và trả hồ sơ đối với các nghiệp vụ liên quan đến cổ đông. Tập đoàn FLC cho hay việc hủy đăng ký chứng khoán tại VSDC và chuyển đơn vị quản lý danh sách cổ đông nêu trên không làm ảnh hưởng đến quyền và lợi ích hợp pháp của cổ đông theo quy định của pháp luật và Điều lệ Tập đoàn FLC. Artex là công ty chứng khoán từng gắn với hệ sinh thái Tập đoàn FLC của ông Trịnh Văn Quyết. Doanh nghiệp này trước đây hoạt động dưới tên Công ty Chứng khoán BOS, song đến tháng 7/2025 đã chính thức lấy lại tên Artex sau khi được ĐHĐCĐ thông qua. Cùng với việc đổi tên, công ty cũng chuyển trụ sở về Tầng 1, tòa nhà FLC Landmark Tower, đường Lê Đức Thọ, Hà Nội. Mới đây, vào ngày 26/2, Ủy ban Chứng khoán Nhà nước đã có văn bản về việc đưa Công ty Chứng khoán Artex ra khỏi diện kiểm soát. Theo đại diện doanh nghiệp, ngay trong tháng 3, Artex sẽ hoàn tất các thủ tục với cơ quan quản lý để mở lại giao dịch chiều mua cho khách hàng. Về phía Tập đoàn FLC, từ 31/12/2025, cổ phiếu FLC đã chính thức dừng giao dịch trên UPCoM, sau khi Tập đoàn FLC bị hủy tư cách công ty đại chúng theo quyết định của cơ quan quản lý. Việc bị hủy giao dịch không làm thay đổi giá trị của cổ phiếu mà nhà đầu tư đang nắm giữ, tuy nhiên các cổ phần này sẽ không còn được mua bán trên các sàn chứng khoán chính thức. Trước đó, mã chứng khoán FLC đã bị hủy niêm yết bắt buộc trên HoSE từ đầu năm 2023 và tiếp tục bị đình chỉ giao dịch trên UPCoM do vi phạm nghiêm trọng nghĩa vụ công bố thông tin. Vừa qua, ông Trịnh Văn Quyết, người sáng lập và là cựu Chủ tịch Tập đoàn FLC, đã trở lại thương trường sau thời gian vướng vòng lao lý. Kể từ khi ông Trịnh Văn Quyết trở lại, FLC liên tục có nhiều chuyển động. Mới đây nhất, doanh nghiệp này đã bổ nhiệm ông Trịnh Văn Nam, sinh năm 1991, giữ chức Tổng giám đốc. Trước đó, FLC cũng bổ nhiệm ông Phạm Mạnh Thắng giữ chức Phó tổng giám đốc, đồng thời đảm nhiệm vai trò Chủ tịch Hội đ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu FLC được giao dịch trở lại sau gần 3 năm, cổ đông cần làm gì? - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMirAFBVV95cUxQS25BM0FnSjJ5MnRNZm1ObW1LSWdrOUpIdlBpcHRiMzQxTnpOTGdyalM0RHRWQzBZM3hUY1d6ZXZrUG0wNWxYLV96TDc5T29YcWw3aWh4OGp4bmRoYTlsYnJ1RGZ5eTNINEc2d1BwblpUcWo2RWVUX0VBQzVrV0J6VGdOLTJMN2VaZ29NRjk3LUFtSWhqZnlyMUtIQW5nOGxQTFlNQ1NpbU9ORW56?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirAFBVV95cUxQS25BM0FnSjJ5MnRNZm1ObW1LSWdrOUpIdlBpcHRiMzQxTnpOTGdyalM0RHRWQzBZM3hUY1d6ZXZrUG0wNWxYLV96TDc5T29YcWw3aWh4OGp4bmRoYTlsYnJ1RGZ5eTNINEc2d1BwblpUcWo2RWVUX0VBQzVrV0J6VGdOLTJMN2VaZ29NRjk3LUFtSWhqZnlyMUtIQW5nOGxQTFlNQ1NpbU9ORW56?oc=5",
+            "content": "Theo Hà Ly | 08-03-2026 - 00:01 AM | Thị trường chứng khoán CTCP Tập đoàn FLC mới đây thông báo kể từ ngày 6/3, CTCP Chứng khoán Artex sẽ là đơn vị quản lý danh sách/sổ cổ đông của FLC. Theo đó, có hai cách để cổ đông nhận giấy chứng nhận sở hữu cổ phần. Thứ nhất, cổ đông trực tiếp đến trụ sở của Chứng khoán Artex để làm thủ tục. Thứ hai, cổ đông có thể ủy quyền cho cá nhân khác thực hiện thay, với điều kiện giấy ủy quyền phải được công chứng hợp lệ và nêu rõ nội dung ủy quyền thực hiện thủ tục cấp giấy chứng nhận cổ phần. Cũng từ ngày 6/3, các cổ đông sở hữu cổ phiếu FLC có thể trực tiếp và tự do giao dịch toàn bộ cổ phiếu. Thủ tục chi tiết các giao dịch này sẽ thực hiện dựa trên hợp đồng giao dịch giao dịch theo mẫu có xác nhận tại CTCP Chứng khoán Artex. Địa điểm tiếp nhận hồ sơ tại tầng 1, tòa nhà FLC Landmark Tower, đường Lê Đức Thọ, Hà Nội. Như vậy, sau gần 3 năm bị dừng giao dịch, cổ phiếu FLC đã được tự do giao dịch trở lại, đảm bảo quyền lợi cho các cổ đông về mặt thanh khoản. Theo cập nhật tại Đại hội đồng cổ đông bất thường tổ chức vào tháng 11/2025, FLC có hơn 64.300 cổ đông. FLC khẳng định đang nỗ lực để thực hiện quá trình tái cấu trúc toàn diện các mặt hoạt động, nhằm xây dựng FLC phát triển vững mạnh, đảm bảo quyền lợi cao nhất cho các cổ đông cũng như tri ân sự tin tưởng của cổ đông đã dành cho Tập đoàn trong suốt thời gian vừa qua. Trước đó, 709,9 triệu cổ phiếu FLC đã chính thức hủy đăng ký tại Tổng công ty Lưu ký và Bù trừ Chứng khoán Việt Nam (VSDC) từ ngày 6/3/2026. Trước nữa, VSDC đã ngừng cung cấp các dịch vụ lưu ký, rút và chuyển quyền sở hữu đối với toàn bộ cổ phiếu FLC từ ngày 27/2/2026. Cổ phiếu FLC chính thức lên sàn chứng khoán vào tháng 10/2011, khi được niêm yết trên HNX, và tăng tới 240% chỉ sau ba tháng giao dịch. Đến năm 2013, cổ phiếu này được chuyển sang niêm yết trên Sở Giao dịch Chứng khoán TP.HCM (HoSE). Ngày 20/2/2023, FLC bị hủy niêm yết bắt buộc trên HoSE với gần 710 triệu cổ phiếu do vi phạm nghiêm trọng nghĩa vụ công bố thông tin. Cổ phiếu này sau đó chuyển sang giao dịch trên UPCoM nhưng tiếp tục bị hạn chế, đình chỉ do chậm công bố báo cáo tài chính (BCTC), trước khi bị hủy đăng ký giao dịch hoàn toàn. Được biết, Chứng khoán Artex (mã: ART, sàn UPCoM), tiền thân là Chứng khoán BOS là công ty chứng khoán có liên quan đến hệ sinh thái FLC của ông Trịnh Văn Quyết. Công ty này được đổi tên từ tháng 7 năm ngoái sau khi được Đại hội đồng cổ đông thông qua. Đồng thời, Artex cũng đã chuyển trụ sở về Tầng 1, Tòa nhà FLC Land mark Tower, đường Lê Đức Thọ, Quận Cầu Giấy, Hà Nội. Ngày 26/02, Ủy ban Chứng khoán Nhà nước (UBCKNN) ra quyết định đưa Chứng khoán Artex ra khỏi tình trạng kiểm soát. Đến ngày 6/3, Sở giao dịch Chứng khoán Việt Nam (VNX) có văn bản về việc khôi phục hoạt động giao dịch mua chứng khoán tại HoSE và HNX đối với ART. Địa chỉ: Tầng 21 Tòa nhà Center Building. Số 01, phố Nguyễn Huy Tưởng, phường Thanh Xuân, thành phố Hà Nội Điện thoại: 024 7309 5555 Máy lẻ 292. Fax: 024-39744082 Email: info@ca",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "FLC của ông Trịnh Văn Quyết và hàng loạt công ty con sẽ rời sàn chứng khoán - Thanh Niên",
+            "link": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxPdFpoMVRvUlh4TGZ3N1VhT1VWZDBOanZuamhuZ0hyb3N1dC1PaEloNEsxQURreGFlNllQcF9LMEpLYmVQUGVVZ2Z4NndnNlVEVy00RmNDYzc0U0F5YWk5WDU4NjFTZWRaOTdkYzRDNy1GV0tBYk1wUV8zTGRHLVBSSWZ0QUVwNEZRQURjNXJZSzZ1aFRWRmoxLWIzajRmZE52X3Jjcm93eS0zQWVXNTB1aUE0SnpnemNNNmlZ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxPdFpoMVRvUlh4TGZ3N1VhT1VWZDBOanZuamhuZ0hyb3N1dC1PaEloNEsxQURreGFlNllQcF9LMEpLYmVQUGVVZ2Z4NndnNlVEVy00RmNDYzc0U0F5YWk5WDU4NjFTZWRaOTdkYzRDNy1GV0tBYk1wUV8zTGRHLVBSSWZ0QUVwNEZRQURjNXJZSzZ1aFRWRmoxLWIzajRmZE52X3Jjcm93eS0zQWVXNTB1aUE0SnpnemNNNmlZ?oc=5",
+            "content": "Ủy ban Chứng khoán Nhà nước vừa ban hành các quyết định hủy tư cách công ty đại chúng đối với Công ty CP Tập đoàn FLC (mã chứng khoán FLC). Bên cạnh đó, Ủy ban Chứng khoán Nhà nước cũng ban hành quyết định hủy tư cách công ty đại chúng đối với một loạt doanh nghiệp thuộc \"họ\" FLC gồm Công ty CP Xây dựng FLC Faros, Công ty CP Đầu tư Kinh doanh Phát triển Bất động sản FLCHomes, Công ty CP Đầu tư và Khoáng sản FLC Stone (AMD), Công ty CP Đầu tư Khai khoáng và Quản lý Tài sản FLC (GAB), Công ty CP Nông dược H.A.I (HAI) và Công ty CP Đầu tư Thương mại và Xuất nhập khẩu CFS (KLF). Tập đoàn FLC bị hủy tư cách công ty đại chúng khiến cổ phiếu phải rời sàn chứng khoán Sau khi bị hủy tư cách công ty đại chúng, các doanh nghiệp này sẽ phải rời sàn chứng khoán. Thực tế, nhóm cổ phiếu nêu trên đã bị đình chỉ giao dịch trong thời gian dài, chủ yếu do vi phạm nghĩa vụ công bố thông tin, chậm nộp báo cáo tài chính và không tổ chức đại hội đồng cổ đông theo quy định. Quyết định này khá bất ngờ khi tại đại hội đồng cổ đông gần đây, lãnh đạo Tập đoàn FLC cho biết đang xây dựng lộ trình khắc phục các tồn tại liên quan đến hồ sơ và nghĩa vụ công bố thông tin. Theo kế hoạch được công bố, FLC dự kiến hoàn tất và công bố báo cáo tài chính các năm 2021 - 2024 trong năm 2025, đồng thời công bố báo cáo tài chính năm 2025 vào quý 1/2026. Sau khi hoàn thiện đầy đủ hồ sơ theo quy định, Tập đoàn FLC cho biết sẽ gửi báo cáo tới Ủy ban Chứng khoán Nhà nước và Sở Giao dịch chứng khoán để thực hiện thủ tục khôi phục giao dịch cổ phiếu, với mục tiêu quay trở lại giao dịch trên thị trường UPCoM trong quý 1/2026. Thế nhưng, việc bị hủy tư cách công ty đại chúng khiến kế hoạch đưa cổ phiếu giao dịch trở lại không thể thành hiện thực. Cổ phiếu FLC của cựu chủ tịch Trịnh Văn Quyết từng niêm yết trên HOSE trước khi bị hủy niêm yết bắt buộc vào đầu năm 2023 do vi phạm nghiêm trọng nghĩa vụ công bố thông tin. Sau đó, cổ phiếu này được chuyển sang UPCoM nhưng tiếp tục rơi vào tình trạng đình chỉ giao dịch. Sở Giao dịch chứng khoán Hà Nội đã nhiều lần thông báo về trạng thái chứng khoán của FLC, trong đó nhấn mạnh việc doanh nghiệp không khắc phục được các tồn tại về báo cáo tài chính, kiểm toán và nghĩa vụ công bố thông tin đúng hạn. Cổ phiếu dù được đưa lên UPCoM nhưng vẫn không được giao dịch, khiến quyền lợi của cổ đông rơi vào tình trạng treo kéo dài. Tổng biên tập: Nguyễn Ngọc Toàn Phó tổng biên tập: Lâm Hiếu Dũng Phó tổng biên tập: Trần Việt Hưng Tổng thư ký tòa soạn: Đức Trung ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu FLC của ông Trịnh Văn Quyết được giao dịch trở lại - Báo Dân trí",
+            "link": "https://news.google.com/rss/articles/CBMitAFBVV95cUxQYmIxSGZPZ29HN25MWTVOYU4tUU0tWW4zVU96ak5NcTdFUThzaHN1cUxNMzdwamR6T0V0UGdjWGlZOVNTeVRhakdKeU8zNW5CUkJFZlV0dWtScER0TFFEV3JsbXRHM01hWENrUDcwcWRsVGc4cjNJVk1OOUdFb2o5R0JDaU9DM0RfOHFXTkRiZlpYVHJUZm9rUHJ6WEQwbVZ5T1BvaFhWcHFtamhYalNMRG1abkY?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMitAFBVV95cUxQYmIxSGZPZ29HN25MWTVOYU4tUU0tWW4zVU96ak5NcTdFUThzaHN1cUxNMzdwamR6T0V0UGdjWGlZOVNTeVRhakdKeU8zNW5CUkJFZlV0dWtScER0TFFEV3JsbXRHM01hWENrUDcwcWRsVGc4cjNJVk1OOUdFb2o5R0JDaU9DM0RfOHFXTkRiZlpYVHJUZm9rUHJ6WEQwbVZ5T1BvaFhWcHFtamhYalNMRG1abkY?oc=5",
+            "content": "Tập đoàn FLC (mã chứng khoán: FLC) vừa cho biết cổ phiếu FLC đã được giao dịch trở lại trên hệ thống lưu ký tại Công ty cổ phần Chứng khoán Artex. Kể từ ngày 6/3, công ty chứng khoán này sẽ là đơn vị quản lý danh sách hoặc sổ cổ đông của FLC. Cổ đông có thể nhận giấy chứng nhận sở hữu cổ phần theo 2 cách. Cách một là đến trực tiếp trụ sở của Chứng khoán Artex để làm thủ tục. Cách thứ hai là ủy quyền cho cá nhân khác thực hiện thay với điều kiện giấy ủy quyền phải được công chứng hợp lệ và nêu rõ nội dung ủy quyền thực hiện thủ tục cấp giấy chứng nhận cổ phần. FLC và ông Trịnh Văn Quyết (Minh họa: IT). Về các giao dịch cổ phiếu FLC, kể từ ngày 6/3, các cổ đông sở hữu cổ phiếu có thể trực tiếp và tự do giao dịch toàn bộ cổ phiếu. Thủ tục chi tiết các giao dịch này sẽ thực hiện dựa trên hợp đồng giao dịch giao dịch theo mẫu có xác nhận tại Chứng khoán Artex. Như vậy, sau gần 3 năm bị dừng giao dịch, cổ phiếu FLC đã được tự do giao dịch trở lại, đảm bảo quyền lợi cho các cổ đông về mặt thanh khoản. Theo cập nhật tại kỳ họp cổ đông bất thường tổ chức vào tháng 11/2025, FLC có hơn 64.300 cổ đông. Những biến động mới của hệ sinh thái diễn ra sau khi ông Trịnh Văn Quyết bất ngờ tái xuất thương trường hôm 26/1. Từng là hệ sinh thái đa ngành, Tập đoàn FLC sau sự cố ông Trịnh Văn Quyết bị bắt giam năm 2022 trải qua không ít biến động. Nhóm cổ phiếu theo đó cũng \"lao dốc\", giao dịch lèo tèo. Trong khoảng thời gian từ ngày 17/12 đến 18/12/2025, Ủy ban Chứng khoán Nhà nước đã chính thức thông báo hủy tư cách công ty đại chúng với loạt cổ phiếu liên quan ông Quyết, bao gồm FLC, ROS, AMD, KLF, HAI... Thông tin doanh nghiệp - sản phẩm ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Thấy gì từ việc cổ phiếu FLC được giao dịch trở lại - Nhà đầu tư",
+            "link": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQemk5ZWs3Y2tNdHBPUV9TZ1B2VEp3ejJ6c1JOc0dZVG5MOC0zN3loVW5xaUhFSHAwZW1CYWxqY3BsWi1XUWlqVVdySTFid1NFZFRZTkpzeEdRUTJRNkRSTHJBQnFnR1F3YkhlU3NMWnliTWFJN0FGZHdNdEk3aFptbWppaFVnaWJXd1p1RQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQemk5ZWs3Y2tNdHBPUV9TZ1B2VEp3ejJ6c1JOc0dZVG5MOC0zN3loVW5xaUhFSHAwZW1CYWxqY3BsWi1XUWlqVVdySTFid1NFZFRZTkpzeEdRUTJRNkRSTHJBQnFnR1F3YkhlU3NMWnliTWFJN0FGZHdNdEk3aFptbWppaFVnaWJXd1p1RQ?oc=5",
+            "content": "Trong thông báo mới nhất, Tập đoàn FLC cho biết cổ phiếu FLC đã được giao dịch trở lại trên hệ thống lưu ký tại công ty CPCK Artex. Theo tập đoàn, để đảm bảo quyền và lợi ích của cổ đông, ngay sau khi CTCP Tập đoàn FLC không còn là công ty đại chúng, Ban lãnh đạo đã thực hiện xúc tiến các thủ tục pháp lý để cổ phiếu FLC sớm được giao dịch tự do. Tập đoàn cho biết kể từ ngày 6/3/2026, CTCP Chứng khoán Artex sẽ là đơn vị quản lý danh sách/sổ cổ đông của CTCP Tập đoàn FLC. Một số ý kiến cho rằng điều này đồng nghĩa cổ phiếu FLC được tự do giao dịch trở lại, đảm bảo quyền lợi cổ đông về mặt thanh khoản. Dù vậy, điểm nhấn nằm ở việc khi không còn tư cách công ty đại chúng, FLC sẽ không bắt buộc phải công bố báo cáo tài chính định kỳ, báo cáo kiểm toán hoặc các thông tin bất thường theo chuẩn mực của thị trường chứng khoán. Vì vậy, nhà đầu tư có thể gặp khó khăn trong việc đánh giá chính xác tình hình tài chính và hoạt động kinh doanh của doanh nghiệp, nhất là trong bối cảnh FLC đang trong quá trình tái cấu trúc. Trước đó, tại EGM năm 2025 lần 2, ban lãnh đạo tập đoàn cho biết trong năm 2025 sẽ phát hành BCTC kiểm toán từ năm 2021 đến 2024. Dự kiến đến quý I/2026 và sớm nhất quý II/2026 sẽ có BCTC kiểm toán năm 2025. Tiếp đó, tập đoàn sẽ báo cáo Ủy ban Chứng khoán Nhà nước, Sở Giao dịch Chứng khoán chấp thuận cho cổ phiếu được mua bán trở lại, và dự kiến sớm nhất sẽ giao dịch trên UPCOM từ quý I/2026. Tuy vậy, tính tới thời điểm hiện tại, FLC mới chỉ công bố BCTC hợp nhất quý I, quý II và quý III của năm 2022. Trao đổi với Nhadautu.vn, một chuyên gia tài chính nhìn nhận việc cổ phiếu FLC được giao dịch trở lại (dù là ở trên hệ thống của Artex) là thông điệp cho thấy tập đoàn này đang cố gắng đưa cổ phiếu giao dịch lại bình thường nhằm đảm bảo quyền lợi cổ đông. Vị chuyên gia này cũng nhấn mạnh trong bối cảnh FLC không còn là công ty đại chúng, nhà đầu tư nếu muốn giải ngân mua vào cần thêm thời gian quan sát tính minh bạch và thanh khoản của cổ phiếu này. Mặt khác, các giao dịch cổ phiếu ngoài sàn thường tiềm ẩn rủi ro về pháp lý, chuyển nhượng và thanh toán, do cơ chế bảo vệ nhà đầu tư có thể không chặt chẽ như khi giao dịch qua các Sở giao dịch chứng khoán. Antesco sẽ phát hành 4,8 triệu cổ phiếu để trả cổ tức năm 2024 tỷ lệ 20%. Doanh nghiệp dự kiến tiến hành chia tiếp cổ tức năm 2025 bằng cổ phiếu tỷ lệ 20% vào nửa cuối năm nay, qua đó nâng vốn điều lệ lên 353 tỷ đồng. Chủ tịch HĐQT Vũ Văn Tiền cũng thẳng thắn chia sẻ về quyết định quay trở lại điều hành ngân hàng, trong bối cảnh ABBank nhiều năm \"đi đều đều\" và chưa có bước phát triển tương xứng. Diễn biến nhân sự cấp cao tại ngành ngân hàng tiếp tục thu hút sự chú ý khi ông Nguyễn Trọng Hiền, nguyên Chủ tịch HĐQT GELEX, được bầu vào Hội đồng quản trị (HĐQT) của Eximbank. ĐHĐCĐ thường niên năm nay của LPBank ghi nhận tỷ lệ tham dự đạt 66%, giảm mạnh so với con số 92,86% tại kỳ AGM năm trước. Tổng Giám đốc CII Lê Quốc Bình ví von công ty như người chạy đường dài, phải dừng lại để uống nước. Nguồn n",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu FLC được phép giao dịch trở lại sau gần 3 năm \"đóng băng\" - Báo Dân Việt",
+            "link": "https://news.google.com/rss/articles/CBMingFBVV95cUxQLTlsLVRDTlR5NWFVaGoyNzczYzlDbjQ1ZWU0ZFc4UEM3WTB6b0kyS05zLUo1THoyWThESHFCSVBKMUl6QUdFMW51TWNJMWNnamMtVXdjc0l1YTlqZnpESWliUmJWbzBwazhKbHJ6RW84bEl6dHZQWDNyZjdXcXUtNG84LVZXM2YwZjc3NGpaVWxGR0hJNXdOTjYzTUF4Zw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMingFBVV95cUxQLTlsLVRDTlR5NWFVaGoyNzczYzlDbjQ1ZWU0ZFc4UEM3WTB6b0kyS05zLUo1THoyWThESHFCSVBKMUl6QUdFMW51TWNJMWNnamMtVXdjc0l1YTlqZnpESWliUmJWbzBwazhKbHJ6RW84bEl6dHZQWDNyZjdXcXUtNG84LVZXM2YwZjc3NGpaVWxGR0hJNXdOTjYzTUF4Zw?oc=5",
+            "content": "Báo điện tử của Trung ương Hội Nông dân Việt Nam Tổng biên tập: Nguyễn Văn Hoài Phó Tổng Biên tập: Phan Huy Hà (Thường trực), Lưu Phan, Đỗ Thị Sâm, Hoàng Sơn Giấy phép hoạt động báo điện tử số 115/GP-BTTTT do Bộ TT-TT cấp ngày 01/3/2022 và giấy phép sửa đổi, bổ sung số 55/GP-BVHTTDL do Bộ VHTTDL cấp ngày 11/6/2025 Đường dây nóng: 0857.835.666 Liên hệ quảng cáo: 0329298892 Bản quyền thuộc về Báo điện tử Dân Việt. Mọi hình thức sao chép lại thông tin, hình ảnh phải được sự đồng ý bằng văn bản . Vui lòng đăng nhập hoặc đăng ký để gửi bình luận Theo thông báo ngày 6/3/2026 của FLC Group, tập đoàn đã lựa chọn Công ty CP Chứng khoán Artex làm đơn vị quản lý danh sách cổ đông sau khi doanh nghiệp không còn là công ty đại chúng. Theo đó, cổ đông sở hữu cổ phiếu FLC có thể nhận giấy chứng nhận sở hữu cổ phần theo hai hình thức. Thứ nhất là trực tiếp đến trụ sở của Công ty CP Chứng khoán Artex để hoàn tất thủ tục. Thứ hai là ủy quyền cho cá nhân khác thực hiện thay, với điều kiện giấy ủy quyền phải được công chứng hợp lệ và nêu rõ nội dung ủy quyền liên quan đến việc làm thủ tục cấp giấy chứng nhận cổ phần. Đáng chú ý, kể từ ngày 6/3, các cổ đông đang nắm giữ cổ phiếu FLC có thể trực tiếp và tự do chuyển nhượng toàn bộ số cổ phần sở hữu. Thủ tục giao dịch được thực hiện thông qua hợp đồng chuyển nhượng cổ phần theo mẫu và cần có xác nhận của Công ty CP Chứng khoán Artex. Như vậy, sau gần 3 năm bị dừng giao dịch, cổ phiếu FLC đã được phép giao dịch trở lại dưới hình thức chuyển nhượng tự do trên thị trường, qua đó phần nào khôi phục tính thanh khoản cho các cổ đông. Trước đó, vào cuối tháng 12/2025, Ủy ban Chứng khoán Nhà nước đã ra quyết định hủy tư cách công ty đại chúng đối với FLC Group. Khi mất tư cách này, cổ phiếu FLC không còn đủ điều kiện để tiếp tục giao dịch trên thị trường UPCoM. Diễn biến mới liên quan đến cổ phiếu FLC xuất hiện trong bối cảnh nhà sáng lập tập đoàn - Trịnh Văn Quyết được cho là đã trở lại hoạt động trên thương trường sau gần 4 năm vắng bóng kể từ thời điểm bị khởi tố vào tháng 3/2022. Ngoài ra, trong tháng 11/2025, FLC Group đã tổ chức Đại hội đồng cổ đông bất thường nhằm thảo luận về định hướng phát triển trong giai đoạn mới. Tại đại hội, lãnh đạo doanh nghiệp cho biết bất động sản vẫn sẽ là lĩnh vực kinh doanh cốt lõi của tập đoàn trong thời gian tới. Theo lãnh đạo FLC Group, hệ sinh thái bất động sản của FLC hiện có hơn 50 dự án đang được triển khai tại 11 tỉnh, thành phố trên cả nước. Các địa bàn trọng điểm bao gồm Hà Nội, Quảng Ninh, Thanh Hóa, Quảng Trị và Gia Lai. Song song với việc triển khai các dự án hiện hữu, tập đoàn cũng đang nghiên cứu mở rộng đầu tư tại nhiều địa phương được đánh giá có tiềm năng như Lào Cai, TP. HCM, Nha Trang, Hậu Giang và Gia Lai, cùng một số khu vực chiến lược khác. Một nội dung đáng chú ý khác được thông qua tại đại hội là việc FLC Group tiếp nhận lại quyền sở hữu, quản lý và điều hành hãng hàng không Bamboo Airways. Động thái này được xem là bước đi nhằm tái cấu trúc hệ sinh thái kinh doanh",
+            "date": "14/5/2026"
+        }
+    ]
+}

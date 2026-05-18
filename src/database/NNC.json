@@ -1,0 +1,917 @@
+{
+    "symbol": "NNC",
+    "companyName": "Công ty Cổ phần Đá Núi Nhỏ",
+    "lastUpdated": "2026-05-13T17:15:36.579Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "NNC",
+            "San": "HOSE",
+            "Nganh": "VLXD tổng hợp",
+            "NgayGDDauTien": "23/06/2010",
+            "GiaDongCuaNGDDT": 59,
+            "VolumeStartDate": 8768175,
+            "VDL": 219200000000,
+            "KLCPNY": 21920000,
+            "KLCPLH": 21920000,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "7.36",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "7.36",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "6.09",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "25.97",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "1.73",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "982.02",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "35,770",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "21,920,000",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "21,920,000",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Số liệu EPS tính tới Quý I năm 2026",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "CEO_80070",
+                    "Name": "Hồ Văn Long",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80070/ho-van-long.chn'>Hồ Văn Long</a>",
+                    "AssetVolume": "220",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "KLQ_81078",
+                    "Name": "Nguyễn Thị Mai Phương",
+                    "Url": "Nguyễn Thị Mai Phương",
+                    "AssetVolume": "1.539.870",
+                    "AssetRate": "7,02",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "MVC",
+                    "Name": "Công ty Cổ phần Vật liệu và Xây dựng Bình Dương",
+                    "Url": "<a href='/du-lieu/upcom/MVC-cong-ty-co-phan-vat-lieu-va-xay-dung-binh-duong.chn' title='Công ty Cổ phần Vật liệu và Xây dựng Bình Dương'>Công ty Cổ phần Vật liệu và Xây dựng Bình Dương</a>",
+                    "AssetVolume": "9.659.170",
+                    "AssetRate": "44,07",
+                    "UpdatedDate": "07/04/2026"
+                },
+                {
+                    "Code": "CEO_08078",
+                    "Name": "Nguyễn Văn Chối",
+                    "Url": "<a href='/du-lieu/ceo/CEO_08078/nguyen-van-choi.chn'>Nguyễn Văn Chối</a>",
+                    "AssetVolume": "9",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "CEO_09236",
+                    "Name": "Phạm Tuấn Kiệt",
+                    "Url": "<a href='/du-lieu/ceo/CEO_09236/pham-tuan-kiet.chn'>Phạm Tuấn Kiệt</a>",
+                    "AssetVolume": "8.524",
+                    "AssetRate": "0,04",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "CEO_06262",
+                    "Name": "Nguyễn Hồng Châu",
+                    "Url": "<a href='/du-lieu/ceo/CEO_06262/nguyen-hong-chau.chn'>Nguyễn Hồng Châu</a>",
+                    "AssetVolume": "7.582",
+                    "AssetRate": "0,03",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "TBSG",
+                    "Name": "CTCP Đầu tư Thái Bình",
+                    "Url": "<a href='/du-lieu/otc/TBSG-ctcp-dau-tu-thai-binh.chn' title='CTCP Đầu tư Thái Bình'>CTCP Đầu tư Thái Bình</a>",
+                    "AssetVolume": "3.470.549",
+                    "AssetRate": "15,83",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "CEO_71112",
+                    "Name": "Lâm Thị Mai",
+                    "Url": "<a href='/du-lieu/ceo/CEO_71112/lam-thi-mai.chn'>Lâm Thị Mai</a>",
+                    "AssetVolume": "266.680",
+                    "AssetRate": "1,22",
+                    "UpdatedDate": "07/08/2025"
+                },
+                {
+                    "Code": "CORP_53257",
+                    "Name": "America LLC",
+                    "Url": "America LLC",
+                    "AssetVolume": "1.312.300",
+                    "AssetRate": "5,99",
+                    "UpdatedDate": "07/08/2025"
+                }
+            ],
+            "NuocNgoai": 3.2,
+            "NhaNuoc": 0,
+            "Khac": 96.8
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 42,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 7,
+                    "Y": 1030.9,
+                    "Region": "",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 37,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 26,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 17,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 13,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 22,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 16,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 27,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 28,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 41,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 23,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 8,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 39,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 38,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 18,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 27,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 6,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 7,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 12,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 19,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 24,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 15,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 9,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 31,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 6,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 28,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 25,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 39,
+                    "Y": 2551,
+                    "Region": "",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 28,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 24,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 4,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 41,
+                    "Y": 701.2,
+                    "Region": "",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 34,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 25,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 7,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 12,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 18,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 32,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 6,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 14,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 29,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 29,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 33,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 39,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 22,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 7,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 15,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 7,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 39,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 11,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 3,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 7,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 43,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 13,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 34,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 12,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 43,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 30,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 33,
+                    "Y": 1727.4,
+                    "Region": "",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 38,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 26,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/NNC.pdf"
+    },
+    "deepNewsData": [
+        {
+            "title": "NNC: Báo cáo kết quả giao dịch cổ phiếu của người có liên quan đến người nội bộ Phạm Văn Ba - Vietstock",
+            "link": "https://news.google.com/rss/articles/CBMifEFVX3lxTE5mTE12TjZDNDMyNjhnR0VCYzNScGE2VDRjVVpETmpWeGhDNG9VSWJzZzVPUGVuZnNFZkwyOG80TmVIWm80Q1BOZVdnd09QTVU5V2p1RVREU3djQ3hjRGRHalgySHM0RElBZFNwU09Jb0ZMNnlGbmJJaUJCTU8?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMifEFVX3lxTE5mTE12TjZDNDMyNjhnR0VCYzNScGE2VDRjVVpETmpWeGhDNG9VSWJzZzVPUGVuZnNFZkwyOG80TmVIWm80Q1BOZVdnd09QTVU5V2p1RVREU3djQ3hjRGRHalgySHM0RElBZFNwU09Jb0ZMNnlGbmJJaUJCTU8?oc=5",
+            "content": "NNC: Báo cáo kết quả giao dịch cổ phiếu của người có liên quan đến người nội bộ Phạm Văn Ba Phạm Văn Ba báo cáo kết quả giao dịch cổ phiếu của người có liên quan đến người nội bộ Công ty Cổ phần Đá Núi Nhỏ như sau: NNC: Báo cáo kết quả giao dịch cổ phiếu của người có liên quan đến người nội bộ Phạm Văn Ba Vietstock – Cổng thông tin tài chính và chứng khoán chính thức hoạt động từ ngày 02/08/2002, với định hướng trở thành người bạn đồng hành đáng tin cậy của nhà đầu tư. Ngay từ những ngày đầu, Vietstock đã không ngừng nỗ lực mang đến hệ thống thông tin và dữ liệu tài chính chính xác – cập nhật – đầy đủ, giúp nhà đầu tư hiểu đúng, nhìn rộng và tự tin đưa ra quyết định trong hành trình đầu tư của mình. Khai giảng: 01/06/2026 | Thời gian: Tối 2, 4, 6 Khai giảng: 02/06/2026 | Thời gian: Tối 3, 5 Khai giảng: 29/06/2026 | Thời gian: Tối 2, 4, 6 Khai giảng: 12/05/2026 | Thời gian: Tối 3, 5 Khai giảng: 04/05/2026 | Thời gian: Tối 2, 4, 6 ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Sự kiện chứng khoán đáng chú ý ngày 4/3 - Tin nhanh chứng khoán",
+            "link": "https://news.google.com/rss/articles/CBMikgFBVV95cUxOQkpOV1l5VUlvWlFtdzFSc3BTUDlfTmhDT3V0RlQ4eU54Z2M5NUswVW5SWEl6YzZyYTREMVJERENHQy16TE01STVwTG53TjlhRnlhVVRnT0hicXFhZHc5Q2F6eXNCbzl2MVpyRlJQdERCV25lZ25JV3ZxalNyZWc4ZnVWN1RMTkc2d1FLUkl2cDdGd9IBjgFBVV95cUxQY3k2RmRkUzU2M0sxRFh3dmZPRWtVaEd6em44cHZuS0NGa25CdEhyV1JQeF9xaEVyOHdYTjhuR1k0dHB3aTdPMGZzZGN0c2VuVk9ad1dnUXA1Ny1PV3cwZ2ZDV1lvclVEb0ctVzhYWDYyZGIyQWlTa3g3VW16UTR5TW9SWnFJTjNGeHNjcnhR?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMikgFBVV95cUxOQkpOV1l5VUlvWlFtdzFSc3BTUDlfTmhDT3V0RlQ4eU54Z2M5NUswVW5SWEl6YzZyYTREMVJERENHQy16TE01STVwTG53TjlhRnlhVVRnT0hicXFhZHc5Q2F6eXNCbzl2MVpyRlJQdERCV25lZ25JV3ZxalNyZWc4ZnVWN1RMTkc2d1FLUkl2cDdGd9IBjgFBVV95cUxQY3k2RmRkUzU2M0sxRFh3dmZPRWtVaEd6em44cHZuS0NGa25CdEhyV1JQeF9xaEVyOHdYTjhuR1k0dHB3aTdPMGZzZGN0c2VuVk9ad1dnUXA1Ny1PV3cwZ2ZDV1lvclVEb0ctVzhYWDYyZGIyQWlTa3g3VW16UTR5TW9SWnFJTjNGeHNjcnhR?oc=5",
+            "content": "* DIG: Ngày 03/3, HĐQT Tổng CTCP Đầu tư Phát triển Xây dựng (DIG – HOSE) đã có nghị quyết thông qua chủ trương mua lại tối đa 5% tổng số cổ phiếu phổ thông tại thời điểm triển khai. Chi tiết sẽ được thông báo sau. * LAF: Ngày 18/3 là ngày giao dịch không hưởng quyền tạm ứng cổ tức năm 2025 của CTCP Chế biến Hàng xuất khẩu Long An (LAF – HOSE), ngày đăng ký cuối cùng là 19/3. Theo đó, cổ tức sẽ được trả bằng tiền mặt theo tỷ lệ 15%, thanh toán bắt đầu từ ngày 17/4/2026. * TCX: CTCP Chứng khoán Kỹ Thương (TCX – HOSE) thông báo, Đại hội đồng cổ đông thường niên 2026 sẽ được tổ chức vào ngày 25/4/2026, địa điểm tổ chức sẽ được thông báo trong thư mời. Ngày đăng ký cuối cùng chốt danh sách cổ đông tham dự Đại hội vào 24/3/2026. * SJS: CTCP Thương mại Dịch vụ Đầu tư An Phát, cổ đông lớn của CTCP SJ Group (SJS – HOSE) đã bán ra 4,36 triệu cổ phiếu SJS trong ngày 03/3. Qua đó, giảm sở hữu tại SJS xuống còn hơn 102,17 triệu cổ phiếu, tỷ lệ 34,35%. * VDS: CTCP Chứng khoán Rồng Việt – VDSC (VDS – HOSE) thông qua phương án phát hành 3.000 trái phiếu lần 1 năm 2025, với giá chào bán bằng mệnh giá là 100 triệu đồng/trái phiếu, tương ứng tổng giá trị 300 tỷ đồng. Trái phiếu không chuyển đổi, kỳ hạn 01 năm, lãi suất cố định 8,5%/năm. * NLG: Ông Nguyễn Nam và Nguyễn Hiệp, hai con của ông Nguyễn Xuân Quang – Chủ tịch CTCP Đầu tư Nam Long (NLG – HOSE) đăng ký mua 1 triệu cổ phiếu NLG mỗi cá nhân từ ngày 06/3 đến 04/4 theo phương thức thỏa thuận và khớp lệnh. * HAX: Ông Trần Văn Mỹ, Thành viên CTCP Dịch vụ Ô tô Hàng Xanh (HAX – HOSE) đã mua vào 500.000 cổ phiếu HAX từ ngày 04/2 đến 02/3 phương thức thỏa thuận và khớp lệnh. Sau giao dịch, ông Mỹ đã nâng sở hữu tại HAX lên hơn 529.000 cổ phiếu, tỷ lệ 0,49%. * REE: CTCP Cơ Điện Lạnh (REE – HOSE) chấp thuận việc để Công ty TNHH Năng lượng REE (REE Energy) nhận chuyển nhượng tối đa 100% cổ phần (mệnh giá 10.000 đồng/cổ phần) tại CTCP Điện gió Phú Cường. * NNC: CTCP Vật liệu XD Bình Dương, cổ đông lớn của CTCP Đá Núi Nhỏ (NNC – HOSE) đăng ký mua 300.000 cổ phiếu NNC từ ngày 09/3 đến 07/4 theo phương thức thỏa thuận và khớp lệnh. Dự kiến giao dịch thành công, cổ đông trên sẽ nâng sở hữu tại NNC lên hơn 9,85 triệu cổ phiếu, tỷ lệ 44,91%. * KTS: Ngày 11/3 là ngày giao dịch không hưởng quyền nhận cổ tức năm 2025 của CTCP Đường Kon Tum (KTS – HNX), ngày đăng ký cuối cùng là 12/3. Theo đó, cổ tức sẽ được trả bằng tiền mặt theo tỷ lệ 5%, thanh toán bắt đầu từ ngày 02/4/2026. * VTC: Ngày 20/3 là ngày giao dịch không hưởng quyền nhận cổ năm 2024 của CTCP Viễn thông VTC (VTC – HNX), ngày đăng ký cuối cùng là 23/3. Theo đó, cổ tức sẽ được trả bằng tiền mặt theo tỷ lệ 7%, thanh toán bắt đầu từ ngày 10/4/2026. Ý kiến của bạn sẽ được biên tập trước khi đăng. Xin vui lòng gõ tiếng Việt có dấu ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Lợi nhuận 2025 tăng bằng lần, Đá Núi Nhỏ (NNC) đặt mục tiêu lãi 120 tỷ, lấn sân sang bất động sản - Báo Pháp Luật Việt Nam",
+            "link": "https://news.google.com/rss/articles/CBMiywFBVV95cUxNMFdTTkNVWkpaUXJaWWEyMS1GWjN1R0ItbXdYRm1HOUhyN2xHNVJad3I2V0R4MVdldjVJY1hhU2w0YWZwMVd2RDRraGh2dDcyRFk2TWY0OTR0b1Z1NlpoZFZ3QWRTM2JBLTI5TGFBN2tuSUl1M29zWDQ5UkxjSzVOcmMtNF8xSVJ4WElpd0Y0RjVWSXpKeElCWnlHbVdoS29zeXdFRnZDb3hFX1hpbXcwOGVEd3k0LUxZRy1QbkxyMFRYdjF3SmFrQ1BQZw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiywFBVV95cUxNMFdTTkNVWkpaUXJaWWEyMS1GWjN1R0ItbXdYRm1HOUhyN2xHNVJad3I2V0R4MVdldjVJY1hhU2w0YWZwMVd2RDRraGh2dDcyRFk2TWY0OTR0b1Z1NlpoZFZ3QWRTM2JBLTI5TGFBN2tuSUl1M29zWDQ5UkxjSzVOcmMtNF8xSVJ4WElpd0Y0RjVWSXpKeElCWnlHbVdoS29zeXdFRnZDb3hFX1hpbXcwOGVEd3k0LUxZRy1QbkxyMFRYdjF3SmFrQ1BQZw?oc=5",
+            "content": "Mục tiêu lãi trước thuế 120 tỷ đồng và chiến lược mở rộng quỹ mỏ Công ty Cổ phần Đá Núi Nhỏ (Mã chứng khoán: NNC) vừa công bố báo cáo thường niên năm 2025 cùng định hướng kinh doanh cho năm tài chính 2026. Hội đồng quản trị đệ trình chỉ tiêu tổng doanh thu dự kiến đạt 360 tỷ đồng và lợi nhuận trước thuế đạt 120 tỷ đồng. Dù kế hoạch này được thiết lập thấp hơn mức thực hiện đột biến của năm 2025, ban lãnh đạo doanh nghiệp đánh giá đây vẫn là các chỉ tiêu ở mức cao so với nền tảng kinh doanh của những năm trước đó. Trọng tâm hoạt động trong năm nay được dồn lực vào việc đẩy mạnh sản xuất kinh doanh tại mỏ đá Mũi Tàu. Doanh nghiệp đặt mục tiêu khai thác và chế biến trên 1 triệu m3 đá nguyên khai, đi cùng việc đầu tư thêm một dây chuyền nghiền đá công suất 1.000 tấn/giờ để thay thế các hệ thống đã cũ. Bên cạnh việc khai thác mỏ hiện hữu, chiến lược phát triển của doanh nghiệp ghi nhận sự chuyển dịch với kế hoạch tìm kiếm các mỏ đá khả thi tại TP.HCM, Đồng Nai và Lâm Đồng. Quá trình thâu tóm quỹ mỏ mới sẽ được thực hiện thông qua hình thức đấu giá quyền khai thác hoặc nhận chuyển nhượng. Đáng chú ý, công ty dự kiến nghiên cứu mở rộng ngành nghề hoạt động sang lĩnh vực kinh doanh bất động sản nhà ở và xây dựng công trình dân dụng. Về hoạt động đầu tư tài chính, doanh nghiệp tiếp tục duy trì và gia tăng tỷ lệ sở hữu tại Công ty Cổ phần Gạch ngói Nhị Hiệp (Mã chứng khoán: NHC) để khai thác lợi thế chuỗi cung ứng vật liệu xây dựng. Lãi ròng 2025 tăng vọt 136%, vốn chủ sở hữu chiếm 80,4% tổng tài sản Định hướng năm 2026 được xây dựng trên nền tảng tài chính tăng trưởng mạnh mẽ của năm 2025. Báo cáo tài chính ghi nhận doanh thu thuần của doanh nghiệp đạt 390,94 tỷ đồng, tăng trưởng 39,59% so với năm 2024. Lợi nhuận trước thuế đạt 183,64 tỷ đồng, hoàn thành 336% kế hoạch đề ra. Lợi nhuận sau thuế ghi nhận mức 147,83 tỷ đồng, tăng 136,13% so với con số 62,6 tỷ đồng của năm 2024. Kết quả này đến từ việc doanh nghiệp tận dụng tốt làn sóng giải ngân đầu tư công hạ tầng giao thông khu vực phía Nam và tối ưu hóa năng lực sản xuất tại chi nhánh Bình Phước. Trong năm 2025, công ty đã hoàn tất lắp đặt dây chuyền nghiền đá công suất 750 tấn/giờ, đưa năng lực chế biến tại mỏ Mũi Tàu tăng gấp 1,5 lần, đồng thời tự chủ máy móc để cắt giảm chi phí thuê ngoài. Trên bảng cân đối kế toán tính đến cuối năm 2025, tổng tài sản của doanh nghiệp đạt 664,78 tỷ đồng, tăng 36,82% so với thời điểm đầu năm. Cơ cấu tài chính duy trì trạng thái an toàn cao khi vốn chủ sở hữu đạt 534,46 tỷ đồng, chiếm 80,4% tổng nguồn vốn, giúp doanh nghiệp không chịu áp lực từ nợ vay tài chính. Tỷ lệ lợi nhuận dùng để chi trả cổ tức trong năm 2025 tăng mạnh lên mức 61,37%, bỏ xa mức 26,28% của năm 2024. Hội đồng quản trị đã phê duyệt chi trả cổ tức bằng tiền mặt dựa trên dòng tiền từ hoạt động kinh doanh và cam kết duy trì chính sách cổ tức bền vững cho năm 2026 thông qua việc tối ưu hóa nguồn lực, tiết giảm chi phí quản lý. ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Chứng khoán hôm nay 19/12: 8 doanh nghiệp giao dịch cổ phiếu số lượng lớn - bnews.vn",
+            "link": "https://news.google.com/rss/articles/CBMiowFBVV95cUxOTnFyWEptQ1BIVkFSREFXMnZQTWZ6N0NKM0JUanBpU1U4ZXdHYVpnSkstQW1CMzFxenNBU1IyTjJFM1NIWE52Q01nM09zVkR5STVUZTBuemlocWNjd3hEMU9lLTdFSGRCWUJfNmxUYTJ5Ni1QcmN6Z2FIMUpsakVsUkZDLTZLYUcyZEhhWndncEI0cTNXaWc4bzNGLWc4RVlmMjBr?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiowFBVV95cUxOTnFyWEptQ1BIVkFSREFXMnZQTWZ6N0NKM0JUanBpU1U4ZXdHYVpnSkstQW1CMzFxenNBU1IyTjJFM1NIWE52Q01nM09zVkR5STVUZTBuemlocWNjd3hEMU9lLTdFSGRCWUJfNmxUYTJ5Ni1QcmN6Z2FIMUpsakVsUkZDLTZLYUcyZEhhWndncEI0cTNXaWc4bzNGLWc4RVlmMjBr?oc=5",
+            "content": "Việc các doanh nghiệp này giao dịch cổ phiếu số lượng lớn có thể tạo ra những biến động phiên giao dịch. Danh sách các doanh nghiệp giao dịch cổ phiếu số lượng lớn hôm nay: 1. CTCP Xuất nhập khẩu và Đầu tư Chợ Lớn (mã chứng khoán CLX): CTCP Transimex, tổ chức có liên quan đến Ủy viên HĐQT Bùi Minh Tuấn, đồng thời là Ủy viên HĐQT CLX; Chủ tịch HĐQT Bùi Tuấn Ngọc, đồng thời là Phó Chủ tịch HĐQT CLX; Ủy viên HĐQT Huỳnh An Trung, đồng thời là Tổng Giám đốc; Ủy viên HĐQT CLX; Phó Chủ tịch HĐQT Lê Duy Hiệp, đồng thời là Ủy viên HĐQT CLX; Giám đốc tài chính Lê Văn Hùng, đồng thời là Thành viên Ban Kiểm soát CLX, đăng ký bán 500 nghìn cổ phiếu CLX. Trước khi thực hiện giao dịch, CTCP Transimex nắm gần 24,35 triệu cổ phiếu CLX, tỷ lệ 28,11%. Giao dịch được thực hiện từ ngày 19/12/2025 đến 16/1/2026 theo phương thức thức thoả thuận và khớp lệnh. 2. CTCP Gạch ngói Nhị Hiệp (mã chứng khoán NHC): Cổ đông lớn của NHC là CTCP Đá Núi Nhỏ (NNC) đăng ký mua hơn 165 nghìn cổ phiếu NHC. Trước khi thực hiện giao dịch, CTCP Đá Núi Nhỏ nắm 595 nghìn cổ phiếu NHC , tỷ lệ 19,57%. Giao dịch được thực hiện từ ngày 19/12/2025 đến 31/12/2026 theo phương thức thức thoả thuận và khớp lệnh. 3. CTCP Cơ điện miền Trung (mã chứng khoán CJC): Bà Nguyễn Thị Minh Thu là vợ Ủy viên HĐQT Dương Quốc Tuấn đăng ký mua 400 nghìn cổ phiếu CJC. Trước khi thực hiện giao dịch, bà Thu không nắm bất kỳ cổ phiếu CJC nào. Giao dịch được thực hiện từ ngày 19/12/2025 đến 15/1/2026 theo phương thức thức thoả thuận và khớp lệnh. 4. CTCP Vinafreight (mã chứng khoán VNF): CTCP Transimex là Công ty mẹ của VNF đăng ký mua 1 triệu cổ phiếu VNF. Trước khi thực hiện giao dịch, CTCP Transimex nắm hơn 19,35 triệu cổ phiếu VNF , tỷ lệ 61,05%. Giao dịch được thực hiện từ ngày 19/12/2025 đến 16/1/2026 theo phương thức thức thoả thuận và khớp lệnh. 5. CTCP Phát triển Bất động sản Phát Đạt (mã chứng khoán PDR ): Phó Chủ tịch HĐQT Nguyễn Tấn Danh đăng ký mua 451nghìn cổ phiếu PDR, tăng sở hữu lên 451 nghìn cổ phiếu, tỷ lệ 0,045%. Giao dịch được thực hiện từ ngày 19/12/2025 đến 22/12/2025 theo phương thức mua trực tiếp từ Tổ chức phát hành theo chương trình cổ phiếu ESOP dành cho người lao động của PDR. 6. CTCP Đầu tư Xây dựng và Phát triển Trường Thành (mã chứng khoán TTA): Chủ tịch HĐQT Nguyễn Thị Ngọc đăng ký nhận thừa kế từ chồng đã mất là Trần Huy Đức hơn 22,6 triệu cổ phiếu TTA, tăng sở hữu lên hơn 39,55 triệu cổ phiếu TTA, tỷ lệ 23,26%. Giao dịch được thực hiện từ ngày 19/12/2025 đến 16/1/2026 theo phương thức nhận thừa kế theo thoả thuận. 7. CTCP Xây dựng COTECCONS (mã chứng khoán CTD): Công đoàn cơ sở CTD đăng ký mua 30 nghìn cổ phiếu CTD, tăng sở hữu lên 34 nghìn cổ phiếu CTD, tỷ lệ 0,034%. Việc chuyển quyền sở hữu chứng khoán thông qua Tổng Công ty lưu ký và bù trừ chứng khoán Việt Nam. 8. CTCP Sữa Hà Nội (mã chứng khoán HNM): Kế toán trưởng Phạm Tùng Lâm đăng ký mua 10 triệu cổ phiếu HNM. Trước khi thực hiện giao dịch, ông Lâm nắm 435 nghìn cổ phiếu HNM , tỷ lệ 0,96%. Giao dịch được thực hiện từ ngày 19/1",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Cổ phiếu ngành đá xây dựng: Mảnh ghép không thể thiếu trong sóng đầu tư công - Fili.vn",
+            "link": "https://news.google.com/rss/articles/CBMitgFBVV95cUxNSFBwVEgzVG5PdDdfZTlQMTlPNkhUTFJmQ3VtZjdLQTZIOHV6ck5rU3NBTldDSmtGZzJIeVU5R01hN19NUm1wV2pteDJsZWVkemwxUnIzYlloQVZ3YkNlZ0ROWEJSZ1RURllMNVhKNml5U2ZPYTZfaV80ZFdMSWVQQkt2NlhLaHhReWZxX094Slg0RURPYUNhajBEN2xBVEQtS2tGMjZ2U1FDYWVvTXBZUktZdWVWZw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMitgFBVV95cUxNSFBwVEgzVG5PdDdfZTlQMTlPNkhUTFJmQ3VtZjdLQTZIOHV6ck5rU3NBTldDSmtGZzJIeVU5R01hN19NUm1wV2pteDJsZWVkemwxUnIzYlloQVZ3YkNlZ0ROWEJSZ1RURllMNVhKNml5U2ZPYTZfaV80ZFdMSWVQQkt2NlhLaHhReWZxX094Slg0RURPYUNhajBEN2xBVEQtS2tGMjZ2U1FDYWVvTXBZUktZdWVWZw?oc=5",
+            "content": "Cổ phiếu ngành đá xây dựng: Mảnh ghép không thể thiếu trong sóng đầu tư công Khá nhiều cổ phiếu ngành đá xây dựng đang ghi nhận hiệu suất vượt trội trong nửa đầu năm 2025, bất chấp sóng đầu tư công chưa thực sự lan tỏa mạnh trên toàn thị trường. Nhiều cổ phiếu đá xây dựng duy trì thành tích vượt trội so với chỉ số Thị trường chứng khoán Việt Nam nửa đầu năm 2025 ghi nhận nhiều biến động, nhưng bên trong vẫn có những nhóm ngành âm thầm khởi sắc nhờ những kỳ vọng dài hạn. Một trong số đó là nhóm cổ phiếu đá xây dựng – một mắt xích không thể thiếu trong chuỗi giá trị của đầu tư công, cùng với thép và thi công hạ tầng. Tuy nhiên, điểm đặc biệt là sóng cổ phiếu trong ngành này không diễn ra đồng đều, mà còn phân hóa rõ rệt giữa các doanh nghiệp. Các doanh nghiệp tiêu biểu trong nhóm đá xây dựng thường được nhà đầu tư để ý gồm CTCP Đầu tư Phát triển Cường Thuận IDICO (CTI), CTCP Xây dựng và Sản xuất Vật liệu xây dựng Biên Hòa (VLB), CTCP Đá Núi Nhỏ (NNC), CTCP Khoáng sản và Xây dựng Bình Dương (KSB), CTCP Hóa An (DHA). Trong số này, VLB đang giao dịch trên UPCoM nhưng là một trong những cái tên ghi nhận thành tích vượt trội so với VN-Index trong 3 năm trở lại đây. Trong năm 2023, cổ phiếu VLB tăng tới 49%, cao gấp hơn 4 lần VN-Index. Năm 2024 có thành tích gấp hơn 2 lần và trong nửa đầu năm 2025, tiếp tục có hiệu suất gấp đôi chỉ số chung. Còn trên HOSE, cổ phiếu NNC cũng thể hiện sức bật mạnh mẽ khi tăng hơn 40,8%, nối tiếp mức tăng hơn 25% trong cả năm 2024. Trong khi đó, cổ phiếu CTI đã ghi nhận mức tăng khoảng 23.6%, qua đó đang có 3 năm liên tiếp tăng trưởng trên 20%. Dù vậy, nhóm đá xây dựng phản ánh rõ tình trạng phân hóa của sóng đầu tư công khi một số mã như KSB, DHA vẫn chưa có chuyển biến đáng kể. KSB thậm chí còn đang giảm gần 10% so với đầu năm. Điều này cho thấy sóng đầu tư công – dù được kỳ vọng lớn – hiện vẫn chưa lan tỏa toàn diện sang tất cả các nhóm cổ phiếu liên quan. Bức tranh còn rõ hơn khi mở rộng thống kê sang cả những cái tên như LCG hay FCN vẫn đang tăng trưởng âm. Ưu tiên doanh nghiệp có mỏ lớn, lợi nhuận ổn định Theo đánh giá từ các công ty chứng khoán, triển vọng ngành đá xây dựng sẽ tiếp tục tích cực trong năm 2025 nhờ nhu cầu tăng mạnh từ các đại dự án đầu tư công, đặc biệt ở khu vực phía Nam. Những công trình trọng điểm như sân bay Long Thành, cao tốc Biên Hòa – Vũng Tàu, vành đai 3, cao tốc Châu Đốc – Cần Thơ – Sóc Trăng, hay tuyến TP.HCM – Thủ Dầu Một – Chơn Thành được dự báo sẽ tiêu thụ tổng cộng hơn 14 triệu m³ đá trong giai đoạn 2024–2025. Trong bối cảnh đó, các doanh nghiệp có mỏ lớn, công suất khai thác cao và khả năng mở rộng nhanh chóng đang chiếm ưu thế. Chứng khoán SSI đánh giá cao KSB với sản lượng tiêu thụ năm 2025 dự kiến đạt 2.2 triệu m³, tăng 22% so với cùng kỳ. Doanh nghiệp cũng đang mở rộng ba mỏ đá tại Bình Dương, trong đó đáng chú ý là mỏ Tân Lập 3 đi vào vận hành từ cuối 2024. Ngoài ra, mỏ Phước Vĩnh dự kiến sẽ được gia hạn khai thác trong quý 3/2025 với công suất tăng gấp đôi. Biên lợi nhuận gộp của",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Điều gì khiến hàng loạt doanh nghiệp đặt kế hoạch kinh doanh đi lùi? - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxQN2g3UTJ1MFBWOTNvU29QTUFPajFUUGo1Nm1HUnZmQzI3cGU4S1d0WjlqMERieHBHTHlvR2Nsd3JJaHkwYkRqSUxYQ01PLU1ud1FpakFpbDV1MEUtZEVNMzZ0OFRtOGVVZ0QySHVFRHctWk5xempwX3ZHdFhFalFIeDhyWWdiNXBrTWxKbnlwZGtjeFRYZE9mbkZHc3RXSmRBRzJxbUcwcWNwdw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxQN2g3UTJ1MFBWOTNvU29QTUFPajFUUGo1Nm1HUnZmQzI3cGU4S1d0WjlqMERieHBHTHlvR2Nsd3JJaHkwYkRqSUxYQ01PLU1ud1FpakFpbDV1MEUtZEVNMzZ0OFRtOGVVZ0QySHVFRHctWk5xempwX3ZHdFhFalFIeDhyWWdiNXBrTWxKbnlwZGtjeFRYZE9mbkZHc3RXSmRBRzJxbUcwcWNwdw?oc=5",
+            "content": "| 20-03-2026 - 14:44 PM | Doanh nghiệp Công ty CP Vận tải Xăng dầu Đường thủy Petrolimex (mã chứng khoán: PJT) vừa công bố tài liệu họp Đại hội đồng cổ đông thường niên năm 2026, dự kiến diễn ra ngày 8-4 tại TPHCM. Theo tài liệu, doanh nghiệp đặt mục tiêu tổng doanh thu năm 2026 đạt hơn 808 tỉ đồng, tăng 9% so với kết quả thực hiện năm 2025. Tuy nhiên, lợi nhuận sau thuế dự kiến chỉ đạt 20,8 tỉ đồng, giảm 6%. PJT cho biết kế hoạch này được xây dựng trên đánh giá bối cảnh giai đoạn 2026-2031, khi kinh tế trong nước và thế giới được dự báo tiếp tục đối mặt với nhiều yếu tố bất định. Bên cạnh đó, yêu cầu về an toàn, bảo vệ môi trường, chuyển đổi xanh và hiệu quả sử dụng vốn ngày càng cao, tạo áp lực lớn lên hoạt động doanh nghiệp. Hội đồng quản trị xác định nhiệm vụ trọng tâm là duy trì hoạt động kinh doanh an toàn, ổn định, đảm bảo hiệu quả, đồng thời góp phần giữ vững chuỗi cung ứng xăng dầu thông suốt trong hệ thống Petrolimex. Qua đó, doanh nghiệp hướng tới mục tiêu bảo toàn và phát triển vốn Nhà nước đầu tư. Để hiện thực hóa mục tiêu này, công ty lên kế hoạch tái cơ cấu đội tàu. Cụ thể, PJT dự kiến thanh lý 4 tàu biển đã hết niên hạn khai thác gồm Long Phú 09, Long Phú 10, Long Phú 16 và Long Phú 18. Đồng thời, doanh nghiệp có kế hoạch đầu tư mới 4 tàu biển trọng tải đến 10.000 DWT và 1 tàu sông trọng tải đến 3.000 tấn nhằm nâng cao năng lực vận tải. Hàng loạt doanh nghiệp đặt mục tiêu kinh doanh đi lùi trong năm 2026 Tương tự, công ty CP Tập đoàn CNT (mã chứng khoán: CNT) đặt mục tiêu doanh thu thuần hợp nhất năm 2026 là 56 tỉ đồng, tăng nhẹ 1% so với năm 2025 nhưng kế hoạch lợi nhuận sau thuế chỉ đạt 13 tỉ đồng, giảm tới 23%. Nguyên nhân chủ yếu do các dự án bất động sản chưa đủ điều kiện ghi nhận doanh thu trong năm. Doanh nghiệp này cho biết sẽ tập trung đẩy nhanh tiến độ hai dự án tại Gia Lai, gồm khu chung cư thương mại dọc đường Huỳnh Tấn Phát và khu đô thị phía Tây Nam cầu Long Vân. Các dự án dự kiến mở bán trong năm 2026 và bắt đầu bàn giao từ năm 2027, tạo nguồn thu ổn định từ năm 2028 trở đi. CNT kỳ vọng các dự án này mang lại doanh thu khoảng 1.500-2.000 tỉ đồng trong giai đoạn 2027-2030. Công ty CP Đá Núi Nhỏ (mã chứng khoán: NNC) cũng xây dựng kế hoạch khá dè dặt sau một năm tăng trưởng mạnh. Năm 2026, doanh nghiệp dự kiến đạt doanh thu 360 tỉ đồng và lợi nhuận trước thuế 120 tỉ đồng, giảm lần lượt 8% và 35% so với năm 2025. Trước đó, năm 2025, NNC ghi nhận doanh thu gần 391 tỉ đồng, tăng 40%, lợi nhuận ròng gần 148 tỉ đồng, gấp 2,4 lần năm trước và là mức cao nhất trong 7 năm. Cùng xu hướng, Công ty CP Đường Quảng Ngãi (mã chứng khoán: QNS) đặt kế hoạch doanh thu khoảng 10.500 tỉ đồng và lợi nhuận sau thuế 1.512 tỉ đồng, giảm lần lượt 5% và 21% so với năm 2025. Nếu hoàn thành, đây có thể là mức lợi nhuận thấp nhất của doanh nghiệp trong 4 năm gần đây. Theo ban lãnh đạo Đường Quảng Ngãi, năm 2026 tiếp tục tiềm ẩn nhiều thách thức, bao gồm biến động chi phí đầu vào, áp lực mở rộng vùng nguyên liệu mía, chi phí marketing gia tăng và",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Đá Núi Nhỏ (NNC) sắp trả cổ tức tỷ lệ 10% - Tin nhanh chứng khoán",
+            "link": "https://news.google.com/rss/articles/CBMikgFBVV95cUxOVmk5MFpsdkpDci1sTmVuMG5wZjFPaHdaWjl3M0lJUEZyUU52ajBJYXZpMVBSZG5aWnk1NExSSzZSZWRGWV8xRTdkeldnRXdxVWFtS3Jhb09EeWRSc2RZaUhlUk5sYlhHMGNRTWViWjZORks1NENHcWlLMmRZdUoxSXpaaXUyMXg4UmFkcUZXV0t4d9IBjgFBVV95cUxNc0J1bW0wbXdZSFZ2NTBKcjAtaGsycjhSam9KRDUzZENVUTg4ckxnVVExaUlqOFdlZEtxRVBjcTJLMnpnMnV0ano0cTh0cUd6cEFxTURkcnA3ZG5WZ19KaThYUmJXdlFuWW9oUGFRLUpuN2lEallVell2VGFaYy1UcHhCZVN5MXMwMWprOFpB?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMikgFBVV95cUxOVmk5MFpsdkpDci1sTmVuMG5wZjFPaHdaWjl3M0lJUEZyUU52ajBJYXZpMVBSZG5aWnk1NExSSzZSZWRGWV8xRTdkeldnRXdxVWFtS3Jhb09EeWRSc2RZaUhlUk5sYlhHMGNRTWViWjZORks1NENHcWlLMmRZdUoxSXpaaXUyMXg4UmFkcUZXV0t4d9IBjgFBVV95cUxNc0J1bW0wbXdZSFZ2NTBKcjAtaGsycjhSam9KRDUzZENVUTg4ckxnVVExaUlqOFdlZEtxRVBjcTJLMnpnMnV0ano0cTh0cUd6cEFxTURkcnA3ZG5WZ19KaThYUmJXdlFuWW9oUGFRLUpuN2lEallVell2VGFaYy1UcHhCZVN5MXMwMWprOFpB?oc=5",
+            "content": "Ngày 8/8 tới đây, Đá Núi Nhỏ sẽ chốt danh sách cổ đông trả cổ tức năm 2024 bằng tiền với tỷ lệ 10%, tương ứng cổ đông sở hữu 1 cổ phiếu sẽ nhận 1.000 đồng và thời gian chi trả dự kiến ngày 29/8. Với 21,92 triệu cổ phiếu đang lưu hành, ước tính Đá Núi Nhỏ sẽ trả tổng cộng 21,92 tỷ đồng cho cổ đông trong lần trả cổ tức sắp tới. Ngoài ra, Đá Núi Nhỏ còn lên kế hoạch hoàn thành công tác lắp đặt dây chuyền nghiền đá công suất 750 tấn/giờ đưa vào sản xuất trong quý III/2025; và cân đối nguồn lực xe máy thiết bị, sắp xếp nhân sự đảm bảo khai thác và chế biến hết công suất theo giấy phép khai thác. Xét về hoạt động kinh doanh, trong quý I/2025, Đá Núi Nhỏ ghi nhận doanh thu đạt 70,13 tỷ đồng, tăng 35,1% so với cùng kỳ; lợi nhuận sau thuế đạt 16,25 tỷ đồng, tăng 187,6% so với cùng kỳ năm trước. Trong đó, biên lợi nhuận gộp cải thiện từ 18,6%, lên 32,2%. Trong năm 2025, Đá Núi Nhỏ đặt kế hoạch doanh thu 226 tỷ đồng, lợi nhuận trước thuế dự kiến 55 tỷ đồng. Như vậy, kết thúc quý đầu năm 2025 với lãi trước thuế đạt 20,31 tỷ đồng, Đá Núi Nhỏ đã hoàn thành 36,9% so với kế hoạch năm. Đóng cửa phiên giao dịch ngày 14/7, cổ phiếu NNC giảm 200 đồng về 33.000 đồng/cổ phiếu. Ý kiến của bạn sẽ được biên tập trước khi đăng. Xin vui lòng gõ tiếng Việt có dấu ",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Bắt đáy cuối phiên, VN Index thoát phiên giảm sâu - Báo Sài Gòn Đầu Tư Tài Chính",
+            "link": "https://news.google.com/rss/articles/CBMikwFBVV95cUxOVElhZW0yWDE3YXdzcUVmLXlnbmRMODVaZ003dE9nSTNJd0hnV214OW1nMzdPTW5OVGRmcHcwdUNtbDNpdE5lWEJzNXVVVWxXUVU5V1FGaEtpOTNTX1dMQ2cwbjF2VkN6aDd5bXNIS2YzMGV2UVdPQjRMTHdMbkF3ZGYwMjlYR2FFQTk5Rzh3NFN0ejA?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMikwFBVV95cUxOVElhZW0yWDE3YXdzcUVmLXlnbmRMODVaZ003dE9nSTNJd0hnV214OW1nMzdPTW5OVGRmcHcwdUNtbDNpdE5lWEJzNXVVVWxXUVU5V1FGaEtpOTNTX1dMQ2cwbjF2VkN6aDd5bXNIS2YzMGV2UVdPQjRMTHdMbkF3ZGYwMjlYR2FFQTk5Rzh3NFN0ejA?oc=5",
+            "content": "(ĐTTCO) - Áp lực giảm điểm từ chứng khoán Mỹ đã tác động tiêu cực lên tâm lý nhà đầu tư trong nước, từ đó dẫn đến động thái xả hàng mạnh. Động thái xả hàng ồ ạt xuất hiện mạnh nhất ở thời điểm 14 giờ. Áp lực này khiến VN Index bị đẩy lùi về mốc 1.860 điểm với 32 điểm giảm. Tuy nhiên, ở những phút cuối phiên chiều, dòng tiền bắt đáy được đẩy vào giúp chỉ số ghi nhận mức giảm dưới 2 con số. Cụ thể, kết phiên 21-1, VN Index giảm 8,34 điểm (tương đương 0,44%) xuống còn 1.885,4 điểm. Sắc đỏ xuất hiện dày đặc trên bảng điện HoSE với 346 mã giảm so với 96 mã tăng. Theo thống kê, nhóm cổ phiếu khiến chỉ số mất điểm nhiều nhất là VNM, VCB, VPB, GEE, VIC, BCM, HPG, MBB… Phía ngược lại, VN Index nhận được lực đỡ từ các mã GAS, STB, BSR, CTG, DGC. Phiên nay, sàn HoSE ghi nhận 8 mã tăng trần là HID, BSR, DGC, SBG, YEG, STB, BTT, UIC. Ở chiều ngược lại, có 6 mã giảm sàn là PMG, DSC, CMV, CTF, NNC và đặc biệt là mã HCM. Thanh khoản thị trường cải thiện đáng kể so với phiên trước đó. Cụ thể, có gần 1,19 tỷ cổ phiếu khớp lệnh trên sàn HoSE, tương đương giá trị giao dịch đạt 36.400 tỷ đồng. Sau phiên bán ròng mạnh gần 1.700 tỷ đồng hôm qua, hôm nay khối ngoại “hạ nhiệt” sức ép cung với giá trị bán ròng chỉ hơn 300 tỷ đồng. Top 3 mã bị bán ròng nhiều nhất là VNM, VCB, VIC. Trong khi đó, 3 mã được nhà đầu tư ngoại mua vào mạnh nhất là GMD, KBC và VHM. Xin vui lòng gõ tiếng Việt có dấu (ĐTTCO) - Trái ngược với áp lực bán tháo từ nhóm Vingroup, các mã cổ phiếu dầu khí đua nhau tăng trần phiên hôm nay 13-5. (ĐTTCO) - Phố Wall điều chỉnh trong phiên 12-5 khi giá dầu tăng mạnh và lo ngại lạm phát gia tăng, chấm dứt chuỗi tăng điểm kỷ lục trước đó. (ĐTTCO) - Dù không nhận được lực đỡ từ nhóm Vingroup nhưng VN Index vẫn kết phiên 12-5 trong sắc xanh và tái lập lại mốc 1.900 điểm. (ĐTTCO) - Phố Wall tiếp tục lập đỉnh mới trong phiên 12-5 khi nhóm công nghệ dẫn dắt đà tăng, bất chấp những lo ngại gia tăng liên quan tới căng thẳng giữa Mỹ và Iran. (ĐTTCO) - Với số lượng mã giảm gấp đôi mã tăng, VN Index đã không thể giữ được mốc 1.900 điểm sau phiên hôm nay 11-5. (ĐTTCO) - Sáng nay 11-5, hệ thống giao dịch của SSI tiếp tục bị “đơ” khiến nhà đầu tư không thể đăng nhập vào tài khoản từ website lẫn app. (ĐTTCO) - Phố Wall khép lại phiên giao dịch cuối tuần trong sắc xanh, khi dữ liệu việc làm tích cực củng cố niềm tin vào sức chống chịu của kinh tế Mỹ, bất chấp những rủi ro địa chính trị. (ĐTTCO) - Masan High-Tech Materials (UPCoM: MSR) vừa được phép tiếp tục huy động và khai thác phần trữ lượng 28 triệu tấn đã được phê duyệt trước đó tại mỏ Núi Pháo, một trong những mỏ vonfram đa kim lớn nhất thế giới ngoài Trung Quốc. (ĐTTCO) - Chứng khoán Mỹ quay đầu giảm trong phiên 7-5 sau khi các chỉ số chính chạm mức cao kỷ lục trong ngày, do căng thẳng địa chính trị gia tăng trở lại. (ĐTTCO)-Ngày 7-5, Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank - TCB ) đã công bố kế hoạch thực hiện chi trả cổ tức bằng tiền mặt năm 2025 với tỷ lệ 7% mệnh giá (tương đương 700 đồng/cổ phiếu). (ĐTTCO) - N",
+            "date": "14/5/2026"
+        }
+    ]
+}

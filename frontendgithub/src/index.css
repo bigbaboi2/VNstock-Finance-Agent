@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* DAO BẦU: CHÉM SẠCH MỌI KHOẢNG TRỐNG MẶC ĐỊNH CỦA TRÌNH DUYỆT */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+public/index.html
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important; 
+  display: block !important; /* Phá vỡ cấu trúc Flex gây co cụm ở giữa */
+  background-color: #06080B; 
+}
+
+/* ==========================================
+   KLINECHART TOOLTIP THEME
+   ========================================== */
+
+.k-line-chart-tooltip {
+  backdrop-filter: blur(10px) !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  transition: all 0.2s ease;
+}
+
+.kchart-dark .k-line-chart-tooltip {
+  background: rgba(55, 65, 81, 0.72) !important;
+  color: #f1f5f9 !important;
+}
+
+.kchart-light .k-line-chart-tooltip {
+  background: rgba(203, 213, 225, 0.72) !important;
+  color: #111827 !important;
+}

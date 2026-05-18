@@ -1,0 +1,995 @@
+{
+    "symbol": "NBB",
+    "companyName": "Công ty Cổ phần Đầu tư Năm Bảy Bảy",
+    "lastUpdated": "2026-05-13T08:34:43.250Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "NBB",
+            "San": "HOSE",
+            "Nganh": "Phát triển bất động sản",
+            "NgayGDDauTien": "18/02/2009",
+            "GiaDongCuaNGDDT": 21.6,
+            "VolumeStartDate": 15400000,
+            "VDL": 1004756560000,
+            "KLCPNY": 100475656,
+            "KLCPLH": 100159795,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "0.02",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "0.02",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "767.54",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "18.13",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "0.96",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "1,752.80",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "24,040",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "100,475,656",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "100,159,795",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Số liệu EPS tính tới Quý I năm 2026",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "KLQ_81415",
+                    "Name": "Nguyễn Văn Thịnh",
+                    "Url": "Nguyễn Văn Thịnh",
+                    "AssetVolume": "4.521.000",
+                    "AssetRate": "4,51",
+                    "UpdatedDate": "09/10/2024"
+                },
+                {
+                    "Code": "CORP_50640",
+                    "Name": "Công ty cổ phần Tư vấn thiết kế Viettel",
+                    "Url": "Công ty cổ phần Tư vấn thiết kế Viettel",
+                    "AssetVolume": "5.200.000",
+                    "AssetRate": "5,19",
+                    "UpdatedDate": "27/06/2013"
+                },
+                {
+                    "Code": "CEO_82200",
+                    "Name": "Lưu Hải Ca",
+                    "Url": "<a href='/du-lieu/ceo/CEO_82200/luu-hai-ca.chn'>Lưu Hải Ca</a>",
+                    "AssetVolume": "30.000",
+                    "AssetRate": "0,03",
+                    "UpdatedDate": "31/12/2022"
+                },
+                {
+                    "Code": "CORP_65742",
+                    "Name": "Công ty TNHH Thương mại và Dịch vụ Đại Dũng",
+                    "Url": "Công ty TNHH Thương mại và Dịch vụ Đại Dũng",
+                    "AssetVolume": "4.932.200",
+                    "AssetRate": "4,92",
+                    "UpdatedDate": "09/04/2025"
+                },
+                {
+                    "Code": "CEO_08480",
+                    "Name": "Nguyễn Văn Tùng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_08480/nguyen-van-tung.chn'>Nguyễn Văn Tùng</a>",
+                    "AssetVolume": "1.492",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "31/12/2019"
+                },
+                {
+                    "Code": "CORP_00820",
+                    "Name": " Deutsche Asset Management (Asia) Limited",
+                    "Url": " Deutsche Asset Management (Asia) Limited",
+                    "AssetVolume": "5.200.000",
+                    "AssetRate": "5,19",
+                    "UpdatedDate": "16/12/2013"
+                },
+                {
+                    "Code": "CORP_82227",
+                    "Name": "Công ty TNHH TM-DV Đại Dũng",
+                    "Url": "Công ty TNHH TM-DV Đại Dũng",
+                    "AssetVolume": "5.011.000",
+                    "AssetRate": "5,0",
+                    "UpdatedDate": "16/12/2022"
+                },
+                {
+                    "Code": "CEE",
+                    "Name": "Công ty Cổ phần Xây dựng Hạ tầng CII",
+                    "Url": "<a href='/du-lieu/hose/CEE-cong-ty-co-phan-xay-dung-ha-tang-cii.chn' title='Công ty Cổ phần Xây dựng Hạ tầng CII'>Công ty Cổ phần Xây dựng Hạ tầng CII</a>",
+                    "AssetVolume": "4.226.100",
+                    "AssetRate": "4,22",
+                    "UpdatedDate": "27/05/2024"
+                },
+                {
+                    "Code": "CEO_80774",
+                    "Name": "Nguyễn Phi Thường",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80774/nguyen-phi-thuong.chn'>Nguyễn Phi Thường</a>",
+                    "AssetVolume": "100.000",
+                    "AssetRate": "0,1",
+                    "UpdatedDate": "31/12/2019"
+                },
+                {
+                    "Code": "CORP_65639",
+                    "Name": "Công ty TNHH Thương mại và Dịch vụ Thép Mỹ",
+                    "Url": "Công ty TNHH Thương mại và Dịch vụ Thép Mỹ",
+                    "AssetVolume": "3.100.000",
+                    "AssetRate": "3,1",
+                    "UpdatedDate": "09/05/2025"
+                },
+                {
+                    "Code": "CORP_80206",
+                    "Name": "Creed Investments VN-1 Ltd",
+                    "Url": "Creed Investments VN-1 Ltd",
+                    "AssetVolume": "2.905.000",
+                    "AssetRate": "2,9",
+                    "UpdatedDate": "31/12/2015"
+                },
+                {
+                    "Code": "CIENCO5",
+                    "Name": "Tổng Công ty Xây dựng Công trình Giao thông 5 - CTCP",
+                    "Url": "<a href='/du-lieu/otc/CIENCO5-tong-cong-ty-xay-dung-cong-trinh-giao-thong-5-ctcp.chn' title='Tổng Công ty Xây dựng Công trình Giao thông 5 - CTCP'>Tổng Công ty Xây dựng Công trình Giao thông 5 - CTCP</a>",
+                    "AssetVolume": "1.050.000",
+                    "AssetRate": "1,05",
+                    "UpdatedDate": "11/07/2014"
+                },
+                {
+                    "Code": "CII",
+                    "Name": "Công ty Cổ phần Đầu tư Năm Bảy Bảy",
+                    "Url": "<a href='/du-lieu/hose/CII-cong-ty-co-phan-dau-tu-ha-tang-ky-thuat-tp-ho-chi-minh.chn' title='Công ty cổ phần Đầu tư Hạ tầng Kỹ thuật T.P Hồ Chí Minh'>Công ty cổ phần Đầu tư Hạ tầng Kỹ thuật T.P Hồ Chí Minh</a>",
+                    "AssetVolume": "21.984.332",
+                    "AssetRate": "21,95",
+                    "UpdatedDate": "21/11/2025"
+                },
+                {
+                    "Code": "CEO_00128",
+                    "Name": "Đoàn Tường Triệu",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00128/doan-tuong-trieu.chn'>Đoàn Tường Triệu</a>",
+                    "AssetVolume": "50.000",
+                    "AssetRate": "0,05",
+                    "UpdatedDate": "27/05/2020"
+                },
+                {
+                    "Code": "LQ_70352",
+                    "Name": "Nguyễn Thị Cẩm Viên",
+                    "Url": "Nguyễn Thị Cẩm Viên (vợ của ông <a href='/du-lieu/ceo/CEO_30819/mai-thanh-truc.chn'>Mai Thanh Trúc</a>)",
+                    "AssetVolume": "4.851.110",
+                    "AssetRate": "4,84",
+                    "UpdatedDate": "16/10/2017"
+                },
+                {
+                    "Code": "CEO_00419",
+                    "Name": "Hoàng Hữu Tương",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00419/hoang-huu-tuong.chn'>Hoàng Hữu Tương</a>",
+                    "AssetVolume": "550.000",
+                    "AssetRate": "0,55",
+                    "UpdatedDate": "31/12/2019"
+                },
+                {
+                    "Code": "KLQ_39506",
+                    "Name": "Amersham Industries Linmited",
+                    "Url": "Amersham Industries Linmited",
+                    "AssetVolume": "4.999.999",
+                    "AssetRate": "4,99",
+                    "UpdatedDate": "26/06/2017"
+                },
+                {
+                    "Code": "CORP_65820",
+                    "Name": "Công ty TNHH MTV Dịch vụ và Đầu tư CII",
+                    "Url": "Công ty TNHH MTV Dịch vụ và Đầu tư CII",
+                    "AssetVolume": "100.159.795",
+                    "AssetRate": "100,0",
+                    "UpdatedDate": "18/12/2025"
+                },
+                {
+                    "Code": "SAMVEH",
+                    "Name": "Công ty Cổ phần Đầu tư Năm Bảy Bảy",
+                    "Url": "<a href='/du-lieu/otc/SAMVEH-vietnam-equity-holding.chn' title='Vietnam Equity Holding'>Vietnam Equity Holding</a>",
+                    "AssetVolume": "4.166.167",
+                    "AssetRate": "4,16",
+                    "UpdatedDate": "01/03/2019"
+                },
+                {
+                    "Code": "KLQ_80099",
+                    "Name": "Phan Diệp Huyền Chi",
+                    "Url": "Phan Diệp Huyền Chi",
+                    "AssetVolume": "4.293.333",
+                    "AssetRate": "4,29",
+                    "UpdatedDate": "12/01/2017"
+                },
+                {
+                    "Code": "CEO_00836",
+                    "Name": "Nguyễn Quỳnh Hương",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00836/nguyen-quynh-huong.chn'>Nguyễn Quỳnh Hương</a>",
+                    "AssetVolume": "15.000",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "31/12/2019"
+                },
+                {
+                    "Code": "CORP_39564",
+                    "Name": "CTCP Dịch vụ Nhịp cầu Địa ốc",
+                    "Url": "CTCP Dịch vụ Nhịp cầu Địa ốc",
+                    "AssetVolume": "3.823.955",
+                    "AssetRate": "3,82",
+                    "UpdatedDate": "14/04/2017"
+                },
+                {
+                    "Code": "CORP_10871",
+                    "Name": "Công ty TNHH MTV Thương mại và Đầu tư CII",
+                    "Url": "Công ty TNHH MTV Thương mại và Đầu tư CII",
+                    "AssetVolume": "45.135.736",
+                    "AssetRate": "45,06",
+                    "UpdatedDate": "18/12/2025"
+                },
+                {
+                    "Code": "CEO_80773",
+                    "Name": "Hoàng Thanh Tùng",
+                    "Url": "<a href='/du-lieu/ceo/CEO_80773/hoang-thanh-tung.chn'>Hoàng Thanh Tùng</a>",
+                    "AssetVolume": "15.000",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "31/12/2019"
+                },
+                {
+                    "Code": "CORP_00068",
+                    "Name": "Amersham Industries Limited",
+                    "Url": "Amersham Industries Limited",
+                    "AssetVolume": "1.780.369",
+                    "AssetRate": "1,78",
+                    "UpdatedDate": "30/06/2024"
+                },
+                {
+                    "Code": "KLQ_81416",
+                    "Name": "Nguyễn Thị Thu Hiền",
+                    "Url": "Nguyễn Thị Thu Hiền",
+                    "AssetVolume": "4.962.300",
+                    "AssetRate": "4,95",
+                    "UpdatedDate": "24/11/2022"
+                }
+            ],
+            "NuocNgoai": 0.41,
+            "NhaNuoc": 0,
+            "Khac": 99.59
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 39,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 27,
+                    "Y": 1030.9,
+                    "Region": "",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 22,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 30,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 20,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 24,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 35,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 25,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 24,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 36,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 19,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 40,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 34,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 21,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 16,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 24,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 17,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 31,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 24,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 22,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 17,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 31,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 41,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 20,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 8,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 39,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 3,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 14,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 8,
+                    "Y": 2551,
+                    "Region": "",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 20,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 23,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 3,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 35,
+                    "Y": 701.2,
+                    "Region": "",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 21,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 37,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 43,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 19,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 25,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 43,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 18,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 10,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 6,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 4,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 23,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 21,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 6,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 41,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 21,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 29,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 41,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 40,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 27,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 31,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 38,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 16,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 13,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 38,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 25,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 18,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 5,
+                    "Y": 1727.4,
+                    "Region": "",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 37,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 42,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/NBB.pdf"
+    }
+}
