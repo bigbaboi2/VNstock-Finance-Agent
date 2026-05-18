@@ -1,2 +1,6 @@
 node_modules/
-.env
+src/.env
+**/.env
+src/data
+src/database
+frontendgithub
