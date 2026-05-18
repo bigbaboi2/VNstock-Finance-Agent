@@ -1,0 +1,802 @@
+{
+    "symbol": "AAN",
+    "companyName": "Công ty cổ phần Lương thực A An",
+    "lastUpdated": "2026-05-14T09:54:38.346Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "AAN",
+            "San": "OTC",
+            "Nganh": "Nông nghiệp",
+            "NgayGDDauTien": "",
+            "GiaDongCuaNGDDT": 0,
+            "VolumeStartDate": 0,
+            "VDL": 0,
+            "KLCPNY": 0,
+            "KLCPLH": 0,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "0.00",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "0.00",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "n/a",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "0.00",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "n/a",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "n/a",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "n/a",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "n/a",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "n/a",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Tổng LNST 4Q âm hoặc chưa đủ số liệu tính",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": null,
+            "NuocNgoai": 0,
+            "NhaNuoc": 0,
+            "Khac": 100
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 37,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 38,
+                    "Y": 1030.9,
+                    "Region": "",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 14,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 32,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 22,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 9,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 10,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 21,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 8,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 40,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 24,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 22,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 19,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 36,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 36,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 36,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 26,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 31,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 18,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 8,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 22,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 4,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 43,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 39,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 43,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 31,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 38,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 37,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 6,
+                    "Y": 2551,
+                    "Region": "",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 6,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 21,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 38,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 26,
+                    "Y": 701.2,
+                    "Region": "",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 39,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 11,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 32,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 9,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 26,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 7,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 43,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 39,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 12,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 3,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 27,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 15,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 14,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 12,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 4,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 4,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 19,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 41,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 29,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 24,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 27,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 35,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 33,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 33,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 23,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 3,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 43,
+                    "Y": 1727.4,
+                    "Region": "",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 41,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 11,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/AAN.pdf"
+    },
+    "deepNewsData": [
+        {
+            "title": "Chứng khoán tiếp tục lập kỷ lục mới - VnExpress",
+            "link": "https://news.google.com/rss/articles/CBMiekFVX3lxTE1KcEFFS3o1SVlrc1BfRVpYS1BkUm40SWJZRWlwV2NKRzdiREFjOE1WOFk3Wno0UXdCUW1aRUp1SzZBRzNjblRhZHdJdzVhSDVQZ3NRMjN1ZEdJY09ZaGt2Vm1zUnRwa3FTb3c3Vk9ZQmtacFg5bHIxY2FB?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiekFVX3lxTE1KcEFFS3o1SVlrc1BfRVpYS1BkUm40SWJZRWlwV2NKRzdiREFjOE1WOFk3Wno0UXdCUW1aRUp1SzZBRzNjblRhZHdJdzVhSDVQZ3NRMjN1ZEdJY09ZaGt2Vm1zUnRwa3FTb3c3Vk9ZQmtacFg5bHIxY2FB?oc=5",
+            "content": "Nhờ sức nâng đỡ của cổ phiếu Vingroup, chứng khoán hôm nay tiếp tục ghi nhận kỷ lục mới, đóng cửa ở trên mốc 1.925 điểm. VN-Index mở cửa trong sắc đỏ, có lúc giảm hơn 14 điểm. Trong nửa đầu buổi sáng, đồ thị của chỉ số này thường xuyên duy trì ở mức dưới tham chiếu. Sau 10h, chứng khoán bắt đầu đi lên, vượt 1.920 điểm vào gần giờ nghỉ trưa. Sau nhịp rung lắc nhẹ vào đầu giờ chiều, chỉ số đại diện sàn HoSE tăng tiếp và lập kỷ lục mới gần 1.928 điểm. Áp lực chốt lời kéo tới khiến thị trường hạ nhiệt sau đó, chủ yếu dao động quanh vùng 1.920 điểm. Bước vào phiên ATC, chứng khoán điều chỉnh nhẹ nhưng nhanh chóng phục hồi. VN-Index kết phiên ở trên 1.925 điểm, mức cao nhất trong lịch sử chứng khoán. Chỉ số tăng hơn 27 điểm so với hôm qua, mức cải thiện mạnh nhất kể từ phiên tăng điểm kỷ lục 8/4. Như vậy, xét theo giá cao nhất trong phiên hay giá đóng cửa, chứng khoán đều lập kỷ lục mới. Toàn sàn HoSE có 165 cổ phiếu tăng giá, còn bên giảm ghi nhận 128 cổ phiếu. Chênh lệch không cao cho thấy mức độ đồng thuận trên thị trường thấp. Lực cầu tập trung ở nhóm công nghệ và bất động sản, trong khi nhóm hóa chất lại có diễn biến tiêu cực. Xét theo từng cổ phiếu, VIC của Vingroup là mã ảnh hưởng tốt nhất tới thị trường khi đóng góp hơn 14,5 điểm vào mức tăng của VN-Index. Cổ phiếu này đóng cửa tăng 4% lên 229.800 đồng. Trong phiên, VIC có lúc đạt mức cao kỷ lục 232.000 đồng. Thanh khoản xếp thứ 3 thị trường với gần 844 tỷ đồng, trong đó hơn 55% khớp lệnh đến từ bên mua chủ động. Ngoài ra, các mã như VHM, VCB, BID hay FPT cũng hỗ trợ cho chỉ số chung. Trong đó, cổ phiếu FPT sau khi chạm đáy một năm đã bật tăng trở lại 3 phiên liên tiếp. Hôm nay mã này tích lũy thêm 4,5% lên 73.900 đồng. Dòng tiền cũng diễn biến tích cực khi thanh khoản cao nhất thị trường, đạt gần 1.589 tỷ đồng, với hơn 64% khớp lệnh nhờ lực mua chủ động. Trong phiên VN-Index ghi nhận mức cao chưa từng có, thanh khoản sàn HoSE lại giảm hơn 25%. Tổng giá trị giao dịch hôm nay đạt hơn 22.100 tỷ đồng. Tuy nhiên, điểm sáng nằm ở việc khối ngoại dứt chuỗi bán ròng. Nhà đầu tư nước ngoài trở lại mua ròng khoảng 261 tỷ đồng, tập trung mạnh ở VIC và MSN. Tuy nhiên, thị trường vẫn ghi nhận hai mã bị bán ròng trên trăm tỷ là VHM và TCB. Nhà đầu tư đang theo dõi bảng điện tử tại một công ty chứng khoán ở TP HCM, tháng 4/2026. Ảnh: Quỳnh Trần Từ cuối phiên hôm qua, Chứng khoán Vietcombank (VCBS) đã nhận thấy một số tín hiệu của việc lực cầu chủ động đang được cải thiện. Tuy nhiên, dựa theo phân tích kỹ thuật, diễn biến tăng giảm đan xen vẫn có thể còn tiếp diễn trước khi VN-Index cân bằng ở khu vực 1.880-1.900 điểm. Nhóm phân tích khuyến nghị nhà đầu tư đi theo sự luân chuyển của dòng tiền và chọn lọc cổ phiếu đang hưởng ứng động lực chung của nhóm ngành, chưa tăng nhiều từ vùng hỗ trợ cứng. Ngoài ra, VCBS cũng cho rằng có thể tận dụng những nhịp rung lắc của thị trường để cân nhắc giải ngân với mục tiêu lướt sóng. Sở Giao dịch chứng khoán Việt Nam dự kiến có lãi kỷ lục 2.987 tỷ đồng năm nay với nhiều kế h",
+            "date": "14/5/2026"
+        },
+        {
+            "title": "Nhận định chứng khoán 14/5: VN-Index có thể giằng co trong biên độ hẹp - VOV",
+            "link": "https://news.google.com/rss/articles/CBMirwFBVV95cUxQdTY5ZWhWU01GVWRFcW9Qc1RMbEdtallNbTNhWG1iZ3ZpTFRVbHZlTGZfelJQcThWQlJleG9UVHprcXZSRXl6bU1pdnhIdGZCZUR0QnJ6dFlFVXhJcmxmQWdCMkx2emZJWl83Y0lkNUMxcEVWT01ZR2RLTlBmQmRsRElKZ2xfZmdlXzAwS0lKSFlDak54TE1QaUM3YXg1M3FPLTliS1NvVjk4U2VZUG40?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirwFBVV95cUxQdTY5ZWhWU01GVWRFcW9Qc1RMbEdtallNbTNhWG1iZ3ZpTFRVbHZlTGZfelJQcThWQlJleG9UVHprcXZSRXl6bU1pdnhIdGZCZUR0QnJ6dFlFVXhJcmxmQWdCMkx2emZJWl83Y0lkNUMxcEVWT01ZR2RLTlBmQmRsRElKZ2xfZmdlXzAwS0lKSFlDak54TE1QaUM3YXg1M3FPLTliS1NvVjk4U2VZUG40?oc=5",
+            "content": "Diễn biến thị trường trong phiên 13/5 có phần tương đồng với phiên liền trước khi lực cầu nhập cuộc vào thời điểm cuối phiên chiều nhằm thu hẹp đáng kể đà giảm cho chỉ số chung. VN-Index dường như trở thành “sàn diễn” cho nhóm cổ phiếu Dầu khí với sắc tím tới từ “ông lớn” GAS và lan tỏa tới nhiều cái tên khác cùng ngành như PLX, PVD… Bên cạnh đó, một số Bluechip cho thấy khả năng duy trì xung lực giá tương đối tích cực trong phiên phải kể đến như BID, MCH và MSN với biên độ tăng điểm quanh mức 2 – 3%. Ở chiều ngược lại, nhịp rơi của các cổ phiếu họ Vingroup (VHM, VRE) trở thành yếu tố khiến chỉ số chìm sâu dưới ngưỡng giá đỏ trước khi VIC có cú lội ngược dòng ngoạn mục từ giá sàn về sát mốc giá tham chiếu và thu hẹp đáng kể biên độ điều chỉnh của thị trường chung. Sắc đỏ có phần lấn lướt khi số mã giảm điểm (168 mã) nhỉnh hơn so với số mã tăng điểm (144 mã) trên nền thanh khoản khớp lệnh cao hơn (7,9%) so với mức bình quân 20 phiên. Chốt phiên giao dịch ngày 13/5, VN-Index đóng cửa ở mức 1.898,37 điểm, giảm 2,73 điểm (-0,14%). Sau một phiên suy yếu, thanh khoản thị trường ngay lập tức lấy lại nhịp độ khi khối lượng khớp lệnh cao hơn (7,9%) so với mức bình quân 20 phiên. Lũy kế đến cuối phiên giao dịch, thanh khoản trên sàn HSX đạt 978 triệu cổ phiếu (33,14%), tương đương giá trị đạt 29.859 tỷ đồng (40,79%). VN-Index có phiên giảm về điểm số, tuy nhiên, độ mở nghiêng về sắc xanh khi có tới 14/21 nhóm ngành đóng cửa tăng điểm. Dầu khí (5,55%), Công nghệ viễn thông (3,64%) và Hóa chất (2,58%) là ba nhóm ngành tăng điểm mạnh nhất. Ở chiều ngược lại, Bất động sản (-2,30%), Cảng biển (-0,37%) và Thủy sản (-0,35%) là ba nhóm ngành chịu áp lực điều chỉnh mạnh nhất phiên 13/5. VOV.VN - Với việc phe mua chiếm ưu thế về cuối phiên trước và duy trì giá đóng cửa gần mức cao nhất ngày, chỉ số nhiều khả năng sẽ tiếp tục đà hồi phục để kiểm định vùng kháng cự 1.920–1.930 trong kịch bản khả quan đầu phiên hôm nay 13/5. Theo các chuyên gia của Công ty Chứng khoán Kiến Thiết (CSI), VN-Index có phiên biến động khá mạnh, nhưng đóng cửa chỉ giảm điểm nhẹ (-0,14%). Nguyên nhân đến từ biên độ giao dịch rất lớn ở nhóm cổ phiếu vốn hóa lớn (VIC, VHM) có lúc giảm sàn và kết phiên thu hẹp đáng kể đà giảm. Thanh khoản phiên 13/5 tăng so với phiên trước với khối lượng giao dịch vượt (7,9%) so với mức bình quân 20 phiên. Biên độ giảm thu hẹp đáng kể về cuối phiên cho thấy khả năng thị trường vẫn còn xuất hiện thêm nhịp hồi phục phục rồi mới quay lại xu hướng giảm giá. “Biên độ hồi phục là không lớn ở bối cảnh hiện tại nên nhà đầu tư hạn chế việc mở mua mới, thay vào đó tiếp tục căn nhịp hồi của thị trường để hạ bớt tỷ trọng cổ phiếu. Chúng tôi tiếp tục duy trì mốc 1.945 điểm là ngưỡng kháng cự mạnh để nhà đầu tư gia tăng tỷ trọng tiền mặt lớn hơn”, chuyên gia của CSI nêu quan điểm. Còn theo nhóm phân tích của Công ty Chứng khoán ASEAN (ASEANSC), về kỹ thuật, VN-Index đang duy trì xu thế tăng chủ đạo khi đóng cửa tại 1.898 điểm, giữ vững vị thế trên các đường MA10 và MA20 cùng ",
+            "date": "14/5/2026"
+        }
+    ]
+}
