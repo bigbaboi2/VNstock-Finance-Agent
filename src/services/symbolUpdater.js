@@ -31,7 +31,7 @@ export async function updateSymbolsDatabase() {
         if (cafefRes.data && Array.isArray(cafefRes.data)) {
             const allStocks = cafefRes.data
                 .map(item => {
-                    // 1. Bắt mã và tên theo đúng cấu trúc Đại ca gửi
+                    // 1. Bắt mã và tên
                     const symbol = item.Symbol || item.a || '';
                     const name = item.Title || item.Description || item.b || symbol;
                     
