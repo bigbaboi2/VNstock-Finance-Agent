@@ -1,0 +1,1227 @@
+{
+    "symbol": "ACB",
+    "companyName": "Ngân hàng Thương mại Cổ phần Á Châu",
+    "lastUpdated": "2026-05-13T15:56:17.801Z",
+    "cafeF": {
+        "info": {
+            "Symbol": "ACB",
+            "San": "HOSE",
+            "Nganh": "Ngân hàng thương mại",
+            "NgayGDDauTien": "21/11/2006",
+            "GiaDongCuaNGDDT": 28.55,
+            "VolumeStartDate": 2161558460,
+            "VDL": 58066552860000,
+            "KLCPNY": 5136656599,
+            "KLCPLH": 5136656599,
+            "CPQuy": 0,
+            "CPPhoThong": 0,
+            "CPUuDai": 0
+        },
+        "finance": [
+            {
+                "Text": "EPS cơ bản * <span>(nghìn đồng)</span>",
+                "Code": "EPScoBan",
+                "Value": "3.17",
+                "Number": 1
+            },
+            {
+                "Text": "EPS pha loãng <span>(nghìn đồng)</span>",
+                "Code": "EPSphaLoang",
+                "Value": "3.17",
+                "Number": 2
+            },
+            {
+                "Text": "P/E",
+                "Code": "P/E",
+                "Value": "7.10",
+                "Number": 3
+            },
+            {
+                "Text": "Giá trị sổ sách/ cp <span>(nghìn đồng)</span>",
+                "Code": "GiaTriSoSach",
+                "Value": "19.22",
+                "Number": 4
+            },
+            {
+                "Text": "P/B",
+                "Code": "Beta",
+                "Value": "1.17",
+                "Number": 5
+            },
+            {
+                "Text": "Vốn hóa thị trường  <span>(tỷ đồng)</span>",
+                "Code": "VonHoaThiTruong",
+                "Value": "115,574.77",
+                "Number": 6
+            },
+            {
+                "Text": "KLGD khớp lệnh TB 10 phiên",
+                "Code": "KhopLenh10Phien",
+                "Value": "15,742,130",
+                "Number": 7
+            },
+            {
+                "Text": "KLCP đang niêm yết",
+                "Code": "KlcpNY",
+                "Value": "5,136,656,599",
+                "Number": 8
+            },
+            {
+                "Text": "KLCP lưu hành",
+                "Code": "KlcpLuuHanh",
+                "Value": "5,136,656,599",
+                "Number": 9
+            },
+            {
+                "Text": null,
+                "Code": "ThoiGian",
+                "Value": "Số liệu EPS tính tới Quý I năm 2026",
+                "Number": 10
+            }
+        ],
+        "ownership": {
+            "CoDongSoHuu": [
+                {
+                    "Code": "CEO_00568",
+                    "Name": "Phùng Thị Tốt",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00568/phung-thi-tot.chn'>Phùng Thị Tốt</a>",
+                    "AssetVolume": "277.661",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_10031",
+                    "Name": "Boardwalk South Limited",
+                    "Url": "Boardwalk South Limited",
+                    "AssetVolume": "94.608.538",
+                    "AssetRate": "1,84",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00854",
+                    "Name": "Nguyễn Thanh Toại",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00854/nguyen-thanh-toai.chn'>Nguyễn Thanh Toại</a>",
+                    "AssetVolume": "1.605",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_84351",
+                    "Name": "Nguyễn Ngọc Như Uyên",
+                    "Url": "<a href='/du-lieu/ceo/CEO_84351/nguyen-ngoc-nhu-uyen.chn'>Nguyễn Ngọc Như Uyên</a>",
+                    "AssetVolume": "215.059",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "PRUDENTIAL",
+                    "Name": "Công ty TNHH Bảo hiểm Nhân thọ Prudential Việt Nam",
+                    "Url": "<a href='/du-lieu/otc/PRUDENTIAL-cong-ty-tnhh-bao-hiem-nhan-tho-prudential-viet-nam.chn' title='Công ty TNHH Bảo hiểm Nhân thọ Prudential Việt Nam'>Công ty TNHH Bảo hiểm Nhân thọ Prudential Việt Nam</a>",
+                    "AssetVolume": "79.885.429",
+                    "AssetRate": "1,56",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00095",
+                    "Name": "Đỗ Minh Toàn",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00095/do-minh-toan.chn'>Đỗ Minh Toàn</a>",
+                    "AssetVolume": "3.365.919",
+                    "AssetRate": "0,07",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_871460",
+                    "Name": "Nguyễn Khắc Nguyện",
+                    "Url": "<a href='/du-lieu/ceo/CEO_871460/nguyen-khac-nguyen.chn'>Nguyễn Khắc Nguyện</a>",
+                    "AssetVolume": "314.191",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "CEO_40298",
+                    "Name": "Nguyễn Thành Long",
+                    "Url": "<a href='/du-lieu/ceo/CEO_40298/nguyen-thanh-long.chn'>Nguyễn Thành Long</a>",
+                    "AssetVolume": "1.894.127",
+                    "AssetRate": "0,04",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_61181",
+                    "Name": "Đinh Thị Hoa",
+                    "Url": "<a href='/du-lieu/ceo/CEO_61181/dinh-thi-hoa.chn'>Đinh Thị Hoa</a>",
+                    "AssetVolume": "77.281",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_09303",
+                    "Name": "Phạm Văn Mẹo",
+                    "Url": "<a href='/du-lieu/ceo/CEO_09303/pham-van-meo.chn'>Phạm Văn Mẹo</a>",
+                    "AssetVolume": "8.081.010",
+                    "AssetRate": "0,16",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00444",
+                    "Name": "Huỳnh Quang Tuấn",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00444/huynh-quang-tuan.chn'>Huỳnh Quang Tuấn</a>",
+                    "AssetVolume": "2.648.668",
+                    "AssetRate": "0,05",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "FUCTVGF1",
+                    "Name": "Quỹ Đầu tư tăng trưởng TVAM",
+                    "Url": "<a href='/du-lieu/hose/FUCTVGF1-quy-dau-tu-tang-truong-tvam.chn' title='Quỹ Đầu tư tăng trưởng TVAM'>Quỹ Đầu tư tăng trưởng TVAM</a>",
+                    "AssetVolume": "2.425.185",
+                    "AssetRate": "0,05",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_82224",
+                    "Name": "Nhóm quỹ ngoại Dragon Capital",
+                    "Url": "Nhóm quỹ ngoại Dragon Capital",
+                    "AssetVolume": "195.426.727",
+                    "AssetRate": "3,8",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_81912",
+                    "Name": "CTCP Đầu tư Thương mại Giang Sen",
+                    "Url": "CTCP Đầu tư Thương mại Giang Sen",
+                    "AssetVolume": "92.341.032",
+                    "AssetRate": "1,8",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00534",
+                    "Name": "Phạm Trung Cang",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00534/pham-trung-cang.chn'>Phạm Trung Cang</a>",
+                    "AssetVolume": "11.016.845",
+                    "AssetRate": "0,21",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_50118",
+                    "Name": "Đặng Thu Thủy",
+                    "Url": "<a href='/du-lieu/ceo/CEO_50118/dang-thu-thuy.chn'>Đặng Thu Thủy</a>",
+                    "AssetVolume": "61.352.540",
+                    "AssetRate": "1,19",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_80856",
+                    "Name": "VOF PE Holding 5 Limited",
+                    "Url": "VOF PE Holding 5 Limited",
+                    "AssetVolume": "88.112.464",
+                    "AssetRate": "1,72",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "TVS",
+                    "Name": "Công ty Cổ phần Chứng khoán Thiên Việt",
+                    "Url": "<a href='/du-lieu/hose/TVS-cong-ty-co-phan-chung-khoan-thien-viet.chn' title='Công ty Cổ phần Chứng khoán Thiên Việt'>Công ty Cổ phần Chứng khoán Thiên Việt</a>",
+                    "AssetVolume": "83",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_873734",
+                    "Name": "Phan Lạc Kim Trinh",
+                    "Url": "<a href='/du-lieu/ceo/CEO_873734/phan-lac-kim-trinh.chn'>Phan Lạc Kim Trinh</a>",
+                    "AssetVolume": "124.125",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_874419",
+                    "Name": "Ngô Tấn Long",
+                    "Url": "<a href='/du-lieu/ceo/CEO_874419/ngo-tan-long.chn'>Ngô Tấn Long</a>",
+                    "AssetVolume": "93.422",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "CORP_30200",
+                    "Name": "Smallcap World Fund Inc.",
+                    "Url": "Smallcap World Fund Inc.",
+                    "AssetVolume": "128.936.736",
+                    "AssetRate": "2,51",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00953",
+                    "Name": "Nguyễn Văn Hòa",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00953/nguyen-van-hoa.chn'>Nguyễn Văn Hòa</a>",
+                    "AssetVolume": "486.499",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "CEO_60700",
+                    "Name": "Từ Tiến Phát",
+                    "Url": "<a href='/du-lieu/ceo/CEO_60700/tu-tien-phat.chn'>Từ Tiến Phát</a>",
+                    "AssetVolume": "1.227.963",
+                    "AssetRate": "0,02",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "KLQ_100564",
+                    "Name": "Nguyễn Thiên Hương Jenny",
+                    "Url": "Nguyễn Thiên Hương Jenny",
+                    "AssetVolume": "78.841.526",
+                    "AssetRate": "1,53",
+                    "UpdatedDate": "26/03/2026"
+                },
+                {
+                    "Code": "CEO_00287",
+                    "Name": "Lê Vũ Kỳ",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00287/le-vu-ky.chn'>Lê Vũ Kỳ</a>",
+                    "AssetVolume": "6.318.133",
+                    "AssetRate": "0,12",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00040",
+                    "Name": "Đàm Văn Tuấn",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00040/dam-van-tuan.chn'>Đàm Văn Tuấn</a>",
+                    "AssetVolume": "407.729",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "12/12/2025"
+                },
+                {
+                    "Code": "CEO_00440",
+                    "Name": "Huỳnh Nghĩa Hiệp",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00440/huynh-nghia-hiep.chn'>Huỳnh Nghĩa Hiệp</a>",
+                    "AssetVolume": "997.933",
+                    "AssetRate": "0,02",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00012",
+                    "Name": "Bùi Tấn Tài",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00012/bui-tan-tai.chn'>Bùi Tấn Tài</a>",
+                    "AssetVolume": "300.523",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "CEO_00695",
+                    "Name": "Triệu Cao Phong",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00695/trieu-cao-phong.chn'>Triệu Cao Phong</a>",
+                    "AssetVolume": "618.492",
+                    "AssetRate": "0,01",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_39048",
+                    "Name": "Nguyễn Thị Tuyết Vân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_39048/nguyen-thi-tuyet-van.chn'>Nguyễn Thị Tuyết Vân</a>",
+                    "AssetVolume": "102.031",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00739",
+                    "Name": "Nguyễn Đức Thái Hân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00739/nguyen-duc-thai-han.chn'>Nguyễn Đức Thái Hân</a>",
+                    "AssetVolume": "190.717",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "CEO_00587",
+                    "Name": "Trần Hùng Huy",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00587/tran-hung-huy.chn'>Trần Hùng Huy</a>",
+                    "AssetVolume": "176.021.479",
+                    "AssetRate": "3,43",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00424",
+                    "Name": "Hoàng Ngân",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00424/hoang-ngan.chn'>Hoàng Ngân</a>",
+                    "AssetVolume": "217.165",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_81914",
+                    "Name": "CTCP Đầu tư Thương mại Bách Thanh",
+                    "Url": "CTCP Đầu tư Thương mại Bách Thanh",
+                    "AssetVolume": "64.287.674",
+                    "AssetRate": "1,25",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_00314",
+                    "Name": "Lý Xuân Hải",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00314/ly-xuan-hai.chn'>Lý Xuân Hải</a>",
+                    "AssetVolume": "3.133.755",
+                    "AssetRate": "0,06",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_80037",
+                    "Name": "Whistler Investment Limited",
+                    "Url": "Whistler Investment Limited",
+                    "AssetVolume": "64.679.749",
+                    "AssetRate": "1,26",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CORP_65509",
+                    "Name": "BCH Công đoàn Ngân hàng TMCP Á Châu",
+                    "Url": "BCH Công đoàn Ngân hàng TMCP Á Châu",
+                    "AssetVolume": "61.480.023",
+                    "AssetRate": "1,2",
+                    "UpdatedDate": "14/11/2025"
+                },
+                {
+                    "Code": "CEO_00658",
+                    "Name": "Trịnh Kim Quang",
+                    "Url": "<a href='/du-lieu/ceo/CEO_00658/trinh-kim-quang.chn'>Trịnh Kim Quang</a>",
+                    "AssetVolume": "3.744.670",
+                    "AssetRate": "0,07",
+                    "UpdatedDate": "23/05/2025"
+                },
+                {
+                    "Code": "CEO_874800",
+                    "Name": "Dương Thị Nguyệt",
+                    "Url": "<a href='/du-lieu/ceo/CEO_874800/duong-thi-nguyet.chn'>Dương Thị Nguyệt</a>",
+                    "AssetVolume": "21.975",
+                    "AssetRate": "0,0",
+                    "UpdatedDate": "14/11/2025"
+                }
+            ],
+            "NuocNgoai": 25.65,
+            "NhaNuoc": 0,
+            "Khac": 74.35
+        }
+    },
+    "tcbs": {
+        "incomeStatement": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 26,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250097,
+                    "Text": "ABB",
+                    "ValueFormat": "250.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 7,
+                    "Y": 193.6,
+                    "Region": "",
+                    "Value": 193569,
+                    "Text": "BAB",
+                    "ValueFormat": "193.569",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 21,
+                    "Y": 89.8,
+                    "Region": "",
+                    "Value": 89785,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "89.785",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 21,
+                    "Y": 3388.2,
+                    "Region": "",
+                    "Value": 3388221,
+                    "Text": "BID",
+                    "ValueFormat": "3.388.221",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 5,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 136,
+                    "Text": "BVB",
+                    "ValueFormat": "136",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 5,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 2,
+                    "Text": "CTG",
+                    "ValueFormat": "02",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 41,
+                    "Y": 270,
+                    "Region": "",
+                    "Value": 269958,
+                    "Text": "EIB",
+                    "ValueFormat": "269.958",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 17,
+                    "Y": 83.1,
+                    "Region": "",
+                    "Value": 83104,
+                    "Text": "EVF",
+                    "ValueFormat": "83.104",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 12,
+                    "Y": 34.6,
+                    "Region": "",
+                    "Value": 34648,
+                    "Text": "HBB",
+                    "ValueFormat": "34.648",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 16,
+                    "Y": 984.2,
+                    "Region": "",
+                    "Value": 984216,
+                    "Text": "HDB",
+                    "ValueFormat": "984.216",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 17,
+                    "Y": 109,
+                    "Region": "",
+                    "Value": 108967,
+                    "Text": "KLB",
+                    "ValueFormat": "108.967",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 14,
+                    "Y": 580.9,
+                    "Region": "",
+                    "Value": 580859,
+                    "Text": "LPB",
+                    "ValueFormat": "580.859",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 37,
+                    "Y": 1611.2,
+                    "Region": "",
+                    "Value": 1611222,
+                    "Text": "MBB",
+                    "ValueFormat": "1.611.222",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 38,
+                    "Y": 412.9,
+                    "Region": "",
+                    "Value": 412910,
+                    "Text": "MSB",
+                    "ValueFormat": "412.910",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 37,
+                    "Y": 409.6,
+                    "Region": "",
+                    "Value": 409593,
+                    "Text": "NAB",
+                    "ValueFormat": "409.593",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 37,
+                    "Y": 173.5,
+                    "Region": "",
+                    "Value": 173503,
+                    "Text": "NVB",
+                    "ValueFormat": "173.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 18,
+                    "Y": 344.1,
+                    "Region": "",
+                    "Value": 344097,
+                    "Text": "OCB",
+                    "ValueFormat": "344.097",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 30,
+                    "Y": 241.2,
+                    "Region": "",
+                    "Value": 241202,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "241.202",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 19,
+                    "Y": 85.2,
+                    "Region": "",
+                    "Value": 85158,
+                    "Text": "PVF",
+                    "ValueFormat": "85.158",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 33,
+                    "Y": 1.5,
+                    "Region": "",
+                    "Value": 1530,
+                    "Text": "SDF",
+                    "ValueFormat": "1.530",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 33,
+                    "Y": 250.1,
+                    "Region": "",
+                    "Value": 250098,
+                    "Text": "SGB",
+                    "ValueFormat": "250.098",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 5,
+                    "Y": 931,
+                    "Region": "",
+                    "Value": 930982,
+                    "Text": "SHB",
+                    "ValueFormat": "930.982",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 24,
+                    "Y": 859.6,
+                    "Region": "",
+                    "Value": 859571,
+                    "Text": "STB",
+                    "ValueFormat": "859.571",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 30,
+                    "Y": 1190.5,
+                    "Region": "",
+                    "Value": 1190453,
+                    "Text": "TCB",
+                    "ValueFormat": "1.190.453",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 19,
+                    "Y": 527.2,
+                    "Region": "",
+                    "Value": 527169,
+                    "Text": "TPB",
+                    "ValueFormat": "527.169",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 29,
+                    "Y": 142.4,
+                    "Region": "",
+                    "Value": 142390,
+                    "Text": "VAB",
+                    "ValueFormat": "142.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 14,
+                    "Y": 190.2,
+                    "Region": "",
+                    "Value": 190213,
+                    "Text": "VBB",
+                    "ValueFormat": "190.213",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 5,
+                    "Y": 2551,
+                    "Region": "",
+                    "Value": 2550963,
+                    "Text": "VCB",
+                    "ValueFormat": "2.550.963",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 12,
+                    "Y": 564.1,
+                    "Region": "",
+                    "Value": 564145,
+                    "Text": "VIB",
+                    "ValueFormat": "564.145",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 42,
+                    "Y": 1372,
+                    "Region": "",
+                    "Value": 1372010,
+                    "Text": "VPB",
+                    "ValueFormat": "1.372.010",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 45,
+                    "Y": 1030.9,
+                    "Region": "ACB",
+                    "Value": 1030900,
+                    "Text": "ACB",
+                    "ValueFormat": "1.030.900",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "balanceSheet": {
+            "Data": [
+                {
+                    "Symbol": "ABB",
+                    "X": 24,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "ABB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BAB",
+                    "X": 30,
+                    "Y": 127.9,
+                    "Region": "",
+                    "Value": 127916,
+                    "Text": "BAB",
+                    "ValueFormat": "127.916",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 12,
+                    "Y": 47.6,
+                    "Region": "",
+                    "Value": 47641,
+                    "Text": "BAOVIETBANK",
+                    "ValueFormat": "47.641",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "BID",
+                    "X": 36,
+                    "Y": 2392.5,
+                    "Region": "",
+                    "Value": 2392549,
+                    "Text": "BID",
+                    "ValueFormat": "2.392.549",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "BVB",
+                    "X": 15,
+                    "Y": 0.1,
+                    "Region": "",
+                    "Value": 78,
+                    "Text": "BVB",
+                    "ValueFormat": "78",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "CTG",
+                    "X": 5,
+                    "Y": 0,
+                    "Region": "",
+                    "Value": 1,
+                    "Text": "CTG",
+                    "ValueFormat": "01",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EIB",
+                    "X": 16,
+                    "Y": 187.2,
+                    "Region": "",
+                    "Value": 187151,
+                    "Text": "EIB",
+                    "ValueFormat": "187.151",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "EVF",
+                    "X": 5,
+                    "Y": 60.9,
+                    "Region": "",
+                    "Value": 60885,
+                    "Text": "EVF",
+                    "ValueFormat": "60.885",
+                    "Quarter": 4,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "HBB",
+                    "X": 20,
+                    "Y": 16.3,
+                    "Region": "",
+                    "Value": 16298,
+                    "Text": "HBB",
+                    "ValueFormat": "16.298",
+                    "Quarter": 1,
+                    "Year": 2012
+                },
+                {
+                    "Symbol": "HDB",
+                    "X": 19,
+                    "Y": 593.3,
+                    "Region": "",
+                    "Value": 593322,
+                    "Text": "HDB",
+                    "ValueFormat": "593.322",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "KLB",
+                    "X": 35,
+                    "Y": 72,
+                    "Region": "",
+                    "Value": 72044,
+                    "Text": "KLB",
+                    "ValueFormat": "72.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "LPB",
+                    "X": 22,
+                    "Y": 397.9,
+                    "Region": "",
+                    "Value": 397873,
+                    "Text": "LPB",
+                    "ValueFormat": "397.873",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MBB",
+                    "X": 13,
+                    "Y": 1105.9,
+                    "Region": "",
+                    "Value": 1105852,
+                    "Text": "MBB",
+                    "ValueFormat": "1.105.852",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "MSB",
+                    "X": 42,
+                    "Y": 211.7,
+                    "Region": "",
+                    "Value": 211748,
+                    "Text": "MSB",
+                    "ValueFormat": "211.748",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NAB",
+                    "X": 41,
+                    "Y": 199.1,
+                    "Region": "",
+                    "Value": 199073,
+                    "Text": "NAB",
+                    "ValueFormat": "199.073",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "NVB",
+                    "X": 9,
+                    "Y": 115.3,
+                    "Region": "",
+                    "Value": 115345,
+                    "Text": "NVB",
+                    "ValueFormat": "115.345",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "OCB",
+                    "X": 18,
+                    "Y": 200.5,
+                    "Region": "",
+                    "Value": 200503,
+                    "Text": "OCB",
+                    "ValueFormat": "200.503",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "...",
+                    "X": 25,
+                    "Y": 114.1,
+                    "Region": "",
+                    "Value": 114102,
+                    "Text": "PVCOMBANK",
+                    "ValueFormat": "114.102",
+                    "Quarter": 1,
+                    "Year": 2025
+                },
+                {
+                    "Symbol": "PVF",
+                    "X": 42,
+                    "Y": 36.4,
+                    "Region": "",
+                    "Value": 36384,
+                    "Text": "PVF",
+                    "ValueFormat": "36.384",
+                    "Quarter": 2,
+                    "Year": 2013
+                },
+                {
+                    "Symbol": "SDF",
+                    "X": 29,
+                    "Y": 0.4,
+                    "Region": "",
+                    "Value": 358,
+                    "Text": "SDF",
+                    "ValueFormat": "358",
+                    "Quarter": 2,
+                    "Year": 2014
+                },
+                {
+                    "Symbol": "SGB",
+                    "X": 12,
+                    "Y": 116.1,
+                    "Region": "",
+                    "Value": 116149,
+                    "Text": "SGB",
+                    "ValueFormat": "116.149",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "SHB",
+                    "X": 21,
+                    "Y": 616.5,
+                    "Region": "",
+                    "Value": 616537,
+                    "Text": "SHB",
+                    "ValueFormat": "616.537",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "STB",
+                    "X": 16,
+                    "Y": 604.9,
+                    "Region": "",
+                    "Value": 604877,
+                    "Text": "STB",
+                    "ValueFormat": "604.877",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TCB",
+                    "X": 31,
+                    "Y": 785.6,
+                    "Region": "",
+                    "Value": 785612,
+                    "Text": "TCB",
+                    "ValueFormat": "785.612",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "TPB",
+                    "X": 26,
+                    "Y": 312,
+                    "Region": "",
+                    "Value": 312044,
+                    "Text": "TPB",
+                    "ValueFormat": "312.044",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VAB",
+                    "X": 33,
+                    "Y": 89.7,
+                    "Region": "",
+                    "Value": 89679,
+                    "Text": "VAB",
+                    "ValueFormat": "89.679",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VBB",
+                    "X": 4,
+                    "Y": 108,
+                    "Region": "",
+                    "Value": 108035,
+                    "Text": "VBB",
+                    "ValueFormat": "108.035",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VCB",
+                    "X": 23,
+                    "Y": 1727.4,
+                    "Region": "",
+                    "Value": 1727390,
+                    "Text": "VCB",
+                    "ValueFormat": "1.727.390",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VIB",
+                    "X": 5,
+                    "Y": 381.4,
+                    "Region": "",
+                    "Value": 381361,
+                    "Text": "VIB",
+                    "ValueFormat": "381.361",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "VPB",
+                    "X": 21,
+                    "Y": 1021.2,
+                    "Region": "",
+                    "Value": 1021232,
+                    "Text": "VPB",
+                    "ValueFormat": "1.021.232",
+                    "Quarter": 1,
+                    "Year": 2026
+                },
+                {
+                    "Symbol": "ACB",
+                    "X": 45,
+                    "Y": 701.2,
+                    "Region": "ACB",
+                    "Value": 701211,
+                    "Text": "ACB",
+                    "ValueFormat": "701.211",
+                    "Quarter": 1,
+                    "Year": 2026
+                }
+            ],
+            "Message": null,
+            "Success": true
+        },
+        "reportPdf": "https://static.tcbs.com.vn/oneclick/ACB.pdf"
+    },
+    "deepNewsData": [
+        {
+            "title": "Sự kiện chứng khoán đáng chú ý ngày 9/5 - Chứng khoán DNSE",
+            "link": "https://news.google.com/rss/articles/CBMijwFBVV95cUxQcWxtQ0JZMVpGVlFHSVZ5OUlKS3hIVkZnQ2M0X3A3UUpDLXlmdE9tc2lQaWg0Tnd6bXJmVXAzTVJWVmE3al9nUGpmanlvRDRyLUxta1ByUnVTVHVtMTFUdTlTTkNyYUJTZTFMLVhkZE9KM2QydC1rSlUyREwwQlRndG1ibHF1dmgyRURGeG43RQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMijwFBVV95cUxQcWxtQ0JZMVpGVlFHSVZ5OUlKS3hIVkZnQ2M0X3A3UUpDLXlmdE9tc2lQaWg0Tnd6bXJmVXAzTVJWVmE3al9nUGpmanlvRDRyLUxta1ByUnVTVHVtMTFUdTlTTkNyYUJTZTFMLVhkZE9KM2QydC1rSlUyREwwQlRndG1ibHF1dmgyRURGeG43RQ?oc=5",
+            "content": "The page you were on is trying to send you to an invalid web address. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Lãi chứng khoán tăng vọt, ACB hoàn thành 24% mục tiêu năm - Báo Dân trí",
+            "link": "https://news.google.com/rss/articles/CBMirwFBVV95cUxNTUtlaVl3alRzZ00zWWo3SEFDdDdVN3RtWnc2aWZTUWZfWDFIcHR5YWxvVFpBQVRZd190TlJCT3Rlby1VeDdYcFZsQVFTQXlGQUZkMzNHU1hzYUlCd1J5Ti1CZFEyT0VWNUt2SkQycklFQjRpS0IzN0VpM203YXhHd3V2X0JqcnBJa09nWWZnRm9CMExDWFVMUGdnemk3VlhQTkFTZ09UNnl4V0ktV2Iw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirwFBVV95cUxNTUtlaVl3alRzZ00zWWo3SEFDdDdVN3RtWnc2aWZTUWZfWDFIcHR5YWxvVFpBQVRZd190TlJCT3Rlby1VeDdYcFZsQVFTQXlGQUZkMzNHU1hzYUlCd1J5Ti1CZFEyT0VWNUt2SkQycklFQjRpS0IzN0VpM203YXhHd3V2X0JqcnBJa09nWWZnRm9CMExDWFVMUGdnemk3VlhQTkFTZ09UNnl4V0ktV2Iw?oc=5",
+            "content": "Ngân hàng TMCP Á Châu (ACB) vừa công bố báo cáo tài chính hợp nhất quý I, hé lộ nhiều điểm đáng chú ý. Trong đó, thu nhập lãi thuần đạt gần 6.989 tỷ đồng, tăng 10% so với cùng kỳ. Lãi từ hoạt động dịch vụ của ngân hàng tăng 14% lên 993 tỷ đồng; lãi từ kinh doanh ngoại hối cũng tăng 483 tỷ đồng. Đặc biệt, khoản lãi từ chứng khoán kinh doanh của ngân hàng này ghi nhận tăng gấp 7,6 lần so với cùng kỳ lên 186 tỷ đồng. Theo thuyết minh báo cáo tài chính, ACB đang có hơn 135.653 tỷ đồng chứng khoán đầu tư sẵn sàng để bán và 11.387 tỷ đồng chứng khoán đầu tư giữ đến ngày đáo hạn. Nhờ sự tăng trưởng mạnh mẽ của các khoản thu, tổng thu nhập hoạt động của ACB đã tăng 12,5% lên 8.905 tỷ đồng. Nhờ vậy, dù tăng chi phí hoạt động 6% lên 2.851 tỷ đồng, ACB vẫn ghi nhận lợi nhuận thuần từ hoạt động kinh doanh đạt 6.054 tỷ đồng, tăng 16%. Sau khi trừ đi chi phí dự phòng rủi ro tăng 10%, ngân hàng này ghi nhận lợi nhuận sau thuế tăng 17,5% so với cùng kỳ lên 4.320 tỷ đồng. Năm 2025, ACB đặt mục tiêu lợi nhuận trước thuế đạt 22.338 tỷ đồng, tăng hơn 14% so với kết quả đạt được trong năm 2025. Như vậy, kết thúc 3 tháng đầu năm 2026, ngân hàng đã đạt được 24% mục tiêu đề ra. Ông Trần Hùng Huy tại một sự kiện (Ảnh: BBW). Tại thời điểm ngày 31/3, tổng tài sản của ACB ghi nhận ở mức 1,03 triệu tỷ đồng, tăng nhẹ so với hồi cuối năm 2025. Trong đó, cho vay khách hàng đạt gần 709.026 tỷ đồng, tăng 3% so với đầu kỳ. Tiền gửi khách hàng đạt 560.110 tỷ đồng, giảm gần 3%. Về chất lượng nợ vay, tổng nợ xấu của ngân hàng tại thời điểm cuối tháng 3 vào khoảng 6.857 tỷ đồng, tăng 2,8%. Trong đó chủ yếu do nợ dưới tiêu chuẩn (nợ nhóm 3) tăng 46% lên 1.119 tỷ đồng. Một điểm đáng chú ý là nợ nhóm 2 của ngân hàng tăng gấp đôi từ gần 2.500 tỷ đồng lên xấp xỉ 5.000 tỷ đồng. Thông tin doanh nghiệp - sản phẩm ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "ACB, FPT, VHM đồng loạt bị khối ngoại “xả” hàng trăm tỷ đồng - 24HMoney",
+            "link": "https://news.google.com/rss/articles/CBMingFBVV95cUxNbUMxbUk4OXpFSkhRMU9mOXgtQjJ1VTZqVjNsVTVCdjVqRkU2WkI3M0Y3MnQtMmdjTExvZ2tqQ2VMRG9fMy1BR3k1b01RUi01aEkxZVRnMm1pdEl2cWViQ0tTUTl1cnZ4ZkdCeFhJbGJYcVl1RXQ2RVJVbjFSTFpwdl9QSUdmMW1EQzI4YTBnTE5hTWpGS0V5aHF5WllYZw?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMingFBVV95cUxNbUMxbUk4OXpFSkhRMU9mOXgtQjJ1VTZqVjNsVTVCdjVqRkU2WkI3M0Y3MnQtMmdjTExvZ2tqQ2VMRG9fMy1BR3k1b01RUi01aEkxZVRnMm1pdEl2cWViQ0tTUTl1cnZ4ZkdCeFhJbGJYcVl1RXQ2RVJVbjFSTFpwdl9QSUdmMW1EQzI4YTBnTE5hTWpGS0V5aHF5WllYZw?oc=5",
+            "content": "Xem HDSD để tận dụng tối đa tiện ích Cơ quan chủ quản: Công ty TNHH 24HMoney. Số giấy phép mạng xã hội: 203/GP-BTTTT do BỘ TT & TT cấp ngày 09/06/2023 Chịu trách nhiệm nội dung: Phạm Đình Bằng. Sau chuỗi tăng mạnh của thị trường, khối ngoại bất ngờ quay đầu bán ròng hơn 1.500 tỷ đồng trong phiên 13/5, tập trung xả mạnh hàng loạt bluechip như FPT, ACB, VHM hay STB. Động thái này lập tức thu hút sự chú ý khi nhiều cổ phiếu đang ở vùng giá cao lịch sử. Theo dữ liệu giao dịch, khối ngoại mua vào khoảng 1.349 tỷ đồng nhưng bán ra tới gần 2.887 tỷ đồng. Tổng khối lượng bán đạt hơn 75 triệu cổ phiếu, gấp đôi lượng mua vào. Áp lực bán tập trung mạnh ở nhóm công nghệ, ngân hàng và bất động sản. Trong đó, cổ phiếu FPT bị khối ngoại bán ròng mạnh nhất thị trường với giá trị xấp xỉ 300 tỷ đồng. Đây cũng là mã chịu áp lực xả hàng lớn nhất xuyên suốt nhiều phiên gần đây khi cổ phiếu liên tục neo ở vùng giá cao lịch sử. Xếp sau là ACB với giá trị bán ròng khoảng 200 tỷ đồng. Nhiều bluechip khác cũng bị khối ngoại rút vốn mạnh như VHM, STB, VIC, BID hay CTG. Ở chiều ngược lại, lực mua ròng chủ yếu tập trung tại nhóm năng lượng và tiêu dùng. MSN dẫn đầu danh sách được mua ròng với giá trị hơn 120 tỷ đồng. Các mã dầu khí như BSR, PLX cũng thu hút dòng tiền ngoại tích cực. Ngoài ra, một số cổ phiếu khác được mua ròng gồm HPG, PVT, GEX và BAF, tuy nhiên giá trị không quá lớn so với áp lực bán ra toàn thị trường. Diễn biến bán ròng quyết liệt của khối ngoại diễn ra trong bối cảnh VN-Index đang dao động quanh vùng điểm số cao, trong khi nhiều nhóm cổ phiếu vốn hóa lớn đã tăng mạnh thời gian qua. Điều này khiến áp lực chốt lời từ dòng vốn ngoại tiếp tục gia tăng, đặc biệt ở nhóm bluechip công nghệ, ngân hàng và bất động sản. Bấm vào mỗi từ khóa để xem bài cùng chủ đề Kết nối truyền thông cùng 24HMONEY ? Cài đặt tiện ích 24HMoney extention để theo dõi thị trường và mã chứng khoán mọi nơi trên trình duyệt Chrome Xem HDSD để tận dụng tối đa tiện ích Cơ quan chủ quản: Công ty TNHH 24HMoney. Số giấy phép mạng xã hội: 203/GP-BTTTT do BỘ TT & TT cấp ngày 09/06/2023 Chịu trách nhiệm nội dung: Phạm Đình Bằng. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Moody's nâng triển vọng tín nhiệm của ACB lên 'Tích cực', củng cố vị thế nhóm ngân hàng dẫn đầu - baochinhphu.vn",
+            "link": "https://news.google.com/rss/articles/CBMi0wFBVV95cUxNaXIxS21KSHByelNHTkozX2FneHlGRUlJYkRCZTZNNWZsdTNOU21GTkJSNmFXSE5RMkgwejdqSEl2eWU5UEtzWkRJM2l0eXRuTEU0MjJkQ2pTdjdiVlJ4eXQzM1JlTl85eGVKSFY3QTZvbDZKQjdWY3g0NUFPb3dFU0FteFhGc3NraV90cEE1ZTJ4WDZZci01NGVtcElibkpJbmZxZlNKNzA4STF5SDluWnpTLUk5cWRrMmhfdHdQUWktdWVtVjJEdmF0NXNjX2RLSmtz?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMi0wFBVV95cUxNaXIxS21KSHByelNHTkozX2FneHlGRUlJYkRCZTZNNWZsdTNOU21GTkJSNmFXSE5RMkgwejdqSEl2eWU5UEtzWkRJM2l0eXRuTEU0MjJkQ2pTdjdiVlJ4eXQzM1JlTl85eGVKSFY3QTZvbDZKQjdWY3g0NUFPb3dFU0FteFhGc3NraV90cEE1ZTJ4WDZZci01NGVtcElibkpJbmZxZlNKNzA4STF5SDluWnpTLUk5cWRrMmhfdHdQUWktdWVtVjJEdmF0NXNjX2RLSmtz?oc=5",
+            "content": "chính phủ nước cộng hòa xã hội chủ nghĩa việt nam Moody's nâng triển vọng tín nhiệm của ACB lên mức \"Tích cực\" được xem là tín hiệu đáng chú ý đối với giới đầu tư Trong bối cảnh dòng tiền trên thị trường ngày càng ưu tiên các ngân hàng có bảng cân đối lành mạnh, năng lực vốn vững chắc và quản trị rủi ro theo chuẩn quốc tế, việc Moody's nâng triển vọng tín nhiệm của ACB lên mức \"Tích cực\" được xem là tín hiệu đáng chú ý đối với giới đầu tư. Không chỉ phản ánh chất lượng tài sản và nền tảng tài chính ổn định, động thái từ Moody's còn mở ra dư địa để ACB nâng cao khả năng tiếp cận nguồn vốn quốc tế, tối ưu chi phí huy động và củng cố niềm tin của thị trường trong chu kỳ tăng trưởng mới. Việc điều chỉnh Triển vọng lên mức \"Tích cực\" được Moody's thực hiện dựa trên việc cập nhật triển vọng tín nhiệm quốc gia của Việt Nam. Moody's cũng tiếp tục giữ nguyên Xếp hạng tiền gửi dài hạn mức Ba3 và Xếp hạng Tín dụng cơ sở (BCA) mức Ba3, phản ánh chất lượng tài sản tốt, đa dạng hóa danh mục cho vay cũng như nền tảng vốn vững chắc, khả năng huy động vốn và thanh khoản của ngân hàng duy trì ổn định. Moody's cũng đánh giá việc cải thiện hiệu quả sinh lời cũng sẽ là điểm tích cực trong việc xem xét nâng Xếp hạng Tín dụng cơ sở (BCA) cho ACB. Đáng chú ý, Moody's cho rằng trong trường hợp xếp hạng tín nhiệm quốc gia của Việt Nam được nâng thêm một bậc, xếp hạng tín nhiệm của ACB nhiều khả năng cũng sẽ được điều chỉnh tăng tương ứng hoặc nếu ngân hàng nâng cao các chỉ số an toàn vốn và thanh khoản. Bên cạnh Moody's, Fitch Ratings cũng vừa duy trì triển vọng \"Tích cực\" đối với ACB trong kỳ cập nhật mới nhất. Theo Fitch, ACB đang duy trì nền tảng tăng trưởng ổn định nhờ chiến lược tập trung vào nhóm khách hàng bán lẻ có chất lượng cao, qua đó giúp ngân hàng duy trì hiệu quả sinh lời và chất lượng tài sản tốt hơn mặt bằng chung qua nhiều chu kỳ kinh tế. Bên cạnh đó, hoạt động quản trị doanh nghiệp và công bố thông tin theo hướng minh bạch, chuẩn hóa cũng là một trong những yếu tố giúp ACB duy trì xếp hạng tín nhiệm thuộc nhóm cao nhất trong khối ngân hàng TMCP tư nhân Việt Nam tại các tổ chức xếp hạng trong nước và quốc tế. ACB đang triển khai chiến lược 5 năm mới định hướng trở thành \"tập đoàn tài chính hiệu quả, mang giải pháp cá nhân hóa toàn diện đến từng khách hàng thông qua trải nghiệm liền mạch trên nền tảng tích hợp, dẫn dắt bởi công nghệ, dữ liệu và trí tuệ nhân tạo. Nền tảng này đồng thời phản ánh vào chất lượng hoạt động kinh doanh của ngân hàng trong những năm gần đây, khi ACB duy trì sự cân bằng giữa tăng trưởng, an toàn vốn và hiệu quả vận hành trong bối cảnh thị trường tài chính còn nhiều biến động. Kết thúc quý I/2026, ACB tiếp tục giữ vững đà tăng trưởng với lợi nhuận trước thuế đạt 5.368 tỷ đồng, tăng 17% so với cùng kỳ năm trước. ROE tiếp tục duy trì ổn định, đạt 17,7%, nằm trong nhóm an toàn và hiệu quả cao của ngành. Tỉ lệ an toàn vốn (CAR) theo Thông tư 14/2025/TTNHNN đạt 12,6%, tăng 0,8 điểm phần trăm so với cùng kỳ, giúp nâng cao năng lực tài chí",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Chứng khoán ACB bị xử phạt - Báo Sức khỏe & Đời sống",
+            "link": "https://news.google.com/rss/articles/CBMigAFBVV95cUxONnBCM2pScmVhdGJXZzFXRlhPZXRHSFdIUTFpMjVjM0RsX2VpQ1VLeXRaYUxaN2ZWZXFnTjFPblRPWDJBNFdrOF9MbjRzUHlldFIyR2RhYkdHLTlIeEdLT2hwNzFIVThGYWZhZkJTRm9IMmdDNDN5RmppLXRYVWdVYQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMigAFBVV95cUxONnBCM2pScmVhdGJXZzFXRlhPZXRHSFdIUTFpMjVjM0RsX2VpQ1VLeXRaYUxaN2ZWZXFnTjFPblRPWDJBNFdrOF9MbjRzUHlldFIyR2RhYkdHLTlIeEdLT2hwNzFIVThGYWZhZkJTRm9IMmdDNDN5RmppLXRYVWdVYQ?oc=5",
+            "content": "Thanh tra Chứng khoán Nhà nước (CKNN) thông báo ban hành Quyết định số 410/QĐ-XPHC về việc xử phạt vi phạm hành chính trong lĩnh vực chứng khoán và thị trường chứng khoán đối với Công ty TNHH Chứng khoán ACB. Chứng khoán ACB bị phạt 340 triệu đồng do vi phạm lĩnh vực chứng khoán (ảnh minh họa). Theo đó, Thanh tra Chứng khoán Nhà nước phạt Công ty TNHH Chứng khoán ACB 275 triệu đồng theo quy định tại điểm b, khoản 5, Điều 8, Nghị định số 156/2020/NĐ-CP ngày 31/12/2020 của Chính phủ quy định xử phạt vi phạm hành chính trong lĩnh vực chứng khoán và thị trường chứng khoán, được sửa đổi, bổ sung tại điểm đ, khoản 7, Điều 1, Nghị định số 128/2021/NĐ-CP ngày 30/12/2021 của Chính phủ sửa đổi, bổ sung một số điều của Nghị định số 156/2020/NĐ-CP do không đảm bảo các thông tin trong hồ sơ chào bán hoặc phát hành trái phiếu riêng lẻ có đầy đủ các nội dung theo quy định phải có trong hồ sơ. Cụ thể, bản công bố thông tin trước đợt phát hành trái phiếu ngày 23/7/2024 và ngày 21/8/2024 đối với Hồ sơ phát hành trái phiếu riêng lẻ của Ngân hàng TMCP Quốc tế Việt Nam năm 2024 (do Công ty tư vấn hồ sơ chào bán) có nội dung không đầy đủ. Theo đó, tại khoản 1.0, Mục IV, Kế hoạch sử dụng số tiền thu được từ đợt phát hành không nêu rõ thời gian giải ngân nguồn vốn từ phát hành trái phiếu theo quy định tại Phụ lục I, Thông tư số 122/2020/TT-BTC ngày 31/12/2020 của Bộ trưởng Bộ Tài chính hướng dẫn chế độ công bố thông tin và báo cáo theo quy định của Nghị định số 153/2020/NĐ-CP ngày 31/12/2020 của Chính phủ quy định về chào bán, giao dịch trái phiếu doanh nghiệp riêng lẻ tại thị trường trong nước và chào bán trái phiếu doanh nghiệp ra thị trường quốc tế. Ngoài ra, Công ty TNHH Chứng khoán ACB cũng bị Thanh tra Chứng khoán Nhà nước phạt tiền 65 triệu đồng theo quy định tại điểm a, khoản 2, Điều 43, Nghị định số 156/2020/NĐ-CP do báo cáo không đúng thời hạn theo quy định pháp luật. Cụ thể, Công ty báo cáo không đúng thời hạn theo quy định đối với các tài liệu Báo cáo đánh giá rủi ro về rửa tiền năm 2024, Báo cáo quản trị rủi ro bán niên năm 2025, Danh sách người hành nghề chứng khoán năm 2024. Tổng cộng, Công ty TNHH Chứng khoán ACB bị phạt 340 triệu đồng. Đăng nhập để tham gia bình luận Phó Tổng Biên tập: TÔ QUANG TRUNG (Thường trực), TRẦN YẾN CHÂU, NGUYỄN NGỌC ĐỨC, NGUYỄN CHÍ LONG Giấy phép hoạt động báo chí số 390/GP-BTTTT do Bộ Thông tin và Truyền thông cấp ngày 25/06/2021 © Bản quyền thuộc Báo điện tử Sức khỏe và Đời sống - Cơ quan ngôn luận của Bộ Y tế. THÔNG TIN TÒA SOẠN Trụ sở chính: 138A Giảng Võ, phường Giảng Võ, TP Hà Nội Địa chỉ nhận công văn, tài liệu và thư bạn đọc: Tầng 11 Trụ sở các cơ quan Bộ Y tế, ngõ 19 Duy Tân, phường Cầu Giấy, TP Hà Nội Điện thoại: 024.6688.8900 - Fax: 024.3844.3144 Đường dây nóng: 0904.852.222 Email: toasoan@suckhoedoisong.vn Điện thoại: 0888.669.909 - Email: ads@suckhoedoisong.vn - Văn phòng đại diện phía Bắc: 55 Tuệ Tĩnh, phường Vinh Phú, tỉnh Nghệ An. - Văn phòng đại diện TPHCM: 213 Điện Biên Phủ, phường Xuân Hoà, TPHCM và 495 Điện ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm cổ đông Âu Lạc tiếp tục nâng sở hữu vốn tại ACB - Chứng khoán DNSE",
+            "link": "https://news.google.com/rss/articles/CBMirgFBVV95cUxQbDc2emljUklSbXJJMkhxejFIVVRjZjk5VlB5RW54ZFM0VlkweTUwVVprbmh1UHBGbjg0SmFEd21hMGE0bDZWZXlRdE9leFZlaTRQWEZ5UkxySjZmRVhZTHZzUG0td3d5bVkxaUNtQTBvTENYUDl6UHllOEF3VndmcXJ2RC1Kc3pjdXRyQ29KSFRwTjJGMm12Yl9kWkNoTEUyVkE2SGVGWkhrT1pZUFE?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirgFBVV95cUxQbDc2emljUklSbXJJMkhxejFIVVRjZjk5VlB5RW54ZFM0VlkweTUwVVprbmh1UHBGbjg0SmFEd21hMGE0bDZWZXlRdE9leFZlaTRQWEZ5UkxySjZmRVhZTHZzUG0td3d5bVkxaUNtQTBvTENYUDl6UHllOEF3VndmcXJ2RC1Kc3pjdXRyQ29KSFRwTjJGMm12Yl9kWkNoTEUyVkE2SGVGWkhrT1pZUFE?oc=5",
+            "content": "BID: Thiếu hụt nghiêm trọng phân khúc nhà ở vừa túi tiền VIC: Nhận định thị trường chứng khoán 14/5: Giằng co quanh mốc 1.900 điểm MSB: Khối ngoại đã mua ròng tới gần 43 triệu cổ phiếu một mã bank trong phiên 13/5 VIC: Tập đoàn của tỷ phú Phạm Nhật Vượng thành lập công ty nghiên cứu robot phẫu thuật VIC: Tự doanh CTCK bán ròng gần 400 tỷ trong phiên 13/5, cổ phiếu nào là tâm điểm? VCB: Người phụ nữ SN 1983 có giao dịch 15 triệu đồng với tài khoản mở tại Vietcombank, Công an vào cuộc xác minh dòng tiền TNG: Cổ phiếu cần quan tâm ngày 14/5 VIC: Thị trường tài chính 24h: Giá vàng thế giới tiếp tục xu hướng giảm VIC: Góc nhìn kỹ thuật phiên giao dịch chứng khoán ngày 14/5: Cần chú ý diễn biến giằng co HPG: Ngày mai, Tập đoàn Hòa Phát chính thức khởi công KCN gần 3.400 tỷ đồng tại thành phố cảng lớn nhất miền Bắc Ngân hàng TMCP Á Châu (HoSE: ACB) vừa có báo cáo về thay đổi sở hữu của cổ đông lớn, nhà đầu tư nắm giữ từ 5% cổ phiếu trở lên. Theo đó, bà Nguyễn Thiên Hương Jenny đã thực hiện giao dịch mua thêm 8,35 triệu cổ phiếu ACB vào ngày 4/5. Ước tính theo thị giá ACB tại phiên giao dịch 4/5 ở mức 23.100 đồng/cổ phiếu thì bà Jenny đã chi khoảng 192 tỷ đồng cho giao dịch này nhằm nâng tỷ lệ sở hữu tại ACB từ 2,14% lên 2,3%. Bà Nguyễn Thiên Hương Jenny (sinh năm 1995) là con gái của bà Ngô Thu Thúy - Chủ tịch Hội đồng quản trị CTCP Âu Lạc (Mã: ALC) - và ông Nguyễn Đức Hinh. Âu Lạc là doanh nghiệp hoạt động trong lĩnh vực vận tải biển, tập trung vào mảng vận chuyển xăng dầu. Ngoài phần sở hữu trực tiếp, những người có liên quan đến bà Nguyễn Thiên Hương Jenny cũng đang nắm giữ khoảng 190,1 triệu cổ phiếu ACB, tương ứng 3,7% vốn điều lệ. Qua đó, nhóm nhà đầu tư liên quan tới bà Jenny hiện sở hữu tổng cộng hơn 308,2 triệu cổ phiếu, tương ứng khoảng 6% vốn của ACB. Điều này giúp nhóm cổ đông Âu Lạc trở thành một trong những nhóm cổ đông có tầm ảnh hưởng đáng kể tại ngân hàng này. Cụ thể, nhóm cổ đông liên quan Âu Lạc gồm bà Ngô Thu Thúy sở hữu hơn 57,6 triệu cổ phiếu ACB, tương ứng 1,122% vốn điều lệ; ông Nguyễn Đức Hiếu Johnny nắm gần 58,7 triệu cổ phiếu, tương ứng 1,142%; ông Nguyễn Đức Hinh sở hữu 0,95%; bà Mai Phi Lan nắm 0,13%; Công ty CP Làng Giáo dục Quốc tế Thiên Hương sở hữu 0,14% và Công ty CP ICON nắm 0,16%. Đáng chú ý, động thái mua vào mới đây của bà Nguyễn Thiên Hương Jenny diễn ra chỉ hơn một tháng sau khi nhóm Âu Lạc chính thức nâng sở hữu tại ACB vượt ngưỡng 5% vào cuối tháng 3 vừa qua. Vào ngày 26/3, bà Nguyễn Thiên Hương Jenny cũng đã mua thêm 931.700 cổ phiếu ACB, nâng lượng cổ phiếu nắm giữ lên 78,8 triệu đơn vị, tương ứng 1,53% vốn điều lệ. Ngoài vai trò là Chủ tịch của Công ty vận tải biển Âu Lạc, bà Ngô Thu Thúy còn sở hữu hệ sinh thái kinh doanh trải rộng nhiều lĩnh vực từ bất động sản khu công nghiệp, logistics, giáo dục đến game online. Trong lĩnh vực khu công nghiệp, gia đình bà Thúy thành lập Công ty CP Tập đoàn KCN Việt Nam vào năm 2021. Doanh nghiệp này hiện sở hữu quỹ đất gần 200ha tại nhiều tỉnh, thành như Hải Dương, Bắc Gi",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Doanh nghiệp dồn dập chia cổ tức bằng tiền mặt - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQSHg1cGVmZWI2X0tmNFpnekc2aFhqSDQ2Vkw3RFJCbmdCdUJDa2JvMWp1ZVhnaUJYbFZaTDNRT0ZlM29FOVFGWXVVdnpYcUllN0pMYjYtY0p2Smc2WExxYkUwTmZpWkRNQzZzbVhHTGhEb1ctVDNPOGoxNnVkMnM2Rm1NanU0aHZwSDJTZQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMijAFBVV95cUxQSHg1cGVmZWI2X0tmNFpnekc2aFhqSDQ2Vkw3RFJCbmdCdUJDa2JvMWp1ZVhnaUJYbFZaTDNRT0ZlM29FOVFGWXVVdnpYcUllN0pMYjYtY0p2Smc2WExxYkUwTmZpWkRNQzZzbVhHTGhEb1ctVDNPOGoxNnVkMnM2Rm1NanU0aHZwSDJTZQ?oc=5",
+            "content": "Theo Duy Quang | 11-05-2026 - 07:44 AM | Tài chính - ngân hàng Tuần này, có 50 doanh nghiệp thông báo chốt quyền để chia cổ tức. Trong đó, 46 công ty trả cổ tức bằng tiền với mức cao nhất là 50% và thấp nhất là 1%, còn lại là trả cổ tức bằng cổ phiếu. Vào ngày 15/5, Ngân hàng TMCP Lộc Phát Việt Nam (LPBank - mã chứng khoán: LPB) chốt danh sách cổ đông thực hiện trả cổ tức năm 2025. Theo đó, LPBank chia cổ tức bằng tiền mặt với tỷ lệ 30%, tương ứng cổ đông sở hữu 1 cổ phần sẽ được nhận 3.000 đồng. Với hơn 2,98 tỷ cổ phiếu đang niêm yết, LPB phải chi khoảng 8.962 tỷ đồng để trả cổ tức cho cổ đông hiện hữu. LPBank chia cổ tức bằng tiền mặt với tỷ lệ 30%. Đây là mức chia cổ tức bằng tiền mặt cao nhất từ trước đến nay của LPBank, đồng thời cũng là một trong những tỷ lệ cao nhất trong ngành ngân hàng. Nguồn chi trả được lấy từ lợi nhuận có thể phân phối đến cuối năm 2025 là 9.409 tỷ đồng. Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank - mã chứng khoán: TCB) công bố kế hoạch thực hiện chi trả cổ tức bằng tiền mặt năm 2025 với tỷ lệ 7% mệnh giá. Tổng số tiền Techcombank chi trả cổ tức dự kiến hơn 4.960 tỷ đồng. Đây là năm thứ 3 liên tiếp Techcombank thực hiện chi trả cổ tức bằng tiền mặt cho cổ đông. TCB dự kiến sẽ chia thêm 60% cổ phiếu thưởng trong năm 2026 theo công bố tại đại hội cổ đông thường niên. Ngoài ra, nhiều ngân hàng khác cũng chia cổ tức bằng tiền. Cụ thể, Ngân hàng TMCP Quân đội (MB - mã chứng khoán: MBB) dự kiến chia tổng cộng 25%, trong đó 10% tiền mặt và 15% cổ phiếu. Mức 10% tiền mặt đưa MB vào nhóm chi trả tiền mặt cao nhất hệ thống, với tổng giá trị ước tính lên tới hơn 8.000 tỷ đồng. Tương tự, Ngân hàng TMCP ACB (mã chứng khoán: ACB) thông qua phương án chia cổ tức với tổng tỷ lệ 20%. Trong đó, ACB chi gần 3.600 tỷ đồng để trả cổ tức tiền mặt (tỷ lệ 7%) và hơn 6.600 tỷ đồng để chia cổ tức bằng cổ phiếu (tỷ lệ 13%). Tổng quy mô chi trả lên tới hơn 10.000 tỷ đồng. Một nhà băng khác là Ngân hàng TMCP Sài Gòn - Hà Nội (mã chứng khoán: SHB) chia cổ tức bằng cả tiền mặt và cổ phiếu với tổng tỷ lệ 16%, gồm 6% bằng tiền mặt và 10% bằng cổ phiếu. Tổng nguồn chi trả khoảng 8.550 tỷ đồng, trong đó phần tiền mặt vào khoảng 3.206 tỷ đồng. Ngân hàng TMCP Quốc tế (mã chứng khoán: VIB) thông qua phương án chia cổ tức năm 2025 với 9% bằng tiền, đi kèm 9,5% cổ phiếu thưởng với số tiền chi trả hơn 3.000 tỷ đồng. Trong khi đó, Ngân hàng TMCP Việt Nam Thịnh Vượng (VPBank - mã chứng khoán: VPB) có tổng tỷ lệ chi cổ tức khoảng 31%, gồm 5% tiền mặt và 26% cổ phiếu. Với tỷ lệ 5%, VPBank ước chi khoảng 4.000 tỷ đồng để trả cổ tức cho cổ đông. Ngày 15/5, Công ty CP Đầu tư Sài Gòn VRG (mã chứng khoán: SIP) chốt danh sách cổ đông nhận cổ tức đợt 2/2025 bằng tiền mặt với tỷ lệ 40%, tương đương cổ đông sở hữu 1 cổ phần sẽ được nhận 4.000 đồng. Với hơn 242 triệu cổ phiếu đang lưu hành, SIP chi khoảng 968 tỷ đồng để trả cổ tức cho cổ đông. Trước đó, vào cuối năm 2025, SIP đã tạm ứng cổ tức năm 2025 với tỷ lệ 10%. HPG sẽ phải chi khoảng 3.838 tỷ đồng để trả cổ tức. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm Âu Lạc nâng sở hữu lên 6% vốn ACB - VietnamBiz",
+            "link": "https://news.google.com/rss/articles/CBMihAFBVV95cUxQXzRVUEJGZjlILW9laEFZbGtnNlNjR1ZFaklGeWZ0ZW1iRGJ5VWdDdjRPaTJndVRUOUllNldwZXpBUmtYQmsxU0NBclJwZk9IYXhyTjFka2NLa0xLQ2hvNmxYaWxMQnlHQ2JZUEUtUHc2VmcwdTg1M2dSLXh6NVJWRzdhNTE?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMihAFBVV95cUxQXzRVUEJGZjlILW9laEFZbGtnNlNjR1ZFaklGeWZ0ZW1iRGJ5VWdDdjRPaTJndVRUOUllNldwZXpBUmtYQmsxU0NBclJwZk9IYXhyTjFka2NLa0xLQ2hvNmxYaWxMQnlHQ2JZUEUtUHc2VmcwdTg1M2dSLXh6NVJWRzdhNTE?oc=5",
+            "content": "Theo thông báo mới nhất của bà Nguyễn Thiên Hương Jenny, ngày 4/5 vừa qua, bà đã hoàn tất mua vào hơn 8,3 triệu cổ phiếu của Ngân hàng TMCP Á Châu (Mã: ACB), qua đó nâng lượng cổ phiếu nắm giữ lên hơn 118 triệu đơn vị, tương ứng 2,3% vốn điều lệ ngân hàng. Tạm tính theo thị giá ACB tại phiên giao dịch ngày 4/5 ở mức 23.100 đồng/cổ phiếu, ước tính bà Jenny đã chi khoảng 192 tỷ đồng cho giao dịch này nhằm nâng tỷ lệ sở hữu từ 2,14% lên 2,3%. Bà Nguyễn Thiên Hương Jenny là con gái của bà Ngô Thu Thúy - Chủ tịch Hội đồng quản trị CTCP Âu Lạc (Mã: ALC) và ông Nguyễn Đức Hinh. Âu Lạc là doanh nghiệp hoạt động trong lĩnh vực vận tải biển, tập trung vào mảng vận chuyển xăng dầu. Ngoài phần sở hữu trực tiếp, những người có liên quan đến bà Jenny hiện cũng đang nắm giữ khoảng 190,1 triệu cổ phiếu ACB, tương ứng 3,7% vốn điều lệ. Qua đó, nhóm nhà đầu tư liên quan tới bà Jenny hiện sở hữu tổng cộng hơn 308,2 triệu cổ phiếu, tương ứng khoảng 6% vốn của ACB. Nhóm cổ đông liên quan Âu Lạc gồm bà Ngô Thu Thúy sở hữu hơn 57,6 triệu cổ phiếu ACB, tương ứng 1,122% vốn điều lệ; ông Nguyễn Đức Hiếu Johnny nắm gần 58,7 triệu cổ phiếu, tương ứng 1,142%; ông Nguyễn Đức Hinh sở hữu 0,95%; bà Mai Phi Lan nắm 0,13%; CTCP Làng Giáo dục Quốc tế Thiên Hương sở hữu 0,14% và CTCP ICON nắm 0,16%. Trước đó, vào ngày 26/3, bà Jenny cũng đã mua thêm 931.700 cổ phiếu ACB, nâng lượng cổ phiếu nắm giữ lên 78,8 triệu đơn vị, tương ứng 1,53% vốn điều lệ. Cơ cấu của đông của ACB tại ngày 31/12/2025. (Nguồn: Báo cáo thường niên 2025 của ACB). Theo báo cáo thường niên 2025, ACB chưa ghi nhận cổ đông lớn, cơ cấu chủ yếu gồm các cổ đông nhỏ lẻ. Trong đó, 578 cổ đông tổ chức nắm giữ 46,09% vốn điều lệ, còn 100.601 cổ đông cá nhân sở hữu 53,91%. Năm 2026, ACB đặt mục tiêu lợi nhuận trước thuế đạt 22.338 tỷ đồng, tăng hơn 14% so với thực hiện năm 2025. Về tình hình kinh doanh, kết thúc quý I/2026, ngân hàng ghi nhận lợi nhuận trước thuế 5.368 tỷ đồng, tăng 17% so với cùng kỳ; lợi nhuận sau thuế đạt 4.320 tỷ đồng, tăng 17,5%. Như vậy, sau ba tháng đầu năm, ACB đã hoàn thành khoảng 24% kế hoạch lợi nhuận cả năm. Theo ACB, tăng trưởng lợi nhuận đến từ việc cải thiện thu nhập lãi thuần, hoạt động dịch vụ, mua bán chứng khoán kinh doanh, đồng thời chi phí hoạt động và chi phí dự phòng rủi ro tín dụng cũng tăng. Trên thị trường chứng khoán, cổ phiếu ACB chốt phiên giao dịch 8/5 ở mức 22.850 đồng/cổ phiếu, tương ứng vốn hóa khoảng 117.373 tỷ đồng. Diễn biến giá cổ phiếu ACB từ đầu năm đến nay. (Nguồn: TradingView). ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm Âu Lạc tiếp tục gom cổ phiếu, nâng sở hữu tại ACB lên 6% - Người Đưa Tin",
+            "link": "https://news.google.com/rss/articles/CBMirgFBVV95cUxPNGZxY3BFT1JsNWFDMG04QUpPRXdIV1EzREVnMm96RHRXRU9VNGpsODdkWUVZSU9Tejd4Q1I2SGozWWRPeVdJR2tSM1RQTTg3OFJBTGRYcGhDZTMtbENlY1BoMFVZSnRDQnNlcHRoUkJCQm8xRWpIQ3lnUmtkZnhyMTRJTkhtNTFtb1NqM3pqRC03aFRQbUtZMlV1X2hvTXFPN2tESTYyUmtUV196OWc?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMirgFBVV95cUxPNGZxY3BFT1JsNWFDMG04QUpPRXdIV1EzREVnMm96RHRXRU9VNGpsODdkWUVZSU9Tejd4Q1I2SGozWWRPeVdJR2tSM1RQTTg3OFJBTGRYcGhDZTMtbENlY1BoMFVZSnRDQnNlcHRoUkJCQm8xRWpIQ3lnUmtkZnhyMTRJTkhtNTFtb1NqM3pqRC03aFRQbUtZMlV1X2hvTXFPN2tESTYyUmtUV196OWc?oc=5",
+            "content": "Theo báo cáo thay đổi sở hữu, bà Nguyễn Thiên Hương Jenny đã mua vào hơn 8,3 triệu cổ phiếu ACB trong phiên 4/5, nâng lượng nắm giữ cá nhân từ 2,14% lên 2,3% vốn ngân hàng. Tạm tính theo mức giá khoảng 23.100 đồng/cp tại thời điểm giao dịch, ước tính bà Jenny đã chi gần 190-200 tỷ đồng để thực hiện thương vụ này. Cùng với phần sở hữu của các cá nhân và tổ chức liên quan, bao gồm các thành viên trong gia đình và một số doanh nghiệp, tổng lượng cổ phiếu ACB do nhóm Âu Lạc nắm giữ đã vượt 308 triệu đơn vị, tương ứng khoảng 6% vốn điều lệ. Nhóm Âu Lạc tiếp tục gom cổ phiếu, nâng sở hữu tại ACB lên 6%. Động thái này diễn ra chỉ hơn một tháng sau khi nhóm cổ đông trên chính thức trở thành cổ đông lớn tại ACB với tỷ lệ sở hữu vượt mốc 5%. Việc liên tục gia tăng tỷ lệ nắm giữ cho thấy xu hướng tích lũy cổ phiếu ACB của nhóm Âu Lạc, qua đó củng cố vị thế tại một trong những ngân hàng tư nhân lớn trong hệ thống. Về tình hình kinh doanh, theo báo cáo tài chính hợp nhất quý I/2026, ACB ghi nhận thu nhập lãi thuần đạt gần 6.989 tỷ đồng, tăng 9,9% so với cùng kỳ. Sau khi trừ chi phí và thuế, lợi nhuận ròng đạt xấp xỉ 4.320 tỷ đồng, tương ứng mức tăng 17,5%. Tính đến ngày 31/3/2026, tổng tài sản của ngân hàng đạt hơn 1,03 triệu tỷ đồng, tăng khoảng 5.050 tỷ đồng so với đầu năm. Trong đó, dư nợ cho vay khách hàng đạt gần 701.212 tỷ đồng, chiếm khoảng 68% tổng tài sản. Ở phía nguồn vốn, tổng nợ phải trả ở mức gần 932.150 tỷ đồng, tăng nhẹ so với đầu năm. Tiền gửi khách hàng tiếp tục chiếm tỷ trọng lớn, đạt hơn 569.110 tỷ đồng, tương ứng khoảng 61,1% tổng nợ. Chưa có bình luận. Hãy là người đầu tiên bình luận bài viết này. ACBS bị Thanh tra Ủy ban Chứng khoán Nhà nước xử phạt hành chính 340 triệu đồng do vi phạm hồ sơ chào bán trái phiếu và báo cáo chậm. Chỉ sau nửa tháng vay ACB 2.000 tỷ đồng, Chứng khoán FPT tiếp tục vay VIB 2.500 tỷ đồng nhằm đáp ứng nhu cầu về bổ sung vốn lưu động phục vụ hoạt động kinh doanh của công ty. Mục đích Chứng khoán FPT vay vốn nhằm bổ sung vốn lưu động chi trả chi phí vận hành, đầu tư mua Trái phiếu Chính phủ, bổ sung vốn cho hoạt động cho vay ký quỹ. Ông Đoàn Nguyên Đức - Chủ tịch HĐQT Hoàng Anh Gia Lai vừa hoàn tất mua vào 4 triệu cổ phiếu HAG, qua đó nâng lượng cổ phần nắm giữ lên gần 314 triệu đơn vị, tương ứng khoảng 24,8% vốn điều lệ doanh nghiệp. Lợi nhuận quý I/2026 của MSB tăng trưởng hai chữ số, tuy nhiên bức tranh kinh doanh cho thấy sự phân hóa rõ nét khi thu nhập lãi khởi sắc, còn dịch vụ, ngoại hối và đầu tư đồng loạt đi lùi. GS.TS.BSCKII Phạm Văn Lình, vừa được bổ nhiệm giữ chức Giám đốc Bệnh viện Vạn Phúc, trong bước kiện toàn nhân sự nhằm thúc đẩy mô hình liên kết “Viện – Trường” và nâng cao chất lượng đào tạo, khám chữa bệnh. Động thái đăng ký mua gần 2,8 triệu cổ phiếu phát hành thêm của lãnh đạo và người liên quan tại Trung Đô diễn ra trong bối cảnh doanh nghiệp đẩy mạnh tái cơ cấu tài chính, phát đi tín hiệu cam kết từ nội bộ. SBM tiếp tục duy trì chính sách cổ tức tiền mặt đều đặn khi chốt quyền tạm ứng đợt 1/2",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Khối ngoại bán ròng hơn 116 triệu cổ phiếu ACB trong một tháng - VietnamBiz",
+            "link": "https://news.google.com/rss/articles/CBMipgFBVV95cUxQQlFwRUFpSlZBemlBMmFLbDFpR2VsVDY5VDBfZF9GU1QyXzV2YmVZS3NRbEl6Y3NmazBDWU90d29EU1I2QXUwbWttWXpYTUFlejNKTVR5YlVlQW1uRXlzNG5MQUFHTmNuT2N2SFZEbEQ4S3JwQUZLTlg5Sko3cjlRampyeVVXWklaLTE3LU5hMjQtSEdmVmFXcS1jTElUTkJtYTNQa0dn?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMipgFBVV95cUxQQlFwRUFpSlZBemlBMmFLbDFpR2VsVDY5VDBfZF9GU1QyXzV2YmVZS3NRbEl6Y3NmazBDWU90d29EU1I2QXUwbWttWXpYTUFlejNKTVR5YlVlQW1uRXlzNG5MQUFHTmNuT2N2SFZEbEQ4S3JwQUZLTlg5Sko3cjlRampyeVVXWklaLTE3LU5hMjQtSEdmVmFXcS1jTElUTkJtYTNQa0dn?oc=5",
+            "content": "Cổ phiếu của Ngân hàng TMCP Á Châu (Mã: ACB) là mã bị khối ngoại bán ròng nhiều nhất thị trường xét theo khối lượng trong vòng một tháng qua. Theo dữ liệu tổng hợp, trong vòng một tháng gần đây, khối ngoại đã bán ròng hơn 116 triệu cổ phiếu ACB. Động thái này khiến room ngoại tại ACB giảm xuống còn 25,68% so với mức 27,51% ghi nhận trong phiên giao dịch ngày 13/4. Xếp sau ACB là cổ phiếu của CTCP FPT (Mã: FPT) với khối lượng bán ròng hơn 67 triệu đơn vị. Nhóm cổ phiếu bị khối ngoại bán mạnh còn có các cái tên quen thuộc như Vinhomes (VHM), Tập đoàn Hòa Phát (HPG), Novaland (NVL) và Vietcombank (VCB). Xét theo giá trị bán ròng, một tháng qua, VHM dẫn đầu thị trường với giá trị bán ra hơn 5.269 tỷ đồng, tiếp theo là FPT với 4.936 tỷ đồng. ACB xếp ngay sau với giá trị bán ròng khoảng 2.689 tỷ đồng, trong khi VCB cũng bị khối ngoại bán ròng hơn 1.022 tỷ đồng. Danh sách những mã cổ phiếu được khối ngoại bán ròng nhiều nhất trong một tháng qua. (Nguồn: Algo Platform). Trên thị trường, ACB vừa trải qua phiên giảm điểm thứ 5 liên tiếp. Riêng trong phiên giao dịch ngày 5/5, cổ phiếu này cũng là mã bị khối ngoại bán ròng mạnh nhất với gần 18,8 triệu đơn vị. Kết thúc phiên giao dịch ngày 13/5, cổ phiếu ACB dừng ở mức 22.500 đồng/cổ phiếu, tương ứng vốn hóa thị trường khoảng 115.575 tỷ đồng. Trong phiên hôm nay, khối ngoại bán ròng 259 tỷ đồng cổ phiếu ACB. Ở diễn biến khác, ngày 4/5 vừa qua, nhóm Âu Lạc đã nâng tỷ lệ sở hữu tại ACB lên 6%, tương đương nắm giữ khoảng 308 triệu cổ phiếu. Về tình hình kinh doanh, kết thúc quý I/2026, ACB ghi nhận lợi nhuận trước thuế đạt 5.368 tỷ đồng, tăng 17% so với cùng kỳ. Lợi nhuận sau thuế đạt 4.320 tỷ đồng, tăng 17,5%. Như vậy, sau ba tháng đầu năm, ngân hàng đã hoàn thành khoảng 24% kế hoạch lợi nhuận năm. Theo ACB, tăng trưởng lợi nhuận chủ yếu đến từ việc cải thiện thu nhập lãi thuần, hoạt động dịch vụ và mua bán chứng khoán kinh doanh. Bên cạnh đó, chi phí hoạt động và chi phí dự phòng rủi ro tín dụng cũng tăng so với cùng kỳ. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm Âu Lạc nâng sở hữu tại ACB lên 6%, HDBank chi hơn 8.500 tỷ đồng nắm quyền chi phối Chứng khoán HD - CafeF",
+            "link": "https://news.google.com/rss/articles/CBMi1gFBVV95cUxQRzMtZGthQ0p4ckNzSEx2UmJhNDFDMUx1T0lfZ2JiSEV5UGphSG1UeThqTnM3b2Fib09KX1VJdW1wRi1nNGpYQ20yVVVnLWRsdEIwRjlrQk1QbnFzRHJjVU5RV3RhQVNfcnRYMU13UTNDUk1CMld5cGk3MDhhSVlWcFBoYmdrTlBoRU1vc3lfLTNkRWhPaGQ1b3ZfcXFBa25PTGt3SlhUZHM1eENBVkY5ZVRnM2tpeWY4MThZMS1XbVpuQllQbWliM1BOcnBUNmJhbVZ2WHlR?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMi1gFBVV95cUxQRzMtZGthQ0p4ckNzSEx2UmJhNDFDMUx1T0lfZ2JiSEV5UGphSG1UeThqTnM3b2Fib09KX1VJdW1wRi1nNGpYQ20yVVVnLWRsdEIwRjlrQk1QbnFzRHJjVU5RV3RhQVNfcnRYMU13UTNDUk1CMld5cGk3MDhhSVlWcFBoYmdrTlBoRU1vc3lfLTNkRWhPaGQ1b3ZfcXFBa25PTGt3SlhUZHM1eENBVkY5ZVRnM2tpeWY4MThZMS1XbVpuQllQbWliM1BOcnBUNmJhbVZ2WHlR?oc=5",
+            "content": "Theo Hoàng Hà | 10-05-2026 - 18:19 PM | Tài chính - ngân hàng Nhóm Âu Lạc tăng sở hữu tại ACB lên 6% vốn Theo thông báo mới nhất, bà Nguyễn Thiên Hương Jenny - con gái của bà Ngô Thu Thúy, Chủ tịch HĐQT Công ty CP Âu Lạc (mã ALC) và ông Nguyễn Đức Hinh - đã hoàn tất mua vào gần 8,4 triệu cổ phiếu của Ngân hàng TMCP Á Châu (mã ACB) vào ngày 4/5, qua đó nâng lượng cổ phiếu nắm giữ lên hơn 118 triệu đơn vị, tương ứng 2,3% vốn điều lệ ngân hàng. Tạm tính theo thị giá ACB tại phiên giao dịch ngày 4/5 ở mức 23.100 đồng/cổ phiếu, ước tính bà Jenny đã chi khoảng 192 tỷ đồng cho giao dịch này nhằm nâng tỷ lệ sở hữu từ 2,14% lên 2,3%. Ngoài phần sở hữu trực tiếp, những người có liên quan đến bà Jenny cũng đang nắm giữ khoảng 190,1 triệu cổ phiếu ACB, tương ứng 3,7% vốn điều lệ. Như vậy, nhóm nhà đầu tư liên quan tới bà Jenny hiện sở hữu tổng cộng hơn 308,2 triệu cổ phiếu, tương ứng khoảng 6% vốn của ACB. Cụ thể, bà Ngô Thu Thúy sở hữu hơn 57,6 triệu cổ phiếu ACB, tương ứng 1,122% vốn điều lệ; ông Nguyễn Đức Hiếu Johnny nắm gần 58,7 triệu cổ phiếu, tương ứng 1,142%; ông Nguyễn Đức Hinh sở hữu 0,95%; bà Mai Phi Lan nắm 0,13%; Công ty CP Làng Giáo dục Quốc tế Thiên Hương sở hữu 0,14% và Công ty CP ICON nắm 0,16%. HDBank chi hơn 8.500 tỷ đồng, nâng sở hữu tại Chứng khoán HD lên 90% Ngân hàng TMCP Phát triển TP. Hồ Chí Minh (HDBank, mã HDB) đã nâng tỷ lệ sở hữu lên 90% vốn điều lệ tại Công ty CP Chứng khoán HD (HDS), chính thức nắm quyền chi phối tại công ty chứng khoán này. Diễn biến trên diễn ra sau khi HDS hoàn tất đợt chào gần 877 triệu cổ phiếu cho cổ đông hiện hữu, đồng thời phát hành thêm 73,1 triệu cổ phiếu để chi trả cổ tức. Đợt phát hành được thực hiện với tỷ lệ quyền mua 1:6 và cổ tức bằng cổ phiếu 1:2. Qua đó, tổng số cổ phiếu lưu hành tăng lên khoảng 1,09 tỷ đơn vị, tương ứng vốn điều lệ đạt 10.961 tỷ đồng. Công ty thu ròng gần 8.769 tỷ đồng từ đợt chào bán. Sau đợt phát hành, HDBank trở thành cổ đông tổ chức duy nhất của HDS khi nắm giữ hơn 986 triệu cổ phiếu, tương ứng 90% vốn điều lệ. Phần còn lại khoảng 10% vốn do 52 cổ đông nắm giữ. Trước đó, ngày 29/4, HDBank đã hoàn tất nhận chuyển nhượng 66,9 triệu cổ phiếu HDS, qua đó nâng tỷ lệ sở hữu từ 30% lên 75,74%. Hoàn tất các đợt phát hành, ước tính HDBank đã mua thêm khoảng 853,8 triệu cổ phiếu thông qua các đợt giao dịch và tham gia mua cổ phần phát hành thêm, tương ứng số tiền chi ra 8.538 tỷ đồng. Song song với quá trình tăng vốn và thay đổi cơ cấu cổ đông, HDS cũng đang lên kế hoạch chào bán cổ phần lần đầu ra công chúng (IPO). Theo kế hoạch, công ty dự kiến chào bán 164,4 triệu cổ phiếu với mức giá không thấp hơn giá trị sổ sách, thời gian thực hiện từ quý II đến quý IV/2026. Dragon Capital không còn là cổ đông lớn tại Thế Giới Di Động Nhóm quỹ thành viên Dragon Capital quản lý thông báo đã hoàn tất bán ròng 541.366 cổ phiếu MWG của Công ty CP Đầu tư Thế Giới Di Động trong ngày 29/4. Sau giao dịch, tỷ lệ sở hữu của cả nhóm đã giảm xuống 72,9 triệu đơn vị (tỷ lệ 4,96%) và không còn là cổ đông ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Cổ phiếu cần quan tâm ngày 13/5: ACB và TAL được kỳ vọng tích cực, BSR đối mặt áp lực trung hạn - thuonghieucongluan.com.vn",
+            "link": "https://news.google.com/rss/articles/CBMi1wFBVV95cUxNSG5HNy1iNXZrNnJ1a09RaE8wRFlUOXhuQmt4UTJUZUh4LWhKWnY4SUFLUldUeWFLZEVtYlB6OVVELWZYT1NKTDRWXzFQNG1DbGZSU0h0eExhdjIzcmhuMWp2TEloM1ZYaDg5TlFad2lQVUhncXdZT3NlVm5EcW4xQ3J4anFQV2stYnQ3UTg1dWhaZktXTFBOQkhDcnJwNFdFVWlvVzNnTWpXUXhfS3ZJd1JjQ2djNGxRR1hsR1luU01pdnFuYW1Cdy1tWVhzM1FYVi1PSmt2SQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMi1wFBVV95cUxNSG5HNy1iNXZrNnJ1a09RaE8wRFlUOXhuQmt4UTJUZUh4LWhKWnY4SUFLUldUeWFLZEVtYlB6OVVELWZYT1NKTDRWXzFQNG1DbGZSU0h0eExhdjIzcmhuMWp2TEloM1ZYaDg5TlFad2lQVUhncXdZT3NlVm5EcW4xQ3J4anFQV2stYnQ3UTg1dWhaZktXTFBOQkhDcnJwNFdFVWlvVzNnTWpXUXhfS3ZJd1JjQ2djNGxRR1hsR1luU01pdnFuYW1Cdy1tWVhzM1FYVi1PSmt2SQ?oc=5",
+            "content": "06:16 13/05/2026 Thương hiệu Tài chính - Chứng khoán Sau giai đoạn thị trường xuất hiện rung lắc mạnh quanh vùng đỉnh lịch sử, các công ty chứng khoán tiếp tục công bố danh sách những cổ phiếu đáng chú ý cho phiên giao dịch ngày 13/5, tập trung vào nhóm ngân hàng, bất động sản và năng lượng. Theo báo cáo phân tích của Công ty Chứng khoán SSI, cổ phiếu Ngân hàng TMCP Á Châu (ACB) tiếp tục được duy trì khuyến nghị khả quan với giá mục tiêu trong 12 tháng ở mức 27.500 đồng/cổ phiếu. Mức định giá này tương ứng tiềm năng tăng giá hơn 20% so với thị giá hiện tại, chưa bao gồm lợi suất cổ tức dự phóng khoảng 3%. SSI cho rằng, ACB vẫn là một trong những ngân hàng có nền tảng hoạt động ổn định, chất lượng tài sản tốt và khả năng duy trì hiệu quả sinh lời ở mức cao trong nhóm ngân hàng thương mại cổ phần tư nhân. Đáng chú ý, mức định giá mục tiêu hiện vẫn thấp hơn mức trung bình lịch sử của ngân hàng, cho thấy dư địa tăng trưởng còn tương đối tích cực. Trong bối cảnh nhóm ngân hàng đang có dấu hiệu thu hút trở lại dòng tiền sau giai đoạn điều chỉnh, ACB được đánh giá là cổ phiếu có nền tảng cơ bản vững và phù hợp với chiến lược đầu tư trung hạn. Ở nhóm bất động sản, Công ty Chứng khoán SHS đánh giá tích cực đối với cổ phiếu TAL khi doanh nghiệp đang bước vào giai đoạn tăng tốc thương mại hóa các dự án sau thời gian dài tích lũy quỹ đất. Theo SHS, TAL hiện không còn đơn thuần là câu chuyện sở hữu quỹ đất lớn mà đang chuyển dần sang chu kỳ tăng trưởng lợi nhuận thực chất. Doanh nghiệp đặt kế hoạch doanh thu năm 2026 đạt hơn 11.000 tỷ đồng và lợi nhuận sau thuế khoảng 2.500 tỷ đồng, tăng mạnh so với năm trước. Động lực tăng trưởng của TAL trong giai đoạn 2026-2027 dự kiến đến từ hàng loạt dự án như KCN Đồng Văn III, Central Riverside, Phố đi bộ Thái Nguyên, Taseco Trung Văn hay Long Biên Central. Đây được xem là những dự án có khả năng đóng góp lớn vào doanh thu và lợi nhuận trong các năm tới. SHS đưa ra mức định giá hợp lý đối với TAL khoảng 49.200 đồng/cổ phiếu và duy trì khuyến nghị khả quan. Tuy nhiên, công ty chứng khoán này cũng lưu ý một số rủi ro cần theo dõi như tiến độ bàn giao dự án, áp lực vốn lưu động cũng như diễn biến thanh khoản của thị trường bất động sản. Trong khi đó, Công ty Chứng khoán KB Việt Nam (KBSV) giữ quan điểm trung lập đối với cổ phiếu BSR của CTCP Lọc hóa dầu Bình Sơn dù doanh nghiệp ghi nhận kết quả kinh doanh quý I/2026 tăng trưởng đột biến. Theo KBSV, lợi nhuận của BSR được hỗ trợ mạnh trong ngắn hạn nhờ biên lợi nhuận lọc dầu cải thiện sau những biến động nguồn cung dầu toàn cầu liên quan đến xung đột tại Trung Đông. Giá crack spread tăng mạnh đã giúp doanh nghiệp cải thiện đáng kể hiệu quả kinh doanh. Tuy nhiên, trong trung hạn, BSR có thể đối mặt áp lực khi nguồn cung dầu thế giới dần ổn định trở lại. Việc UAE tăng sản lượng sau khi rời OPEC cùng xu hướng Trung Quốc nối lại xuất khẩu sản phẩm lọc dầu có thể khiến biên lợi nhuận ngành hạ nhiệt. Dù vậy, KBSV cho rằng, dự án nâng cấp mở rộng nhà máy lọc dầu sẽ tiếp tục là độn",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm Âu Lạc tiếp tục tăng sở hữu tại ACB lên 6% - Mekong ASEAN",
+            "link": "https://news.google.com/rss/articles/CBMihwFBVV95cUxQRl9zMFM2M09Felc4ekpPTGQ0X1g0X0FDdjdxcHBLS0cxTF9GenZ2Njk2UU5ZbUY1b2JuV1lBbEJKMHdjWkxSMExETFVpVVFMRGRVcllXbC1kdnV6SzJjaUYtdVJVaXY5aWt3VFAxNWhITUU5NmtEOTZHdmluOGtKa0xVdGpZZ2c?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMihwFBVV95cUxQRl9zMFM2M09Felc4ekpPTGQ0X1g0X0FDdjdxcHBLS0cxTF9GenZ2Njk2UU5ZbUY1b2JuV1lBbEJKMHdjWkxSMExETFVpVVFMRGRVcllXbC1kdnV6SzJjaUYtdVJVaXY5aWt3VFAxNWhITUU5NmtEOTZHdmluOGtKa0xVdGpZZ2c?oc=5",
+            "content": "Ngân hàng TMCP Á Châu (ACB, mã: ACB) vừa công bố báo cáo về biến động sở hữu của cổ đông lớn và nhà đầu tư nắm giữ từ 5% vốn trở lên. Theo đó, ngày 4/5/2026, bà Nguyễn Thiên Hương Jenny đã mua thêm 8,35 triệu cổ phiếu ACB. Tạm tính theo giá đóng cửa 23.100 đồng/cổ phiếu cùng ngày, nữ doanh nhân này ước chi hơn 190 tỷ đồng cho thương vụ. Trước giao dịch, bà Jenny sở hữu hơn 109,8 triệu cổ phiếu, tương ứng 2,14% vốn điều lệ ACB. Sau khi hoàn tất mua vào, lượng cổ phần cá nhân tăng lên 118 triệu đơn vị, nâng tỷ lệ sở hữu lên 2,3%. Bên cạnh đó, nhóm người có liên quan đến bà hiện cũng nắm giữ hơn 190 triệu cổ phiếu ACB, tương đương 3,7% vốn điều lệ ngân hàng. Danh sách các cá nhân và tổ chức liên quan gồm ông Nguyễn Đức Hinh, bà Ngô Thu Thúy, ông Nguyễn Đức Hiếu Johnny cùng một số doanh nghiệp như CTCP Làng Giáo dục Quốc tế Thiên Hương và CTCP ICON. Bà Nguyễn Thiên Hương Jenny (sinh năm 1995) là con gái của bà Ngô Thu Thúy, Chủ tịch HĐQT Âu Lạc. Hiện bà Thúy sở hữu hơn 1,22% vốn ACB, trong khi ông Nguyễn Đức Hinh - chồng bà Thúy nắm 0,95% vốn. Sau giao dịch mới nhất, tổng sở hữu của bà Nguyễn Thiên Hương Jenny cùng các bên liên quan đã vượt 308,2 triệu cổ phiếu, tương ứng khoảng 6% vốn điều lệ ACB. Qua đó, nhóm cổ đông Âu Lạc trở thành một trong những nhóm cổ đông có ảnh hưởng đáng kể tại ngân hàng. Động thái gia tăng tỷ lệ sở hữu này diễn ra chỉ hơn một tháng sau khi nhóm Âu Lạc chính thức nâng tỷ lệ nắm giữ tại ACB vượt mốc 5% vào cuối tháng 3. Trước khi trở thành cổ đông lớn tại ACB, nhóm Âu Lạc từng có nhiều năm gắn bó với Eximbank thông qua việc nắm giữ lượng lớn cổ phiếu EIB. Sau đó, nhóm này chuyển hướng sang tích lũy cổ phiếu ACB và hiện tiếp tục mở rộng hiện diện tại ngân hàng này. Theo báo cáo thường niên 2025, ACB chưa ghi nhận cổ đông lớn, cơ cấu cổ đông chủ yếu vẫn là các nhà đầu tư nhỏ lẻ. Trong đó, 578 cổ đông tổ chức nắm 46,09% vốn điều lệ, còn 100.601 cổ đông cá nhân sở hữu 53,91%. Năm 2026, ACB đặt mục tiêu lợi nhuận trước thuế 22.338 tỷ đồng, tăng hơn 14% so với kết quả thực hiện năm 2025. Kết thúc quý 1/2026, ngân hàng ghi nhận lợi nhuận trước thuế 5.368 tỷ đồng, tăng 17% so với cùng kỳ; lợi nhuận sau thuế đạt 4.320 tỷ đồng, tăng 17,5%. Như vậy, sau quý đầu năm, ACB đã hoàn thành khoảng 24% kế hoạch lợi nhuận năm. Theo ACB, tăng trưởng lợi nhuận chủ yếu đến từ sự cải thiện của thu nhập lãi thuần, hoạt động dịch vụ và mua bán chứng khoán kinh doanh, trong khi chi phí hoạt động cùng chi phí dự phòng rủi ro tín dụng cũng gia tăng. Trên thị trường chứng khoán, cổ phiếu ACB chốt phiên 8/5 ở mức 22.850 đồng/cổ phiếu, giảm 50 đồng so với phiên 7/5, tương ứng mức giảm nhẹ 0,22%, vốn hóa khoảng 117.373 tỷ đồng. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Hoàn tất mua vào, nhóm cổ đông Âu Lạc nắm giữ 6% vốn tại ACB - Báo Dân trí",
+            "link": "https://news.google.com/rss/articles/CBMiswFBVV95cUxOMzhTdWtDQk51aWQ1QXlvU0tkZ29VYldkZEQwMUlwaFN4N0Z1S3hVVU5FNGNEbVRQcE1Kdm81LXlDeG9XN1lob2JjMnhDMjdGay1QSGZWWG9YLTcwNklVNWZMR002SnlrSzdzWGZ2WUk4U3BZZmVMbkIxUFBLNzktT3dlZ0dfdkNuUC1wZjFtQWpUSHNrSC1hNEJNclQ1Z29vazRLVmFiajhTMVJ1cVN3b3FBSQ?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiswFBVV95cUxOMzhTdWtDQk51aWQ1QXlvU0tkZ29VYldkZEQwMUlwaFN4N0Z1S3hVVU5FNGNEbVRQcE1Kdm81LXlDeG9XN1lob2JjMnhDMjdGay1QSGZWWG9YLTcwNklVNWZMR002SnlrSzdzWGZ2WUk4U3BZZmVMbkIxUFBLNzktT3dlZ0dfdkNuUC1wZjFtQWpUSHNrSC1hNEJNclQ1Z29vazRLVmFiajhTMVJ1cVN3b3FBSQ?oc=5",
+            "content": "Theo thông báo mới nhất về giao dịch cổ phiếu tại Ngân hàng TMCP Á Châu (mã chứng khoán: ACB), bà Nguyễn Thiên Hương Jenny ngày 4/5 vừa qua đã hoàn tất mua vào hơn 8,3 triệu cổ phiếu ACB, qua đó nâng lượng cổ phiếu nắm giữ lên hơn 118 triệu đơn vị, tương ứng 2,3% vốn điều lệ ngân hàng. Tạm tính theo thị giá ACB tại phiên giao dịch ngày 4/5 ở mức 23.100 đồng/cổ phiếu, ước tính bà Jenny đã chi khoảng 192 tỷ đồng cho giao dịch này nhằm nâng tỷ lệ sở hữu từ 2,14% lên 2,3%. Bà Nguyễn Thiên Hương Jenny là con gái của bà Ngô Thu Thúy - Chủ tịch Hội đồng quản trị Công ty cổ phần Âu Lạc và ông Nguyễn Đức Hinh. Âu Lạc là doanh nghiệp hoạt động trong lĩnh vực vận tải biển, tập trung vào mảng vận chuyển xăng dầu. Ngoài phần sở hữu trực tiếp, những người có liên quan đến bà Jenny hiện cũng đang nắm giữ khoảng 190,1 triệu cổ phiếu ACB, tương ứng 3,7% vốn điều lệ. Qua đó, nhóm nhà đầu tư liên quan tới bà Jenny hiện sở hữu tổng cộng hơn 308,2 triệu cổ phiếu, tương ứng khoảng 6% vốn của ACB. Nhóm cổ đông liên quan Âu Lạc gồm bà Ngô Thu Thúy sở hữu hơn 57,6 triệu cổ phiếu ACB, tương ứng 1,122% vốn điều lệ; ông Nguyễn Đức Hiếu Johnny nắm gần 58,7 triệu cổ phiếu, tương ứng 1,142%; ông Nguyễn Đức Hinh sở hữu 0,95%; bà Mai Phi Lan nắm 0,13%; CTCP Làng Giáo dục Quốc tế Thiên Hương sở hữu 0,14% và CTCP ICON nắm 0,16%. Tổng cộng sở hữu của nhóm này tại ACB là 6% vốn. Tại cuộc họp cổ đông tháng 4 vừa qua, lãnh đạo ACB là ông Trần Hùng Huy cũng đã thông tin về nhóm cổ đông Âu Lạc. Ông cho biết nhóm này đã có hơn 20 năm đồng hành với ngân hàng. ACB kỳ vọng cổ đông lớn này sẽ tiếp tục đóng góp vào tăng trưởng trong thời gian tới. Nhóm cổ đông liên quan đại gia Ngô Thu Thúy đã sở hữu 6% vốn ngân hàng ACB (Ảnh: IT). CTCP Âu Lạc là doanh nghiệp vận tải xăng dầu đường biển do bà Ngô Thu Thúy làm Chủ tịch Hội đồng quản trị. Theo tìm hiểu, bà Ngô Thu Thúy (Rosie Ngô) cùng chồng Nguyễn Đức Hinh là doanh nhân có tiếng trên thương trường, gắn liền với Âu Lạc (ra đời năm 2002). Âu Lạc hoạt động trong lĩnh vực vận tải xăng dầu bằng đường biển trong nước và quốc tế. Đến nay, doanh nghiệp sở hữu 8 chiếc tàu dầu, đáp ứng năng lực quản lý và khai thác theo tiêu chuẩn quốc tế. Ngoài ra, bà Thúy còn là một trong 3 cổ đông sáng lập (cùng chồng và con trai) của Tập đoàn KCN Việt Nam - đơn vị có vốn điều lệ lên đến hàng nghìn tỷ đồng. Cuối năm qua, Sở Giao dịch chứng khoán Hà Nội (HNX) ban hành quyết định về việc chấp thuận đăng ký giao dịch cổ phiếu của Công ty cổ phần Âu Lạc với mã cổ phiếu ALC. Số lượng chứng khoán đăng ký giao dịch là gần 56,5 triệu cổ phiếu. Trước đó, hồi tháng 8/2024, Âu Lạc từng bị Ủy ban Chứng khoán Nhà nước xử phạt 350 triệu đồng do trở thành công ty đại chúng từ năm 2007 nhưng không thực hiện đăng ký giao dịch, niêm yết cổ phiếu trên Sở giao dịch chứng khoán. Thông tin doanh nghiệp - sản phẩm ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm Âu Lạc âm thầm nâng sở hữu Ngân hàng ACB lên 6% giữa biến động thị trường - Tạp chí Doanh nghiệp và Hội nhập",
+            "link": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxNR3Yzd3hUdnRfUmswREM5aEVRdWhMX2xHb3RIT3UxVHNIOUFiQndFU3FqRy1KeEUyV2lCQ1NLRS02N1kwZzNhQjZEdjVLSGFBZW9NQTlsekNBUjJrTG1BcUxzcU51THh3b3BLbzVReWVEa1cyNFUzMEU5QWdOZVREbXVIUE02ck01ODdySjJ2QXNDVVlyb19wcGNUa2FueEVrZDdqVDc4N3VMdFlENTdLcnlMVUoybjZ5Sjdr?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxNR3Yzd3hUdnRfUmswREM5aEVRdWhMX2xHb3RIT3UxVHNIOUFiQndFU3FqRy1KeEUyV2lCQ1NLRS02N1kwZzNhQjZEdjVLSGFBZW9NQTlsekNBUjJrTG1BcUxzcU51THh3b3BLbzVReWVEa1cyNFUzMEU5QWdOZVREbXVIUE02ck01ODdySjJ2QXNDVVlyb19wcGNUa2FueEVrZDdqVDc4N3VMdFlENTdLcnlMVUoybjZ5Sjdr?oc=5",
+            "content": "Thị trường chứng khoán đầu tháng 5/2026 ghi nhận một động thái đáng chú ý khi nhóm Âu Lạc tiếp tục nâng tỷ lệ sở hữu tại ACB lên mức 6%. Diễn biến này không chỉ phản ánh chiến lược đầu tư dài hạn mà còn cho thấy niềm tin của nhóm cổ đông này vào triển vọng của ngân hàng. Cụ thể, bà Nguyễn Thiên Hương Jenny – con gái của bà Ngô Thu Thúy, Chủ tịch HĐQT CTCP Âu Lạc – đã thực hiện giao dịch mua gần 8,4 triệu cổ phiếu ACB trong ngày 4/5. Sau giao dịch, tỷ lệ sở hữu cá nhân của bà Jenny tăng từ 2,14% lên 2,3%, tương đương khoảng 118,1 triệu cổ phiếu. Với mức giá đóng cửa khoảng 23.100 đồng/cổ phiếu tại thời điểm giao dịch, ước tính số tiền mà bà Jenny chi ra lên tới gần 193 tỷ đồng. Đây là một khoản đầu tư không nhỏ trong bối cảnh thị trường còn nhiều biến động. Trước đó, vào đầu tháng 4/2026, nhóm Âu Lạc đã nâng sở hữu tại ACB vượt mốc 5%. Việc tiếp tục gia tăng tỷ lệ nắm giữ chỉ sau một thời gian ngắn cho thấy động thái mua vào không mang tính ngắn hạn mà nằm trong chiến lược tích lũy cổ phần rõ ràng. Tổng cộng, nhóm cổ đông liên quan đến Âu Lạc hiện nắm giữ hơn 308 triệu cổ phiếu ACB, tương đương khoảng 6% vốn điều lệ. Con số này giúp nhóm trở thành một trong những cổ đông đáng chú ý tại ngân hàng. Điều đáng nói là việc gia tăng sở hữu của nhóm Âu Lạc diễn ra trong bối cảnh cổ phiếu ACB không có nhiều biến động tích cực từ đầu năm. Tính đến ngày 11/5, thị giá cổ phiếu ACB dao động quanh mức 22.805 đồng/cổ phiếu, giảm hơn 4% so với đầu năm. Tuy nhiên, thanh khoản của mã cổ phiếu này vẫn duy trì ở mức cao, trung bình hơn 14 triệu cổ phiếu mỗi phiên. Điều này cho thấy ACB vẫn là một trong những cổ phiếu ngân hàng thu hút sự quan tâm lớn từ nhà đầu tư trên thị trường. Việc “gom hàng” khi giá cổ phiếu đang điều chỉnh thường được xem là chiến lược của các nhà đầu tư có tầm nhìn dài hạn. Thay vì chạy theo xu hướng ngắn hạn, họ tận dụng những nhịp giảm giá để tích lũy cổ phần với mức giá hợp lý. Trong trường hợp của nhóm Âu Lạc, động thái liên tục nâng tỷ lệ sở hữu cho thấy niềm tin vào nền tảng hoạt động của ACB cũng như triển vọng tăng trưởng của ngành ngân hàng trong trung và dài hạn. ACB vốn được đánh giá là một trong những ngân hàng có chất lượng tài sản tốt, quản trị rủi ro chặt chẽ và chiến lược phát triển ổn định. Trong bối cảnh ngành ngân hàng đang bước vào giai đoạn tái cấu trúc và chuyển đổi số mạnh mẽ, những yếu tố này càng trở nên quan trọng. Động thái của nhóm Âu Lạc không chỉ mang ý nghĩa về mặt tài chính mà còn gửi đi tín hiệu chiến lược rõ ràng. Việc nâng tỷ lệ sở hữu lên 6% giúp nhóm này gia tăng tiếng nói trong các quyết định quan trọng của ngân hàng, đồng thời mở ra khả năng tham gia sâu hơn vào hoạt động quản trị trong tương lai. Trong bối cảnh thị trường tài chính đang chịu tác động từ nhiều yếu tố như lãi suất, tăng trưởng tín dụng và biến động kinh tế toàn cầu, việc lựa chọn đầu tư vào cổ phiếu ngân hàng vẫn được xem là hướng đi có tính phòng thủ nhưng không kém phần tiềm năng. Giới phân tích cho rằng, nếu xu hướng phục hồi kinh tế t",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "‘Tay chơi cũ’ của giới ngân hàng đang tạo ra thay đổi trong cơ cấu cổ đông ACB - VnBusiness",
+            "link": "https://news.google.com/rss/articles/CBMipgFBVV95cUxQQnVVbFU5dGVsbGdjY0psVDd2SUgyOHJZeHdpSDNIR2JuVUc0LVo4a2VsUFZJWGc5WDlTMW1FMTRuc051bWhHS0pqMDJhalgwTU9CbzRYZmVvY0cydzI0LWZjX09xOGxvR0h5WkNFNGpvQ2g0S3RFNDdBUlBnc1h6MnN0a0cyNTR6MnBuTWpTWmhmUTM5RllkZVlBVjg5V05oY1hhQnF3?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMipgFBVV95cUxQQnVVbFU5dGVsbGdjY0psVDd2SUgyOHJZeHdpSDNIR2JuVUc0LVo4a2VsUFZJWGc5WDlTMW1FMTRuc051bWhHS0pqMDJhalgwTU9CbzRYZmVvY0cydzI0LWZjX09xOGxvR0h5WkNFNGpvQ2g0S3RFNDdBUlBnc1h6MnN0a0cyNTR6MnBuTWpTWmhmUTM5RllkZVlBVjg5V05oY1hhQnF3?oc=5",
+            "content": "Mới đây, bà Nguyễn Thiên Hương Jenny đã có văn bản báo cáo về thay đổi sở hữu của cổ đông lớn, nhà đầu tư nắm giữ từ 5% trở lên cổ phiếu tại Ngân hàng TMCP Á Châu (ACB). Theo đó, bà Nguyễn Thiên Hương Jenny đã mua vào gần 8,4 triệu cổ phiếu ACB, qua đó nâng sở hữu từ hơn 109,8 triệu cổ phiếu (tỷ lệ 2,14%) lên hơn gần 118,2 triệu cổ phiếu (tỷ lệ 2,3%). Được biết, bà Nguyễn Thiên Hương Jenny là ái nữ của của bà Ngô Thu Thúy- Chủ tịch HĐQT Công ty Cổ phần Âu Lạc. Các cá nhân và tổ chức liên quan khác bao gồm ông Nguyễn Đức Hinh- chồng bà Ngô Thu Thúy, ông Nguyễn Đức Hiếu Johnny- con trai vợ chồng Chủ tịch Âu Lạc cùng một số doanh nghiệp như Công ty Cổ phần Làng Giáo dục Quốc tế Thiên Hương và Công ty Cổ phần ICON cũng đang nắm giữ tổng cộng hơn 190,1 triệu cổ phiếu ACB, tương ứng tỷ lệ sở hữu 3,7% vốn. Như vậy, sau giao dịch nêu trên của bà Nguyễn Thiên Hương Jenny, nhóm cổ đông Âu Lạc đang nắm giữ gần 308,3 triệu cổ phiếu ACB, tương đương sở hữu 6% vốn điều lệ của ACB. Động thái nhóm Âu Lạc liên tục gia tăng sở hữu tại ACB đang là một trong những diễn biến đáng chú ý nhất trong nhóm ngân hàng tư nhân năm 2026. Chỉ trong hơn một tháng, nhóm này đã nâng tỷ lệ nắm giữ từ dưới ngưỡng cổ đông lớn lên khoảng 6% vốn điều lệ nhà băng này. Điểm đáng chú ý là tốc độ gom cổ phiếu khá nhanh: Cuối tháng 3/2026: vượt mốc 5% để trở thành cổ đông lớn. Đầu tháng 5/2026 tiếp tục nâng lên 6%. Điểm đặc biệt là nhiều năm qua cơ cấu cổ đông của ACB khá phân tán. Theo báo cáo thường niên 2025, ngân hàng gần như không có cổ đông tổ chức chi phối lớn trên 5%. Việc nhóm Âu Lạc vượt ngưỡng 5% tạo ra một thay đổi đáng kể: tăng mức độ ổn định cơ cấu sở hữu, xuất hiện nhóm cổ đông có tiếng nói rõ ràng hơn, và có thể ảnh hưởng đến định hướng dài hạn và governance. Tuy nhiên, với tỷ lệ khoảng 6%, nhóm này hiện chưa đủ để kiểm soát ngân hàng hay tác động mạnh đến quản trị như các “nhóm lợi ích” từng thấy ở một số ngân hàng trước đây. Sự kiện này được quan tâm không chỉ vì quy mô mua vào, mà còn bởi bà Ngô Thu Thúy từng là cái tên nổi bật trong các cuộc đua quyền lực ngân hàng nhiều năm trước, đặc biệt tại Eximbank. Do đó, thị trường đang theo dõi liệu đây chỉ là khoản đầu tư tài chính, hay là bước đi dài hạn nhằm gia tăng ảnh hưởng tại ACB. Ở góc độ thị trường, việc cổ đông lớn liên tục mua vào thường tạo 3 hiệu ứng: tích cực về tâm lý, nhà đầu tư xem đây là tín hiệu “smart money” đánh giá cao triển vọng ACB; giảm lượng cổ phiếu tự do lưu hành khi nhóm cổ đông chiến lược nắm giữ dài hạn, free-float giảm có thể hỗ trợ giá cổ phiếu; và tạo kỳ vọng tái định giá nếu ACB duy trì ROE cao, tăng trưởng lợi nhuận hai chữ số, kiểm soát nợ xấu tốt thì cổ phiếu có thể được thị trường định giá lại cao hơn trung bình ngành. Tuy nhiên cũng có vài điểm cần theo dõi. Nhà đầu tư vẫn cần quan sát nhóm Âu Lạc có tiếp tục nâng tỷ lệ sở hữu hay không, có đề cử nhân sự vào HĐQT trong tương lai không, giao dịch có mang tính đầu tư tài chính hay chiến lược, room ngoại và cấu trúc cổ đông ACB sẽ thay đổi t",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Nhóm cổ đông Âu Lạc tăng sở lên 6% vốn tại ACB - An ninh Tiền tệ",
+            "link": "https://news.google.com/rss/articles/CBMinAFBVV95cUxPNHlvVWpKRGhLVGhqMlhUbUc3MnVSeGZKRlJFZmMzOUcyd0E3TXFBcEoydVhMRzd4Q3BuT2x2Sk1oVFYwOF9pSzU2a0hNcEpvcS12NkVSNVFlaTVfZzQ2RE1rTzF2Q0thT21YcGRxNVd2ZkdBOFpSbHlyWEF2Tko4VUZZb1NrWk9uM3RDMzZwZmw2UDVJZ3lpU1dXY0M?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMinAFBVV95cUxPNHlvVWpKRGhLVGhqMlhUbUc3MnVSeGZKRlJFZmMzOUcyd0E3TXFBcEoydVhMRzd4Q3BuT2x2Sk1oVFYwOF9pSzU2a0hNcEpvcS12NkVSNVFlaTVfZzQ2RE1rTzF2Q0thT21YcGRxNVd2ZkdBOFpSbHlyWEF2Tko4VUZZb1NrWk9uM3RDMzZwZmw2UDVJZ3lpU1dXY0M?oc=5",
+            "content": "Mới đây, bà Nguyễn Thiên Hương Jenny đã có văn bản báo cáo về thay đổi sở hữu của cổ đông lớn, nhà đầu tư nắm giữ từ 5% trở lên cổ phiếu tại Ngân hàng TMCP Á Châu (MCK: ACB, sàn HoSE). Theo đó, trong phiên giao dịch ngày 4/5/2026, bà Nguyễn Thiên Hương Jenny đã mua vào gần 8,4 triệu cổ phiếu ACB, qua đó nâng sở hữu từ hơn 109,8 triệu cổ phiếu (tỷ lệ 2,14%) lên hơn gần 118,2 triệu cổ phiếu (tỷ lệ 2,3%). Được biết, bà Nguyễn Thiên Hương Jenny là ái nữ của của bà Ngô Thu Thúy- Chủ tịch HĐQT Công ty Cổ phần Âu Lạc. Các cá nhân và tổ chức liên quan khác bao gồm ông Nguyễn Đức Hinh- chồng bà Ngô Thu Thúy, ông Nguyễn Đức Hiếu Johnny- con trai vợ chồng Chủ tịch Âu Lạc cùng một số doanh nghiệp như Công ty Cổ phần Làng Giáo dục Quốc tế Thiên Hương và Công ty Cổ phần ICON cũng đang nắm giữ tổng cộng hơn 190,1 triệu cổ phiếu ACB, tương ứng tỷ lệ sở hữu 3,7% vốn. Như vậy, sau giao dịch nêu trên của bà Nguyễn Thiên Hương Jenny, nhóm cổ đông Âu Lạc đang nắm giữ gần 308,3 triệu cổ phiếu ACB, tương đương sở hữu 6% vốn điều lệ của ACB. Trước đó, tại cuộc họp Đại hội đồng cổ đông (ĐHĐCĐ) thường niên năm 2026 diễn ra sáng ngày 9/4/2026 tại TP.HCM, lãnh đạo ACB đã thông tin về nhóm cổ đông Âu Lạc. Cụ thể, ngân hàng cho biết nhóm này đã có hơn 20 năm đồng hành với ngân hàng. ACB kỳ vọng cổ đông lớn này sẽ tiếp tục đóng góp vào tăng trưởng trong thời gian tới. Về tình hình kinh doanh, theo báo cáo tài chính hợp nhất quý I/2026, ACB ghi nhận thu nhập lãi thuần gần 6.989,2 tỷ đồng, tăng 9,9% so với cùng kỳ năm ngoái. Sau khấu trừ đi các khoản thuế phí, ngân hàng báo lãi ròng đạt gần 4.320,4 tỷ đồng, tăng 17,5%. Tính đến ngày 31/3/2026, tổng tài sản của ACB tăng hơn 5.050,6 tỷ đồng so với đầu năm, lên mức hơn hơn 1,03 triệu tỷ đồng. Trong đó, khoản cho vay khách hàng gần 701.211,8 tỷ đồng, chiếm 68% tổng tài sản. Bên kia bảng cân đối kế toán, tổng nợ phải trả đang ở mức gần 932.149,7 tỷ đồng, tăng nhẹ so với đầu năm. Trong đó, tiền gửi của khách hàng hơn 569.109,6 tỷ đồng, chiếm 61,1% tổng nợ. ",
+            "date": "13/5/2026"
+        },
+        {
+            "title": "Chứng khoán ACB bị phạt vì sai sót hồ sơ trái phiếu - Báo Tuổi Trẻ",
+            "link": "https://news.google.com/rss/articles/CBMilwFBVV95cUxQYWlGM3JrQTk2bDdDaGlmS3BEMVdsWFY2MGRyQ3B0OHoyUWQ4WDNSOVo3NTZMdWE4emNfM0hKeDNUZTRnNVFUc2JFOUZyU0lFZ1lZR09ETXZWV1c0U2JPaVpERVZEeS1TTUhTWVVpQnEyeFJ3d2hHVzJRTWRBZm5ydlNSeGcxaGoxUjRDdWZsU2hvYWtPM3Rv?oc=5",
+            "source": "https://news.google.com/rss/articles/CBMilwFBVV95cUxQYWlGM3JrQTk2bDdDaGlmS3BEMVdsWFY2MGRyQ3B0OHoyUWQ4WDNSOVo3NTZMdWE4emNfM0hKeDNUZTRnNVFUc2JFOUZyU0lFZ1lZR09ETXZWV1c0U2JPaVpERVZEeS1TTUhTWVVpQnEyeFJ3d2hHVzJRTWRBZm5ydlNSeGcxaGoxUjRDdWZsU2hvYWtPM3Rv?oc=5",
+            "content": "Công ty Chứng khoán ACBS bị xử phạt 340 triệu đồng - Ảnh: ACBS Thanh tra Ủy ban Chứng khoán Nhà nước vừa ban hành quyết định về việc xử phạt vi phạm hành chính trong lĩnh vực chứng khoán và thị trường chứng khoán đối với Công ty TNHH Chứng khoán ACB (ACBS). Theo đó, ACBS bị phạt 275 triệu đồng do hồ sơ công bố thông tin cho hai đợt phát hành trái phiếu ngày 23-7-2024 và 21-8-2024 của Ngân hàng TMCP Quốc tế Việt Nam (VIB). Hồ sơ này do ACBS đóng vai trò tư vấn, lập và rà soát trước khi gửi cơ quan quản lý nhưng lại thiếu nội dung bắt buộc, cụ thể là không nêu rõ thời gian giải ngân nguồn vốn thu được từ phát hành trái phiếu theo quy định. Cơ quan thanh tra cho biết phần kế hoạch sử dụng tiền thu được từ trái phiếu không nêu rõ thời gian giải ngân theo quy định của Thông tư 122/2020 của Bộ Tài chính. Ngoài ra, ACBS còn bị phạt 65 triệu đồng vì báo cáo không đúng thời hạn theo quy định. Các tài liệu nộp chậm gồm báo cáo đánh giá rủi ro về rửa tiền năm 2024, báo cáo quản trị rủi ro bán niên năm 2025 và danh sách người hành nghề chứng khoán năm 2024. Như vậy, ACBS bị phạt tổng số tiền 340 triệu đồng. Trước đó, trong tháng 9, Ủy ban Chứng khoán Nhà nước đã xử phạt ACBS vì công bố thông tin sai lệch. Công ty đã phát hành bản thông báo về chứng quyền có bảo đảm nhưng nội dung không thống nhất so với bản cáo bạch đã nộp cho cơ quan quản lý. Với vi phạm này, ACBS bị phạt 150 triệu đồng và buộc phải hủy bỏ hoặc cải chính thông tin theo quy định pháp luật. Trong quý 3, ACBS tiếp tục ghi nhận kết quả kinh doanh tích cực, trong đó hoạt động tự doanh đóng vai trò chủ lực với lãi gộp hơn 255 tỉ đồng, tăng 55% so với cùng kỳ năm trước. Mảng môi giới cũng có sự cải thiện đáng kể khi mang về hơn 41 tỉ đồng, gấp 3,7 lần, còn hoạt động đầu tư nắm giữ đến ngày đáo hạn (HTM) đóng góp gần 216 tỉ đồng, tăng 2,7 lần. Doanh thu cho vay tăng mạnh lên hơn 319 tỉ đồng, tăng 74%. Tuy nhiên, công ty phải trích gần 275 tỉ đồng chi phí dự phòng và chi phí liên quan, gấp 2,2 lần cùng kỳ, tạo áp lực đáng kể lên lợi nhuận. Lũy kế 9 tháng, ACBS ghi nhận lãi ròng hơn 736 tỉ đồng, tăng 35%. Tự doanh và đầu tư nắm giữ đến ngày đáo hạn vẫn là hai trụ cột tăng trưởng chính. Riêng tự doanh mang về hơn 301 tỉ đồng, trong đó lãi bán tài sản tài chính ghi nhận thông qua lãi, lỗ đạt gần 192 tỉ đồng, chủ yếu từ giao dịch cổ phiếu. Công ty cũng ghi thêm 98 tỉ đồng chênh lệch đánh giá lại tài sản tài chính, dù thấp hơn mức hơn 118 tỉ đồng của cùng kỳ năm trước. ACBS đặt mục tiêu lãi trước thuế 1.350 tỉ đồng năm 2025. Với kết quả hơn 910 tỉ đồng sau 9 tháng, công ty đã thực hiện được 67% kế hoạch. Tính đến ngày 30-9, tổng tài sản vượt 39.400 tỉ đồng, tăng mạnh so với đầu năm. Dư nợ cho vay đạt gần 16.300 tỉ đồng, chủ yếu là cho vay giao dịch ký quỹ. Danh mục đầu tư nắm giữ đến ngày đáo hạn đạt hơn 15.400 tỉ đồng, trong đó tiền gửi có kỳ hạn tại các ngân hàng chiếm tới 14.300 tỉ đồng. Nguồn vốn vay ngắn hạn cũng mở rộng lên gần 24.500 tỉ đồng, với Ngân hàng BIDV cấp hơn 4.900 tỉ đồng. Ngoài ACBS, m",
+            "date": "13/5/2026"
+        }
+    ]
+}

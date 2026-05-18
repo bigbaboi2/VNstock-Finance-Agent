@@ -1,0 +1,60 @@
+/* 1. NẠP LÕI TAILWIND CSS VÀO DỰ ÁN */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================
+   2. HIỆU ỨNG LOADING TRƯỢT (SHIMMER)
+   ========================================== */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}
+
+/* ==========================================
+   3. CUSTOM THANH CUỘN (SCROLLBAR) KIỂU TERMINAL
+   ========================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(250, 204, 21, 0.4); /* Chuyển màu vàng mờ khi di chuột vào */
+}
+
+/* ==========================================
+   4. ÉP TRÀN VIỀN 100% & FIX LỖI KHOẢNG TRỐNG ĐEN
+   ========================================== */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden; /* Cấm trình duyệt tạo thanh cuộn tổng, để 2 cột tự cuộn độc lập */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Phá vỡ giới hạn 1280px mặc định của Vite/React */
+#root {
+  width: 100%;
+  height: 100vh;
+  max-width: none !important; /* Lệnh thép: Không cho phép giới hạn chiều rộng */
+  margin: 0 !important;       /* Xóa margin tự động căn giữa */
+  padding: 0 !important;      /* Xóa lề padding dư thừa */
+  text-align: left;
+}
