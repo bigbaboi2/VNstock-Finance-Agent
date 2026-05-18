@@ -8,6 +8,10 @@ import TradingChart from './TradingChart';
 import rehypeRaw from 'rehype-raw';
 import CyberpunkClock from './components/CyberpunkClock';
 import { Search, TrendingUp, Globe, Zap, Activity, BarChart3, HelpCircle, BrainCircuit, TerminalSquare, Home, Database, X, Sun, Moon, FileText, ChevronDown, ChevronUp, Menu, User} from 'lucide-react'
+export const API_BASE_URL = "https://02b35b8310e5dd.lhr.life";
+
+axios.defaults.baseURL = API_BASE_URL;
+
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 function App() {
   // CONFIG: USER STATE & AUTH MANAGEMENT
@@ -187,7 +191,7 @@ function App() {
   const fetchUserHistory = async () => {
     if (!currentUser) return;
     try {
-        const res = await axios.get(`https://2103bacc4fc482.lhr.life/api/user-history/${currentUser}`);
+        const res = await axios.get(`/api/user-history/${currentUser}`);
         if (res.data.success) {
             setUserHistory(res.data.data); 
         }
@@ -222,10 +226,10 @@ function App() {
     const fetchRadarData = async () => {
       try {
         const [vnRes, hnxRes, vn30Res, intelRes] = await Promise.all([
-          axios.get('https://2103bacc4fc482.lhr.life/api/history/VNINDEX').catch(() => null),
-          axios.get('https://2103bacc4fc482.lhr.life/api/history/HNX').catch(() => null),
-          axios.get('https://2103bacc4fc482.lhr.life/api/history/VN30').catch(() => null),
-          axios.get('https://2103bacc4fc482.lhr.life/api/market-radar').catch(() => null) 
+          axios.get('/api/history/VNINDEX').catch(() => null),
+          axios.get('/api/history/HNX').catch(() => null),
+          axios.get('/api/history/VN30').catch(() => null),
+          axios.get('/api/market-radar').catch(() => null) 
         ]);
 
         if (vnRes?.data?.data) setVnIndexData(vnRes.data.data.slice(-30));
@@ -259,8 +263,8 @@ function App() {
             try {
                 // Gọi song song Chart 5M và Radar Basis
                 const [chartRes, radarRes] = await Promise.all([
-                    axios.get(`https://2103bacc4fc482.lhr.life/api/history/VN30F1M?interval=${derivInterval}`),
-                    axios.get('https://2103bacc4fc482.lhr.life/api/deriv-radar') // 🚀 Gọi API mới
+                    axios.get(`/api/history/VN30F1M?interval=${derivInterval}`),
+                    axios.get('/api/deriv-radar') // 🚀 Gọi API mới
                 ]);
                 
                 if (chartRes.data?.success && chartRes.data.data.length > 0) {
@@ -306,7 +310,7 @@ function App() {
       try {
         setLoadingSymbols(true)
         addLog('Đang tải danh sách mã...')
-        const response = await axios.get('https://2103bacc4fc482.lhr.life/api/symbols')
+        const response = await axios.get('/api/symbols')
         setAllStocks(response.data)
         addLog(`Đã nạp ${response.data.length} mã chứng khoán`)
       } catch (err) {
@@ -365,7 +369,7 @@ function App() {
     addLog(`Đang khởi tạo đa luồng cho mã ${symbol}...`);
 
     try {
-      axios.get(`https://2103bacc4fc482.lhr.life/api/history/${symbol}`).then(res => {
+      axios.get(`/api/history/${symbol}`).then(res => {
         const hData = res.data?.data || [];
         if (hData.length > 0) {
           setChartData(hData);
@@ -385,7 +389,7 @@ function App() {
         }
       });
 
-      await axios.get(`https://2103bacc4fc482.lhr.life/api/info/${symbol}?user=${currentUser}`).then(res => {
+      await axios.get(`/api/info/${symbol}?user=${currentUser}`).then(res => {
         if (res.data?.success) {
           setMarketData(prev => ({ ...prev, ...res.data.data }));
           if (res.data.logs && res.data.logs.length > 0) {
@@ -397,7 +401,7 @@ function App() {
       });
 
       await new Promise((resolve) => {
-      const source = new EventSource(`https://2103bacc4fc482.lhr.life/api/news/${symbol}`);
+      const source = new EventSource(`${API_BASE_URL}/api/news/${symbol}`);
         eventSourceRef.current = source;
 
         source.onmessage = (event) => {
@@ -464,7 +468,7 @@ function App() {
     };
 
     try {
-      const response = await axios.post(`https://2103bacc4fc482.lhr.life/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
+      const response = await axios.post(`/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
       setAiReport(response.data.aiReport);
       addLog(`[OK] OMNI DUCK hoàn tất chiến lược và đã lưu Database!`);
       setShowLogs(false);
@@ -487,7 +491,7 @@ function App() {
     addLog(`🕵️‍♂️ Agent OMNI DUCK đi rà quét tin tức mạng cho ${symbol}...`);
 
     try {
-        const res = await axios.get(`https://2103bacc4fc482.lhr.life/api/ai-news/${symbol}`);
+        const res = await axios.get(`/api/ai-news/${symbol}`);
         const aiArticles = res.data?.data || []; 
         
         if (aiArticles.length > 0) {
@@ -531,7 +535,7 @@ function App() {
     addLog(`Đang tải dữ liệu biểu đồ khung: ${newInterval}...`);
 
     try {
-      const res = await axios.get(`https://2103bacc4fc482.lhr.life/api/history/${symbol}?interval=${newInterval}`);
+      const res = await axios.get(`/api/history/${symbol}?interval=${newInterval}`);
       const hData = res.data?.data || [];
       if (hData.length > 0) {
         setChartData([...hData]); 
@@ -579,7 +583,7 @@ function App() {
                 const latestNewsTitle = currentNewsCount > 0 ? marketData.deepNewsData[currentNewsCount - 1].title : 'Không có';
                 const isDerivativeMode = marketData.stockInfo.symbol.startsWith('VN30F');
                 
-                const res = await axios.post(`https://2103bacc4fc482.lhr.life/api/action-panel/${marketData.stockInfo.symbol}`, {
+                const res = await axios.post(`/api/action-panel/${marketData.stockInfo.symbol}`, {
                     currentPrice: marketData.stockInfo.currentPrice,
                     changePercent: marketData.stockInfo.changePercent,
                     totalVolume: marketData.stockInfo.totalVolume,
@@ -620,7 +624,7 @@ function App() {
 
             try {
                 const symbol = marketData.stockInfo.symbol;
-                const res = await axios.get(`https://2103bacc4fc482.lhr.life/api/history/${symbol}?interval=${activeInterval}`);
+                const res = await axios.get(`/api/history/${symbol}?interval=${activeInterval}`);
                 const hData = res.data?.data || [];
                 
                 if (hData.length > 0) {
