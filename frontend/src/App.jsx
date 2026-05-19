@@ -47,7 +47,7 @@ function App() {
     setMarketData(null); 
   };
 
-  const handleAuthSubmit = (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError(''); 
 
@@ -67,33 +67,24 @@ function App() {
       return;
     }
 
-    const usersDB = JSON.parse(localStorage.getItem('omni_users_db') || '{}');
-    const lowerInput = cleanUsername.toLowerCase();
-    const existingUserKey = Object.keys(usersDB).find(key => key.toLowerCase() === lowerInput);
-
-    if (isRegister) {
-      if (existingUserKey) {
-        setAuthError('Bí danh này đã có người sử dụng! Vui lòng chọn tên khác.');
-        return;
+    try {
+      if (isRegister) {
+        const res = await axios.post('/api/auth/register', { username: cleanUsername, password });
+        if (res.data.success) {
+          setAuthForm(prev => ({ ...prev, isRegister: false }));
+          setAuthError('Đăng ký thành công! Hãy ấn lại nút đăng nhập để truy cập hệ thống.');
+        }
+      } else {
+        const res = await axios.post('/api/auth/login', { username: cleanUsername, password });
+        if (res.data.success) {
+          localStorage.setItem('omni_user', res.data.username);
+          setCurrentUser(res.data.username);
+        }
       }
-      usersDB[cleanUsername] = { password: password };
-      localStorage.setItem('omni_users_db', JSON.stringify(usersDB));
-      
-    } else {
-      if (!existingUserKey) {
-        setAuthError('Tài khoản không tồn tại! Vui lòng tạo tài khoản mới.');
-        return;
-      }
-      if (usersDB[existingUserKey].password !== password) {
-        setAuthError('Mật khẩu truy cập không đúng! Kiểm tra lại.');
-        return;
-      }
-      
-      cleanUsername = existingUserKey; 
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || 'Lỗi kết nối đến cổng Auth của máy chủ!';
+      setAuthError(errorMsg);
     }
-
-    localStorage.setItem('omni_user', cleanUsername);
-    setCurrentUser(cleanUsername);
   };
 
   // LOGIC: INTERACTION INTERFACES
@@ -400,7 +391,7 @@ function App() {
       });
 
       await new Promise((resolve) => {
-      const source = new EventSource(`${API_BASE_URL}/api/news/${symbol}`);
+        const source = new EventSource(`${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}`);
         eventSourceRef.current = source;
 
         source.onmessage = (event) => {
