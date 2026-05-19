@@ -8,8 +8,7 @@ import TradingChart from './TradingChart';
 import rehypeRaw from 'rehype-raw';
 import CyberpunkClock from './components/CyberpunkClock';
 import { Search, TrendingUp, Globe, Zap, Activity, BarChart3, HelpCircle, BrainCircuit, TerminalSquare, Home, Database, X, Sun, Moon, FileText, ChevronDown, ChevronUp, Menu, User} from 'lucide-react'
-export const API_BASE_URL = "https://where-effects-sega-designing.trycloudflare.com/";
-
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 axios.defaults.baseURL = API_BASE_URL;
 
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
