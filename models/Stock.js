@@ -32,5 +32,5 @@ const StockSchema = new mongoose.Schema({
 StockSchema.pre('save', function() {
     this.lastUpdated = new Date();
 });
-
+StockSchema.index({ symbol: 1 });
 export default mongoose.model('Stock', StockSchema);
