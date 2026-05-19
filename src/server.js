@@ -20,10 +20,11 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { scrapeCafefMarketOverview } from './scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from './services/quantEngine.js';
-
+import User from '../models/User.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
+import Symbol from '../models/Symbol.js';
 
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log(chalk.bgGreen.black.bold(' ✔ KẾT NỐI MONGODB THÀNH CÔNG BẰNG LINK BYPASS ')))
@@ -34,21 +35,62 @@ const PORT = 3001;
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+// ==========================================
+// API: CỔNG XÁC THỰC HỆ THỐNG (AUTH)
+// ==========================================
+
+// 1. ROUTE: ĐĂNG KÝ TÀI KHOẢN KHÁCH
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const cleanUsername = username.trim();
+
+        const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Bí danh này đã có người sử dụng! Vui lòng chọn tên khác.' });
+        }
+
+        const newUser = new User({ username: cleanUsername, password });
+        await newUser.save();
+        return res.json({ success: true, message: 'Tạo tài khoản thành công!' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Lỗi server khi đăng ký hệ thống.' });
+    }
+});
+
+// 2. ROUTE: ĐĂNG NHẬP HỆ THỐNG
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const cleanUsername = username.trim();
+
+        const user = await User.findOne({ username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } });
+        if (!user || user.password !== password) {
+            return res.status(400).json({ success: false, message: 'Tài khoản không tồn tại hoặc mật khẩu truy cập sai!' });
+        }
+
+        return res.json({ success: true, username: user.username });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Lỗi server khi đăng nhập.' });
+    }
+});
 
 // CONFIG: SYMBOLS PATH
 const SYMBOLS_FILE = path.join(process.cwd(), 'data', 'symbols_database.json');
 
-// ROUTE: SYMBOLS API
+// ROUTE: SYMBOLS API (ĐỌC 100% TỪ CLOUD MONGODB)
 app.get('/api/symbols', async (req, res) => {
     try {
-        if (!fs.existsSync(SYMBOLS_FILE)) {
-            const freshData = await updateSymbolsDatabase();
-            return res.json(freshData);
+        let symbolsData = await Symbol.find({});
+        
+        if (!symbolsData || symbolsData.length === 0) {
+            console.log(chalk.yellow('ℹ️ Cloud MongoDB trống! Đang kích hoạt tiến trình đồng bộ danh sách mã...'));
+            symbolsData = await updateSymbolsDatabase();
         }
-        const rawData = fs.readFileSync(SYMBOLS_FILE);
-        return res.json(JSON.parse(rawData));
+        
+        return res.json(symbolsData);
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Lỗi đọc danh sách mã.' });
+        return res.status(500).json({ success: false, message: 'Lỗi đọc danh sách mã từ hệ thống Cloud MongoDB.' });
     }
 });
 
@@ -99,12 +141,13 @@ app.get('/api/info/:ticker', async (req, res) => {
             bvps = fData.find(item => item.Code === "GiaTriSoSach")?.Value || bvps;
         }   
 
-        let companyFullName = ticker;
+        let companyFullName = cafefRes.companyName || ticker;
         try {
-            const stocks = JSON.parse(fs.readFileSync(SYMBOLS_FILE, 'utf-8'));
-            const found = stocks.find(s => s.symbol === ticker);
-            if (found && found.name) companyFullName = found.name;
-        } catch(e) { companyFullName = cafefRes.companyName || ticker; }
+            const foundSymbol = await Symbol.findOne({ symbol: ticker });
+            if (foundSymbol && foundSymbol.name) {
+                companyFullName = foundSymbol.name;
+            }
+        } catch(e) { console.log(`⚠️ Không thể lấy tên doanh nghiệp từ server cho mã ${ticker}`); }
 
         let masterRecord = await Stock.findOne({ symbol: ticker });
         if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
@@ -158,8 +201,7 @@ app.get('/api/market-radar', async (req, res) => {
             volume: Number(d.v[index]) || 0 
         }));
 
-        const rawSymbols = fs.readFileSync(SYMBOLS_FILE, 'utf-8');
-        const symbolsDatabase = JSON.parse(rawSymbols);
+        const symbolsDatabase = await Symbol.find({});
 
         const finalIntelligence = analyzeMarketIntelligence(formattedVnIndex, scrapedData, symbolsDatabase);
 
@@ -250,8 +292,8 @@ app.get('/api/deriv-radar', async (req, res) => {
                 change: change,              
                 changePercent: changePercent, 
                 influencers: truData, 
-                oi: realOI,           // DATA THỰC TẾ
-                foreignNet: realForeignNet // DATA THỰC TẾ
+                oi: realOI,          
+                foreignNet: realForeignNet 
             }
         });
     } catch (error) {
@@ -356,8 +398,7 @@ app.post('/api/analyze/:ticker', async (req, res) => {
                     volume: Number(d.v[index]) || 0 
                 }));
 
-                const rawSymbols = fs.readFileSync(SYMBOLS_FILE, 'utf-8');
-                const symbolsDb = JSON.parse(rawSymbols);
+                const symbolsDb = await Symbol.find({});
 
                 const marketIntelligence = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
                 
