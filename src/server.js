@@ -46,7 +46,7 @@ app.post('/api/auth/register', async (req, res) => {
 
         const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } });
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Bí danh này đã có người sử dụng! Vui lòng chọn tên khác.' });
+            return res.status(400).json({ success: false, message: 'Tên đăng nhập này đã có người sử dụng! Vui lòng chọn tên khác.' });
         }
 
         const newUser = new User({ username: cleanUsername, password });
