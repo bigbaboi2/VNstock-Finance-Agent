@@ -400,8 +400,7 @@ function App() {
             if (!prev) return prev;
             const currentNews = prev.deepNewsData || [];
             if (currentNews.some(n => n.link === newsItem.link)) return prev;
-            return { ...prev, deepNewsData: [...currentNews, newsItem] };
-          });
+            return { ...prev, deepNewsData: [newsItem, ...currentNews] };          });
         };
 
         const closeAll = () => {
