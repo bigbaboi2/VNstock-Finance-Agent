@@ -24,7 +24,6 @@ import User from '../models/User.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
-import Symbol from '../models/Symbol.js';
 
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log(chalk.bgGreen.black.bold(' ✔ KẾT NỐI MONGODB THÀNH CÔNG BẰNG LINK BYPASS ')))
@@ -78,10 +77,10 @@ app.post('/api/auth/login', async (req, res) => {
 // CONFIG: SYMBOLS PATH
 const SYMBOLS_FILE = path.join(process.cwd(), 'data', 'symbols_database.json');
 
-// ROUTE: SYMBOLS API (ĐỌC 100% TỪ CLOUD MONGODB)
+// ROUTE: SYMBOLS API
 app.get('/api/symbols', async (req, res) => {
     try {
-        let symbolsData = await Symbol.find({});
+        let symbolsData = await Stock.find({});
         
         if (!symbolsData || symbolsData.length === 0) {
             console.log(chalk.yellow('ℹ️ Cloud MongoDB trống! Đang kích hoạt tiến trình đồng bộ danh sách mã...'));
@@ -143,7 +142,7 @@ app.get('/api/info/:ticker', async (req, res) => {
 
         let companyFullName = cafefRes.companyName || ticker;
         try {
-            const foundSymbol = await Symbol.findOne({ symbol: ticker });
+            const foundSymbol = await Stock.findOne({ symbol: ticker });
             if (foundSymbol && foundSymbol.name) {
                 companyFullName = foundSymbol.name;
             }
@@ -201,7 +200,7 @@ app.get('/api/market-radar', async (req, res) => {
             volume: Number(d.v[index]) || 0 
         }));
 
-        const symbolsDatabase = await Symbol.find({});
+        const symbolsDatabase = await Stock.find({});
 
         const finalIntelligence = analyzeMarketIntelligence(formattedVnIndex, scrapedData, symbolsDatabase);
 
@@ -398,8 +397,7 @@ app.post('/api/analyze/:ticker', async (req, res) => {
                     volume: Number(d.v[index]) || 0 
                 }));
 
-                const symbolsDb = await Symbol.find({});
-
+                const symbolsDb = await Stock.find({});
                 const marketIntelligence = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
                 
                 if (marketIntelligence.success) {
