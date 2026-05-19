@@ -254,14 +254,14 @@ function App() {
                 // Gọi song song Chart 5M và Radar Basis
                 const [chartRes, radarRes] = await Promise.all([
                     axios.get(`/api/history/VN30F1M?interval=${derivInterval}`),
-                    axios.get('/api/deriv-radar') // 🚀 Gọi API mới
+                    axios.get('/api/deriv-radar') // 
                 ]);
                 
                 if (chartRes.data?.success && chartRes.data.data.length > 0) {
                     setDerivChartData(chartRes.data.data);
                 }
                 if (radarRes.data?.success) {
-                    setDerivRadar(radarRes.data.data); // 🚀 Hứng dữ liệu Basis
+                    setDerivRadar(radarRes.data.data); // 
                 }
             } catch (error) {
                 console.error("Lỗi nạp dữ liệu Phái sinh:", error);
@@ -400,7 +400,8 @@ function App() {
             if (!prev) return prev;
             const currentNews = prev.deepNewsData || [];
             if (currentNews.some(n => n.link === newsItem.link)) return prev;
-            return { ...prev, deepNewsData: [newsItem, ...currentNews] };          });
+            return { ...prev, deepNewsData: [newsItem, ...currentNews] };          
+          });
         };
 
         const closeAll = () => {
