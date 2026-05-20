@@ -1,4 +1,4 @@
-import { analyzeWithGemini, uploadTcbsPdf, searchNewsWithAI, getQuickActionWithGemini } from './services/aiService.js';
+import {    analyzeWithGemini,uploadTcbsPdf,searchNewsWithAI,getQuickActionWithGemini,analyzeDerivativesWithGemini} from './services/aiService.js';
 import express from 'express';
 import * as cheerio from 'cheerio';
 import cors from 'cors';
@@ -46,7 +46,7 @@ app.post('/api/auth/register', async (req, res) => {
 
         const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } });
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Tên đăng nhập này đã có người sử dụng! Vui lòng chọn tên khác.' });
+            return res.status(400).json({ success: false, message: 'Bí danh này đã có người sử dụng! Vui lòng chọn tên khác.' });
         }
 
         const newUser = new User({ username: cleanUsername, password });
@@ -179,20 +179,36 @@ app.get('/api/info/:ticker', async (req, res) => {
 // ==========================================
 app.get('/api/market-radar', async (req, res) => {
     try {
-        console.log(chalk.cyan(`\n[QUANT RADAR] Đang khởi động lõi phân tích định lượng...`));
+        // 1. Kiểm tra trạng thái thị trường ngay tại Backend
+        const now = new Date();
+        const day = now.getDay(); 
+        const totalMinutes = now.getHours() * 60 + now.getMinutes();
+        
+        const isMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
+
+        if (!isMarketOpen) {
+            const cachedMarketRecord = await Stock.findOne({ symbol: 'VNINDEX' });
+            
+            if (cachedMarketRecord && cachedMarketRecord.cafeF?.lastQuantIntelligence) {
+                return res.json({ 
+                    success: true, 
+                    isLive: false, 
+                    data: cachedMarketRecord.cafeF.lastQuantIntelligence 
+                });
+            }
+        }
+
+        // 3. LOGIC MỞ CỬA (REALTIME)
+        console.log(chalk.cyan(`\n[QUANT RADAR] Thị trường đang chạy hoặc DB trống. Khởi động lõi phân tích...`));
 
         const scrapedData = await scrapeCafefMarketOverview();
-        if (!scrapedData.success) {
-            throw new Error("Không thể trích xuất dữ liệu độ rộng từ CafeF");
-        }
+        if (!scrapedData.success) throw new Error("Không thể trích xuất dữ liệu từ CafeF");
 
         const to = Math.floor(Date.now() / 1000);
         const from = to - (15 * 24 * 60 * 60);
         const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
         
-        if (!vnRes.data || !vnRes.data.t) {
-            throw new Error("Mất kết nối dữ liệu VN-INDEX");
-        }
+        if (!vnRes.data || !vnRes.data.t) throw new Error("Mất kết nối dữ liệu VN-INDEX");
 
         const d = vnRes.data;
         const formattedVnIndex = d.t.map((timestamp, index) => ({
@@ -201,45 +217,83 @@ app.get('/api/market-radar', async (req, res) => {
         }));
 
         const symbolsDatabase = await Stock.find({});
-
         const finalIntelligence = analyzeMarketIntelligence(formattedVnIndex, scrapedData, symbolsDatabase);
 
-        if (!finalIntelligence.success) {
-             throw new Error(finalIntelligence.error);
-        }
+        if (!finalIntelligence.success) throw new Error(finalIntelligence.error);
 
-        return res.json({ success: true, data: finalIntelligence.intelligence });
+        let vnIndexRecord = await Stock.findOne({ symbol: 'VNINDEX' });
+        if (!vnIndexRecord) vnIndexRecord = new Stock({ symbol: 'VNINDEX' });
+        
+        if (!vnIndexRecord.cafeF) vnIndexRecord.cafeF = {};
+        vnIndexRecord.cafeF.lastQuantIntelligence = finalIntelligence.intelligence;
+        vnIndexRecord.markModified('cafeF'); 
+        await vnIndexRecord.save();
+
+        return res.json({ success: true, isLive: true, data: finalIntelligence.intelligence });
 
     } catch (error) {
         console.log(chalk.red(`❌ [QUANT RADAR ERROR] ${error.message}`));
+        
+        const fallback = await Stock.findOne({ symbol: 'VNINDEX' });
+        if (fallback && fallback.cafeF?.lastQuantIntelligence) {
+            return res.json({ success: true, isLive: false, data: fallback.cafeF.lastQuantIntelligence });
+        }
         return res.status(500).json({ success: false, message: error.message });
     }
 });
 // ==========================================
 // API: DERIVATIVES RADAR (PHÁI SINH)
 // ==========================================
+let globalDerivCache = {
+    oi: 54210,         
+    foreignNet: -1240,
+    lastBasis: 0,       
+    lastOi: 54210     
+};
+setInterval(async () => {
+    try {
+        const res = await axios.get(`https://finfo-api.vndirect.com.vn/v4/derivatives_prices?q=code:VN30F1M`, { 
+            timeout: 3000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Origin': 'https://dboard.vndirect.com.vn',
+                'Referer': 'https://dboard.vndirect.com.vn/'
+            }
+        });
+        
+        if (res.data && res.data.data && res.data.data.length > 0) {
+            const derivInfo = res.data.data[0];
+            globalDerivCache.oi = derivInfo.openInterest || globalDerivCache.oi;
+            const foreignBuy = derivInfo.foreignBuyVolume || 0;
+            const foreignSell = derivInfo.foreignSellVolume || 0;
+            globalDerivCache.foreignNet = foreignBuy - foreignSell;
+            
+          }
+    } catch (error) {
+     }
+}, 60000); 
+
+ 
 app.get('/api/deriv-radar', async (req, res) => {
     try {
         const to = Math.floor(Date.now() / 1000);
         const from = to - (4 * 24 * 60 * 60); 
 
-        // 🚀 GỌI THÊM API CỦA VNDIRECT ĐỂ LẤY OI VÀ KHỐI NGOẠI THỰC TẾ
-        const [vn30Res, vn30f1mRes, vndirectRes] = await Promise.all([
-            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VN30&resolution=1`),
-            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from=${from}&to=${to}&symbol=VN30F1M&resolution=1`),
-            axios.get(`https://finfo-api.vndirect.com.vn/v4/derivatives_prices?q=code:VN30F1M`).catch(() => null) 
+         const [vn30Res, vn30f1mRes] = await Promise.all([
+            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VN30&resolution=1`, { timeout: 2000 }).catch(() => null),
+            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from=${from}&to=${to}&symbol=VN30F1M&resolution=1`, { timeout: 2000 }).catch(() => null)
         ]);
 
         const TRU_COT_LOI = ['VCB', 'FPT', 'HPG', 'VHM', 'VIC', 'TCB', 'CTG', 'STB', 'MSN', 'VNM'];
         const truData = await Promise.all(TRU_COT_LOI.map(async (s) => {
             try {
-                const r = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${s}&resolution=1`);
-                const c = r.data.c || [];
-                const h = r.data.h || [];
-                const l = r.data.l || [];
-                const v = r.data.v || [];
-                
-                if (c.length === 0) return { symbol: s, change: 0, momentum: 0 };
+                const r = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${s}&resolution=1`, { timeout: 1500 });
+                const c = r.data?.c || [];
+                const h = r.data?.h || [];
+                const l = r.data?.l || [];
+                const v = r.data?.v || [];
+                if (c.length === 0) return { symbol: s, change: 0, momentum: 0, realImpact: 0 };
                 
                 const close = c[c.length - 1];
                 const high = h[h.length - 1];
@@ -249,50 +303,147 @@ app.get('/api/deriv-radar', async (req, res) => {
                 
                 const change = prevClose !== 0 ? ((close - prevClose) / prevClose * 100).toFixed(2) : 0;
                 
+                 const WeightingMatrix = { VCB: 1.5, FPT: 1.2, HPG: 1.1, TCB: 1.0, VHM: 0.9, CTG: 0.8, VIC: 0.7, STB: 0.6, MSN: 0.5, VNM: 0.5 };
+                const realImpact = (change * (WeightingMatrix[s] || 0.5)).toFixed(2);
+                
                 let mfMultiplier = 0;
-                if (high !== low) {
-                    mfMultiplier = ((close - low) - (high - close)) / (high - low);
-                }
-                const momentum = (mfMultiplier * (volume / 1000)).toFixed(2); 
-                return { symbol: s, change, momentum };
+                if (high !== low) mfMultiplier = ((close - low) - (high - close)) / (high - low);
+                
+                return { symbol: s, change, momentum: (mfMultiplier * (volume / 1000)).toFixed(2), realImpact };
             } catch (e) {
-                return { symbol: s, change: 0, momentum: 0 };
+                return { symbol: s, change: 0, momentum: 0, realImpact: 0 };
             }
         }));
 
-        let realOI = 0;
-        let realForeignNet = 0;
-        
-        if (vndirectRes && vndirectRes.data && vndirectRes.data.data && vndirectRes.data.data.length > 0) {
-            const derivInfo = vndirectRes.data.data[0];
-            realOI = derivInfo.openInterest || 0;
-            const foreignBuy = derivInfo.foreignBuyVolume || 0;
-            const foreignSell = derivInfo.foreignSellVolume || 0;
-            realForeignNet = foreignBuy - foreignSell; // Lấy Mua ròng trừ Bán ròng
-        }
-
-        const c_f1m = vn30f1mRes.data.c || [];
-        const c_vn30 = vn30Res.data.c || [];
-
+        const c_f1m = vn30f1mRes?.data?.c || [];
+        const c_vn30 = vn30Res?.data?.c || [];
         const latestF1M = c_f1m.length > 0 ? c_f1m[c_f1m.length - 1] : 0;
         const prevF1M = c_f1m.length > 1 ? c_f1m[c_f1m.length - 2] : latestF1M;
         const vn30Price = c_vn30.length > 0 ? c_vn30[c_vn30.length - 1] : 0;
 
-        const change = latestF1M !== 0 ? (latestF1M - prevF1M).toFixed(2) : 0;
-        const changePercent = prevF1M !== 0 ? ((latestF1M - prevF1M) / prevF1M * 100).toFixed(2) : 0;
-        const basis = (latestF1M !== 0 && vn30Price !== 0) ? (latestF1M - vn30Price).toFixed(2) : 0;
+        const currentBasis = (latestF1M !== 0 && vn30Price !== 0) ? (latestF1M - vn30Price).toFixed(2) : 0;
+        const basisSpeed = (currentBasis - globalDerivCache.lastBasis).toFixed(2);
+        globalDerivCache.lastBasis = currentBasis;
+
+        let oiTrend = "ĐI NGANG";
+        if (globalDerivCache.oi > globalDerivCache.lastOi) oiTrend = "TĂNG (Nạp tiền gom HĐ)";
+        if (globalDerivCache.oi < globalDerivCache.lastOi) oiTrend = "GIẢM (Chốt lời/Cắt lỗ)";
+        globalDerivCache.lastOi = globalDerivCache.oi;
 
         return res.json({
             success: true,
             data: {
                 vn30: vn30Price,
                 vn30f1m: latestF1M,
-                basis: basis,
-                change: change,              
-                changePercent: changePercent, 
+                basis: currentBasis,
+                basisSpeed: basisSpeed,
+                oiTrend: oiTrend,
+                change: latestF1M !== 0 ? (latestF1M - prevF1M).toFixed(2) : 0,              
+                changePercent: prevF1M !== 0 ? ((latestF1M - prevF1M) / prevF1M * 100).toFixed(2) : 0, 
                 influencers: truData, 
-                oi: realOI,          
-                foreignNet: realForeignNet 
+                oi: globalDerivCache.oi,           
+                foreignNet: globalDerivCache.foreignNet 
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+const WeightingMatrix = { 
+    VCB: 1.5, FPT: 1.2, HPG: 1.1, 
+    TCB: 1.0, VHM: 0.9, CTG: 0.8, 
+    VIC: 0.7, STB: 0.6, 
+    MSN: 0.5, VNM: 0.5 };
+
+app.get('/api/deriv-radar', async (req, res) => {
+    try {
+        const to = Math.floor(Date.now() / 1000);
+        const from = to - (4 * 24 * 60 * 60); 
+
+         const [vn30Res, vn30f1mRes, vndirectRes] = await Promise.all([
+            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VN30&resolution=1`, { timeout: 2000 }).catch(() => null),
+            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from=${from}&to=${to}&symbol=VN30F1M&resolution=1`, { timeout: 2000 }).catch(() => null),
+            axios.get(`https://finfo-api.vndirect.com.vn/v4/derivatives_prices?q=code:VN30F1M`, { 
+                timeout: 2500, // Tăng thêm 1 giây cho an toàn nếu mạng chậm
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*',
+                    'Origin': 'https://dboard.vndirect.com.vn',
+                    'Referer': 'https://dboard.vndirect.com.vn/'
+                }
+            }).catch(() => null)
+        ]);
+
+         const TRU_COT_LOI = [
+            'VCB', 'FPT', 'HPG', 
+            'VHM', 'VIC', 'TCB', 
+            'CTG', 'STB', 'MSN', 
+            'VNM'];
+        const truData = await Promise.all(TRU_COT_LOI.map(async (s) => {
+            try {
+                const r = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${s}&resolution=1`, { timeout: 1200 });
+                const c = r.data?.c || [];
+                const h = r.data?.h || [];
+                const l = r.data?.l || [];
+                const v = r.data?.v || [];
+                if (c.length === 0) return { symbol: s, change: 0, momentum: 0 };
+                const close = c[c.length - 1];
+                const high = h[h.length - 1];
+                const low = l[l.length - 1];
+                const prevClose = c.length > 1 ? c[c.length - 2] : close;
+                const volume = v[v.length - 1] || 0;
+                const change = prevClose !== 0 ? ((close - prevClose) / prevClose * 100).toFixed(2) : 0;
+                
+                const realImpact = (change * (WeightingMatrix[s] || 0.5)).toFixed(2);
+                let mfMultiplier = 0;
+                if (high !== low) mfMultiplier = ((close - low) - (high - close)) / (high - low);
+                return { 
+                    symbol: s, change, 
+                    momentum: (mfMultiplier * (volume / 1000)).toFixed(2), 
+                    realImpact };
+            } catch (e) {
+                return { symbol: s, change: 0, momentum: 0 };
+            }
+        }));
+
+         if (vndirectRes && vndirectRes.data && vndirectRes.data.data && vndirectRes.data.data.length > 0) {
+            const derivInfo = vndirectRes.data.data[0];
+            globalDerivCache.oi = derivInfo.openInterest || globalDerivCache.oi;
+            
+            const foreignBuy = derivInfo.foreignBuyVolume || 0;
+            const foreignSell = derivInfo.foreignSellVolume || 0;
+            globalDerivCache.foreignNet = foreignBuy - foreignSell;
+        } else {
+             console.log(chalk.yellow(`⚠️ API VNDIRECT chặn kết nối hoặc quá tải. Hệ thống tự động kích hoạt Memory Cache cứu cánh.`));
+        }
+
+        const c_f1m = vn30f1mRes?.data?.c || [];
+        const c_vn30 = vn30Res?.data?.c || [];
+        const latestF1M = c_f1m.length > 0 ? c_f1m[c_f1m.length - 1] : 0;
+        const prevF1M = c_f1m.length > 1 ? c_f1m[c_f1m.length - 2] : latestF1M;
+        const vn30Price = c_vn30.length > 0 ? c_vn30[c_vn30.length - 1] : 0;
+        const currentBasis = (latestF1M !== 0 && vn30Price !== 0) ? (latestF1M - vn30Price).toFixed(2) : 0;
+        const basisSpeed = (currentBasis - globalDerivCache.lastBasis).toFixed(2);
+        globalDerivCache.lastBasis = currentBasis;
+
+        let oiTrend = "ĐI NGANG";
+        if (globalDerivCache.oi > globalDerivCache.lastOi) oiTrend = "TĂNG (Nạp tiền gom HĐ)";
+        if (globalDerivCache.oi < globalDerivCache.lastOi) oiTrend = "GIẢM (Chốt lời/Cắt lỗ)";
+        globalDerivCache.lastOi = globalDerivCache.oi;
+
+        return res.json({
+            success: true,
+            data: {
+                vn30: vn30Price,
+                vn30f1m: latestF1M,
+                basis: (latestF1M !== 0 && vn30Price !== 0) ? (latestF1M - vn30Price).toFixed(2) : 0,
+                basisSpeed: basisSpeed,
+                oiTrend: oiTrend,      
+                change: latestF1M !== 0 ? (latestF1M - prevF1M).toFixed(2) : 0,              
+                changePercent: prevF1M !== 0 ? ((latestF1M - prevF1M) / prevF1M * 100).toFixed(2) : 0, 
+                influencers: truData, 
+                oi: globalDerivCache.oi,          
+                foreignNet: globalDerivCache.foreignNet 
             }
         });
     } catch (error) {
