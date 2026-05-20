@@ -258,6 +258,41 @@ const derivAnalysis = React.useMemo(() => {
         );
         return sum + tr;
     }, 0) / 5 || 3.5;
+    // VWAP
+    const vwap = derivChartData.reduce((acc, c) => {
+        const tp = (c.high + c.low + c.close) / 3;
+        acc.tpv += tp * (c.volume || 1);
+        acc.vol += (c.volume || 1);
+        return acc;
+    }, { tpv: 0, vol: 0 });
+    const vwapPrice = vwap.vol > 0 ? (vwap.tpv / vwap.vol).toFixed(1) : currentF1M;
+
+    // Session High / Low
+    const sessionHigh = Math.max(...derivChartData.map(c => c.high));
+    const sessionLow = Math.min(...derivChartData.map(c => c.low));
+
+    // CVD (Cumulative Volume Delta)
+    const cvd = derivChartData.reduce((sum, c) => {
+        const delta = c.close >= c.open 
+            ? (c.volume || 0) 
+            : -(c.volume || 0);
+        return sum + delta;
+    }, 0);
+
+    // ROC (Rate of Change 5 nến)
+    const roc5 = derivChartData.length >= 6
+        ? ((derivChartData.at(-1).close - derivChartData.at(-6).close) 
+          / derivChartData.at(-6).close * 100).toFixed(2)
+        : 0;
+
+    // OI Interpretation
+    const oiInterpretation = (() => {
+        const priceUp = derivRadar?.change > 0;
+        if (oiUp && priceUp)  return { label: 'LONG MỚI VÀO', color: 'text-emerald-500' };
+        if (oiUp && !priceUp) return { label: 'SHORT MỚI VÀO', color: 'text-red-500' };
+        if (!oiUp && priceUp) return { label: 'SHORT ĐANG ĐÓNG', color: 'text-emerald-300' };
+        return { label: 'LONG ĐANG ĐÓNG', color: 'text-red-300' };
+    })();
 
     // === CONFLUENCE SCORE 0-100 ===
     let score = 50;
@@ -327,6 +362,12 @@ const derivAnalysis = React.useMemo(() => {
         rrRatio,
         shortTermTrend,
         ema3: ema3.toFixed(1),
+         vwap: vwapPrice,
+        sessionHigh: sessionHigh.toFixed(1),
+        sessionLow: sessionLow.toFixed(1),
+        cvd,
+        roc5,
+        oiInterpretation,
         ema8: ema8.toFixed(1)
     };
 }, [derivChartData, derivRadar]);
@@ -2035,7 +2076,27 @@ const scoreBarColor =
                                 Tổng Khối ngoại Mua trừ Bán. Số dương là đang gom Long, Số âm là đang đè Short.
                             </div>
                         </li>
+                        <li>• VWAP: <span className={currentF1M >= parseFloat(derivAnalysis.vwap) ? 'text-emerald-500' : 'text-red-500'}>
+                            {derivAnalysis.vwap} ({currentF1M >= parseFloat(derivAnalysis.vwap) ? 'TRÊN ↑' : 'DƯỚI ↓'})
+                        </span></li>
+
+                        <li>• Session H/L: <span className="text-yellow-500">{derivAnalysis.sessionHigh}</span>
+                            {' / '}<span className="text-red-400">{derivAnalysis.sessionLow}</span>
+                        </li>
+
+                        <li>• CVD: <span className={derivAnalysis.cvd >= 0 ? 'text-emerald-500' : 'text-red-500'}>
+                            {derivAnalysis.cvd >= 0 ? '+' : ''}{derivAnalysis.cvd.toLocaleString()} HĐ
+                        </span></li>
+
+                        <li>• ROC(5): <span className={parseFloat(derivAnalysis.roc5) >= 0 ? 'text-emerald-500' : 'text-red-500'}>
+                            {derivAnalysis.roc5}%
+                        </span></li>
+
+                        <li>• OI Signal: <span className={derivAnalysis.oiInterpretation.color}>
+                            {derivAnalysis.oiInterpretation.label}
+                        </span></li>
                     </ul>
+
                 </div>
 
                 {/* CỘT PHẢI: HIỂN THỊ KẾT QUẢ TÍNH TOÁN */}
