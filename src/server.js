@@ -38,7 +38,7 @@ app.use(express.json());
 // API: CỔNG XÁC THỰC HỆ THỐNG (AUTH)
 // ==========================================
 
-// 1. ROUTE: ĐĂNG KÝ TÀI KHOẢN KHÁCH
+// 1. ROUTE: ĐĂNG KÝ TÀI KHOẢN 
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -176,19 +176,15 @@ app.get('/api/info/:ticker', async (req, res) => {
 // ==========================================
 app.get('/api/market-radar', async (req, res) => {
     try {
-        // 1. Kiểm tra trạng thái thị trường ngay tại Backend
         const now = new Date();
         const day = now.getDay(); // 0: Chủ nhật, 6: Thứ bảy
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
         
-        // Định nghĩa khung giờ mở cửa: Thứ 2 đến Thứ 6, từ 9h00 (540p) đến 15h00 (900p)
         const isMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
 
-        // 2. LOGIC ĐÓNG CỬA: Lấy bản ghi lưu kho mới nhất từ MongoDB ứng với mã INDEX
         if (!isMarketOpen) {
             const cachedMarketRecord = await Stock.findOne({ symbol: 'VNINDEX' });
             
-            // Nếu trong DB đã từng lưu kết quả phân tích Quant Radar trước đó, nhả ra luôn
             if (cachedMarketRecord && cachedMarketRecord.cafeF?.lastQuantIntelligence) {
                 return res.json({ 
                     success: true, 
@@ -198,7 +194,7 @@ app.get('/api/market-radar', async (req, res) => {
             }
         }
 
-        // 3. LOGIC MỞ CỬA (REALTIME): Tiến hành chạy lõi định lượng data mới
+        // 3. LOGIC MỞ CỬA (REALTIME)
         console.log(chalk.cyan(`\n[QUANT RADAR] Thị trường đang chạy hoặc DB trống. Khởi động lõi phân tích...`));
 
         const scrapedData = await scrapeCafefMarketOverview();
