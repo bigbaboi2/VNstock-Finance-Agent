@@ -22,6 +22,7 @@ const StockSchema = new mongoose.Schema({
     symbol: { type: String, required: true, unique: true },
     companyName: { type: String, default: "N/A" },
     exchange: { type: String, default: "VNX" },
+    sector: { type: String, default: "KH%C3%81C" },
     cafeF: { type: mongoose.Schema.Types.Mixed, default: null },
     tcbs: { type: mongoose.Schema.Types.Mixed, default: null },
     deepNewsData: [NewsSchema], 
@@ -32,5 +33,4 @@ const StockSchema = new mongoose.Schema({
 StockSchema.pre('save', function() {
     this.lastUpdated = new Date();
 });
-
 export default mongoose.model('Stock', StockSchema);
