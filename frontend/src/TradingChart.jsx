@@ -714,6 +714,42 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
             </div>
           )}
         </div>
+        {/* ==================== BẢNG CHỌN MÀU MỚI ==================== */}
+        <div className={`ml-auto flex items-center gap-2 px-4 py-2 rounded-xl border backdrop-blur-md shadow-sm transition-all
+          ${isDark ? 'bg-[#10151C]/95 border-white/10' : 'bg-white border-slate-250'}`}
+        >
+          <span className={`text-[10px] font-black uppercase tracking-wider mr-1
+            ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Màu vẽ:
+          </span>
+          
+          {[
+            { hex: '#FF9600', name: 'Cam' }, 
+            { hex: '#089981', name: 'Xanh lá' }, 
+            { hex: '#F23645', name: 'Đỏ' },
+            { hex: '#2196F3', name: 'Xanh dương' }, 
+            { hex: '#EAB308', name: 'Vàng' }, 
+            { hex: '#FFFFFF', name: 'Trắng' }
+          ].map(c => (
+            <button
+              key={c.hex} 
+              title={c.name} 
+              onClick={() => setOverlayColor(c.hex)}
+              className={`w-6 h-6 rounded-full transition-all border-2 relative
+                ${overlayColor === c.hex 
+                  ? 'scale-100 shadow-lg ring-1 ring-offset-1' 
+                  : 'hover:scale-110 hover:ring-1'
+                }`}
+              style={{ 
+                backgroundColor: c.hex,
+                borderColor: overlayColor === c.hex 
+                  ? (isDark ? '#ffffff' : '#1f2937') 
+                  : 'transparent'
+              }}
+            />
+          ))}
+        </div>
+
       </div>
 
       {/* 2. KHU VỰC BIỂU ĐỒ & THANH CÔNG CỤ VẼ */}
@@ -790,22 +826,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
         <div className="flex-1 relative w-full h-full overflow-hidden">
           <div ref={chartContainerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
           
-          {/* BẢNG CHỌN MÀU */}
-          <div className="absolute top-3 right-4 z-[85] flex items-center gap-2 bg-[#10151C]/90 border border-white/10 px-3 py-2 rounded-xl backdrop-blur-md shadow-2xl">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider mr-1">Màu vẽ:</span>
-            {[
-              { hex: '#FF9600', name: 'Cam' }, { hex: '#089981', name: 'Xanh lá' }, { hex: '#F23645', name: 'Đỏ' },
-              { hex: '#2196F3', name: 'Xanh dương' }, { hex: '#EAB308', name: 'Vàng' }, { hex: '#FFFFFF', name: 'Trắng' }
-            ].map(c => (
-              <button
-                key={c.hex} title={c.name} onClick={() => setOverlayColor(c.hex)}
-                className={`w-4 h-4 rounded-full transition-all border relative ${overlayColor === c.hex ? 'scale-125 border-white shadow-[0_0_10px_rgba(255,255,255,0.6)]' : 'border-transparent hover:scale-110'}`}
-                style={{ backgroundColor: c.hex }}
-              />
-            ))}
-          </div>
-
-          {/* 🚀 KHUNG MỜ GÕ CHỮ */}
+        {/* 🚀 KHUNG MỜ GÕ CHỮ */}
           {inlineInput && (
               <input
                  autoFocus
