@@ -5,15 +5,11 @@ import { GoogleAIFileManager } from '@google/generative-ai/server';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
-
-// =========================================================
-// KIỂM TRA BẢO MẬT API KEY
-// =========================================================
 const apiKey = process.env.GEMINI_API_KEY;
 
-if (!apiKey) {
+if (!apiKey) {    
     console.log(chalk.bgRed.white.bold(' ✘ LỖI CHÍ MẠNG: Biến GEMINI_API_KEY đang trống rỗng! '));
-    console.log(chalk.yellow('👉 Đại ca kiểm tra lại file .env đã đặt đúng thư mục gốc chưa?'));
+    console.log(chalk.yellow('👉 Hãy kiểm tra lại file .env đã đặt đúng thư mục gốc chưa?'));
 } else {
     console.log(chalk.green('✔ Đã tìm thấy API Key AI trong bộ nhớ.'));
 }
@@ -21,9 +17,7 @@ if (!apiKey) {
 const genAI = new GoogleGenerativeAI(apiKey);
 const fileManager = new GoogleAIFileManager(apiKey);
 
-// 🚀 1. CƠ CHẾ "LỐP DỰ PHÒNG TỰ ĐỘNG" (TỐI ƯU BỘ LỌC)
-// =========================================================
-let ALL_MODELS_CACHE = []; // Bộ nhớ đệm
+let ALL_MODELS_CACHE = []; 
 
 async function getDynamicModels() {
     if (ALL_MODELS_CACHE.length > 0) return ALL_MODELS_CACHE;
@@ -32,11 +26,9 @@ async function getDynamicModels() {
     try {
         const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
         
-        // 1. LẤY DANH SÁCH THÔ ĐỂ IN LOG TRƯỚC (Giúp Đại ca biết Google trả về những gì)
         const rawModelsCount = response.data.models?.length || 0;
         console.log(chalk.blue(`📦 Google trả về tổng cộng: ${rawModelsCount} model thô.`));
 
-        // 2. CHẠY BỘ LỌC TÂN TIẾN CỦA ĐẠI CA
         let dynamicModels = response.data.models
             .filter(model => model.supportedGenerationMethods.includes('generateContent'))
             .map(model => model.name.replace('models/', ''))
@@ -53,21 +45,19 @@ async function getDynamicModels() {
         }
         // =========================================================
 
-        // 3. SẮP XẾP ƯU TIÊN: 2.5 flash lên đầu
         dynamicModels.sort((a, b) => {
             const scoreA = (a.includes('2.5') ? 2 : 0) + (a.includes('flash') ? 1 : 0);
             const scoreB = (b.includes('2.5') ? 2 : 0) + (b.includes('flash') ? 1 : 0);
             return scoreB - scoreA;
         });
 
-        // Chỉ lấy 4 con tinh nhuệ nhất để khỏi lặp lâu gây treo máy
         ALL_MODELS_CACHE = dynamicModels.slice(0, 4);
         
         console.log(chalk.green(`\n🎯 [KẾT QUẢ CUỐI] Đã nạp 4 Model tinh nhuệ nhất vào Cache (Đã xếp hạng):`));
         ALL_MODELS_CACHE.forEach((model, idx) => {
             console.log(chalk.green.bold(`  ⭐ Vũ khí ${idx + 1}: ${model}`));
         });
-        console.log(''); // Xuống dòng cho đẹp log CMD
+        console.log('');
 
         return ALL_MODELS_CACHE;
         
@@ -92,7 +82,6 @@ const generateWithAutoSwitch = async (promptData, options = {}) => {
         } catch (error) {
             const errStatus = error.status || 'LỖI';
             
-            // 🚀 PHANH KHẨN CẤP: NẾU CHẠM TRẦN QUOTA 429 HOẶC 503 -> DỪNG NGAY LẬP TỨC!
             if (errStatus === 429) {
                 console.log(chalk.bgRed.white.bold(` 🛑 LỖI 429: API KEY ĐÃ CHẠM TRẦN QUOTA (QUÁ 15 YÊU CẦU/PHÚT)! Hãy nghỉ ngơi 1 phút. `));
                 throw new Error("LỖI 429: Bị Google khóa mỏ do spam quá nhanh. Đợi 1 phút rồi thử lại.");
@@ -102,7 +91,6 @@ const generateWithAutoSwitch = async (promptData, options = {}) => {
                 throw new Error("LỖI 503: Hệ thống Google quá tải.");
             }
 
-            // Nếu là lỗi 400 hoặc 404 (Lỗi của riêng model đó) thì mới bỏ qua và lặp sang con khác
             console.log(chalk.yellow(`⚠️ Bỏ qua [${modelName}] (Mã lỗi: ${errStatus}). Đang đổi vũ khí...`));
             continue; 
         }
@@ -210,7 +198,6 @@ ${newsSummary || 'Không có tin tức nổi bật.'}`;
     }
 
     try {
-        // 🚀 DÙNG HÀM TỰ ĐỘNG CHUYỂN ĐỔI MODEL MỚI VÀO ĐÂY
         const result = await generateWithAutoSwitch(promptParts); 
         const aiReport = result.response.text();
         return aiReport;
@@ -254,7 +241,7 @@ export async function searchNewsWithAI(ticker, existingTitles = []) {
     }
 }
 // =========================================================
-// 🚀 5. HÀM ACTION PANEL (KHÓA MỒM ÉP CHUẨN JSON)
+// 🚀 5. HÀM ACTION PANEL 
 // =========================================================
 export async function getQuickActionWithGemini(ticker, liveData, strategicContext = "") {
     const prompt = `Bạn là Giám đốc Giao dịch HFT. 
