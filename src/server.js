@@ -74,9 +74,6 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// CONFIG: SYMBOLS PATH
-const SYMBOLS_FILE = path.join(process.cwd(), 'data', 'symbols_database.json');
-
 // ROUTE: SYMBOLS API
 app.get('/api/symbols', async (req, res) => {
     try {
@@ -143,8 +140,8 @@ app.get('/api/info/:ticker', async (req, res) => {
         let companyFullName = cafefRes.companyName || ticker;
         try {
             const foundSymbol = await Stock.findOne({ symbol: ticker });
-            if (foundSymbol && foundSymbol.name) {
-                companyFullName = foundSymbol.name;
+            if (foundSymbol && (foundSymbol.companyName || foundSymbol.name)) {
+                companyFullName = foundSymbol.companyName || foundSymbol.name;
             }
         } catch(e) { console.log(`⚠️ Không thể lấy tên doanh nghiệp từ server cho mã ${ticker}`); }
 
@@ -181,14 +178,17 @@ app.get('/api/market-radar', async (req, res) => {
     try {
         // 1. Kiểm tra trạng thái thị trường ngay tại Backend
         const now = new Date();
-        const day = now.getDay(); 
+        const day = now.getDay(); // 0: Chủ nhật, 6: Thứ bảy
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
         
+        // Định nghĩa khung giờ mở cửa: Thứ 2 đến Thứ 6, từ 9h00 (540p) đến 15h00 (900p)
         const isMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
 
+        // 2. LOGIC ĐÓNG CỬA: Lấy bản ghi lưu kho mới nhất từ MongoDB ứng với mã INDEX
         if (!isMarketOpen) {
             const cachedMarketRecord = await Stock.findOne({ symbol: 'VNINDEX' });
             
+            // Nếu trong DB đã từng lưu kết quả phân tích Quant Radar trước đó, nhả ra luôn
             if (cachedMarketRecord && cachedMarketRecord.cafeF?.lastQuantIntelligence) {
                 return res.json({ 
                     success: true, 
@@ -198,7 +198,7 @@ app.get('/api/market-radar', async (req, res) => {
             }
         }
 
-        // 3. LOGIC MỞ CỬA (REALTIME)
+        // 3. LOGIC MỞ CỬA (REALTIME): Tiến hành chạy lõi định lượng data mới
         console.log(chalk.cyan(`\n[QUANT RADAR] Thị trường đang chạy hoặc DB trống. Khởi động lõi phân tích...`));
 
         const scrapedData = await scrapeCafefMarketOverview();
@@ -234,6 +234,7 @@ app.get('/api/market-radar', async (req, res) => {
     } catch (error) {
         console.log(chalk.red(`❌ [QUANT RADAR ERROR] ${error.message}`));
         
+        // live lỗi thì lấy DB cũ ra cứu cánh
         const fallback = await Stock.findOne({ symbol: 'VNINDEX' });
         if (fallback && fallback.cafeF?.lastQuantIntelligence) {
             return res.json({ success: true, isLive: false, data: fallback.cafeF.lastQuantIntelligence });
