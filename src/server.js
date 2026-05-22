@@ -1,15 +1,11 @@
-import {    analyzeWithGemini,uploadTcbsPdf,searchNewsWithAI,getQuickActionWithGemini,analyzeDerivativesWithGemini} from './services/aiService.js';
+import { analyzeWithGemini, getMarkdownFromTcbsPdf, searchNewsWithAI, getQuickActionWithGemini, analyzeDerivativesWithGemini } from './services/aiService.js';
 import express from 'express';
-import * as cheerio from 'cheerio';
 import cors from 'cors';
 import chalk from 'chalk';
-import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { fetchCafefData } from './fetchers/cafefService.js';
 import { fetchTcbsData } from './fetchers/tcbsService.js';
-import { getVnStockData } from './fetchers/vnStockFetcher.js';
-import { getCompanyProfile } from './fetchers/companyProfileFetcher.js';
 import { searchVnNewsDirectly } from './scrapers/vnNewsSearch.js';
 import { scrapeArticleContent } from './scrapers/contentScraper.js';
 import { getCachedData, saveToCache } from './services/cacheService.js';
@@ -21,6 +17,11 @@ import { fileURLToPath } from 'url';
 import { scrapeCafefMarketOverview } from './scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from './services/quantEngine.js';
 import User from '../models/User.js';
+import Portfolio from '../models/Portfolio.js';
+import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
+import CryptoCoin from '../models/CryptoCoin.js';
+import { registerCryptoRoutes } from './services/cryptoService.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -34,19 +35,19 @@ const PORT = 3001;
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+registerCryptoRoutes(app);
+
 // ==========================================
 // API: CỔNG XÁC THỰC HỆ THỐNG (AUTH)
 // ==========================================
-
-// 1. ROUTE: ĐĂNG KÝ TÀI KHOẢN 
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password } = req.body;
         const cleanUsername = username.trim();
-
+        const escaped = cleanUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const existingUser = await User.findOne({ username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } });
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Bí danh này đã có người sử dụng! Vui lòng chọn tên khác.' });
+            return res.status(400).json({ success: false, message: 'Username này đã có người sử dụng! Vui lòng chọn tên khác.' });
         }
 
         const newUser = new User({ username: cleanUsername, password });
@@ -57,7 +58,6 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// 2. ROUTE: ĐĂNG NHẬP HỆ THỐNG
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -74,13 +74,14 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// ROUTE: SYMBOLS API
+// ==========================================
+// API: SYMBOLS & INFO
+// ==========================================
 app.get('/api/symbols', async (req, res) => {
     try {
         let symbolsData = await Stock.find({});
         
         if (!symbolsData || symbolsData.length === 0) {
-            console.log(chalk.yellow('ℹ️ Cloud MongoDB trống! Đang kích hoạt tiến trình đồng bộ danh sách mã...'));
             symbolsData = await updateSymbolsDatabase();
         }
         
@@ -90,7 +91,6 @@ app.get('/api/symbols', async (req, res) => {
     }
 });
 
-// ROUTE: API 1 - BASIC INFO
 app.get('/api/info/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     
@@ -143,7 +143,7 @@ app.get('/api/info/:ticker', async (req, res) => {
             if (foundSymbol && (foundSymbol.companyName || foundSymbol.name)) {
                 companyFullName = foundSymbol.companyName || foundSymbol.name;
             }
-        } catch(e) { console.log(`⚠️ Không thể lấy tên doanh nghiệp từ server cho mã ${ticker}`); }
+        } catch(e) {}
 
         let masterRecord = await Stock.findOne({ symbol: ticker });
         if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
@@ -155,7 +155,6 @@ app.get('/api/info/:ticker', async (req, res) => {
         masterRecord.tcbs = tcbsRes.rawData || null;
 
         await masterRecord.save();
-        systemLogs.push(`💾 ĐÃ HỢP NHẤT & LƯU KHO LÊN CLOUD MONGODB`);
 
         const responseData = {
             stockInfo: { symbol: ticker, currentPrice: currentPrice ? currentPrice.toLocaleString('vi-VN') : '---', change, changePercent, marketCap: cafefRes.mktCap || '---', pe: cafefRes.pe || '---', eps, pb, bvps, totalVolume, buyVolume, sellVolume, companyName: companyFullName, exchange: cafefRes.exchange || 'VNX' },
@@ -171,13 +170,304 @@ app.get('/api/info/:ticker', async (req, res) => {
     }
 });
 
+app.get('/api/crypto-symbols', async (req, res) => {
+    try {
+        let coins = await CryptoCoin.find({}).sort({ marketCap: -1 });
+        
+        if (coins.length === 0) {
+            coins = await updateCryptoSymbols();
+        }
+        
+        return res.json(coins);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// API: HỆ THỐNG GIAO DỊCH ẢO  
+// ==========================================
+app.get('/api/portfolio/:username', async (req, res) => {
+    try {
+        let portfolio = await Portfolio.findOne({ username: req.params.username });
+        if (!portfolio) {
+            portfolio = new Portfolio({ username: req.params.username });
+            await portfolio.save();
+        }
+        res.json({ success: true, data: portfolio });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/portfolio/cancel-order', async (req, res) => {
+    const { username, orderId } = req.body;
+    
+    try {
+        let portfolio = await Portfolio.findOne({ username });
+        if (!portfolio) return res.status(404).json({ success: false, message: 'Không tìm thấy ví!' });
+
+        const orderIndex = portfolio.pendingOrders.findIndex(o => o._id?.toString() === orderId);
+        if (orderIndex === -1) {
+            return res.status(400).json({ success: false, message: 'Lệnh không tồn tại hoặc đã được khớp từ trước!' });
+        }
+
+        const orderToCancel = portfolio.pendingOrders[orderIndex];
+
+        if (orderToCancel.type === 'BUY') {
+            const blockedValue = orderToCancel.volume * orderToCancel.targetPrice;
+            portfolio.balance += blockedValue;
+        }
+
+        portfolio.pendingOrders.splice(orderIndex, 1);
+        await portfolio.save();
+
+        res.json({ success: true, data: portfolio, message: 'Đã hủy lệnh thành công!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/portfolio/trade', async (req, res) => {
+    const { username, assetType, symbol, type, orderType, volume, price, isMarketOpen } = req.body;
+    
+    try {
+        let portfolio = await Portfolio.findOne({ username });
+        if (!portfolio) return res.status(404).json({ success: false, message: 'Không tìm thấy ví!' });
+
+        const totalValue = volume * price;
+
+        if (!isMarketOpen || orderType === 'ATO' || orderType === 'ATC' || orderType === 'LO') {
+            if (type === 'BUY') {
+                const updatedPortfolio = await Portfolio.findOneAndUpdate(
+                        { username, balance: { $gte: totalValue } },
+                        { $inc: { balance: -totalValue } },
+                        { new: true }
+                );
+                if (!updatedPortfolio) {
+                    return res.status(400).json({ success: false, message: 'Số dư không đủ để đặt lệnh chờ!' });                
+                }                
+                portfolio = updatedPortfolio;
+            }
+            if (type === 'SELL') {
+                const holding = portfolio.holdings.find(h => h.symbol === symbol);
+                if (!holding || holding.volume < volume) {
+                    return res.status(400).json({ success: false, message: 'Không đủ cổ phiếu khả dụng để đặt bán!' });
+                }
+            }
+
+            await Portfolio.updateOne(
+                { username },
+                {
+                    $push: {
+                        pendingOrders: {
+                            assetType,
+                            symbol,
+                            type,
+                            orderType,
+                            volume,
+                            targetPrice: price,
+                            status: 'PENDING'
+                        }
+                    }
+                }
+            );
+
+            portfolio = await Portfolio.findOne({ username });
+            return res.json({ success: true, isPending: true, data: portfolio, message: `Lệnh ${type} ${orderType} đã được đưa vào Sổ Lệnh chờ khớp!` });
+        }
+
+        let holdingIndex = portfolio.holdings.findIndex(h => h.symbol === symbol && h.assetType === assetType);
+        let realizedPnL = 0;
+
+        if (type === 'BUY') {
+            const existingHolding = portfolio.holdings.find(h => h.symbol === symbol && h.assetType === assetType);
+            if (existingHolding) {
+                const oldVol = existingHolding.volume;
+                const oldAvg = existingHolding.avgPrice;
+                const newVol = oldVol + volume;
+                const newAvg = ((oldVol * oldAvg) + totalValue) / newVol;
+
+                const updatedPortfolio = await Portfolio.findOneAndUpdate(
+                    {
+                        username,
+                        balance: { $gte: totalValue },
+                        "holdings.symbol": symbol,
+                        "holdings.assetType": assetType
+                    },
+                    {
+                        $inc: { balance: -totalValue, "holdings.$.volume": volume },
+                        $set: { "holdings.$.avgPrice": newAvg }
+                    },
+                    { new: true }
+                );
+
+                if (!updatedPortfolio) {
+                    return res.status(400).json({ success: false, message: 'Số dư không đủ để mua!' });
+                }
+                portfolio = updatedPortfolio;
+            } else {
+                const updatedPortfolio = await Portfolio.findOneAndUpdate(
+                    {
+                        username,
+                        balance: { $gte: totalValue }
+                    },
+                    {
+                        $inc: { balance: -totalValue },
+                        $push: {
+                            holdings: { assetType, symbol, volume, avgPrice: price }
+                        }
+                    },
+                    { new: true }
+                );
+
+                if (!updatedPortfolio) {
+                    return res.status(400).json({ success: false, message: 'Số dư không đủ để mua!' });
+                }
+                portfolio = updatedPortfolio;
+            }
+        }
+        else if (type === 'SELL') {
+            const updatedPortfolio = await Portfolio.findOneAndUpdate(
+                {
+                    username,
+                    holdings: {
+                        $elemMatch: {
+                            symbol,
+                            assetType,
+                            volume: { $gte: volume }
+                        }
+                    }
+                },
+                {
+                    $inc: { "holdings.$.volume": -volume, balance: totalValue }
+                },
+                { new: true }
+            );
+
+            if (!updatedPortfolio) {
+                return res.status(400).json({ success: false, message: 'Không đủ số lượng tài sản để bán!' });
+            }
+
+            portfolio = updatedPortfolio;
+            holdingIndex = portfolio.holdings.findIndex(h => h.symbol === symbol && h.assetType === assetType);
+            const avgPrice = portfolio.holdings[holdingIndex]?.avgPrice || 0;
+            realizedPnL = (price - avgPrice) * volume;
+
+            if (holdingIndex >= 0 && portfolio.holdings[holdingIndex].volume <= 0) {
+                portfolio.holdings.splice(holdingIndex, 1);
+            }
+        }
+
+        portfolio.history.push({ assetType, symbol, type, volume, price, totalValue, realizedPnL });
+        await portfolio.save();
+
+        res.json({ success: true, isPending: false, data: portfolio, message: `Khớp lệnh MP ${type} thành công!` });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==========================================
+// API: KHỚP LỆNH NỀN
+// ==========================================
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const day = now.getDay();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const totalMinutes = hours * 60 + minutes;
+
+        const isMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
+
+        if (!isMarketOpen) return; 
+
+        const portfolios = await Portfolio.find({ "pendingOrders": { $exists: true, $not: {$size: 0} } });
+        if (portfolios.length === 0) return;
+
+        const uniqueSymbols = new Set();
+        portfolios.forEach(p => {
+            p.pendingOrders.forEach(order => {
+                if (order.status === 'PENDING') uniqueSymbols.add(order.symbol);
+            });
+        });
+
+        if (uniqueSymbols.size === 0) return;
+
+        const livePrices = {};
+        const to = Math.floor(Date.now() / 1000);
+        const from = to - (24 * 60 * 60);
+
+        await Promise.all(Array.from(uniqueSymbols).map(async (symbol) => {
+            try {
+                const res = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${symbol}&resolution=1`);
+                const c = res.data?.c || [];
+                if (c.length > 0) {
+                    livePrices[symbol] = c[c.length - 1] * 1000; 
+                }
+            } catch (e) {}
+        }));
+
+        for (let portfolio of portfolios) {
+            let isUpdated = false;
+            for (let i = portfolio.pendingOrders.length - 1; i >= 0; i--) {
+                const order = portfolio.pendingOrders[i];
+                if (order.status !== 'PENDING') continue;
+
+                const currentPrice = livePrices[order.symbol];
+                if (!currentPrice) continue;
+
+                let isMatched = false;
+                if (order.type === 'BUY' && currentPrice <= order.targetPrice) isMatched = true; 
+                else if (order.type === 'SELL' && currentPrice >= order.targetPrice) isMatched = true; 
+
+                if (isMatched) {
+                    const totalValue = order.volume * currentPrice;
+                    let holdingIndex = portfolio.holdings.findIndex(h => h.symbol === order.symbol);
+                    
+                    if (order.type === 'BUY') {
+                        if (holdingIndex >= 0) {
+                            const oldVol = portfolio.holdings[holdingIndex].volume;
+                            const oldAvg = portfolio.holdings[holdingIndex].avgPrice;
+                            const newVol = oldVol + order.volume;
+                            portfolio.holdings[holdingIndex].avgPrice = ((oldVol * oldAvg) + totalValue) / newVol;
+                            portfolio.holdings[holdingIndex].volume = newVol;
+                        } else {
+                            portfolio.holdings.push({ assetType: order.assetType, symbol: order.symbol, volume: order.volume, avgPrice: currentPrice });
+                        }
+                    } else if (order.type === 'SELL') {
+                        portfolio.balance += totalValue;
+                        let realizedPnL = 0;
+                        if (holdingIndex >= 0) {
+                            const avgPrice = portfolio.holdings[holdingIndex].avgPrice;
+                            realizedPnL = (currentPrice - avgPrice) * order.volume;
+                            portfolio.holdings[holdingIndex].volume -= order.volume;
+                            if (portfolio.holdings[holdingIndex].volume === 0) portfolio.holdings.splice(holdingIndex, 1);
+                        }
+                        portfolio.history.push({ assetType: order.assetType, symbol: order.symbol, type: 'SELL', volume: order.volume, price: currentPrice, totalValue, realizedPnL });
+                    }
+
+                    if (order.type === 'BUY') {
+                        portfolio.history.push({ assetType: order.assetType, symbol: order.symbol, type: 'BUY', volume: order.volume, price: currentPrice, totalValue, realizedPnL: 0 });
+                    }
+
+                    portfolio.pendingOrders.splice(i, 1);
+                    isUpdated = true;
+                }
+            }
+            if (isUpdated) await portfolio.save();
+        }
+    } catch (error) {}
+}, 10000);
+
 // ==========================================
 // API: GENERAL MARKET RADAR
 // ==========================================
 app.get('/api/market-radar', async (req, res) => {
     try {
         const now = new Date();
-        const day = now.getDay(); // 0: Chủ nhật, 6: Thứ bảy
+        const day = now.getDay(); 
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
         
         const isMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
@@ -193,9 +483,6 @@ app.get('/api/market-radar', async (req, res) => {
                 });
             }
         }
-
-        // 3. LOGIC MỞ CỬA (REALTIME)
-        console.log(chalk.cyan(`\n[QUANT RADAR] Thị trường đang chạy hoặc DB trống. Khởi động lõi phân tích...`));
 
         const scrapedData = await scrapeCafefMarketOverview();
         if (!scrapedData.success) throw new Error("Không thể trích xuất dữ liệu từ CafeF");
@@ -228,9 +515,6 @@ app.get('/api/market-radar', async (req, res) => {
         return res.json({ success: true, isLive: true, data: finalIntelligence.intelligence });
 
     } catch (error) {
-        console.log(chalk.red(`❌ [QUANT RADAR ERROR] ${error.message}`));
-        
-        // live lỗi thì lấy DB cũ ra cứu cánh
         const fallback = await Stock.findOne({ symbol: 'VNINDEX' });
         if (fallback && fallback.cafeF?.lastQuantIntelligence) {
             return res.json({ success: true, isLive: false, data: fallback.cafeF.lastQuantIntelligence });
@@ -238,6 +522,7 @@ app.get('/api/market-radar', async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 });
+
 // ==========================================
 // API: DERIVATIVES RADAR (PHÁI SINH)
 // ==========================================
@@ -265,103 +550,27 @@ setInterval(async () => {
             const foreignBuy = derivInfo.foreignBuyVolume || 0;
             const foreignSell = derivInfo.foreignSellVolume || 0;
             globalDerivCache.foreignNet = foreignBuy - foreignSell;
-            
-          }
-    } catch (error) {
-     }
+        }
+    } catch (error) {}
 }, 60000); 
 
- 
-app.get('/api/deriv-radar', async (req, res) => {
-    try {
-        const to = Math.floor(Date.now() / 1000);
-        const from = to - (4 * 24 * 60 * 60); 
-
-         const [vn30Res, vn30f1mRes] = await Promise.all([
-            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VN30&resolution=1`, { timeout: 2000 }).catch(() => null),
-            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from=${from}&to=${to}&symbol=VN30F1M&resolution=1`, { timeout: 2000 }).catch(() => null)
-        ]);
-
-        const TRU_COT_LOI = ['VCB', 'FPT', 'HPG', 'VHM', 'VIC', 'TCB', 'CTG', 'STB', 'MSN', 'VNM'];
-        const truData = await Promise.all(TRU_COT_LOI.map(async (s) => {
-            try {
-                const r = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${s}&resolution=1`, { timeout: 1500 });
-                const c = r.data?.c || [];
-                const h = r.data?.h || [];
-                const l = r.data?.l || [];
-                const v = r.data?.v || [];
-                if (c.length === 0) return { symbol: s, change: 0, momentum: 0, realImpact: 0 };
-                
-                const close = c[c.length - 1];
-                const high = h[h.length - 1];
-                const low = l[l.length - 1];
-                const prevClose = c.length > 1 ? c[c.length - 2] : close;
-                const volume = v[v.length - 1] || 0;
-                
-                const change = prevClose !== 0 ? ((close - prevClose) / prevClose * 100).toFixed(2) : 0;
-                
-                 const WeightingMatrix = { VCB: 1.5, FPT: 1.2, HPG: 1.1, TCB: 1.0, VHM: 0.9, CTG: 0.8, VIC: 0.7, STB: 0.6, MSN: 0.5, VNM: 0.5 };
-                const realImpact = (change * (WeightingMatrix[s] || 0.5)).toFixed(2);
-                
-                let mfMultiplier = 0;
-                if (high !== low) mfMultiplier = ((close - low) - (high - close)) / (high - low);
-                
-                return { symbol: s, change, momentum: (mfMultiplier * (volume / 1000)).toFixed(2), realImpact };
-            } catch (e) {
-                return { symbol: s, change: 0, momentum: 0, realImpact: 0 };
-            }
-        }));
-
-        const c_f1m = vn30f1mRes?.data?.c || [];
-        const c_vn30 = vn30Res?.data?.c || [];
-        const latestF1M = c_f1m.length > 0 ? c_f1m[c_f1m.length - 1] : 0;
-        const prevF1M = c_f1m.length > 1 ? c_f1m[c_f1m.length - 2] : latestF1M;
-        const vn30Price = c_vn30.length > 0 ? c_vn30[c_vn30.length - 1] : 0;
-
-        const currentBasis = (latestF1M !== 0 && vn30Price !== 0) ? (latestF1M - vn30Price).toFixed(2) : 0;
-        const basisSpeed = (currentBasis - globalDerivCache.lastBasis).toFixed(2);
-        globalDerivCache.lastBasis = currentBasis;
-
-        let oiTrend = "ĐI NGANG";
-        if (globalDerivCache.oi > globalDerivCache.lastOi) oiTrend = "TĂNG (Nạp tiền gom HĐ)";
-        if (globalDerivCache.oi < globalDerivCache.lastOi) oiTrend = "GIẢM (Chốt lời/Cắt lỗ)";
-        globalDerivCache.lastOi = globalDerivCache.oi;
-
-        return res.json({
-            success: true,
-            data: {
-                vn30: vn30Price,
-                vn30f1m: latestF1M,
-                basis: currentBasis,
-                basisSpeed: basisSpeed,
-                oiTrend: oiTrend,
-                change: latestF1M !== 0 ? (latestF1M - prevF1M).toFixed(2) : 0,              
-                changePercent: prevF1M !== 0 ? ((latestF1M - prevF1M) / prevF1M * 100).toFixed(2) : 0, 
-                influencers: truData, 
-                oi: globalDerivCache.oi,           
-                foreignNet: globalDerivCache.foreignNet 
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
 const WeightingMatrix = { 
     VCB: 1.5, FPT: 1.2, HPG: 1.1, 
     TCB: 1.0, VHM: 0.9, CTG: 0.8, 
     VIC: 0.7, STB: 0.6, 
-    MSN: 0.5, VNM: 0.5 };
+    MSN: 0.5, VNM: 0.5 
+};
 
 app.get('/api/deriv-radar', async (req, res) => {
     try {
         const to = Math.floor(Date.now() / 1000);
         const from = to - (4 * 24 * 60 * 60); 
 
-         const [vn30Res, vn30f1mRes, vndirectRes] = await Promise.all([
+        const [vn30Res, vn30f1mRes, vndirectRes] = await Promise.all([
             axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VN30&resolution=1`, { timeout: 2000 }).catch(() => null),
             axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from=${from}&to=${to}&symbol=VN30F1M&resolution=1`, { timeout: 2000 }).catch(() => null),
             axios.get(`https://finfo-api.vndirect.com.vn/v4/derivatives_prices?q=code:VN30F1M`, { 
-                timeout: 2500, // Tăng thêm 1 giây cho an toàn nếu mạng chậm
+                timeout: 2500,  
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'application/json, text/plain, */*',
@@ -371,11 +580,13 @@ app.get('/api/deriv-radar', async (req, res) => {
             }).catch(() => null)
         ]);
 
-         const TRU_COT_LOI = [
+        const TRU_COT_LOI = [
             'VCB', 'FPT', 'HPG', 
             'VHM', 'VIC', 'TCB', 
             'CTG', 'STB', 'MSN', 
-            'VNM'];
+            'VNM'
+        ];
+        
         const truData = await Promise.all(TRU_COT_LOI.map(async (s) => {
             try {
                 const r = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${s}&resolution=1`, { timeout: 1200 });
@@ -397,21 +608,20 @@ app.get('/api/deriv-radar', async (req, res) => {
                 return { 
                     symbol: s, change, 
                     momentum: (mfMultiplier * (volume / 1000)).toFixed(2), 
-                    realImpact };
+                    realImpact 
+                };
             } catch (e) {
                 return { symbol: s, change: 0, momentum: 0 };
             }
         }));
 
-         if (vndirectRes && vndirectRes.data && vndirectRes.data.data && vndirectRes.data.data.length > 0) {
+        if (vndirectRes && vndirectRes.data && vndirectRes.data.data && vndirectRes.data.data.length > 0) {
             const derivInfo = vndirectRes.data.data[0];
             globalDerivCache.oi = derivInfo.openInterest || globalDerivCache.oi;
             
             const foreignBuy = derivInfo.foreignBuyVolume || 0;
             const foreignSell = derivInfo.foreignSellVolume || 0;
             globalDerivCache.foreignNet = foreignBuy - foreignSell;
-        } else {
-             console.log(chalk.yellow(`⚠️ API VNDIRECT chặn kết nối hoặc quá tải. Hệ thống tự động kích hoạt Memory Cache cứu cánh.`));
         }
 
         const c_f1m = vn30f1mRes?.data?.c || [];
@@ -448,6 +658,9 @@ app.get('/api/deriv-radar', async (req, res) => {
     }
 });
 
+// ==========================================
+// API: LIVE NEWS & AI
+// ==========================================
 app.get('/api/news/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     res.setHeader('Content-Type', 'text/event-stream');
@@ -507,7 +720,6 @@ app.get('/api/news/:ticker', async (req, res) => {
     }
 });
 
-// ROUTE: API 3 - AI ANALYSIS 
 app.post('/api/analyze/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const fullData = req.body;
@@ -528,10 +740,7 @@ app.post('/api/analyze/:ticker', async (req, res) => {
         }
         fullData.previousAnalysis = previousAnalysis;
 
-        // QUANT ENGINE: BỐI CẢNH THỊ TRƯỜNG
         try {
-            console.log(`Đang chạy lõi định lượng để bơm bối cảnh cho AI xử lý mã ${ticker}...`);
-            
             const marketScraped = await scrapeCafefMarketOverview();
             
             const to = Math.floor(Date.now() / 1000);
@@ -553,12 +762,11 @@ app.post('/api/analyze/:ticker', async (req, res) => {
                 }
             }
         } catch (quantError) {
-            console.log(`⚠️ Bỏ qua bối cảnh thị trường do lỗi Quant Engine: ${quantError.message}`);
             fullData.marketContext = "Không có dữ liệu bối cảnh thị trường lúc này.";
         }
 
-        const uploadedPdf = await uploadTcbsPdf(ticker);
-        if (uploadedPdf) fullData.tcbsPdfData = uploadedPdf; 
+        const markdownData = await getMarkdownFromTcbsPdf(ticker);
+        if (markdownData) fullData.tcbsMarkdownData = markdownData; 
 
         const aiReport = await analyzeWithGemini(ticker, fullData);
         const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);
@@ -579,13 +787,12 @@ app.post('/api/analyze/:ticker', async (req, res) => {
 
         await masterRecord.save();
 
-        return res.json({ success: true, aiReport });
+        return res.json({ success: true, aiReport, actionPanelData: actionPanelData });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// ROUTE: API 4 - INDEPENDENT AI NEWS HUNT
 app.get('/api/ai-news/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     try {
@@ -627,8 +834,72 @@ app.get('/api/ai-news/:ticker', async (req, res) => {
     }
 });
 
+app.post('/api/action-panel/:ticker', async (req, res) => {
+    const ticker = req.params.ticker.toUpperCase();
+    const liveData = req.body;
+
+    try {
+        let masterRecord = await Stock.findOne({ symbol: ticker });
+        let strategicContext = "";
+
+        if (masterRecord && masterRecord.reports && masterRecord.reports.length > 0) {
+            strategicContext = masterRecord.reports[masterRecord.reports.length - 1].content;
+        }
+
+        const actionData = await getQuickActionWithGemini(ticker, liveData, strategicContext);
+
+        if (actionData && masterRecord && masterRecord.reports && masterRecord.reports.length > 0) {
+            masterRecord.reports[masterRecord.reports.length - 1].action = actionData.action;
+            await masterRecord.save();
+        }
+
+        return res.json({ success: true, data: actionData });
+
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/api/user-history/:user', async (req, res) => {
+    const user = req.params.user;
+    const historyList = [];
+
+    try {
+        const allStocks = await Stock.find({});        
+        allStocks.forEach(data => {
+            if (data.reports && data.reports.length > 0) {
+                const userReports = data.reports.filter(r => r.user === user);
+                if (userReports.length > 0) {
+                    const lastReport = userReports[userReports.length - 1]; 
+                    historyList.push({
+                        symbol: data.symbol,
+                        companyName: data.companyName,
+                        exchange: data.exchange,
+                        timestamp: lastReport.timestamp,
+                        price: lastReport.price,
+                        changePercent: lastReport.changePercent,
+                        lastAction: lastReport.action
+                    });
+                }
+            }
+        });
+
+        historyList.sort((a, b) => {
+            const isAActive = a.lastAction === 'MUA' || a.lastAction === 'BÁN';
+            const isBActive = b.lastAction === 'MUA' || b.lastAction === 'BÁN';
+            if (isAActive && !isBActive) return -1;
+            if (!isAActive && isBActive) return 1;
+            return new Date(b.timestamp) - new Date(a.timestamp); 
+        });
+
+        res.json({ success: true, data: historyList });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Lỗi đọc database', error: error.message });
+    }
+});
+
 // ==========================================
-// API: HISTORY CHART
+// API: HISTORY CHART (STOCKS & INDICES)
 // ==========================================
 app.get('/api/history/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
@@ -650,7 +921,6 @@ app.get('/api/history/:ticker', async (req, res) => {
     let needsMonthYearAggregation = false; 
     let aggregateMinutes = 0; 
 
-    // BỘ CHUYỂN ĐỔI KHUNG GIỜ 
     switch (interval) {
         case '1 phút': 
             resCode = '1'; from = to - (4 * 24 * 60 * 60); break; 
@@ -720,7 +990,6 @@ app.get('/api/history/:ticker', async (req, res) => {
             });
         }
 
-        // THUẬT TOÁN GỘP NẾN INTRADAY
         if (aggregateMinutes > 0 && chartData.length > 0) {
             const aggregated = [];
             let currentCandle = null;
@@ -745,7 +1014,6 @@ app.get('/api/history/:ticker', async (req, res) => {
             chartData = aggregated;
         }
 
-        // GỘP NẾN THÁNG / NĂM
         if (needsMonthYearAggregation && chartData.length > 0) {
             const aggregated = {};
             chartData.forEach(candle => {
@@ -772,7 +1040,6 @@ app.get('/api/history/:ticker', async (req, res) => {
             chartData = Object.values(aggregated);
         }
 
-        // LIVE UPDATE NẾN 1 NGÀY
         if (resCode === '1D' && !needsMonthYearAggregation) {
             try {
                 const from1M = to - (24 * 60 * 60);
@@ -805,79 +1072,46 @@ app.get('/api/history/:ticker', async (req, res) => {
         return res.status(200).json({ success: true, data: chartData });
 
     } catch (error) {
-        console.log(`❌ [CHART ERROR] ${error.message}`);
         return res.status(200).json({ success: false, data: [] });
     }
 });
 
-// ROUTE: API 6 - REAL-TIME ACTION PANEL
-app.post('/api/action-panel/:ticker', async (req, res) => {
-    const ticker = req.params.ticker.toUpperCase();
-    const liveData = req.body;
+// ==========================================
+// API: CRYPTO HISTORY & RADAR
+// ==========================================
+import { fetchCryptoData } from './fetchers/cryptoFetcher.js';
 
+app.get('/api/crypto-radar', async (req, res) => {
     try {
-        let masterRecord = await Stock.findOne({ symbol: ticker });
-        let strategicContext = "";
+        const [btc, eth] = await Promise.all([
+            fetchCryptoData('BTC'),
+            fetchCryptoData('ETH')
+        ]);
 
-        if (masterRecord && masterRecord.reports && masterRecord.reports.length > 0) {
-            strategicContext = masterRecord.reports[masterRecord.reports.length - 1].content;
-        }
-
-        const actionData = await getQuickActionWithGemini(ticker, liveData, strategicContext);
-
-        if (actionData && masterRecord && masterRecord.reports && masterRecord.reports.length > 0) {
-            masterRecord.reports[masterRecord.reports.length - 1].action = actionData.action;
-            await masterRecord.save();
-        }
-
-        return res.json({ success: true, data: actionData });
-
-    } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        return res.json({ 
+            success: true, 
+            data: { btc, eth } 
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
     }
 });
-
-// ROUTE: API 7 - USER ANALYSIS HISTORY
-app.get('/api/user-history/:user', async (req, res) => {
-    const user = req.params.user;
-    const historyList = [];
-
+// History Crypto
+app.get('/api/crypto/history/:symbol', async (req, res) => {
+    const symbol = req.params.symbol.toUpperCase();
+    const interval = req.query.interval || '1 ngày';   
     try {
-        const allStocks = await Stock.find({});        
-        allStocks.forEach(data => {
-            if (data.reports && data.reports.length > 0) {
-                const userReports = data.reports.filter(r => r.user === user);
-                if (userReports.length > 0) {
-                    const lastReport = userReports[userReports.length - 1]; 
-                    historyList.push({
-                        symbol: data.symbol,
-                        companyName: data.companyName,
-                        exchange: data.exchange,
-                        timestamp: lastReport.timestamp,
-                        price: lastReport.price,
-                        changePercent: lastReport.changePercent,
-                        lastAction: lastReport.action
-                    });
-                }
-            }
-        });
-
-        historyList.sort((a, b) => {
-            const isAActive = a.lastAction === 'MUA' || a.lastAction === 'BÁN';
-            const isBActive = b.lastAction === 'MUA' || b.lastAction === 'BÁN';
-            if (isAActive && !isBActive) return -1;
-            if (!isAActive && isBActive) return 1;
-            return new Date(b.timestamp) - new Date(a.timestamp); 
-        });
-
-        res.json({ success: true, data: historyList });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Lỗi đọc database', error: error.message });
+        const data = await fetchCryptoData(symbol, interval); 
+        return res.json({ success: true, data: data }); 
+    } catch (e) {
+        res.status(200).json({ success: false, data: null });
     }
 });
-
+// ==========================================
 // START SERVER
+// ==========================================
 app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.bold(`\n 🚀 OMNI DUCK SERVER MONGODB READY: http://localhost:${PORT} `));
-    await updateSymbolsDatabase();
+    await updateSymbolsDatabase();     
+    await updateCryptoSymbols();       
 });
