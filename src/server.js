@@ -21,7 +21,7 @@ import Portfolio from '../models/Portfolio.js';
 import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import CryptoCoin from '../models/CryptoCoin.js';
 import { registerCryptoRoutes } from './services/cryptoService.js';
-
+{}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
