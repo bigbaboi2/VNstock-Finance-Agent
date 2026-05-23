@@ -603,10 +603,10 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
     <div className="w-full h-full relative flex flex-col">
       
       {/* 1. TOOLBAR CHỨA MENU THẢ XUỐNG ĐÃ SỬA LỖI CHÌM */}
-      <div className={`flex items-center gap-3 pb-3 mb-3 border-b shrink-0 relative z-[9999] ${isDark ? 'border-white/10' : 'border-slate-200'}`} style={{ isolation: 'isolate' }}>
+      <div className={`flex items-center gap-3 pb-3 mb-3 border-b shrink-0 relative z-[99] ${isDark ? 'border-white/10' : 'border-slate-200'}`} style={{ isolation: 'isolate' }}>
         
         {/* MENU CHỌN KHUNG THỜI GIAN (INTERVAL) */}
-        <div className="relative z-[100]">
+        <div className="relative z-[99]">
           <button 
             onClick={() => { setShowIntervalMenu(!showIntervalMenu); setShowTypeMenu(false); setShowIndicatorMenu(false); }} 
             className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
@@ -617,7 +617,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
           </button>
           
           {showIntervalMenu && (
-            <div className={`absolute top-[calc(100%+8px)] left-0 w-40 rounded-2xl border shadow-2xl py-2 z-[99999] backdrop-blur-xl overflow-y-auto max-h-[350px] ${isDark ? 'bg-[#0B0F14]/95 border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`absolute top-[calc(100%+8px)] left-0 w-40 rounded-2xl border shadow-2xl py-2 z-[99] backdrop-blur-xl overflow-y-auto max-h-[350px] ${isDark ? 'bg-[#0B0F14]/95 border-white/10' : 'bg-white border-slate-200'}`}>
               <p className="px-5 py-2 text-[9px] font-black text-slate-500 uppercase mb-1">Phút</p>
               {['1 phút', '3 phút', '5 phút', '15 phút', '30 phút'].map(time => (
                 <button 
@@ -652,7 +652,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
         </div>
 
         {/* MENU CHỌN LOẠI BIỂU ĐỒ (CHART TYPE) */}
-        <div className="relative z-[90]">
+        <div className="relative z-[100]">
           <button 
             onClick={() => { setShowTypeMenu(!showTypeMenu); setShowIndicatorMenu(false); setShowIntervalMenu(false); }} 
             className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
@@ -672,7 +672,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
           </button>
           
           {showTypeMenu && (
-            <div className={`absolute top-[calc(100%+8px)] left-0 w-48 rounded-2xl border shadow-2xl py-2 z-[99999] backdrop-blur-xl overflow-hidden ${isDark ? 'bg-[#0B0F14]/95 border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`absolute top-[calc(100%+8px)] left-0 w-48 rounded-2xl border shadow-2xl py-2 z-[100] backdrop-blur-xl overflow-hidden ${isDark ? 'bg-[#0B0F14]/95 border-white/10' : 'bg-white border-slate-200'}`}>
               {[
                 { id: 'candle_solid', label: 'Nến Đặc (Solid)' }, 
                 { id: 'candle_up_stroke', label: 'Nến Rỗng (Hollow)' }, 
@@ -694,7 +694,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
         </div>
 
         {/* MENU ĐƯỜNG PHÂN TÍCH (INDICATORS) */}
-        <div className="relative z-[80]">
+        <div className="relative z-[100]">
           <button 
             onClick={() => { setShowIndicatorMenu(!showIndicatorMenu); setShowTypeMenu(false); setShowIntervalMenu(false); }} 
             className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
@@ -705,7 +705,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
           </button>
           
           {showIndicatorMenu && (
-            <div className={`absolute top-[calc(100%+8px)] left-0 w-60 rounded-2xl border shadow-2xl py-3 z-[99999] backdrop-blur-xl overflow-hidden ${isDark ? 'bg-[#0B0F14]/95 border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`absolute top-[calc(100%+8px)] left-0 w-60 rounded-2xl border shadow-2xl py-3 z-[100] backdrop-blur-xl overflow-hidden ${isDark ? 'bg-[#0B0F14]/95 border-white/10' : 'bg-white border-slate-200'}`}>
               <p className="px-5 py-2 text-[9px] font-black text-slate-500 uppercase mb-1">Chỉ báo nến</p>
               {['MA', 'BOLL', 'SAR'].map(ind => (<button key={ind} onClick={() => toggleIndicator(ind, true)} className={`w-full flex items-center justify-between px-5 py-2.5 text-xs font-bold transition-all ${activeMain.includes(ind) ? 'bg-yellow-500 text-black' : (isDark ? 'text-slate-300 hover:bg-yellow-500 hover:text-black' : 'text-slate-700 hover:bg-yellow-500 hover:text-black')}`}>{ind} {activeMain.includes(ind) && <Check size={14} />}</button>))}
               <div className="h-px bg-white/5 my-2"></div>
@@ -714,7 +714,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
             </div>
           )}
         </div>
-        {/* ==================== BẢNG CHỌN MÀU MỚI ==================== */}
+        {/* ==================== BẢNG CHỌN MÀU  ==================== */}
         <div className={`ml-auto flex items-center gap-2 px-4 py-2 rounded-xl border backdrop-blur-md shadow-sm transition-all
           ${isDark ? 'bg-[#10151C]/95 border-white/10' : 'bg-white border-slate-250'}`}
         >
@@ -756,7 +756,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
       <div className="flex-1 flex flex-row relative min-h-0 bg-black/5 rounded-2xl overflow-hidden border border-white/5">
         
        {/* SIDEBAR VẼ KỸ THUẬT */}
-        <div className={`w-14 shrink-0 border-r flex flex-col items-center py-4 gap-4 z-[100] relative ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+        <div className={`w-14 shrink-0 border-r flex flex-col items-center py-4 gap-4 z-[50] relative ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
           {['segment', 'straightLine', 'fibonacciLine', 'omni_text'].map((t, i) => (
             <button 
               key={t} 
@@ -877,7 +877,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
               />
           )}
           {activeOverlay && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-[#10151C]/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 shadow-2xl animate-in slide-in-from-top-4">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[99] flex items-center gap-3 bg-[#10151C]/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 shadow-2xl animate-in slide-in-from-top-4">
                 <div className="flex items-center gap-2 text-yellow-500">
                     <Pencil size={14} />
                     <span className="text-[10px] font-black uppercase tracking-widest">Đã chọn đường vẽ</span>
@@ -908,7 +908,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
           <div ref={volLabelEdgeRef} style={{ display: 'none', position: 'absolute', right: '3px', width: '38px', height: '22px', lineHeight: '20px', textAlign: 'center', fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: '700', borderRadius: '2px', zIndex: 50, pointerEvents: 'none', boxSizing: 'border-box', transition: 'top 0.05s linear' }} />
         
           {/* THANH ĐIỀU HƯỚNG CUỘN NẾN DƯỚI ĐÁY */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-[100]">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-[99]">
             <button onClick={handleScrollLeft} title="Lùi 1 nến" className={`p-2 rounded-xl border backdrop-blur-md shadow-lg transition-all ${isDark ? 'bg-[#10151C]/80 border-white/10 text-slate-300 hover:text-white hover:bg-slate-800' : 'bg-white/80 border-slate-300 text-slate-600 hover:text-black hover:bg-slate-100'}`}>
               <ChevronLeft size={16} />
             </button>

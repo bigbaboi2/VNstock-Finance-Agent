@@ -1,30 +1,24 @@
-import React, { useEffect, useState, useRef } from 'react'
-import remarkGfm from 'remark-gfm';
+
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import './App.css'
 import axios from 'axios'
-import ReactMarkdown from 'react-markdown';
-import MarketRadar from './MiniRadarChart';
-import TradingChart from './TradingChart';
-import rehypeRaw from 'rehype-raw';
-import CyberpunkClock from './components/CyberpunkClock';
-import { Search, TrendingUp, Globe, Zap, Activity, BarChart3, HelpCircle, BrainCircuit, TerminalSquare, Home, Database, X, Sun, Moon, FileText, ChevronDown, ChevronUp, Menu, User} from 'lucide-react'
+import { X, FileText} from 'lucide-react'
+//// import components
+import AppHeader from './components/AppHeader';
+import CryptoTab from './components/CryptoTab';
+import PaperTradingTab from './components/PaperTradingTab';
+import VnStocksTab from './components/VnStocksTab';
+import AuthScreen from './components/AuthScreen';
+import DerivativesTab from './components/DerivativesTab';
+import DraggableLog from './components/DraggableLog';
+
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
 axios.defaults.baseURL = API_BASE_URL;
 
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
-function AtomLoader({ message = "QUANT MATRIX IS LOADING..." }) {
-  return (
-    <div className="atom-loader-container">
-      <div className="atom-wrapper">
-        <div className="atom-nucleus"></div>
-        <div className="atom-orbit atom-orbit-1"></div>
-        <div className="atom-orbit atom-orbit-2"></div>
-        <div className="atom-orbit atom-orbit-3"></div>
-      </div>
-      <p className="atom-loading-text">{message}</p>
-    </div>
-  );
-}
+
 function App() {
   // CONFIG: USER STATE & AUTH MANAGEMENT
   const [currentUser, setCurrentUser] = useState(localStorage.getItem('omni_user') || null);
@@ -126,6 +120,7 @@ useEffect(() => {
         localStorage.setItem('lastActiveMode', activeMode);
     }
 }, [activeMode]);
+
   const [demoBalance, setDemoBalance] = useState(10000000000);  
   const [demoPosition, setDemoPosition] = useState(0);       
   const [demoEntryPrice, setDemoEntryPrice] = useState(0);    
@@ -164,10 +159,137 @@ useEffect(() => {
   const [vn30Data, setVn30Data] = useState([]);
   const [errorAlert, setErrorAlert] = useState('');
   const [userHistory, setUserHistory] = useState([]);
-  const [historyLimit, setHistoryLimit] = useState(10);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [expandedSymbol, setExpandedSymbol] = useState(null);
+  
+// =========================================================
+  // STATE & LOGIC: MA TRẬN GIẢ LẬP (PAPER TRADING)
+  // =========================================================
+  const [portfolio, setPortfolio] = useState(null);
+  const [paperMarket, setPaperMarket] = useState('VN_STOCKS'); 
+  const [paperSymbol, setPaperSymbol] = useState('');  
+  const [paperSearchInput, setPaperSearchInput] = useState('');  
+  const [paperVolume, setPaperVolume] = useState(10000);
+  const [paperChartData, setPaperChartData] = useState(null);
+  const [paperInterval, setPaperInterval] = useState('1 ngày');
+  
+   const [paperOrderType, setPaperOrderType] = useState('MP');  
+  const [paperLimitPrice, setPaperLimitPrice] = useState('');
+  const [paperSuggestions, setPaperSuggestions] = useState([]);
+  const [showPaperSuggestions, setShowPaperSuggestions] = useState(false);
+  const [showPaperHelp, setShowPaperHelp] = useState(false);
+
+
+   useEffect(() => {
+      if (currentUser && activeMode === 'PAPER_TRADING') {
+          axios.get(`/api/portfolio/${currentUser}`)
+              .then(res => { if(res.data.success) setPortfolio(res.data.data); })
+              .catch(err => console.error("Lỗi tải ví ảo:", err));
+      }
+  }, [currentUser, activeMode]);
+
+   useEffect(() => {
+      setPaperSymbol('');
+      setPaperSearchInput('');
+      setPaperChartData(null);
+  }, [paperMarket]);
+
+   useEffect(() => {
+      if (!paperSearchInput.trim() || activeMode !== 'PAPER_TRADING') {
+          setPaperSuggestions([]);
+          return;
+      }
+      const keyword = paperSearchInput.trim().toUpperCase();
+      const filtered = allStocks.filter(stock => 
+          (stock.symbol?.toUpperCase() || '').includes(keyword)
+      ).slice(0, 10);
+      setPaperSuggestions(filtered);
+  }, [paperSearchInput, allStocks, activeMode]);
+
+   const executePaperSearch = (symbolToSearch) => {
+      if (!symbolToSearch) return;
+      const cleanSymbol = symbolToSearch.toUpperCase();
+      setPaperSymbol(cleanSymbol);
+      setPaperSearchInput(cleanSymbol);
+      setShowPaperSuggestions(false);
+      
+       axios.get(`/api/history/${cleanSymbol}?interval=${paperInterval}`)
+          .then(res => {
+              if (res.data.success && res.data.data.length > 0) {
+                  setPaperChartData(res.data.data);
+                  addLog(`[GIẢ LẬP] Đã tải dữ liệu realtime mã ${cleanSymbol}`);
+              } else {
+                  setPaperChartData(null);
+                  setErrorAlert(`Không tìm thấy dữ liệu biểu đồ cho mã ${cleanSymbol}!`);
+                  setTimeout(() => setErrorAlert(''), 3000);
+              }
+          }).catch(() => setPaperChartData(null));
+  };
+
+   useEffect(() => {
+      if (paperSymbol) executePaperSearch(paperSymbol);
+  }, [paperInterval]);
+
+   const handlePaperTrade = async (type) => {
+      if (!paperChartData || paperChartData.length === 0) {
+          setErrorAlert("Chưa có dữ liệu giá realtime để khớp lệnh!");
+          setTimeout(() => setErrorAlert(''), 3000); return;
+      }
+      
+      let currentPrice = paperChartData[paperChartData.length - 1].close;
+      if (paperMarket === 'VN_STOCKS' && currentPrice < 1000) currentPrice *= 1000;
+
+       let executionPrice = currentPrice;
+      if (paperOrderType === 'LO') {
+          const limitVal = Number(paperLimitPrice);
+          if (!limitVal || limitVal <= 0) {
+              setErrorAlert("Vui lòng nhập giá đặt LO hợp lệ!");
+              setTimeout(() => setErrorAlert(''), 3000); return;
+          }
+          executionPrice = limitVal; 
+      }
+
+      try {
+          const res = await axios.post('/api/portfolio/trade', {
+              username: currentUser,
+              assetType: paperMarket,
+              symbol: paperSymbol.toUpperCase(),
+              type: type,
+              orderType: paperOrderType, 
+              volume: Number(paperVolume),
+              price: executionPrice,
+              isMarketOpen: marketOpen 
+          });
+          
+          if (res.data.success) {
+              setPortfolio(res.data.data);
+              if (res.data.isPending) {
+                  addLog(`[SỔ LỆNH] Lệnh ${type} ${paperOrderType} ${paperSymbol} đã được đưa vào hàng đợi.`);
+              } else {
+                  addLog(`[KHỚP LỆNH] Đã khớp ${type} ${paperVolume} ${paperSymbol} tại giá ${executionPrice.toLocaleString('vi-VN')}`);
+              }
+          }
+      } catch (error) {
+          setErrorAlert(error.response?.data?.message || "Lỗi khớp lệnh!");
+          setTimeout(() => setErrorAlert(''), 3000);
+      }
+  };
+const handleCancelOrder = async (orderId) => {
+      try {
+          const res = await axios.post('/api/portfolio/cancel-order', {
+              username: currentUser,
+              orderId: orderId
+          });
+          if (res.data.success) {
+              setPortfolio(res.data.data);
+              addLog(`[SỔ LỆNH] Đã hủy lệnh chờ thành công, giải phóng nguồn vốn.`);
+          }
+      } catch (error) {
+          setErrorAlert(error.response?.data?.message || "Lỗi khi thực thi hủy lệnh!");
+          setTimeout(() => setErrorAlert(''), 3000);
+      }
+  };
   // ================================================
-// VOLUME PROFILE (GIỮ NGUYÊN)
+// VOLUME PROFILE  
 // ================================================
 const volumeProfile = React.useMemo(() => {
     if (!derivChartData || derivChartData.length === 0) return null;
@@ -406,17 +528,24 @@ const derivAnalysis = React.useMemo(() => {
         const mm = String(now.getMinutes()).padStart(2, '0');
         const ss = String(now.getSeconds()).padStart(2, '0');
         const ms = String(now.getMilliseconds()).padStart(3, '0');
-        
-        setClock({ time: `${hh}:${mm}:${ss}`, ms: ms });
+
+        setClock(prev => {
+            const newTime = `${hh}:${mm}:${ss}`;
+            // Chỉ update khi giây thay đổi để tránh re-render liên tục
+            if (prev.time === newTime && prev.ms === ms) return prev;
+            return { time: newTime, ms };
+        });
 
         const day = now.getDay();
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
         const isOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
         setMarketOpen(isOpen);
-
-        requestAnimationFrame(updateTime); 
     };
-    requestAnimationFrame(updateTime);
+
+    // Dùng setInterval thay requestAnimationFrame — cập nhật 1 lần/giây là đủ
+    updateTime(); // chạy ngay lần đầu
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -504,10 +633,9 @@ const derivAnalysis = React.useMemo(() => {
     btnLog: isDark ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white' : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100 shadow-sm'
   };
 
-  const addLog = (msg) => {
-    setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 30))
-  }
-
+    const addLog = useCallback((msg) => {
+        setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 30))
+    }, []);
   useEffect(() => {
     const loadSymbols = async () => {
       try {
@@ -699,6 +827,9 @@ const derivAnalysis = React.useMemo(() => {
       setAiReport(response.data.aiReport);
       addLog(`[OK] OMNI DUCK hoàn tất chiến lược và đã lưu Database!`);
       setShowLogs(false);
+      if (response.data.actionPanelData) {
+          setActionData(response.data.actionPanelData);
+      }
       if (currentUser && typeof fetchUserHistory === 'function') {
           fetchUserHistory();
       }
@@ -885,1243 +1016,145 @@ const derivAnalysis = React.useMemo(() => {
     return () => clearInterval(timer);
   }, [marketData?.stockInfo?.symbol, activeInterval, marketOpen]);
   
-  // LOGIC: SYSTEMATIC ANALYSIS RATIO
-  const renderMarketOverview = () => {
-    // Nếu chưa có data thì hiển thị loading
-    if (!marketIntel || !vnIndexData || vnIndexData.length < 2) {
-      return (
-        <div className={`shrink-0 h-[180px] border-t flex items-center justify-center ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-300 bg-white'}`}>
-          <div className="flex flex-col items-center opacity-50">
-            <Activity size={24} className="mb-2 animate-pulse" />
-            <p className="text-xs font-black uppercase tracking-[0.2em]">OMNI DUCK ĐANG TÍNH TOÁN MA TRẬN...</p>
-          </div>
-        </div>
-      );
-    }
-
-    // MAP MÀU THEO TRẠNG THÁI
-    const colorMap = {
-        bullish: isDark ? 'text-emerald-400' : 'text-emerald-600',
-        bearish: isDark ? 'text-red-400' : 'text-red-600',
-        warning: isDark ? 'text-yellow-400' : 'text-yellow-600',
-        neutral: isDark ? 'text-slate-400' : 'text-slate-600'
-    };
-    
-    // Dùng optional chaining (?.) để tránh sập app nếu API trả về thiếu trường dữ liệu
-    const statusColor = colorMap[marketIntel?.statusType] || colorMap.neutral;
-    const isUp = parseFloat(marketIntel?.indexChangePct || 0) >= 0;
-
-    const emeraldBadge = isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border border-emerald-300';
-    const redBadge = isDark ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-300';
-
-    return (
-      <div className={`shrink-0 border-t p-5 flex flex-col z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-300 bg-slate-50'}`}>
-        
-        {/* HEADER: VN-INDEX */}
-        <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-                <Globe size={18} className={statusColor} />
-                <h3 className={`text-sm font-black uppercase tracking-[0.2em] ${UI.textBold}`}>Hệ Sinh Thái VN-INDEX</h3>
-            </div>
-            <div className={`px-2 py-1 rounded text-[11px] font-black tracking-widest border ${isUp ? (isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-400 text-emerald-600') : (isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-400 text-red-600')}`}>
-                VN-INDEX: {isUp ? '+' : ''}{marketIntel?.indexChangePct}%
-            </div>
-        </div>
-
-        {/* Tech index */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className={`p-3 rounded-lg border flex flex-col justify-center shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
-                <p className={`text-[9px] font-bold uppercase tracking-widest ${UI.textMuted}`}>Trạng thái Hệ thống</p>
-                <p className={`text-[13px] font-black uppercase mt-1 ${statusColor}`}>{marketIntel?.marketStatus || 'ĐANG CẬP NHẬT'}</p>
-            </div>
-            <div className={`p-3 rounded-lg border flex flex-col justify-center shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
-                <p className={`text-[9px] font-bold uppercase tracking-widest ${UI.textMuted}`}>Lan tỏa Dòng tiền</p>
-                <p className={`text-[13px] font-black uppercase mt-1 ${UI.textBold}`}>{marketIntel?.breadthRatio}% Mã Tăng</p>
-            </div>
-        </div>
-        
-        {/*AI */}
-        <p className={`text-[11px] italic font-medium mb-3 line-clamp-1 ${UI.textMuted}`}>
-           <Zap size={10} className="inline mr-1 text-yellow-500"/> {marketIntel?.diagnosticDesc || 'Đang chờ đánh giá chuyên sâu từ hệ thống...'}
-        </p>
-
-        {/* Industry Group*/}
-        <div className="flex flex-col gap-2.5">
-            <div className="flex items-center gap-3">
-                <span className={`w-16 shrink-0 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-emerald-500' : 'text-emerald-600'}`}>Hút Tiền:</span>
-                <div className="flex gap-2 flex-wrap">
-                    {marketIntel?.strongSectors && marketIntel.strongSectors.length > 0 ? marketIntel.strongSectors.map((sec, idx) => {
-                        // Trích xuất tên ngành và các mã leader
-                        const name = sec.name || sec; // Dự phòng trường hợp data cache bị cũ
-                        const tickers = sec.tickers && sec.tickers.length > 0 ? sec.tickers.join(', ') : '';
-                        
-                        return (
-                            <span key={name || idx} className={`px-2.5 py-1 text-[10px] font-black rounded shadow-sm flex items-center gap-1.5 ${emeraldBadge}`}>
-                                {name}
-                                {tickers && <span className="opacity-80 font-bold tracking-normal text-[9px]">({tickers})</span>}
-                            </span>
-                        );
-                    }) : <span className={`text-[10px] italic ${UI.textMuted}`}>Không có dòng tiền dẫn dắt</span>}
-                </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-                <span className={`w-16 shrink-0 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-red-500' : 'text-red-600'}`}>Rút Vốn:</span>
-                <div className="flex gap-2 flex-wrap">
-                    {marketIntel?.weakSectors && marketIntel.weakSectors.length > 0 ? marketIntel.weakSectors.map((sec, idx) => {
-                        const name = sec.name || sec;
-                        const tickers = sec.tickers && sec.tickers.length > 0 ? sec.tickers.join(', ') : '';
-                        
-                        return (
-                            <span key={name || idx} className={`px-2.5 py-1 text-[10px] font-black rounded shadow-sm flex items-center gap-1.5 ${redBadge}`}>
-                                {name}
-                                {tickers && <span className="opacity-80 font-bold tracking-normal text-[9px]">({tickers})</span>}
-                            </span>
-                        );
-                    }) : <span className={`text-[10px] italic ${UI.textMuted}`}>Áp lực bán không rõ rệt</span>}
-                </div>
-            </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className={`w-full h-screen flex flex-col overflow-hidden font-sans antialiased transition-colors duration-300 ${UI.main}`}>
       
       {/* AUTH SCREEN CONTAINER */}
-      {!currentUser && (
-        <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#05080C] bg-[radial-gradient(ellipse_at_center,rgba(250,204,21,0.05),transparent_50%)]">
-            <div className="w-[400px] p-8 rounded-3xl border border-white/10 bg-[#0B0F14]/90 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center">
-                <div className="w-16 h-16 rounded-2xl bg-yellow-400 flex items-center justify-center text-black shadow-[0_0_20px_rgba(250,204,21,0.4)] mb-6">
-                    <TrendingUp size={32} />
-                </div>
-                <h2 className="text-2xl font-black text-white tracking-widest uppercase mb-1">OMNI DUCK</h2>
-                <p className="text-[10px] text-yellow-500 tracking-[0.3em] uppercase font-bold mb-6">System Authorization</p>
-                
-                {authError && (
-                    <div className="w-full bg-red-500/10 border border-red-500/50 text-red-400 text-xs font-bold p-3 rounded-lg mb-4 text-center animate-pulse">
-                        ⚠️ {authError}
-                    </div>
-                )}
-                
-                <form onSubmit={handleAuthSubmit} className="w-full flex flex-col gap-4">
-                    <input 
-                        type="text" 
-                        placeholder="Nhập tên đăng nhập (Tối thiểu 3 ký tự)" 
-                        className="w-full h-12 bg-black/50 border border-white/10 rounded-xl px-4 text-white text-sm font-bold outline-none focus:border-yellow-400/50 transition-colors"
-                        value={authForm.username}
-                        onChange={e => setAuthForm({...authForm, username: e.target.value})}
-                    />
-                    <input 
-                        type="password" 
-                        placeholder="Mật khẩu (Tối thiểu 6 ký tự)" 
-                        className="w-full h-12 bg-black/50 border border-white/10 rounded-xl px-4 text-white text-sm font-bold outline-none focus:border-yellow-400/50 transition-colors"
-                        value={authForm.password}
-                        onChange={e => setAuthForm({...authForm, password: e.target.value})}
-                    />
-                    <button type="submit" className="w-full h-12 mt-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
-                        {authForm.isRegister ? 'Tạo Tài Khoản' : 'Truy Cập Hệ Thống'}
-                    </button>
-                </form>
-                <button 
-                    onClick={() => {
-                      setAuthForm({...authForm, isRegister: !authForm.isRegister});
-                      setAuthError(''); 
-                    }} 
-                    className="mt-6 text-xs text-slate-400 hover:text-yellow-400 transition-colors"
-                >
-                    {authForm.isRegister ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
-                </button>
-            </div>
-        </div>
-      )}
+        {!currentUser && (
+        <AuthScreen
+            authForm={authForm} setAuthForm={setAuthForm}
+            authError={authError} handleAuthSubmit={handleAuthSubmit}
+        />
+        )}
 
       {/* TERMINAL MAIN CONTAINER */}
       <div className={`w-full h-full flex flex-col transition-opacity duration-500 ${!currentUser ? 'opacity-0 pointer-events-none blur-md' : 'opacity-100'}`}>
-<header className={`relative z-[99999] border-b px-6 py-1 flex items-center justify-between shrink-0 w-full transition-colors duration-300 ${UI.header}`}>
-        {/* CONTAINER BRAND LOGO */}
-        <div className="flex items-center gap-4 w-[350px] shrink-0">
-          <div className="w-11 h-11 rounded-xl bg-yellow-400 flex items-center justify-center text-black font-black shadow-lg shadow-yellow-400/20">
-            <TrendingUp size={22} />
-          </div>
-          <div className="hidden sm:block">
-            <h1 className={`text-xl font-black tracking-tight leading-none ${UI.textBold}`}>
-              OMNI <span className="text-yellow-400 italic">DUCK</span>
-            </h1>
-            <p className={`text-[9px] uppercase tracking-widest font-bold mt-1 ${UI.textMuted}`}>
-              Quantitative Terminal
-            </p>
-          </div>
-        </div>
-
-        {/* CONTAINER SEARCH & CLOCK CONTROL */}
-        <div className="flex-1 flex items-center justify-center gap-8 relative px-4">
-              <button 
-                  onClick={handleGoHome}
-                  title="Trở về Trang chủ (Lịch sử lệnh)"
-                  className={`flex-shrink-0 h-12 w-12 flex items-center justify-center rounded-2xl border transition-all active:scale-95 hover:bg-yellow-400 hover:text-black hover:border-yellow-400 ${UI.btnLog}`}
-              >
-                  <Home size={20} />
-              </button>
-
-<div className="w-full max-w-xl relative z-[99999]">              <div className={`absolute top-full mt-3 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-2 bg-red-500/95 backdrop-blur-md text-white font-black text-xs tracking-widest rounded-full shadow-2xl transition-all duration-500 pointer-events-none
-                ${errorAlert ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible'}`}
-              >
-                {errorAlert}
-              </div>
-
-              <div className={`flex items-center h-12 border rounded-2xl px-4 focus-within:border-yellow-400/50 transition-all ${UI.searchBg}`}>
-                <Search size={18} className="text-yellow-400 mr-3" />
-                <input
-                type="text"
-                placeholder={activeMode === 'VN_DERIVATIVES' ? "Chế độ Phái sinh: VN30F1M (Cố định)" : "Nhập mã cổ phiếu..."}
-                className={`flex-1 bg-transparent outline-none text-base font-bold uppercase ${UI.searchInput}`}
-                value={activeMode === 'VN_DERIVATIVES' ? "VN30F1M" : input} 
-                onChange={(e) => { setInput(e.target.value.toUpperCase()); setShowSuggestions(true); }}
-                onKeyDown={(e) => e.key === 'Enter' && fetchMarketData()}
-                onFocus={() => setShowSuggestions(true)}
-                disabled={loadingMarket || activeMode === 'VN_DERIVATIVES'} 
-              />
-                <button onClick={fetchMarketData} disabled={loadingMarket || !input} className="h-8 px-6 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-black font-black text-xs transition-all active:scale-95 disabled:opacity-50">
-                  SEARCH
-                </button>
-              </div>
-
-              {showSuggestions && suggestions.length > 0 && (
-                <div
-                  className={`absolute top-[calc(100%+8px)] left-0 z-[99] right-0 border rounded-2xl overflow-y-auto max-h-[420px] z-[99999] shadow-2xl backdrop-blur-2xl custom-scrollbar ${UI.card}`}
-                  style={{ isolation: 'isolate' }}
-                >
-                  {suggestions.map((stock, index) => (
-                    <button
-                      key={stock.symbol || index}
-                      onClick={() => {
-                        setInput(stock.symbol);
-                        setSuggestions([]);
-                        setShowSuggestions(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-5 py-3 transition-all border-b last:border-0 text-left group ${UI.cardHover}`}
-                    >
-                      {/* Vế trái: Icon Sét + Mã + Tên Công ty bọc lót 2 biến */}
-                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-4">
-                        <Zap size={14} className="text-yellow-400 shrink-0 group-hover:animate-pulse" />
-                        <span className={`font-black text-base tracking-wider transition-colors ${isDark ? 'text-emerald-400 group-hover:text-yellow-400' : 'text-emerald-600 group-hover:text-yellow-500'}`}>
-                          {stock.symbol}
-                        </span>
-                        <span className={`text-[11px] font-medium truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {stock.name || stock.companyName || 'Đang cập nhật...'}
-                        </span>
-                      </div>
-
-                      {/* Vế phải: Nhãn Sàn giao dịch  */}
-                      {stock.exchange && (
-                        <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest shrink-0 ${
-                          stock.exchange.toUpperCase() === 'HOSE' 
-                              ? 'bg-red-500/10 text-red-500 border border-red-500/30' 
-                              : stock.exchange.toUpperCase() === 'HNX'
-                              ? 'bg-blue-500/10 text-blue-500 border border-blue-500/30'
-                              : 'bg-amber-500/10 text-amber-500 border border-amber-500/30' 
-                        }`}>
-                          {stock.exchange}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-          </div>
-
-          <div className="flex items-center gap-4 shrink-0 select-none ml-20">
-            <CyberpunkClock marketOpen={marketOpen} theme={theme} />
-            <div
-              className={`px-4 py-2 rounded-2xl border font-black uppercase tracking-widest text-[11px]
-              ${marketOpen
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40 shadow-[0_0_18px_rgba(16,185,129,0.25)]'
-                : 'bg-red-500/10 text-red-400 border-red-500/40 shadow-[0_0_18px_rgba(239,68,68,0.25)]'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-2 h-2 rounded-full animate-pulse
-                  ${marketOpen ? 'bg-emerald-400' : 'bg-red-400'}`}
-                />
-                {marketOpen ? 'Market OPEN' : 'Market CLOSED'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* CONTAINER UTILITIES & ACCOUNT DROPDOWN */}
-<div className="flex items-center justify-end gap-3 w-[350px] shrink-0 relative">
-  <button 
-    onClick={handleToggleTheme} 
-    className={`p-2.5 rounded-xl border transition-all ${UI.btnLog}`}
-  >
-    {isDark ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} />}
-  </button>
-  
-  <button 
-    onClick={() => setShowLogs(!showLogs)} 
-    className={`flex items-center gap-2 px-4 h-10 rounded-xl text-[10px] font-black uppercase border transition-all ${showLogs ? 'bg-yellow-400 text-black border-yellow-400' : UI.btnLog}`}
-  >
-    <TerminalSquare size={16} />
-    <span className="hidden xl:inline">{showLogs ? 'CLOSE' : 'LOGS'}</span>
-  </button>
-
-  <div className="relative">
-    <button 
-      onClick={() => setShowUserMenu(!showUserMenu)} 
-      className={`p-2.5 rounded-xl border transition-all ${showUserMenu ? 'bg-emerald-500 border-emerald-500 text-black' : UI.btnLog}`}
-    >
-      <Menu size={18} />
-    </button>
-
-    {showUserMenu && (
-    <div className={`absolute top-full right-0 mt-3 w-64 rounded-2xl border shadow-2xl overflow-hidden z-[9999] animate-in slide-in-from-top-2 fade-in duration-200 ${isDark ? 'bg-[#10151C] border-white/10' : 'bg-white border-slate-300'}`}>
-        {/* THÔNG TIN USER */}
-        <div className={`p-4 border-b ${isDark ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50'}`}>
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-emerald-400 flex items-center justify-center text-black">
-                    <User size={20} />
-                </div>
-                <div>
-                    <p className={`text-[10px] uppercase tracking-widest font-black ${UI.textMuted}`}>Hệ thống Omni Duck</p>
-                    <p className={`font-black text-sm truncate ${UI.textBold}`}>{currentUser}</p>
-                </div>
-            </div>
-        </div>
-
-        {/* BỘ CHỌN THỊ TRƯỜNG */}
-        <div className="p-2 flex flex-col gap-1">
-            <button onClick={() => { setActiveMode('VN_STOCKS'); setShowUserMenu(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${activeMode === 'VN_STOCKS' ? 'bg-yellow-400 text-black' : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}>
-                <Activity size={16} /> 1. Chứng khoán VN
-            </button>
-
-            <button onClick={() => { setActiveMode('VN_DERIVATIVES'); setShowUserMenu(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${activeMode === 'VN_DERIVATIVES' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}>
-                <Zap size={16} /> 2. Phái sinh VN
-            </button>
-
-            <button onClick={() => { setActiveMode('CRYPTO'); setShowUserMenu(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${activeMode === 'CRYPTO' ? 'bg-blue-500 text-white' : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}>
-                <Globe size={16} /> 3. Tài sản số (Crypto)
-            </button>
-
-            <button disabled className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm opacity-40 grayscale cursor-not-allowed text-left">
-                <Database size={16} /> 4. Quốc tế (Update sau)
-            </button>
-        </div>
-
-        {/* ĐĂNG XUẤT */}
-        <div className="p-2 border-t border-white/5">
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 font-bold text-sm transition-colors text-left">
-                <X size={16} /> Đăng xuất hệ thống
-            </button>
-        </div>
-    </div>
-)}
-          </div>
-        </div>
-      </header>
+        <AppHeader
+        isDark={isDark} UI={UI} theme={isDark ? 'dark' : 'light'}
+        activeMode={activeMode} marketOpen={marketOpen}
+        input={input} setInput={setInput}
+        showSuggestions={showSuggestions} setShowSuggestions={setShowSuggestions}
+        suggestions={suggestions} setSuggestions={setSuggestions}
+        showLogs={showLogs} setShowLogs={setShowLogs}
+        showUserMenu={showUserMenu} setShowUserMenu={setShowUserMenu}
+        errorAlert={errorAlert}
+        loadingMarket={loadingMarket}
+        currentUser={currentUser}
+        setActiveMode={setActiveMode} handleLogout={handleLogout}
+        handleGoHome={handleGoHome} handleToggleTheme={handleToggleTheme}
+        fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
+        />
 
       {/* GRID CONTAINER: 3 COLUMNS SYSTEM */}
       <div className="flex-1 overflow-hidden flex relative w-full">
-{/* ========================================================= */}
+
+        {/* ========================================================= */}
         {/* CHẾ ĐỘ 1: CHỨNG KHOÁN VIỆT NAM (CƠ SỞ)                    */}
         {/* ========================================================= */}
         {activeMode === 'VN_STOCKS' && (
-            <>
-        {/* GRID COLUMN 1: MARKET DATA & RADAR SUMMARY */}
-        <div className={`w-[550px] border-r flex flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol}`}>
-          <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
-            {loadingMarket && (
-              <div 
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-shimmer shadow-[0_0_15px_rgba(250,204,21,1)]"
-                style={{ backgroundSize: '200% 100%', animation: 'shimmer 1.2s infinite linear' }}
-              />
-            )}
-          </div>
-          
-          <div className="flex-1 flex flex-col overflow-y-auto min-h-0 custom-scrollbar">
-              {!marketData ? (
-                 <div className={`h-full flex flex-col items-center justify-center opacity-50 min-h-[400px] ${UI.textMuted}`}>
-                    <Database size={48} className="mb-4" />
-                    <p className="text-xs font-black uppercase">Waiting for Command</p>
-                 </div>
-              ) : (
-                <div className="flex flex-col relative pb-4">
+        <VnStocksTab
+            isDark={isDark} UI={UI}
+            allStocks={allStocks}
+            marketData={marketData}
+            chartData={chartData}
+            aiReport={aiReport}
+            analyzing={analyzing}
+            loadingMarket={loadingMarket}
+            loadingAiNews={loadingAiNews}
+            activeInterval={activeInterval}
+            showExtraStats={showExtraStats} setShowExtraStats={setShowExtraStats}
+            showVolInfo={showVolInfo} setShowVolInfo={setShowVolInfo}
+            actionData={actionData}
+            isUpdatingAction={isUpdatingAction}
+            setShowPdfModal={setShowPdfModal}
+            vnIndexData={vnIndexData}
+            hnxIndexData={hnxIndexData}
+            vn30Data={vn30Data}
+            marketIntel={marketIntel}
+            handleAiAnalysis={handleAiAnalysis}
+            handleIntervalChange={handleIntervalChange}
+            fetchAiNews={fetchAiNews}
+            stopNewsStream={stopNewsStream}
 
-              {/* ROW PANEL: SYMBOL HEADINFO */}
-              <div className={`shrink-0 p-6 border-b shadow-xl relative transition-colors duration-300 ${UI.card}`}>
-                    <div className={`flex justify-between items-start mb-6 pb-6 border-b ${UI.border}`}>
-                    <div>
-                      <div className="flex items-end gap-2">
-                        <h2 className={`text-5xl font-black tracking-tighter text-yellow-400 ${UI.textBold}`}>
-                          {marketData.stockInfo.symbol}
-                        </h2>
-                        <span className="p-1 px-2 bg-emerald-500/10 text-emerald-500 rounded text-[10px] font-black uppercase tracking-widest mb-1">
-                          {marketData.stockInfo?.exchange}
-                        </span>
-                      </div>
-                      <p className={`text-[13px] font-medium mt-3 leading-tight italic max-w-[220px] ${UI.textNormal}`}>
-                      {(marketData.companyProfile?.companyName && marketData.companyProfile.companyName !== marketData.stockInfo?.symbol) 
-                          ? marketData.companyProfile.companyName 
-                          : (allStocks.find(s => s.symbol === marketData.stockInfo?.symbol)?.companyName || 'Đang cập nhật...')}
-                    </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className={`text-[10px] uppercase tracking-widest font-black mb-1 ${UI.textMuted}`}>Giá Khớp Lệnh</p>
-                      <h2 className={`text-3xl font-black leading-none ${UI.textBold}`}>
-                        {marketData.stockInfo.currentPrice}
-                      </h2>
-                      <div className={`flex items-center justify-end gap-1 font-black text-sm mt-2 ${(marketData.stockInfo.change || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {(marketData.stockInfo.change || 0) >= 0 ? '▲' : '▼'}
-                        <span>
-                          {Math.abs(marketData.stockInfo.change || 0).toLocaleString('vi-VN')} 
-                          {' '}
-                          ({Number(marketData.stockInfo.changePercent || 0).toFixed(2)}%)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={`grid grid-cols-4 gap-4 text-center mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                    <div className={`p-3 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-gray-100 border-gray-200 shadow-sm'}`}>
-                        <p className={`text-[10px] mb-2 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>VỐN HÓA</p>
-                        <p className="font-black text-base lg:text-lg-2 leading-none whitespace-nowrap">{marketData.stockInfo.marketCap}</p>
-                    </div>
-                    <div className={`p-3 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-gray-100 border-gray-200 shadow-sm'}`}>
-                        <p className={`text-[10px] mb-2 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>P/E</p>
-                        <p className="font-black text-base lg:text-lg leading-none text-yellow-500 whitespace-nowrap">{marketData.stockInfo.pe}</p>
-                    </div>
-                    <div className={`p-3 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-gray-100 border-gray-200 shadow-sm'}`}>
-                        <p className={`text-[10px] mb-2 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>TỔNG KL</p>
-                        <p className="font-black text-base lg:text-lg leading-none whitespace-nowrap">{marketData.stockInfo.totalVolume}</p>
-                    </div>
-                    <div className={`p-3 px-4 rounded-xl border flex flex-col justify-center gap-2 ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-gray-100 border-gray-200 shadow-sm'}`}>
-                        <div className="flex justify-between items-center text-[13px] font-black text-emerald-500 leading-none">
-                            <span className={`text-[6px] uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Mua</span>
-                            <span className="whitespace-nowrap">{marketData.stockInfo.buyVolume}</span>
-                        </div>
-                        <div className="w-full h-2 flex rounded-full overflow-hidden bg-gray-800/20">
-                            <div className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: '60%' }}></div>
-                            <div className="h-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" style={{ width: '40%' }}></div>
-                        </div>
-                        <div className="flex justify-between items-center text-[13px] font-black text-red-500 leading-none">
-                            <span className={`text-[6px] uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Bán</span>
-                            <span className="whitespace-nowrap">{marketData.stockInfo.sellVolume}</span>
-                        </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-center mb-4 mt-2">
-                      <button 
-                          onClick={() => setShowExtraStats(!showExtraStats)}
-                          className={`flex items-center gap-1 text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full border transition-all ${
-                              isDark ? 'text-gray-400 border-gray-700 hover:bg-gray-800 hover:text-yellow-400 hover:border-yellow-400/50' : 'text-gray-500 border-gray-300 hover:bg-yellow-50 hover:text-yellow-600 hover:border-yellow-400'
-                          }`}
-                      >
-                          {showExtraStats ? <><ChevronUp size={14} /> THU GỌN CHỈ SỐ</> : <><ChevronDown size={14} /> XEM THÊM CHỈ SỐ TÀI CHÍNH</>}
-                      </button>
-                  </div>
-
-                  {showExtraStats && (
-                      <div className={`grid grid-cols-3 gap-4 text-center mb-6 p-4 rounded-xl border animate-in slide-in-from-top-2 fade-in duration-200 ${isDark ? 'bg-[#0f141e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
-                          <div>
-                              <p className={`text-[10px] mb-1 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>EPS (Nghìn)</p>
-                              <p className="font-black text-lg">{marketData.stockInfo.eps}</p>
-                          </div>
-                          <div>
-                              <p className={`text-[10px] mb-1 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>P/B</p>
-                              <p className="font-black text-lg">{marketData.stockInfo.pb}</p>
-                          </div>
-                          <div>
-                              <p className={`text-[10px] mb-1 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>GT Sổ sách</p>
-                              <p className="font-black text-lg">{marketData.stockInfo.bvps}</p>
-                          </div>
-                      </div>
-                  )}
-
-                  <div className={`rounded-xl p-4 border mb-5 ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-                    <p className="text-[10px] uppercase tracking-widest text-yellow-500 font-black mb-1 flex items-center gap-2"><Activity size={12} /> Tổng quan doanh nghiệp</p>
-                    <p className={`text-[11px] leading-relaxed italic line-clamp-2 ${UI.textMuted}`}>{marketData.companyProfile?.overview}</p>
-                  </div>
-
-                  <button
-                    onClick={handleAiAnalysis}
-                    disabled={analyzing}
-                    className={`w-full h-12 rounded-xl hover:bg-yellow-400 hover:text-black font-black transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 mb-6 ${isDark ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}
-                  >
-                    <BrainCircuit size={18} />
-                    {analyzing ? 'AI ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
-                  </button>
-
-                  <div className={`h-[6px] w-full shrink-0 relative overflow-hidden rounded-full ${isDark ? 'bg-white/5' : 'bg-slate-200'}`}>
-                    {loadingMarket && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-shimmer shadow-[0_0_15px_rgba(250,204,21,1)]" style={{ backgroundSize: '200% 100%', animation: 'shimmer 1.2s infinite linear' }} />}
-                  </div>
-              </div>
-
-              {/* ROW PANEL: NEWS STREAM */}
-              <div className="p-6">
-                  <div className="space-y-3">
-                   <button onClick={fetchAiNews} disabled={loadingAiNews} className={`w-full mt-4 h-12 rounded-xl font-black text-xs tracking-widest uppercase transition-all flex items-center justify-center gap-2 border border-dashed ${loadingAiNews ? 'opacity-50 border-slate-500 text-slate-500 cursor-not-allowed' : (isDark ? 'border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500' : 'border-purple-400 text-purple-600 hover:bg-purple-50 hover:border-purple-500')}`}>
-                    <BrainCircuit size={16} className={loadingAiNews ? "animate-pulse" : ""} />
-                    {loadingAiNews ? 'ĐANG QUÉT MẠNG DEEP WEB...' : 'SĂN THÊM TIN BẰNG AI'}
-                  </button>
-                  <div className="flex items-center justify-between px-2 mb-4">
-                    <h3 className={`text-[10px] uppercase tracking-[0.2em] font-black ${UI.textMuted}`}>Live News Stream</h3>
-                    {loadingMarket ? (
-                      <button onClick={stopNewsStream} className="flex items-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-3 py-1 rounded-full transition-all border border-red-500/30">
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Dừng lấy tin</span>
-                      </button>
-                    ) : (
-                      marketData.deepNewsData?.length > 0 && (
-                        <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full border border-emerald-500/30 animate-in fade-in slide-in-from-right-2">
-                          <Zap size={10} fill="currentColor" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Thành công: {marketData.deepNewsData.length} bài báo</span>
-                        </div>
-                      )
-                    )}
-                  </div>
-
-                  {(marketData.deepNewsData || []).map((news, index) => (
-                    <a key={index} href={news.link} target="_blank" rel="noopener noreferrer" className={`block rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${news.isAiGenerated ? (isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400') : (isDark ? 'bg-[#10151C]' : 'bg-white')}`}>
-                      <h3 className={`font-bold text-sm leading-snug transition-colors ${news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : `group-hover:text-yellow-500 ${UI.textNormal}`}`}>
-                          {news.title}
-                      </h3>
-                      <div className="mt-3 flex justify-between items-center gap-3">
-                        <div className="flex gap-2 items-center flex-1 min-w-0">
-                           <span className={`shrink-0 text-[9px] px-2 py-1 rounded font-black uppercase tracking-widest ${news.isAiGenerated ? 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' : (isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500')}`}>
-                             {news.isAiGenerated ? 'AI FOUND' : `SOURCE ${index + 1}`}
-                           </span>
-                           <span className={`text-[10px] font-medium truncate ${UI.textMuted}`}>
-                               {news.date && <span className={`${news.isAiGenerated ? 'text-purple-300' : 'text-yellow-500'} font-bold mr-1`}>{news.date}</span>}
-                               <span className="opacity-60 italic">• {news.source || news.link || 'Internet'}</span>
-                           </span>
-                        </div>
-                        <Globe size={14} className={`shrink-0 ${news.isAiGenerated ? 'text-purple-500' : UI.textMuted} group-hover:text-yellow-500 transition-colors`} />
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        {renderMarketOverview()}
-        </div>
-
-        {/* GRID COLUMN 2: ANALYTICAL VIEW & CHARTS */}
-        <div className={`flex-1 overflow-y-auto p-8 lg:p-12 relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
-          
-          {!marketData && !analyzing && (
-            <div className="flex flex-col gap-6 animate-in fade-in duration-700">
-                <div className="flex items-center justify-between border-b pb-4 mb-2">
-                    <div>
-                        <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
-                        <p className={`text-[10px] uppercase tracking-[0.2em] font-bold text-yellow-500 mt-1`}>Personal Intelligence Feed</p>
-                    </div>
-                    <button onClick={fetchUserHistory} className={`p-2 rounded-lg border ${UI.btnLog}`}><Activity size={16}/></button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-    {userHistory.slice(0, historyLimit).map((item, idx) => {
-        const changePercent = parseFloat(item.changePercent) || 0;
-        const isUp = changePercent > 0;
-        const isDown = changePercent < 0;
-        const formattedPercent = Math.abs(changePercent).toFixed(2);
-
-        return (
-            <div 
-                key={idx}
-                onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
-                className={`group relative flex flex-row items-center justify-between p-4 rounded-xl border transition-all cursor-pointer w-full min-h-[75px]
-                    ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/5' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
-            >
-                <div className={`absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-full ${
-                    item.lastAction?.includes('MUA') ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 
-                    item.lastAction?.includes('BÁN') ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500'
-                }`} />
-
-                <div className="flex flex-row items-center gap-6 min-w-0 flex-1 ml-2">
-                    <div className="flex-1 flex flex-col items-start gap-y-0.5 min-w-0 pr-4">
-                        <div className="flex items-center gap-1.5">
-                            <h3 className={`text-xl font-black tracking-tighter text-yellow-400 ${UI.textBold}`}>{item.symbol}</h3>
-                            <span className="text-[10px] font-bold text-slate-600 uppercase">/ {item.exchange}</span>
-                        </div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase whitespace-normal leading-tight">
-                            {item.companyName || 'N/A'}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-y-0.5 whitespace-nowrap">
-                        <p className={`text-lg font-black flex items-center gap-1.5 justify-end ${isUp ? 'text-emerald-500' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-                            {(item.price || 0).toLocaleString('vi-VN').replace(/,/g, '.')}
-                            <span className="text-[11px] font-bold flex items-center ml-0.5">
-                                {isUp && <ChevronUp size={14} className="mr-0.5" />}
-                                {isDown && <ChevronDown size={14} className="mr-0.5" />}
-                                ({formattedPercent}%)
-                            </span>
-                        </p>
-                        <p className="text-[9px] font-bold text-slate-500 italic">
-                            Cập nhật: {new Date(item.timestamp).toLocaleString('vi-VN')}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-y-1.5 min-w-[110px] shrink-0 pl-4">
-                    <span className={`px-4 py-1.5 rounded-full font-black text-[10px] uppercase border tracking-tight ${
-                        item.lastAction?.includes('MUA') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 
-                        item.lastAction?.includes('BÁN') ? 'bg-red-500/20 text-red-400 border-red-500/30' : 
-                        'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                    }`}>
-                        {item.lastAction || 'QUAN SÁT'}
-                    </span>
-                </div>
-            </div>
-        );
-    })}
-</div>
-
-                {userHistory.length > historyLimit && (
-                    <button 
-                        onClick={() => setHistoryLimit(prev => prev + 3)}
-                        className={`w-full py-4 rounded-2xl border-2 border-dashed font-black text-[10px] tracking-[0.3em] uppercase transition-all ${UI.btnLog}`}
-                    >
-                        Tải thêm dữ liệu (+3)
-                    </button>
-                )}
-            </div>
-          )}
-
-          {marketData && chartData && (
-            <div className={`mb-8 border rounded-[40px] p-8 shadow-xl transition-colors duration-300 flex flex-col h-[600px] ${UI.card}`}>
-              <div className={`flex items-center gap-3 mb-6 pb-4 border-b shrink-0 ${UI.border}`}>
-                <BarChart3 className="text-yellow-500" size={24} />
-                <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Biểu đồ Kỹ thuật ({marketData.stockInfo.symbol})</h3>
-              </div>
-              <div className="flex-1 w-full min-h-0 relative rounded-xl overflow-hidden">
-    <TradingChart 
-        data={chartData}       
-        theme={theme} 
-        onIntervalChange={handleIntervalChange} 
-        currentInterval={activeInterval}
-    />              
-</div>
-            </div>
-          )}
-
-          
-
-          {!marketData && !analyzing && !aiReport && (
-            <div className={`h-full rounded-[40px] border-2 border-dashed flex flex-col items-center justify-center ${isDark ? 'border-white/5 text-slate-700' : 'border-slate-200 text-slate-400'}`}>
-              <BarChart3 size={80} className="mb-6 opacity-20" />
-              <p className="uppercase tracking-[0.3em] text-[10px] font-black opacity-50">Hệ thống đang chờ lệnh</p>
-            </div>
-          )}
-
-          {analyzing && (
-            <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center shadow-xl ${UI.card}`}>
-              <div className="w-16 h-16 rounded-full border-4 border-yellow-400 border-t-transparent animate-spin mb-8" />
-              <h2 className="text-yellow-500 font-black text-sm tracking-[0.3em] uppercase animate-pulse">OMNI DUCK ĐANG TƯ DUY...</h2>
-            </div>
-          )}
-
-          {aiReport && (
-            <div className={`w-full border rounded-[40px] p-10 shadow-2xl transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#10151C] border-yellow-400/20' : 'bg-white border-yellow-400/40'}`}>
-              {actionData && (
-                <div className={`mb-10 p-6 rounded-2xl border-2 shadow-lg relative overflow-hidden ${
-                    actionData.action.includes('MUA') ? 'border-emerald-500 bg-emerald-500/10' : 
-                    actionData.action.includes('BÁN') ? 'border-red-500 bg-red-500/10' : 'border-yellow-500 bg-yellow-500/10'
-                }`}>
-                    <div className="absolute top-0 right-0 p-3 opacity-50">
-                        {isUpdatingAction ? <div className="w-3 h-3 bg-yellow-400 rounded-full animate-ping"/> : <div className="w-3 h-3 bg-emerald-400 rounded-full"/>}
-                    </div>
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className={`px-4 py-1.5 rounded-lg font-black tracking-widest text-lg text-white shadow-lg ${
-                            actionData.action.includes('MUA') ? 'bg-emerald-500 shadow-emerald-500/50' : 
-                            actionData.action.includes('BÁN') ? 'bg-red-500 shadow-red-500/50' : 'bg-yellow-500 shadow-yellow-500/50'
-                        }`}>
-                            {actionData.action}
-                        </div>
-                        <span className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            Live Signal
-                        </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
-                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">ENTRY (Vào lệnh)</p>
-                            <p className={`font-black text-lg ${UI.textBold}`}>{actionData.entry}</p>
-                        </div>
-                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
-                            <p className="text-[10px] text-red-400 font-black uppercase tracking-widest mb-1">STOPLOSS (Cắt lỗ)</p>
-                            <p className={`font-black text-lg ${UI.textBold}`}>{actionData.stoploss}</p>
-                        </div>
-                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
-                            <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-1">TARGET (Chốt lời)</p>
-                            <p className={`font-black text-lg ${UI.textBold}`}>{actionData.target}</p>
-                        </div>
-                    </div>
-                    <p className={`text-sm font-bold italic ${UI.textNormal}`}>
-                        Lý do: {actionData.reason}
-                    </p>
-                </div>
-              )}
-
-              <div className={`flex items-center gap-5 mb-10 pb-8 border-b ${UI.border}`}>
-                <div className="w-16 h-16 rounded-3xl bg-yellow-400 text-black flex items-center justify-center shadow-xl shadow-yellow-400/20 shrink-0"><Zap size={28} /></div>
-                <div>
-                  <h2 className={`text-3xl lg:text-4xl font-black tracking-tight uppercase ${UI.textBold}`}>Strategic Intelligence</h2>
-                  <p className="text-yellow-500 uppercase tracking-[0.3em] text-[10px] font-black mt-2">Omni Duck AI Framework</p>
-                </div>
-              </div>
-              
-              <div className={`prose max-w-none prose-headings:text-yellow-500 prose-headings:font-black prose-headings:italic prose-headings:uppercase prose-p:leading-loose prose-p:text-[16px] prose-strong:text-emerald-500 prose-strong:font-black prose-ul:list-disc prose-ul:pl-5 prose-li:mb-2 ${isDark ? 'prose-invert prose-p:text-slate-300 prose-li:text-slate-300' : 'prose-p:text-slate-700 prose-li:text-slate-700'}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{aiReport}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* GRID COLUMN 3: EXCHANGES INDEX & RADAR PREVIEWS */}
-        <div className={`w-[350px] lg:w-[450px] flex flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10`}> 
-          <div className="h-1/2 flex flex-col border-b border-white/10">
-            <div className="h-2/5 flex border-b border-white/10">
-              <div className="flex-1 border-r border-white/10 p-3 flex flex-col">
-                <span className="text-[9px] font-black text-yellow-500 mb-1">VN-INDEX</span>
-                <div className="flex-1 min-h-0"><MarketRadar data={vnIndexData} theme={theme} color="#facc15" /></div>
-              </div>
-              <div className="flex-1 p-3 flex flex-col">
-                <span className="text-[9px] font-black text-sky-400 mb-1">HNX-INDEX</span>
-                <div className="flex-1 min-h-0"><MarketRadar data={hnxIndexData} theme={theme} color="#38bdf8" /></div>
-              </div>
-            </div>
-            <div className="h-3/5 p-4 flex flex-col">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">VN30 Premium</span>
-                <Activity size={14} className="text-emerald-500" />
-              </div>
-              <div className="flex-1 min-h-0 rounded-xl bg-black/20 border border-white/5 overflow-hidden">
-                <MarketRadar data={vn30Data} theme={theme} color="#10b981" />
-              </div>
-            </div>
-          </div>
-
-          <div className="h-1/2 flex flex-col overflow-hidden">
-            <div className={`h-10 border-b flex items-center justify-between px-4 shrink-0 ${UI.header}`}>
-              <div className="flex items-center gap-2">
-                <FileText size={14} className="text-yellow-500" />
-                <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold}`}>TCBS Analysis</span>
-              </div>
-              {marketData?.reportPdf && (
-                <button 
-                   onClick={() => setShowPdfModal(true)}
-                   className="text-[10px] font-black tracking-widest bg-yellow-400 text-black px-4 py-1.5 rounded-full hover:bg-yellow-300 shadow-lg transition-all active:scale-95"
-                >
-                   OPEN PDF
-                </button>
-              )}
-            </div>
-            
-            <div className={`flex-1 relative ${isDark ? 'bg-[#242424]' : 'bg-slate-100'}`}>
-              {marketData?.reportPdf ? (
-                <iframe src={`${marketData.reportPdf}#toolbar=1&navpanes=0&scrollbar=1`} className="w-full h-full border-none" title="TCBS Report Viewer" />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-20">
-                  <FileText size={32} className="mb-2" />
-                  <p className="text-[9px] font-black uppercase">Waiting for Data</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-</>
-      )}
-     {/* ========================================================= */}
+            fetchUserHistory={fetchUserHistory}
+            userHistory={userHistory}
+            setInput={setInput}
+            fetchMarketData={fetchMarketData}
+        />
+        )}
+        {/* ========================================================= */}
         {/* CHẾ ĐỘ 2: PHÁI SINH VIỆT NAM (VN30F1M)                    */}
         {/* ========================================================= */}
         {activeMode === 'VN_DERIVATIVES' && (
-            <>
-                {/* CỘT TRÁI PHÁI SINH: VN30 ENGINE & BASIS RADAR */}
-                <div className={`w-[450px] border-r flex flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol} animate-in fade-in slide-in-from-left-4`}>
-                    
-                    {/* 🚀 1. HEADER CARD: GIÁ & BASIS */}
-                    <div className={`p-6 border-b shadow-sm relative transition-colors duration-300 ${UI.card}`}>
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <div className="flex items-end gap-2">
-                                    <h2 className="text-4xl font-black tracking-tighter text-orange-500 leading-none">VN30F1M</h2>
-                                    <span className="p-1 px-2 bg-orange-500/10 text-orange-500 rounded text-[10px] font-black uppercase tracking-widest mb-1">LIVE</span>
-                                </div>
-                                <p className={`text-[11px] font-bold mt-2 uppercase tracking-widest ${UI.textMuted}`}>Hợp đồng tương lai VN30</p>
-                            </div>
-
-                            <div className="text-right">
-                                <p className={`text-[10px] uppercase tracking-widest font-black mb-1 ${UI.textMuted}`}>Giá Hiện Tại</p>
-                                <h2 className={`text-3xl font-black leading-none ${UI.textBold}`}>{derivRadar?.vn30f1m || '---'}</h2>
-                                <div className={`flex items-center justify-end gap-1 font-black text-sm mt-2 ${Number(derivRadar?.change) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                    {Number(derivRadar?.change) >= 0 ? '▲' : '▼'}
-                                    <span>{Math.abs(derivRadar?.change || 0)} ({derivRadar?.changePercent || 0}%)</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 mt-6">
-                            <div className={`p-3 rounded-2xl border flex flex-col items-center shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
-                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${UI.textMuted}`}>VN30 INDEX</span>
-                                <span className={`text-lg font-black ${UI.textBold}`}>{derivRadar?.vn30 || '---'}</span>
-                            </div>
-                            <div className={`p-3 rounded-2xl border flex flex-col items-center shadow-sm transition-all duration-500 ${!derivRadar ? (isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200') : Number(derivRadar.basis) >= 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${!derivRadar ? UI.textMuted : Number(derivRadar.basis) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>ĐỘ LỆCH (BASIS)</span>
-                                <span className={`text-lg font-black ${!derivRadar ? UI.textMuted : Number(derivRadar.basis) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                    {derivRadar?.basis > 0 ? `+${derivRadar.basis}` : derivRadar?.basis || '---'}
-                                </span>
-                            </div>
-                        </div>
-                    </div> 
-
-                    {/* 🚀 2. PHẦN CUỘN: TRỤ DẪN DẮT & WIDGETS */}
-                    <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-                        <div className="flex items-center gap-2 mb-4 relative">
-                            <h3 className={`text-[11px] font-black uppercase tracking-widest ${UI.textMuted}`}>Trụ dẫn dắt VN30</h3>
-                            <div onMouseEnter={() => setShowLeaderInfo(true)} onMouseLeave={() => setShowLeaderInfo(false)}>
-                                <HelpCircle size={14} className={`${UI.textMuted} cursor-pointer hover:text-yellow-500 transition-colors`} />
-                                {showLeaderInfo && (
-                                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 rounded-xl shadow-xl z-50 text-[10px] font-bold leading-relaxed ${isDark ? 'bg-[#1a222e] text-slate-300 border border-slate-700' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                                        Theo dõi 10 mã cổ phiếu có vốn hóa lớn nhất VN30. Dùng để dự đoán các nhịp kéo/xả "nhân tạo" nhằm điều tiết điểm số Phái sinh.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                        {(derivRadar?.influencers || []).map(stock => {
-                            const changeVal = parseFloat(stock.change) || 0;
-                            const barWidth = Math.min((Math.abs(changeVal) / 7) * 100, 100); 
-                            const isUp = changeVal >= 0;
-
-                            return (
-                                <div key={stock.symbol} className={`flex items-center justify-between p-3 rounded-xl border shadow-sm transition-all ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                                    
-                                    {/* 1. TÊN MÃ */}
-                                    <span className="font-black text-sm text-yellow-500 w-10">{stock.symbol}</span>
-                                    
-                                    {/* 2. TRỤC THANH ĐỐI XỨNG  */}
-                                    <div className={`flex-1 mx-4 h-1.5 rounded-full relative flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                                        <div className="absolute left-1/2 top-[-2px] bottom-[-2px] w-[2px] bg-slate-500/50 z-10 transform -translate-x-1/2 rounded-full"></div>
-                                        
-                                        <div className="w-1/2 h-full relative">
-                                            {!isUp && (
-                                                <div 
-                                                    className="absolute right-0 h-full bg-red-500 rounded-l-full transition-all duration-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-                                                    style={{ width: `${barWidth}%` }}
-                                                ></div>
-                                            )}
-                                        </div>
-                                        
-                                        <div className="w-1/2 h-full relative">
-                                            {isUp && (
-                                                <div 
-                                                    className="absolute left-0 h-full bg-emerald-500 rounded-r-full transition-all duration-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                                                    style={{ width: `${barWidth}%` }}
-                                                ></div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    {/* 3. CON SỐ PHẦN TRĂM & LỰC TÁC ĐỘNG THỰC TẾ  */}
-                                    <div className="flex flex-col items-end w-16 shrink-0">
-                                        <span className={`text-[11px] font-black ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
-                                            {isUp ? '+' : ''}{changeVal}%
-                                        </span>
-                                        <span className={`text-[8px] font-bold mt-0.5 uppercase tracking-wider ${Number(stock.realImpact) >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-                                            Lực: {Number(stock.realImpact) > 0 ? '+' : ''}{stock.realImpact || '0.00'}
-                                        </span>
-                                    </div>
-                                    
-                                </div>
-                            );
-                        })}
-                    </div>                                     
-                    {/* WIDGET CẬP NHẬT: OI & KHỐI NGOẠI RÒNG CHUẨN TERMINAL */}
-                    <div className="mt-8 grid grid-cols-2 gap-4 pb-10">
-                            {/* WIDGET 1: VỊ THẾ MỞ (OI) */}
-                            <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
-                                <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${UI.textMuted}`}>Vị thế mở (OI)</p>
-                                <p className={`text-xl font-mono font-black ${UI.textBold}`}>
-                                    {/* FIX LỖI Ở ĐÂY: Ép kiểu an toàn trước khi toLocaleString */}
-                                    {(derivRadar && !isNaN(Number(derivRadar.oi))) 
-                                        ? Number(derivRadar.oi).toLocaleString('vi-VN') 
-                                        : '---'}
-                                    {(derivRadar && !isNaN(Number(derivRadar.oi))) && <span className="text-[10px] font-bold text-slate-500 ml-1">HĐ</span>}
-                                </p>
-                            </div>
-
-                            {/* WIDGET 2: KHỐI NGOẠI RÒNG (HĐ) */}
-                            <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
-                                <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${UI.textMuted}`}>Khối ngoại ròng (HĐ)</p>
-                                <p className={`text-xl font-mono font-black ${
-                                    (!derivRadar || isNaN(Number(derivRadar.foreignNet))) ? UI.textMuted : 
-                                    Number(derivRadar.foreignNet) > 0 ? 'text-emerald-500' : 
-                                    Number(derivRadar.foreignNet) < 0 ? 'text-red-500' : 'text-slate-500'
-                                }`}>
-                                    {/* FIX LỖI Ở ĐÂY */}
-                                    {(derivRadar && !isNaN(Number(derivRadar.foreignNet)))
-                                        ? (Number(derivRadar.foreignNet) > 0 
-                                            ? `+${Number(derivRadar.foreignNet).toLocaleString('vi-VN')}` 
-                                            : Number(derivRadar.foreignNet).toLocaleString('vi-VN')) 
-                                        : '---'
-                                    }
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-               {/* CỘT PHẢI PHÁI SINH: EXECUTION FLOW */}
-                <div className={`flex-1 overflow-y-auto p-8 relative transition-colors duration-300 ${UI.rightCol} animate-in fade-in`}>
-                    
-                    {/* HEADER CHIẾN THUẬT */}
-                    <div className={`flex items-center justify-between mb-6 pb-4 border-b ${UI.border}`}>
-                        <div className="flex items-center gap-3">
-                            <Zap className="text-orange-500" size={24} />
-                            <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Derivatives Execution Flow</h3>
-                        </div>
-                    </div>
-
-{/* CHART AREA WITH VOLUME PROFILE */}
-                    <div className="grid grid-cols-4 gap-6 mb-8">
-                        {/* KHU VỰC 1: ĐỒ THỊ KỸ THUẬT PHÁI SINH */}
-                        <div className={`col-span-3 h-[500px] rounded-[24px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark ? 'bg-black/40 border-orange-500/20' : 'bg-white border-orange-200'}`}>
-                            {derivChartData ? (
-                                <TradingChart 
-                                    data={derivChartData} 
-                                    theme={theme} 
-                                    onIntervalChange={setDerivInterval} 
-                                    currentInterval={derivInterval}
-                                />
-                            ) : (
-                                <AtomLoader message="ĐANG ĐỒNG BỘ MA TRẬN PHÁI SINH REALTIME..." />
-                            )}
-                        </div>
-
-                        {/* KHU VỰC 2: BỨC TƯỜNG KHỐI LƯỢNG VOLUME PROFILE */}
-                        <div className={`col-span-1 rounded-[24px] border shadow-sm p-4 flex flex-col relative ${isDark ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200'}`}>
-                            <div className="flex items-center justify-between mb-4">
-                                <p className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>Volume Profile</p>
-                                <div onMouseEnter={() => setShowVolInfo(true)} onMouseLeave={() => setShowVolInfo(false)}>
-                                    <HelpCircle size={14} className="text-orange-500 cursor-pointer" />
-                                    {showVolInfo && (
-                                        <div className={`absolute right-0 top-10 mt-1 w-56 p-3 rounded-xl shadow-xl z-50 text-[10px] font-bold leading-relaxed ${isDark ? 'bg-[#1a222e] text-slate-300 border border-slate-700' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                                            Biểu đồ bức tường khối lượng (Intraday). Hiển thị các mức giá xảy ra nhiều giao dịch nhất trong ngày. Giúp xác định vùng kẹt lệnh (POC) làm hỗ trợ/kháng cự cứng.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div className="flex-1 flex flex-col gap-1 justify-around">
-                                {volumeProfile ? (
-                                    volumeProfile.bins.map((bin, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                            <span className={`text-[10px] font-mono w-10 ${UI.textMuted}`}>{bin.priceCenter}</span>
-                                            <div className={`flex-1 h-3 rounded-sm overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                                <div className="bg-orange-500/60 h-full transition-all duration-500" style={{width: `${(bin.volume / volumeProfile.maxVol) * 100}%`}}></div>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center py-12 opacity-80">
-                                        <div className="scale-75">
-                                            <AtomLoader message="READING POC..." />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            {volumeProfile && <p className="text-[10px] font-bold text-orange-500 mt-4 text-center italic">Vùng POC (Kẹt lệnh): {volumeProfile.pocPrice}</p>}
-                        </div>
-                    </div>
-
-                    {/* AI SCALPING ASSISTANT */}
-                    <div className={`p-6 rounded-[32px] border transition-all duration-500 ${isDark ? 'bg-[#10151C] border-orange-500/30 shadow-[0_0_30px_rgba(249,115,22,0.1)]' : 'bg-orange-50 border-orange-200'}`}>
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/40"><BrainCircuit size={20}/></div>
-                            <div>
-                                <h4 className={`text-sm font-black uppercase tracking-widest ${UI.textBold}`}>AI Scalping Assistant</h4>
-                                <p className="text-[9px] font-bold text-orange-500 uppercase">Real-time Strategy Engine</p>
-                            </div>
-                        </div>
-
-                        {/* MAIN GRID - PHÂN CHIA VÀ KHỚP 3 CỘT PHẲNG TUYỆT ĐỐI */}
-                        <div className="grid grid-cols-3 gap-6">
-
-                            {/* ================================================= */}
-                            {/* CỘT 1: BIẾN SỐ ĐỘNG LỰC HỌC                       */}
-                            {/* ================================================= */}
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 text-yellow-500">
-                                    <Activity size={16} />
-                                    <span className="text-xs font-black uppercase tracking-widest">Biến số Động lực học</span>
-                                </div>
-                                <ul className={`text-[11px] leading-relaxed font-bold space-y-2 ${UI.textMuted}`}>
-                                    <li className="flex items-center gap-1.5 relative group cursor-default">
-                                        <span>• Tốc độ xé Basis:</span>
-                                        <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors" />
-                                        <span className={(parseFloat(derivRadar?.basisSpeed) || 0) > 0 ? 'text-emerald-500' : (parseFloat(derivRadar?.basisSpeed) || 0) < 0 ? 'text-red-500' : 'text-slate-400'}>
-                                            {(parseFloat(derivRadar?.basisSpeed) || 0) > 0 ? '+' : ''}{derivRadar?.basisSpeed || 0} điểm/nhịp
-                                        </span>
-                                    </li>
-
-                                    <li className="flex items-center gap-1.5 relative group cursor-default">
-                                        <span>• Tổng lực 10 Trụ:</span>
-                                        <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors" />
-                                        <span className={(derivRadar?.influencers || []).reduce((sum, stock) => sum + (parseFloat(stock.realImpact) || 0), 0) > 0 ? 'text-emerald-500' : 'text-red-500'}>
-                                            {(derivRadar?.influencers || []).reduce((sum, stock) => sum + (parseFloat(stock.realImpact) || 0), 0) > 0 ? '+' : ''}{(derivRadar?.influencers || []).reduce((sum, stock) => sum + (parseFloat(stock.realImpact) || 0), 0).toFixed(2)} điểm
-                                        </span>
-                                    </li>
-
-                                    <li className="flex items-center gap-1.5 relative group cursor-default">
-                                        <span>• Vùng kẹt POC:</span>
-                                        <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors" />
-                                        <span className={`px-1.5 py-0.5 rounded ${isDark ? 'text-white bg-white/10' : 'text-slate-800 bg-black/10'}`}>
-                                            {volumeProfile?.pocPrice ? parseFloat(volumeProfile.pocPrice).toFixed(1) : 'Đang tính...'}
-                                        </span>
-                                    </li>
-
-                                    <li className="flex items-center gap-1.5 relative group cursor-default">
-                                        <span>• Xu thái OI:</span>
-                                        <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors" />
-                                        <span className="text-orange-500">{derivRadar?.oiTrend || 'ĐANG QUÉT...'}</span>
-                                    </li>
-
-                                    <li className="flex items-center gap-1.5 relative group cursor-default">
-                                        <span>• Ngoại ròng (Net):</span>
-                                        <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors" />
-                                        <span className={(parseFloat(derivRadar?.foreignNet) || 0) > 0 ? 'text-emerald-500' : 'text-red-500'}>
-                                            {(parseFloat(derivRadar?.foreignNet) || 0) > 0 ? '+' : ''}{derivRadar?.foreignNet || 0} HĐ
-                                        </span>
-                                    </li>
-
-                                    <li>• VWAP: <span className={(parseFloat(derivRadar?.vn30f1m) || 0) >= parseFloat(derivAnalysis.vwap) ? 'text-emerald-500' : 'text-red-500'}>
-                                        {derivAnalysis.vwap} ({(parseFloat(derivRadar?.vn30f1m) || 0) >= parseFloat(derivAnalysis.vwap) ? 'TRÊN ↑' : 'DƯỚI ↓'})
-                                    </span></li>
-
-                                    <li>• Session H/L: <span className="text-yellow-500">{derivAnalysis.sessionHigh}</span>
-                                        {' / '}<span className="text-red-400">{derivAnalysis.sessionLow}</span>
-                                    </li>
-
-                                    <li>• CVD: <span className={(derivAnalysis.cvd || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}>
-                                        {(derivAnalysis.cvd || 0) >= 0 ? '+' : ''}{Number(derivAnalysis.cvd || 0).toLocaleString('vi-VN')} HĐ
-                                    </span></li>
-
-                                    <li>• ROC(5): <span className={parseFloat(derivAnalysis.roc5) >= 0 ? 'text-emerald-500' : 'text-red-500'}>
-                                        {derivAnalysis.roc5}%
-                                    </span></li>
-
-                                    <li>• OI Signal: <span className={derivAnalysis.oiInterpretation.color}>
-                                        {derivAnalysis.oiInterpretation.label}
-                                    </span></li>
-                                </ul>
-                            </div>
-
-                            {/* ================================================= */}
-                            {/* CỘT 2: KHU VỰC ĐẶT LỆNH DEMO TRADING             */}
-                            {/* ================================================= */}
-                            <div className={`border-l pl-6 space-y-4 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-blue-400">
-                                        <Activity size={16} />
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Demo Trading</span>
-                                    </div>
-                                    <span className="text-[9px] font-bold text-slate-500 uppercase bg-slate-500/10 px-2 py-0.5 rounded">1 Điểm = 100K</span>
-                                </div>
-
-                                <div className={`p-4 rounded-xl border shadow-sm ${isDark ? 'bg-[#151b24] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <span className="text-[9px] uppercase font-black tracking-widest text-slate-500">NAV (VNĐ)</span>
-                                        <span className="font-mono font-black text-lg">{demoBalance.toLocaleString('vi-VN')}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center pt-3 border-t border-dashed border-slate-500/30">
-                                        <span className="text-[9px] uppercase font-black tracking-widest text-slate-500">Lãi/Lỗ Tạm Tính</span>
-                                        <span className={`font-mono font-black text-lg ${((parseFloat(derivRadar?.vn30f1m) || 0) - demoEntryPrice) * demoPosition * 100000 > 0 ? 'text-emerald-500' : ((parseFloat(derivRadar?.vn30f1m) || 0) - demoEntryPrice) * demoPosition * 100000 < 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                                            {demoPosition !== 0 && (parseFloat(derivRadar?.vn30f1m) || 0) > 0 
-                                                ? `${((parseFloat(derivRadar?.vn30f1m) || 0) - demoEntryPrice) * demoPosition * 100000 > 0 ? '+' : ''}${(((parseFloat(derivRadar?.vn30f1m) || 0) - demoEntryPrice) * demoPosition * 100000).toLocaleString('vi-VN')}`
-                                                : '0'
-                                            }
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className={`flex items-center justify-between p-3 rounded-xl border ${demoPosition !== 0 ? (demoPosition > 0 ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-red-500/50 bg-red-500/10') : 'border-dashed border-slate-500/50'}`}>
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] uppercase font-bold text-slate-500">Trạng thái</span>
-                                        <span className={`font-black text-sm mt-0.5 ${demoPosition > 0 ? 'text-emerald-500' : demoPosition < 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                                            {demoPosition > 0 ? `LONG ${demoPosition} HĐ` : demoPosition < 0 ? `SHORT ${Math.abs(demoPosition)} HĐ` : 'FLAT'}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col text-right">
-                                        <span className="text-[9px] uppercase font-bold text-slate-500">Giá vốn</span>
-                                        <span className="font-black text-sm mt-0.5 text-yellow-500">{demoPosition !== 0 ? demoEntryPrice.toFixed(1) : '---'}</span>
-                                    </div>
-                                </div>
-
-                                <div className="pt-2">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Khối lượng:</span>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={demoVolume}
-                                            onChange={(e) => setDemoVolume(Math.max(1, parseInt(e.target.value) || 1))}
-                                            className={`w-16 h-8 rounded text-center font-black outline-none border ${isDark ? 'bg-black/50 border-white/10 text-white' : 'bg-white border-slate-300 text-black'}`}
-                                        />
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase">Hợp đồng</span>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3 mb-3">
-                                        <button 
-                                            onClick={() => {
-                                                const price = parseFloat(derivRadar?.vn30f1m) || 0;
-                                                if(!price) return addLog('[DEMO] Chưa có giá hợp lệ!');
-                                                if(demoPosition < 0) {
-                                                    setDemoBalance(p => p + (price - demoEntryPrice) * demoPosition * 100000);
-                                                    setDemoPosition(demoVolume);
-                                                    setDemoEntryPrice(price);
-                                                    addLog(`[DEMO] Đảo sang LONG ${demoVolume} HĐ tại ${price}`);
-                                                } else {
-                                                    const totalVol = demoPosition + demoVolume;
-                                                    const avgPrice = ((demoEntryPrice * demoPosition) + (price * demoVolume)) / totalVol;
-                                                    setDemoPosition(totalVol);
-                                                    setDemoEntryPrice(avgPrice);
-                                                    addLog(`[DEMO] Mở/Nhồi LONG ${demoVolume} HĐ tại ${price}`);
-                                                }
-                                            }}
-                                            className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[11px] uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
-                                        >
-                                            Mua (Long)
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                const price = parseFloat(derivRadar?.vn30f1m) || 0;
-                                                if(!price) return addLog('[DEMO] Chưa có giá hợp lệ!');
-                                                if(demoPosition > 0) {
-                                                    setDemoBalance(p => p + (price - demoEntryPrice) * demoPosition * 100000);
-                                                    setDemoPosition(-demoVolume);
-                                                    setDemoEntryPrice(price);
-                                                    addLog(`[DEMO] Đảo sang SHORT ${demoVolume} HĐ tại ${price}`);
-                                                } else {
-                                                    const currentAbs = Math.abs(demoPosition);
-                                                    const totalVol = currentAbs + demoVolume;
-                                                    const avgPrice = ((demoEntryPrice * currentAbs) + (price * demoVolume)) / totalVol;
-                                                    setDemoPosition(-totalVol);
-                                                    setDemoEntryPrice(avgPrice);
-                                                    addLog(`[DEMO] Mở/Nhồi SHORT ${demoVolume} HĐ tại ${price}`);
-                                                }
-                                            }}
-                                            className="h-11 rounded-lg bg-red-500 hover:bg-red-400 text-white font-black text-[11px] uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-red-500/20"
-                                        >
-                                            Bán (Short)
-                                        </button>
-                                    </div>
-                                    <button 
-                                        onClick={() => {
-                                            const price = parseFloat(derivRadar?.vn30f1m) || 0;
-                                            const pnl = (price - demoEntryPrice) * demoPosition * 100000;
-                                            setDemoBalance(p => p + pnl);
-                                            setDemoPosition(0);
-                                            setDemoEntryPrice(0);
-                                            addLog(`[DEMO] Chốt vị thế. PnL: ${pnl > 0 ? '+' : ''}${pnl.toLocaleString()} VNĐ`);
-                                        }} 
-                                        disabled={demoPosition === 0}
-                                        className="w-full h-10 rounded-lg bg-slate-600 hover:bg-yellow-500 disabled:opacity-50 disabled:hover:bg-slate-600 text-white disabled:text-slate-400 hover:text-black font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                                    >
-                                        Đóng Toàn Bộ Vị Thế
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* ================================================= */}
-                            {/* CỘT 3: CONFLUENCE SIGNAL METRIC                  */}
-                            {/* ================================================= */}
-                            <div className={`border-l pl-6 space-y-6 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
-                                <div className={`rounded-2xl border p-5 ${derivAnalysis.bgColor}`}>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <p className="text-[10px] uppercase tracking-[0.3em] font-black text-slate-400">Confluence Score</p>
-                                        <div className={`px-4 py-2 rounded-xl text-xs font-black tracking-widest ${derivAnalysis.bgColor}`}>
-                                            {derivAnalysis.mechTrend}
-                                        </div>
-                                    </div>
-                                    <div className={`w-full h-4 rounded-full overflow-hidden ${isDark ? 'bg-black/40' : 'bg-slate-200'}`}>
-                                        <div className="h-full bg-orange-500 transition-all duration-700" style={{ width: `${derivAnalysis.score}%` }} />
-                                    </div>
-                                </div>
-
-                                <div className={`rounded-3xl border p-6 ${derivAnalysis.bgColor}`}>
-                                    <div className={`text-2xl font-black mb-4 ${derivAnalysis.mechColor}`}>
-                                        {derivAnalysis.mechAction}
-                                    </div>
-                                    <div className="space-y-3 mb-6">
-                                        <div className="flex justify-between">
-                                            <span className="text-slate-400 font-bold">ENTRY</span>
-                                            <span className="font-black">{(parseFloat(derivRadar?.vn30f1m) || 0).toFixed(1)}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-red-400 font-bold">SL (-1.5 ATR)</span>
-                                            <span className="font-black">{derivAnalysis.sl}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-emerald-400 font-bold">TP1 (1R)</span>
-                                            <span className="font-black">{derivAnalysis.tp1}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-emerald-400 font-bold">TP2 (2.2R)</span>
-                                            <span className="font-black">{derivAnalysis.tp2}</span>
-                                        </div>
-                                        <div className="flex justify-between pt-2 border-t border-white/10">
-                                            <span className="text-yellow-400 font-bold">R:R Ratio</span>
-                                            <span className="font-black">1:{derivAnalysis.rrRatio}</span>
-                                        </div>
-                                    </div>
-                                    <div className={`text-sm italic leading-relaxed ${UI.textNormal}`}>
-                                        {derivAnalysis.mechReason}
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div> {/* ĐÓNG MAIN GRID */}
-                    </div> {/* ĐÓNG AI SCALPING CARD */}
-                </div> {/* ĐÓNG EXECUTION FLOW CONTAINER */}
-            </>
+        <DerivativesTab
+            isDark={isDark} UI={UI}
+            derivRadar={derivRadar}
+            derivChartData={derivChartData}
+            derivInterval={derivInterval} setDerivInterval={setDerivInterval}
+            derivAnalysis={derivAnalysis}
+            volumeProfile={volumeProfile}
+            showLeaderInfo={showLeaderInfo} setShowLeaderInfo={setShowLeaderInfo}
+            showVolInfo={showVolInfo} setShowVolInfo={setShowVolInfo}
+            demoBalance={demoBalance}
+            demoPosition={demoPosition} setDemoPosition={setDemoPosition}
+            demoEntryPrice={demoEntryPrice} setDemoEntryPrice={setDemoEntryPrice}
+            demoVolume={demoVolume} setDemoVolume={setDemoVolume}
+            addLog={addLog}
+        />
         )}
-
         {/* ========================================================= */}
-        {/* CHẾ ĐỘ 3: CRYPTO TERMINAL                                 */}
+        {/* CHẾ ĐỘ 3: CRYPTO TERMINAL - HỖ TRỢ LIGHT/DARK MODE      */}
         {/* ========================================================= */}
         {activeMode === 'CRYPTO' && (
-            <div className="flex-1 flex flex-col items-center justify-center opacity-50 animate-in zoom-in-95 duration-500">
-                <Globe size={80} className="text-blue-500 mb-6" />
-                <h2 className="text-3xl font-black text-blue-500 tracking-[0.3em] uppercase">Tài sản số</h2>
-                <p className="text-sm font-bold mt-2 text-slate-400 uppercase tracking-widest">Khu vực đang được phát triển...</p>
-            </div>
+            <CryptoTab
+                isDark={isDark}
+                UI={UI}
+                addLog={addLog}
+            />
         )}
-
-        </div>
-      </div>
-      
+        {/* ========================================================= */}
+        {/* CHẾ ĐỘ 5: GIẢ LẬP ĐẦU TƯ (PAPER TRADING)          */}
+        {/* ========================================================= */}
+        {activeMode === 'PAPER_TRADING' && (
+        <PaperTradingTab
+            isDark={isDark} UI={UI}
+            currentUser={currentUser}
+            portfolio={portfolio}
+            allStocks={allStocks}
+            paperMarket={paperMarket} setPaperMarket={setPaperMarket}
+            paperSymbol={paperSymbol}
+            paperSearchInput={paperSearchInput} setPaperSearchInput={setPaperSearchInput}
+            paperSuggestions={paperSuggestions}
+            showPaperSuggestions={showPaperSuggestions} setShowPaperSuggestions={setShowPaperSuggestions}
+            paperVolume={paperVolume} setPaperVolume={setPaperVolume}
+            paperOrderType={paperOrderType} setPaperOrderType={setPaperOrderType}
+            paperLimitPrice={paperLimitPrice} setPaperLimitPrice={setPaperLimitPrice}
+            paperChartData={paperChartData}
+            paperInterval={paperInterval} setPaperInterval={setPaperInterval}
+            showPaperHelp={showPaperHelp} setShowPaperHelp={setShowPaperHelp}
+            marketOpen={marketOpen}
+            expandedSymbol={expandedSymbol} setExpandedSymbol={setExpandedSymbol}
+            executePaperSearch={executePaperSearch}
+            handlePaperTrade={handlePaperTrade}
+            handleCancelOrder={handleCancelOrder}
+        />
+        )}
+    </div>
+</div>
+    {/* Hiển thị log*/}
       {showLogs && (
         <DraggableLog 
           isDark={isDark} 
           logs={logs} 
           onClose={() => setShowLogs(false)} 
         />
-      )} 
-
-      {/* COMPONENT: FULL PDF MODAL VIEWER */}
+      )}
+     {/* COMPONENT: FULL PDF MODAL VIEWER */}
       {showPdfModal && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 lg:p-12">
+        <div 
+            className="fixed inset-0 flex items-center justify-center p-6 lg:p-12 pt-24" 
+            style={{ zIndex: 999999 }}
+        >
             <div 
                 className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
                 onClick={() => setShowPdfModal(false)}
@@ -2152,97 +1185,6 @@ const derivAnalysis = React.useMemo(() => {
         </div>
       )}
       
-    </div>
-  );
-}
-
-function DraggableLog({ isDark, logs, onClose }) {
-  const logRef = useRef(null);
-  const [position, setPosition] = useState({
-    x: window.innerWidth - 420,
-    y: window.innerHeight - 700
-  });
-
-  const isDragging = useRef(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
-
-  const handleMouseDown = (e) => {
-    if (e.target.closest('button')) return;
-    isDragging.current = true;
-    dragOffset.current = {
-      x: e.clientX - position.x,
-      y: e.clientY - position.y
-    };
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging.current) return;
-      setPosition({
-        x: e.clientX - dragOffset.current.x,
-        y: e.clientY - dragOffset.current.y
-      });
-    };
-
-    const handleMouseUp = () => {
-      isDragging.current = false;
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [position]);
-
-  return (
-    <div
-      ref={logRef}
-      className={`fixed w-96 max-h-[75vh] overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-2xl select-none z-[999999]
-      ${isDark ? 'bg-[#0A0E14] border-white/10' : 'bg-white border-slate-300'}`}
-      style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`
-      }}
-    >
-      <div
-        className={`px-5 py-3 border-b flex items-center justify-between font-black text-sm cursor-move
-        ${isDark ? 'border-white/10 bg-[#11171f]' : 'border-slate-200 bg-slate-50'}`}
-        onMouseDown={handleMouseDown}
-      >
-        <div className="flex items-center gap-2">
-          <TerminalSquare size={16} className="text-yellow-500" />
-          SYSTEM LOG
-        </div>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-red-500 text-xl leading-none hover:scale-110 transition-all"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className={`p-4 font-mono text-xs leading-relaxed overflow-y-auto max-h-[58vh] custom-scroll
-      ${isDark ? 'text-emerald-300/90' : 'text-slate-700'}`}>
-        {logs.length === 0 ? (
-          <p className="text-slate-500 italic">Chưa có hoạt động nào...</p>
-        ) : (
-          logs.map((log, i) => (
-            <div
-              key={i}
-              className="py-1 border-b border-white/5 last:border-0 break-words"
-            >
-              {log}
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="px-4 py-2.5 text-[10px] text-center text-slate-500 border-t border-white/10">
-        Kéo tiêu đề để di chuyển • ESC để đóng
-      </div>
     </div>
   );
 }
