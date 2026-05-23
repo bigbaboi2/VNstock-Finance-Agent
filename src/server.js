@@ -1076,26 +1076,6 @@ app.get('/api/history/:ticker', async (req, res) => {
     }
 });
 
-// ==========================================
-// API: CRYPTO HISTORY & RADAR
-// ==========================================
-import { fetchCryptoData } from './fetchers/cryptoFetcher.js';
-
-app.get('/api/crypto-radar', async (req, res) => {
-    try {
-        const [btc, eth] = await Promise.all([
-            fetchCryptoData('BTC'),
-            fetchCryptoData('ETH')
-        ]);
-
-        return res.json({ 
-            success: true, 
-            data: { btc, eth } 
-        });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
 // History Crypto
 app.get('/api/crypto/history/:symbol', async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
