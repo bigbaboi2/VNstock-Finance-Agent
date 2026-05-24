@@ -33,4 +33,15 @@ const StockSchema = new mongoose.Schema({
 StockSchema.pre('save', function() {
     this.lastUpdated = new Date();
 });
+StockSchema.index({ companyName: 1 });
+
+StockSchema.index({ exchange: 1 });
+
+StockSchema.index({
+    "reports.user": 1
+});
+
+StockSchema.index({
+    lastUpdated: -1
+});
 export default mongoose.model('Stock', StockSchema);

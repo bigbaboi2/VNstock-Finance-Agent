@@ -4,7 +4,6 @@ import * as cheerio from 'cheerio';
 export async function searchVnNewsDirectly(ticker) {
     const cleanTicker = ticker.toUpperCase();
     
-    // Sử dụng Google News RSS - Nhanh, chuẩn, bất tử
     const url = `https://news.google.com/rss/search?q=${cleanTicker}+chứng+khoán&hl=vi&gl=VN&ceid=VN:vi`;
 
     try {
@@ -13,7 +12,6 @@ export async function searchVnNewsDirectly(ticker) {
             timeout: 10000 
         });
         
-        // Cần parse dưới dạng XML
         const $ = cheerio.load(data, { xmlMode: true });
         const results = [];
 
