@@ -4,6 +4,7 @@ import cors from 'cors';
 import chalk from 'chalk';
 import path from 'path';
 import axios from 'axios';
+import fs from 'fs';
 import { fetchCafefData } from './fetchers/cafefService.js';
 import { fetchTcbsData } from './fetchers/tcbsService.js';
 import { searchVnNewsDirectly } from './scrapers/vnNewsSearch.js';
@@ -21,7 +22,10 @@ import Portfolio from '../models/Portfolio.js';
 import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import CryptoCoin from '../models/CryptoCoin.js';
 import { registerCryptoRoutes } from './services/cryptoService.js';
-{}
+import cron from 'node-cron';
+import * as cheerio from 'cheerio';
+import DerivNews from '../models/DerivNews.js';
+{/*////////////////////////*/}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -37,9 +41,181 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 registerCryptoRoutes(app);
 
-// ==========================================
-// API: CỔNG XÁC THỰC HỆ THỐNG (AUTH)
-// ==========================================
+const analyzeSentiment = (title) => {
+    const text = title.toLowerCase();
+    if ((text.includes('nhnn') || text.includes('ngân hàng nhà nước')) && 
+            (text.includes('tuýt còi') || text.includes('yêu cầu xử lý') || text.includes('giữ lãi suất') || text.includes('ổn định lãi suất'))) {
+            return 'positive';
+        }
+
+        if (text.includes('giảm lãi suất') || text.includes('hạ lãi suất') || text.includes('hút ròng giảm')) return 'positive';
+        
+        if (text.includes('tăng lãi suất') && !text.includes('nhnn') && !text.includes('ngân hàng nhà nước')) return 'negative';
+        if (text.includes('hút ròng mạnh')) return 'negative';
+
+        const positiveWords = ['tăng', 'bình ổn', 'vượt đỉnh', 'bơm', 'hạ nhiệt', 'kỷ lục', 'phục hồi', 'tích cực', 'nới lỏng', 'phao cứu sinh'];
+        const negativeWords = ['giảm', 'gây áp lực', 'thủng', 'bán tháo', 'rút ròng', 'hút ròng', 'căng thẳng', 'phá giá', 'tiêu cực', 'bắt bớ'];
+        
+        if (negativeWords.some(w => text.includes(w))) return 'negative';
+        if (positiveWords.some(w => text.includes(w))) return 'positive';
+        return 'neutral';
+};
+let lastNewsSyncTime = new Date();
+const fetchAndSaveNews = async () => {
+    console.log('🔄 [CRON - ACTION] Đang cào tin tức Vĩ mô, Reddit & Facebook...');
+    try {
+        const mainUrl = `https://news.google.com/rss/search?q=tỷ+giá+OR+lãi+suất+OR+VN30+OR+phái+sinh+OR+NHNN&hl=vi&gl=VN&ceid=VN:vi`;
+        const socialUrl = `https://news.google.com/rss/search?q=phái+sinh+VN30+(site:reddit.com+OR+site:facebook.com)&hl=vi&gl=VN&ceid=VN:vi`;
+        
+        const [mainRes, socialRes] = await Promise.all([
+            axios.get(mainUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 })
+                 .catch((err) => { console.log(chalk.red('❌ LỖI GOOGLE NEWS 1: ' + err.message)); return { data: '' }; }),
+            axios.get(socialUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 })
+                 .catch((err) => { console.log(chalk.red('❌ LỖI GOOGLE NEWS 2: ' + err.message)); return { data: '' }; })
+        ]);
+        
+        const newArticles = [];
+ 
+        if (mainRes.data) {
+            const $ = cheerio.load(mainRes.data, { xmlMode: true });
+            $('item').each((i, el) => {
+                if (i < 12) {
+                    const title = $(el).find('title').text();
+                    if (title && title.length > 20) {
+                        newArticles.push({
+                            title: title,
+                            link: $(el).find('link').text(),
+                            source: $(el).find('source').text() || 'Báo Tài Chính',
+                            sentiment: analyzeSentiment(title),
+                            timestamp: new Date($(el).find('pubDate').text())
+                        });
+                    }
+                }
+            });
+        }
+ 
+        if (socialRes.data) {
+            const $ = cheerio.load(socialRes.data, { xmlMode: true });
+            $('item').each((i, el) => {
+                if (i < 10) {
+                    let title = $(el).find('title').text();
+                    const link = $(el).find('link').text();
+                    let source = 'Mạng Xã Hội';
+                    if (link.includes('reddit.com')) source = 'Reddit F1M';
+                    if (link.includes('facebook.com')) source = 'Facebook Group';
+                    title = title.replace(/ - .*$/, '').trim();
+                    if (title && title.length > 15) {
+                        const isDuplicate = newArticles.some(a =>
+                            a.title.includes(title) || title.includes(a.title)
+                        );
+                        if (!isDuplicate) {
+                            newArticles.push({
+                                title: `[SOCIAL] ${title}`,
+                                link: link,
+                                source: source,
+                                sentiment: analyzeSentiment(title),
+                                timestamp: new Date($(el).find('pubDate').text())
+                            });
+                        }
+                    }
+                }
+            });
+        }
+ 
+        if (newArticles.length === 0) {
+            console.log(chalk.yellow('⚠️ [CRON] Không lấy được bài nào từ RSS. Dừng.'));
+            return;
+        }
+
+          let addedCount = 0;
+        const existingLinks = new Set(
+            (await DerivNews.find({}, { link: 1 })).map(d => d.link)
+        );
+ 
+        //Separate actual new cards from existing cards
+        const brandNewArticles = newArticles.filter(a => !existingLinks.has(a.link));
+        const alreadyHave = newArticles.length - brandNewArticles.length;
+ 
+        console.log(chalk.cyan(`ℹ️  [CRON] RSS trả về ${newArticles.length} bài. Đã có: ${alreadyHave}. Bài mới thực sự: ${brandNewArticles.length}`));
+ 
+        //If there are no new posts → force-rotate: delete the oldest post to make room
+        if (brandNewArticles.length === 0) {
+            const dbCount = await DerivNews.countDocuments();
+            if (dbCount >= 20) {
+                //Get the 5 oldest messages and delete them
+                const oldest = await DerivNews.find().sort({ timestamp: 1 }).limit(5).select('_id link');
+                const oldIds = oldest.map(d => d._id);
+                const oldLinks = new Set(oldest.map(d => d.link));
+                await DerivNews.deleteMany({ _id: { $in: oldIds } });
+                console.log(chalk.yellow(`♻️  [CRON] Không có tin mới. Đã rotate xoá ${oldIds.length} tin cũ nhất để làm mới feed.`));
+                //Re-add articles from the current batch whose link was just removed (to actually have data)
+                for (const article of newArticles.filter(a => oldLinks.has(a.link)).slice(0, 5)) {
+                    if (article.source !== 'Reddit F1M' && article.source !== 'Facebook Group') {
+                        try { article.content = await scrapeArticleContent(article.link) || article.title; }
+                        catch (e) { article.content = article.title; }
+                    } else {
+                        article.content = article.title;
+                    }
+                    await DerivNews.create(article);
+                    addedCount++;
+                }
+            } else {
+                console.log(chalk.yellow(`[CRON] DB có ${dbCount} tin, không cần rotate.`));
+            }
+        } else {
+           //There is real news → scrape content and save
+            for (const article of brandNewArticles) {
+                if (article.source !== 'Reddit F1M' && article.source !== 'Facebook Group') {
+                    try { article.content = await scrapeArticleContent(article.link) || article.title; }
+                    catch (e) { article.content = article.title; }
+                } else {
+                    article.content = article.title;
+                }
+                await DerivNews.create(article);
+                addedCount++;
+            }
+        }
+ 
+        //=======================================================================
+        //FIX 2: EXPORT FILE TEST AFTER SCRAPE — has enough content
+        //Fix: retrieve from DB after saving (including scratched content)
+        //=======================================================================
+        try {
+            const latestForExport = await DerivNews.find().sort({ timestamp: -1 }).limit(20).lean();
+            const localTestPath = path.join(__dirname, 'deriv_news_local_test.json');
+            fs.writeFileSync(localTestPath, JSON.stringify(latestForExport, null, 2), 'utf-8');
+            const withContent = latestForExport.filter(a => a.content && a.content !== a.title).length;
+            console.log(chalk.bgCyan.black.bold(` 📂 [TEST LOCAL] Đã xuất ${latestForExport.length} tin (${withContent} có full content) → ${localTestPath} `));
+        } catch (fsErr) {
+            console.error('❌ Lỗi ghi file test local:', fsErr.message);
+        }
+ 
+        console.log(`✅ [CRON] Đã nạp và cào full text ${addedCount} tin tức.`);
+ 
+        //Keep up to 30 messages in the DB
+        const count = await DerivNews.countDocuments();
+        if (count > 30) {
+            const top30 = await DerivNews.find().sort({ timestamp: -1 }).limit(30).select('_id');
+            const top30Ids = top30.map(doc => doc._id);
+            await DerivNews.deleteMany({ _id: { $nin: top30Ids } });
+        }
+ 
+        lastNewsSyncTime = new Date();
+ 
+    } catch (error) {
+        console.error('❌ [CRON - LỖI]', error.message);
+    }
+};
+ 
+///launch cronjob
+export const startCronJobs = () => {
+        cron.schedule('0 */6 * * *', fetchAndSaveNews);
+
+    console.log('⏳ [CRON] Đã lên lịch lấy dữ liệu tin vĩ mô (Chu kỳ 6h).');
+};
+//========================================================
+//API: SYSTEM AUTHENTICATION PORT (AUTH)
+//========================================================
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -74,9 +250,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// ==========================================
-// API: SYMBOLS & INFO
-// ==========================================
+//==========================================
+//API: SYMBOLS & INFO
+//==========================================
 app.get('/api/symbols', async (req, res) => {
     try {
         let symbolsData = await Stock.find({});
@@ -184,9 +360,9 @@ app.get('/api/crypto-symbols', async (req, res) => {
     }
 });
 
-// ==========================================
-// API: HỆ THỐNG GIAO DỊCH ẢO  
-// ==========================================
+//========================================================
+//API: VIRTUAL TRADING SYSTEM  
+//========================================================
 app.get('/api/portfolio/:username', async (req, res) => {
     try {
         let portfolio = await Portfolio.findOne({ username: req.params.username });
@@ -368,9 +544,9 @@ app.post('/api/portfolio/trade', async (req, res) => {
     }
 });
 
-// ==========================================
-// API: KHỚP LỆNH NỀN
-// ==========================================
+//========================================================
+//API: BACKGROUND ORDER MATCHING
+//========================================================
 setInterval(async () => {
     try {
         const now = new Date();
@@ -461,9 +637,9 @@ setInterval(async () => {
     } catch (error) {}
 }, 10000);
 
-// ==========================================
-// API: GENERAL MARKET RADAR
-// ==========================================
+//==========================================
+//API: GENERAL MARKET RADAR
+//==========================================
 app.get('/api/market-radar', async (req, res) => {
     try {
         const now = new Date();
@@ -522,10 +698,362 @@ app.get('/api/market-radar', async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 });
+//========================================================
+//API: AUTOMATIC VN DERIVATIVES NEWS
+//========================================================
+app.get('/api/deriv-news', async (req, res) => {
+    try {
+        let newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
+        
+        if (!newsList || newsList.length === 0) {
+            console.log(chalk.yellow('📭 [HỆ THỐNG] Kho dữ liệu tin trống. Đang tải tin tức mới nhất...'));
+            await fetchAndSaveNews();            
+            newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
+        }
+        
+        res.json({ success: true, data: newsList });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Lỗi lấy tin tức' });
+    }
+});
+//GATE 2: GET MORE NEWS
+app.post('/api/deriv-news/refresh', async (req, res) => {
+    try {
+        await fetchAndSaveNews(); 
+        const newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
+        
+         res.json({ 
+            success: true, 
+            data: newsList, 
+            lastSave: lastNewsSyncTime.toLocaleTimeString('vi-VN') 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+///add new fixes, calculate due date,...
+function getExpiryInfo() {
+    const now = new Date();
+    const vnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+ 
+    const getThirdThursdayOfMonth = (year, month) => {
+        //month: 0-indexed
+        const d = new Date(year, month, 1);
+        const dayOfWeek = d.getDay(); //0=Sun, 4=Autumn
+        //First Thursday
+        const firstThursday = ((4 - dayOfWeek + 7) % 7) + 1;
+        return new Date(year, month, firstThursday + 14); //+14 = week 3
+    };
+ 
+    let year  = vnNow.getFullYear();
+    let month = vnNow.getMonth();
+    let expiry = getThirdThursdayOfMonth(year, month);
+ 
+    //this month's due date has passed ==> get next month
+    if (vnNow >= expiry) {
+        month = month + 1;
+        if (month > 11) { month = 0; year++; }
+        expiry = getThirdThursdayOfMonth(year, month);
+    }
+ 
+    const diffMs   = expiry - vnNow;
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+ 
+    return {
+        expiryDate:  expiry.toISOString().split('T')[0],
+        daysToExpiry: diffDays,
+        label: `${expiry.getDate()}/${expiry.getMonth() + 1}/${expiry.getFullYear()} (còn ${diffDays} ngày)`
+    };
+}
+ 
+//─── HELPER: Fetch DXY + Dow Futures từ Yahoo Finance ───
+async function fetchGlobalMarketContext() {
+    const result = {
+        dxy:        { value: null, change: null, changePercent: null },
+        dowFutures: { value: null, change: null, changePercent: null },
+        sp500:      { value: null, change: null, changePercent: null },
+        fetchedAt:  new Date().toISOString(),
+        fetchStatus: 'ok'
+    };
+ 
+    try {
+        //Yahoo Finance v8 -get realtime quotes, no API key needed
+        //DX-Y.NYB = DXY Index | YM=F = Dow Futures | ES=F = S&P500 Futures
+        const symbols = ['DX-Y.NYB', 'YM=F', 'ES=F'];
+        const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent`;
+ 
+        const yahooRes = await axios.get(yahooUrl, {
+            timeout: 6000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json',
+            }
+        });
+ 
+        const quotes = yahooRes.data?.quoteResponse?.result || [];
+ 
+        quotes.forEach(q => {
+            const item = {
+                value:         q.regularMarketPrice?.toFixed(2)        || null,
+                change:        q.regularMarketChange?.toFixed(2)       || null,
+                changePercent: q.regularMarketChangePercent?.toFixed(2) || null,
+            };
+            if (q.symbol === 'DX-Y.NYB') result.dxy        = item;
+            if (q.symbol === 'YM=F')     result.dowFutures = item;
+            if (q.symbol === 'ES=F')     result.sp500      = item;
+        });
+ 
+        console.log(chalk.green(`✔ [EXPORT] Đã fetch Yahoo Finance: DXY=${result.dxy.value}, Dow=${result.dowFutures.value}, SP500=${result.sp500.value}`));
+ 
+    } catch (err) {
+        //Try fallback endpoint v8 if v7 is rate-limited
+        try {
+            const fallbackUrl = `https://query2.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?interval=1m&range=1d`;
+            const fallRes = await axios.get(fallbackUrl, { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+            const meta = fallRes.data?.chart?.result?.[0]?.meta;
+            if (meta) {
+                result.dxy = {
+                    value:         (meta.regularMarketPrice || meta.previousClose || null)?.toFixed(2),
+                    change:        meta.regularMarketPrice && meta.previousClose
+                                    ? (meta.regularMarketPrice - meta.previousClose).toFixed(2)
+                                    : null,
+                    changePercent: meta.regularMarketPrice && meta.previousClose
+                                    ? (((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100).toFixed(2)
+                                    : null,
+                };
+                console.log(chalk.yellow(`⚠ [EXPORT] Yahoo v7 lỗi, fallback v8 DXY=${result.dxy.value}`));
+            }
+        } catch (err2) {
+            result.fetchStatus = `error: ${err.message}`;
+            console.log(chalk.red(`❌ [EXPORT] Không fetch được dữ liệu Yahoo: ${err.message}`));
+        }
+    }
+ 
+    return result;
+}
 
-// ==========================================
-// API: DERIVATIVES RADAR (PHÁI SINH)
-// ==========================================
+//PORT 3: EXPORT FULL DATA DERIVATIVES TAB FOR WHO TO ANALYZE
+app.post('/api/deriv-export', async (req, res) => {
+    try {
+        const {
+            derivRadar,
+            derivAnalysis,
+            volumeProfile,
+            derivChartData,
+            derivInterval,
+        } = req.body;
+ 
+        //=== FIX 3: Get news within 30 days, remove old news ===
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const latestNews = await DerivNews.find({ timestamp: { $gte: thirtyDaysAgo } })
+            .sort({ timestamp: -1 })
+            .limit(20)
+            .lean();
+ 
+        //If there is not enough new news → get more old news so the AI ​​doesn't lack context
+        const allNews = latestNews.length >= 5
+            ? latestNews
+            : await DerivNews.find().sort({ timestamp: -1 }).limit(20).lean();
+ 
+        //=== FIX 4a: Calculate actual due date ===
+        const expiryInfo = getExpiryInfo();
+ 
+        //=== FIX 4b: Fetch DXY, Dow Futures, SP500 từ Yahoo Finance ===
+        const globalMarket = await fetchGlobalMarketContext();
+ 
+        //=== FIX 2: Calculate pocDistance on the server (more certain) ===
+        const f1mPrice  = parseFloat(derivRadar?.vn30f1m) || 0;
+        const pocPrice  = parseFloat(volumeProfile?.pocPrice) || 0;
+        const pocDistancePct = (f1mPrice && pocPrice)
+            ? (((f1mPrice - pocPrice) / pocPrice) * 100).toFixed(2)
+            : null;
+ 
+        //=== BUILD PAYLOAD ===
+        const exportPayload = {
+            metadata: {
+                exportedAt:    new Date().toISOString(),
+                exportedAtVN:  new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+                interval:      derivInterval || 'N/A',
+                note: 'Dữ liệu đầy đủ tab Phái sinh VN30F1M — dùng để AI phân tích'
+            },
+ 
+            //=== BLOCK 1: PRICE & REALTIME SPECS ===
+            liveMarket: {
+                vn30f1m:        derivRadar?.vn30f1m       || null,
+                vn30Index:      derivRadar?.vn30           || null,
+                basis:          derivRadar?.basis          || null,
+                basisSpeed:     derivRadar?.basisSpeed     || null,
+                change:         derivRadar?.change         || null,
+                changePercent:  derivRadar?.changePercent  || null,
+                oi:             derivRadar?.oi             || null,
+                oiTrend:        derivRadar?.oiTrend        || null,
+                foreignNet:     derivRadar?.foreignNet     || null,
+            },
+ 
+            //=== BLOCK 2: 10 VN30 LEADER PILLARS ===
+            influencers: (derivRadar?.influencers || []).map(s => ({
+                symbol:     s.symbol,
+                change:     s.change,
+                realImpact: s.realImpact,
+                momentum:   s.momentum,
+            })),
+            totalImpact10Tru: (derivRadar?.influencers || [])
+                .reduce((sum, s) => sum + (parseFloat(s.realImpact) || 0), 0)
+                .toFixed(2),
+ 
+            //=== BLOCK 3: TECHNICAL INDEX ===
+            technicalIndicators: {
+                ema3:            derivAnalysis?.ema3            || null,
+                ema8:            derivAnalysis?.ema8            || null,
+                atr:             derivAnalysis?.atr             || null,
+                vwap:            derivAnalysis?.vwap            || null,
+                sessionHigh:     derivAnalysis?.sessionHigh     || null,
+                sessionLow:      derivAnalysis?.sessionLow      || null,
+                cvd:             derivAnalysis?.cvd             || null,
+                roc5:            derivAnalysis?.roc5            || null,
+                confluenceScore: derivAnalysis?.score           || null,
+                shortTermTrend:  derivAnalysis?.shortTermTrend  || null,
+                oiSignal:        derivAnalysis?.oiInterpretation?.label || null,
+            },
+ 
+            //=== BLOCK 4: SIGNALS & TRADING PLAN ===
+            tradingPlan: {
+                mechTrend:  derivAnalysis?.mechTrend   || null,
+                mechAction: derivAnalysis?.mechAction   || null,
+                entry:      derivRadar?.vn30f1m         || null,
+                sl:         derivAnalysis?.sl            || null,
+                tp1:        derivAnalysis?.tp1           || null,
+                tp2:        derivAnalysis?.tp2           || null,
+                rrRatio:    derivAnalysis?.rrRatio       || null,
+                //FIX 1: mechReason is now passed from the frontend
+                mechReason: derivAnalysis?.mechReason    || null,
+            },
+ 
+            //=== BLOCK 5: VOLUME PROFILE + pocDistance ===
+            volumeProfile: {
+                pocPrice:     volumeProfile?.pocPrice || null,
+                //FIX 2: pocDistance calculated on server
+                pocDistance:  pocDistancePct ? `${pocDistancePct}%` : null,
+                pocNote: pocDistancePct
+                    ? (parseFloat(pocDistancePct) > 0
+                        ? `Giá đang CAO hơn POC ${pocDistancePct}% — vùng kẹt lệnh làm hỗ trợ phía dưới`
+                        : `Giá đang THẤP hơn POC ${Math.abs(pocDistancePct)}% — vùng kẹt lệnh làm kháng cự phía trên`)
+                    : null,
+                maxVol: volumeProfile?.maxVol || null,
+                bins: (volumeProfile?.bins || []).map(b => ({
+                    priceCenter: b.priceCenter,
+                    volume:      b.volume,
+                })),
+            },
+ 
+            //=== BLOCK 6: PRICE HISTORY (50 LAST CANDLES) ===
+            priceHistory: (derivChartData || []).slice(-50).map(c => ({
+                time:   c.time,
+                open:   c.open,
+                high:   c.high,
+                low:    c.low,
+                close:  c.close,
+                volume: c.volume,
+            })),
+ 
+            //=== BLOCK 7: MACRO NEWS (last 30 days only) ===
+            macroNews: allNews.map(n => ({
+                title:          n.title,
+                source:         n.source,
+                sentiment:      n.sentiment,
+                timestamp:      n.timestamp,
+                link:           n.link,
+                contentSnippet: n.content ? n.content.substring(0, 1500) : null,
+                hasFullContent: !!(n.content && n.content !== n.title && n.content.length > 100),
+                daysAgo:        Math.round((Date.now() - new Date(n.timestamp)) / (1000 * 60 * 60 * 24)),
+            })),
+ 
+            //=== BLOCK 8: SENTIMENT SUMMARY ===
+            newsSentimentSummary: {
+                total:           allNews.length,
+                positive:        allNews.filter(n => n.sentiment === 'positive').length,
+                negative:        allNews.filter(n => n.sentiment === 'negative').length,
+                neutral:         allNews.filter(n => n.sentiment === 'neutral').length,
+                withFullContent: allNews.filter(n => n.content && n.content !== n.title && n.content.length > 100).length,
+                newsWithin30Days: latestNews.length,
+            },
+ 
+            //=== BLOCK 9 (NEW): INTER-MARKET MACRO CONTEXT ===
+            //FIX 4: real data from Yahoo Finance + calculated maturity schedule
+            macroContext: {
+                //Expiry date of F1M contract
+                expiryDate:   expiryInfo.expiryDate,
+                daysToExpiry: expiryInfo.daysToExpiry,
+                expiryLabel:  expiryInfo.label,
+ 
+                //USD Strength (DXY)
+                dxy: {
+                    value:         globalMarket.dxy.value,
+                    change:        globalMarket.dxy.change,
+                    changePercent: globalMarket.dxy.changePercent,
+                    trend: globalMarket.dxy.change
+                        ? (parseFloat(globalMarket.dxy.change) > 0 ? 'TĂNG (áp lực VND)' : 'GIẢM (hỗ trợ VND)')
+                        : null,
+                },
+ 
+                //Dow Jones Futures
+                dowFutures: {
+                    value:         globalMarket.dowFutures.value,
+                    change:        globalMarket.dowFutures.change,
+                    changePercent: globalMarket.dowFutures.changePercent,
+                    trend: globalMarket.dowFutures.change
+                        ? (parseFloat(globalMarket.dowFutures.change) > 0 ? 'TĂNG (tích cực với VN30)' : 'GIẢM (tiêu cực với VN30)')
+                        : null,
+                },
+ 
+                //S&P500 Futures
+                sp500Futures: {
+                    value:         globalMarket.sp500.value,
+                    change:        globalMarket.sp500.change,
+                    changePercent: globalMarket.sp500.changePercent,
+                },
+ 
+                //Exchange rate USD/VND
+                usdVnd: await (async () => {
+                    try {
+                        const vcbRes = await axios.get(
+                            'https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10',
+                            { timeout: 4000, headers: { 'User-Agent': 'Mozilla/5.0' } }
+                        );
+                        //Parse simple XML
+                        const match = vcbRes.data.match(/<Exrate CurrencyCode="USD"[^>]*Transfer="([^"]+)"/);
+                        const rate = match ? match[1].replace(',', '') : null;
+                        return {
+                            official: rate ? parseFloat(rate).toLocaleString('vi-VN') : null,
+                            source: 'Vietcombank',
+                            note: 'Tỷ giá bán chính thức (không có API chợ đen đáng tin cậy)'
+                        };
+                    } catch {
+                        return { official: null, source: null, note: 'Không lấy được tỷ giá' };
+                    }
+                })(),
+ 
+                //When to fetch
+                globalDataFetchedAt: globalMarket.fetchedAt,
+                globalDataStatus:    globalMarket.fetchStatus,
+            },
+        };
+ 
+        //Ghi file disk
+        const exportPath = path.join(__dirname, 'deriv_full_export.json');
+        fs.writeFileSync(exportPath, JSON.stringify(exportPayload, null, 2), 'utf-8');
+        console.log(chalk.bgGreen.black.bold(` 📊 [EXPORT] Xuất xong → ${exportPath} | DXY=${exportPayload.macroContext.dxy.value} | Dow=${exportPayload.macroContext.dowFutures.value} | Đáo hạn còn ${exportPayload.macroContext.daysToExpiry} ngày `));
+ 
+        res.json({ success: true, data: exportPayload, filePath: exportPath });
+ 
+    } catch (error) {
+        console.error('❌ [EXPORT] Lỗi:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+//========================================================
+//API: DERIVATIVES RADAR (DERIVATIVES)
+//========================================================
 let globalDerivCache = {
     oi: 54210,         
     foreignNet: -1240,
@@ -658,9 +1186,9 @@ app.get('/api/deriv-radar', async (req, res) => {
     }
 });
 
-// ==========================================
-// API: LIVE NEWS & AI
-// ==========================================
+//==========================================
+//API: LIVE NEWS & AI
+//==========================================
 app.get('/api/news/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     res.setHeader('Content-Type', 'text/event-stream');
@@ -898,9 +1426,9 @@ app.get('/api/user-history/:user', async (req, res) => {
     }
 });
 
-// ==========================================
-// API: HISTORY CHART (STOCKS & INDICES)
-// ==========================================
+//==========================================
+//API: HISTORY CHART (STOCKS & INDICES)
+//==========================================
 app.get('/api/history/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const interval = req.query.interval || '1 ngày'; 
@@ -1076,7 +1604,7 @@ app.get('/api/history/:ticker', async (req, res) => {
     }
 });
 
-// History Crypto
+//History Crypto
 app.get('/api/crypto/history/:symbol', async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
     const interval = req.query.interval || '1 ngày';   
@@ -1087,11 +1615,12 @@ app.get('/api/crypto/history/:symbol', async (req, res) => {
         res.status(200).json({ success: false, data: null });
     }
 });
-// ==========================================
-// START SERVER
-// ==========================================
+//==========================================
+//START SERVER
+//==========================================
 app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.bold(`\n 🚀 OMNI DUCK SERVER MONGODB READY: http://localhost:${PORT} `));
     await updateSymbolsDatabase();     
-    await updateCryptoSymbols();       
+    await updateCryptoSymbols();   
+    startCronJobs();    
 });

@@ -12,7 +12,6 @@ import AuthScreen from './components/AuthScreen';
 import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
 
-
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
 axios.defaults.baseURL = API_BASE_URL;
@@ -121,7 +120,6 @@ useEffect(() => {
     }
 }, [activeMode]);
 
-  const [demoBalance, setDemoBalance] = useState(10000000000);  
   const [demoPosition, setDemoPosition] = useState(0);       
   const [demoEntryPrice, setDemoEntryPrice] = useState(0);    
   const [demoVolume, setDemoVolume] = useState(1);
@@ -160,9 +158,16 @@ useEffect(() => {
   const [errorAlert, setErrorAlert] = useState('');
   const [userHistory, setUserHistory] = useState([]);
   const [expandedSymbol, setExpandedSymbol] = useState(null);
-  
+  // STATE AI PHÁI SINH VN
+  const [aiDerivReport, setAiDerivReport] = useState(null);
+  const [analyzingDeriv, setAnalyzingDeriv] = useState(false);
+  const [derivNews, setDerivNews] = useState([]);
+  const [lastNewsSave, setLastNewsSave] = useState('');
+  const [refreshingNews, setRefreshingNews] = useState(false);
+  const [exportingDeriv, setExportingDeriv] = useState(false);
+
 // =========================================================
-  // STATE & LOGIC: MA TRẬN GIẢ LẬP (PAPER TRADING)
+  // STATE & LOGIC: ĐẦU TƯ GIẢ LẬP (PAPER TRADING)
   // =========================================================
   const [portfolio, setPortfolio] = useState(null);
   const [paperMarket, setPaperMarket] = useState('VN_STOCKS'); 
@@ -177,8 +182,127 @@ useEffect(() => {
   const [paperSuggestions, setPaperSuggestions] = useState([]);
   const [showPaperSuggestions, setShowPaperSuggestions] = useState(false);
   const [showPaperHelp, setShowPaperHelp] = useState(false);
-
-
+  // GỌI API LẤY TIN TỨC PHÁI SINH TAB ON
+    useEffect(() => {
+      if (activeMode === 'VN_DERIVATIVES') {
+          addLog('[HỆ THỐNG] Đang kết nối Database tin tức Vĩ mô Phái sinh...');
+          axios.get('/api/deriv-news')
+              .then(res => { 
+                  if (res.data.success) {
+                      setDerivNews(res.data.data); 
+                      addLog(`[THÀNH CÔNG] Đã tải ${res.data.data.length} bản tin Vĩ mô.`);
+                      console.log("==> DATA TIN TỨC: ", res.data.data); // Hiện ra màn F12 Console
+                  } else {
+                      addLog('[CẢNH BÁO] API trả về lỗi: Không có success flag.');
+                  }
+              })
+              .catch(err => {
+                  console.error("Lỗi lấy tin phái sinh:", err);
+                  addLog(`[LỖI NGHIÊM TRỌNG] Mất kết nối Trạm tin tức: ${err.message}`);
+              });
+      }
+    }, [activeMode]);
+    // GỌI LẤY TIN TỨC NGAY
+    const handleRefreshDerivNews = async () => {
+    setRefreshingNews(true);
+    addLog('[HỆ THỐNG] Đang quét dữ liệu vĩ mô ...');
+    try {
+        const res = await axios.post('/api/deriv-news/refresh');
+        if (res.data.success) {
+            setDerivNews(res.data.data);
+            setLastNewsSave(res.data.lastSave);
+            addLog(`[THÀNH CÔNG] Đã cập nhật ma trận tin tức. Trạm lưu: ${res.data.lastSave}`);
+        }
+    } catch (error) {
+        addLog(`[LỖI] Không thể ép luồng quét tin: ${error.message}`);
+    } finally {
+        setRefreshingNews(false);
+    }
+  };
+// LGOCI GỌI AI PHÁI SINH VN
+  const handleAiDerivAnalysis = async () => {
+    if (!derivRadar || !derivChartData) return addLog('[LỖI] Thiếu dữ liệu Phái sinh để AI phân tích!');
+    setAnalyzingDeriv(true);
+    addLog('Đang nén dữ liệu Quant MCP gửi cho OMNI DUCK...');
+    
+    try {
+        const payload = {
+            currentF1M: derivRadar.vn30f1m,
+            vn30: derivRadar.vn30,
+            basis: derivRadar.basis,
+            speed: derivRadar.basisSpeed,
+            poc: volumeProfile?.pocPrice || 0,
+            pocDistance: (((derivRadar.vn30f1m - volumeProfile?.pocPrice) / volumeProfile?.pocPrice) * 100).toFixed(2),
+            oi: derivRadar.oi,
+            oiTrend: derivRadar.oiTrend,
+            fNet: derivRadar.foreignNet,
+            ema3: derivAnalysis.ema3,
+            ema8: derivAnalysis.ema8,
+            atr: derivAnalysis.atr,
+            totalImpact: derivRadar.influencers?.reduce((sum, s) => sum + (parseFloat(s.realImpact)||0), 0).toFixed(2),
+            score: derivAnalysis.score,
+            mechTrend: derivAnalysis.mechTrend,
+            mechAction: derivAnalysis.mechAction,
+            rrRatio: derivAnalysis.rrRatio,
+            sl: derivAnalysis.sl,
+            tp1: derivAnalysis.tp1,
+            tp2: derivAnalysis.tp2
+        };
+        const res = await axios.post('/api/analyze-derivatives', payload);
+        if(res.data.success) {
+            setAiDerivReport(res.data.data);
+            addLog('[OK] OMNI DUCK đã trả về chiến lược Phái sinh!');
+        }
+    } catch (err) {
+        addLog('Lỗi AI Phái sinh: ' + err.message);
+    } finally {
+        setAnalyzingDeriv(false);
+    }
+  };
+  /// thêm mới 
+  const handleExportDeriv = async () => {
+    if (!derivRadar || !derivChartData) {
+        addLog('[LỖI] Chưa có dữ liệu Phái sinh để xuất!');
+        return;
+    }
+    setExportingDeriv(true);
+    addLog('[EXPORT] Đang gom toàn bộ dữ liệu Phái sinh để xuất...');
+    try {
+        const res = await axios.post('/api/deriv-export', {
+            derivRadar,
+            derivAnalysis,
+            volumeProfile,
+            derivChartData,
+            derivInterval,
+        });
+ 
+        if (res.data.success) {
+            // Tải file JSON về máy người dùng
+            const blob = new Blob(
+                [JSON.stringify(res.data.data, null, 2)],
+                { type: 'application/json' }
+            );
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const now = new Date();
+            const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+            a.download = `VN30F1M_export_${stamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+ 
+            const summary = res.data.data.newsSentimentSummary;
+            addLog(`[OK] Đã xuất file! ${summary.total} tin (${summary.withFullContent} có content), ${(derivChartData||[]).length} nến, ${(res.data.data.influencers||[]).length} trụ cột.`);
+        }
+    } catch (err) {
+        addLog(`[LỖI EXPORT] ${err.message}`);
+    } finally {
+        setExportingDeriv(false);
+    }
+};
+  
    useEffect(() => {
       if (currentUser && activeMode === 'PAPER_TRADING') {
           axios.get(`/api/portfolio/${currentUser}`)
@@ -474,6 +598,52 @@ const derivAnalysis = React.useMemo(() => {
         ? currentF1M + atr * 2.2 
         : currentF1M - atr * 2.2;
     const rrRatio = (Math.abs(tp1 - currentF1M) / Math.abs(sl - currentF1M) || 1).toFixed(1);
+    
+    const mechReasonParts = [];
+     // Basis
+    if (Math.abs(speed) > 0.5) {
+        mechReasonParts.push(
+            speed > 0
+                ? `Basis đang xé rộng nhanh (+${speed} đ/nhịp), F1M kéo xa Index`
+                : `Basis đang thu hẹp nhanh (${speed} đ/nhịp), F1M kéo về Index`
+        );
+    }
+     // EMA cross
+    if (shortTermTrend === 1)  mechReasonParts.push(`EMA3 (${ema3.toFixed(1)}) cắt lên trên EMA8 (${ema8.toFixed(1)}) — xu hướng ngắn hạn tăng`);
+    if (shortTermTrend === -1) mechReasonParts.push(`EMA3 (${ema3.toFixed(1)}) cắt xuống dưới EMA8 (${ema8.toFixed(1)}) — xu hướng ngắn hạn giảm`);
+     // Lực trụ
+    if (Math.abs(totalImpact) > 0.5) {
+        mechReasonParts.push(
+            totalImpact > 0
+                ? `10 trụ dẫn dắt tổng lực +${totalImpact} điểm (hỗ trợ bên mua)`
+                : `10 trụ dẫn dắt tổng lực ${totalImpact} điểm (áp lực bên bán)`
+        );
+    }
+    // OI
+    mechReasonParts.push(oiUp
+        ? `OI tăng → dòng tiền mới đang vào thị trường`
+        : `OI giảm → đang có làn sóng đóng vị thế`
+    );
+    // Khối ngoại
+    if (Math.abs(fNet) > 100) {
+        mechReasonParts.push(
+            fNet > 0
+                ? `Khối ngoại mua ròng +${fNet} HĐ (áp lực Long)`
+                : `Khối ngoại bán ròng ${fNet} HĐ (áp lực Short)`
+        );
+    }
+    // Giá vs POC
+    const pocVal = parseFloat(poc) || currentF1M;
+    const pocDist = ((currentF1M - pocVal) / pocVal * 100); 
+    mechReasonParts.push(
+        currentF1M > pocVal
+            ? `Giá trên POC (${pocVal}) khoảng ${pocDist}% — vùng kẹt lệnh đang làm hỗ trợ`
+            : `Giá dưới POC (${pocVal}) khoảng ${Math.abs(pocDist)}% — đang bị kháng cự từ vùng kẹt lệnh`
+    );
+    // Confluence score
+    mechReasonParts.push(`Confluence Score tổng hợp: ${score}/100`);
+ 
+    const mechReason = mechReasonParts.join('. ') + '.';
 
     return {
         score,
@@ -500,9 +670,12 @@ const derivAnalysis = React.useMemo(() => {
         cvd,
         roc5,
         oiInterpretation,
-        ema8: ema8.toFixed(1)
+        ema8: ema8.toFixed(1),
+        mechReason,  
+        pocDistance: pocDist.toFixed(2) + '%',
     };
 }, [derivChartData, derivRadar]);
+
   useEffect(() => {
     if (currentUser) fetchUserHistory();
   }, [currentUser]);
@@ -531,7 +704,7 @@ const derivAnalysis = React.useMemo(() => {
 
         setClock(prev => {
             const newTime = `${hh}:${mm}:${ss}`;
-            // Chỉ update khi giây thay đổi để tránh re-render liên tục
+            //Only update when the seconds change to avoid constant re-rendering
             if (prev.time === newTime && prev.ms === ms) return prev;
             return { time: newTime, ms };
         });
@@ -542,8 +715,8 @@ const derivAnalysis = React.useMemo(() => {
         setMarketOpen(isOpen);
     };
 
-    // Dùng setInterval thay requestAnimationFrame — cập nhật 1 lần/giây là đủ
-    updateTime(); // chạy ngay lần đầu
+//Use setInterval instead of requestAnimationFrame — updating once per second is enough
+    updateTime(); //run the first time
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -1086,7 +1259,14 @@ const derivAnalysis = React.useMemo(() => {
         {/* CHẾ ĐỘ 2: PHÁI SINH VIỆT NAM (VN30F1M)                    */}
         {/* ========================================================= */}
         {activeMode === 'VN_DERIVATIVES' && (
-        <DerivativesTab
+          <DerivativesTab
+            lastNewsSave={lastNewsSave}
+            refreshingNews={refreshingNews}
+            handleRefreshDerivNews={handleRefreshDerivNews}
+            derivNews={derivNews}
+            aiDerivReport={aiDerivReport}
+            analyzingDeriv={analyzingDeriv}
+            handleAiDerivAnalysis={handleAiDerivAnalysis}
             isDark={isDark} UI={UI}
             derivRadar={derivRadar}
             derivChartData={derivChartData}
@@ -1095,11 +1275,12 @@ const derivAnalysis = React.useMemo(() => {
             volumeProfile={volumeProfile}
             showLeaderInfo={showLeaderInfo} setShowLeaderInfo={setShowLeaderInfo}
             showVolInfo={showVolInfo} setShowVolInfo={setShowVolInfo}
-            demoBalance={demoBalance}
             demoPosition={demoPosition} setDemoPosition={setDemoPosition}
             demoEntryPrice={demoEntryPrice} setDemoEntryPrice={setDemoEntryPrice}
             demoVolume={demoVolume} setDemoVolume={setDemoVolume}
             addLog={addLog}
+            handleExportDeriv={handleExportDeriv}
+            exportingDeriv={exportingDeriv}
         />
         )}
         {/* ========================================================= */}

@@ -45,7 +45,7 @@ export default function UserMenu({
                     ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
                     : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
                 }`}>
-                <Activity size={16} /> 5. Giao dịch giả lập (10 Tỷ)
+                <Activity size={16} /> 5. Giao dịch giả lập
               </button>
         </div>
 
