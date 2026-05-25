@@ -1,10 +1,12 @@
 // import require
 import axios from 'axios';
+
 // ============================================================
   // Props nhận vào: { isDark, UI, addLog, allCryptos }
 // ============================================================
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import TradingChart from './TradingChart';
+import StockAiChat from './StockAiChat';
 import {
     Search, Activity, Zap, BarChart3, TrendingUp, TrendingDown,
     BrainCircuit, HelpCircle, RefreshCw, Globe, Database,
@@ -242,6 +244,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
     // ── STATE: AI SIGNAL ──
     const [aiSignal, setAiSignal] = useState(null);
     const [loadingAi, setLoadingAi] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // ── STATE: UI TOGGLES ──
     const [showVolInfo, setShowVolInfo] = useState(false);
@@ -849,6 +852,13 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
             <BrainCircuit size={16} className={loadingAi ? "animate-spin" : "animate-pulse"} />
             {loadingAi ? 'AI ĐANG SUY NGHĨ...' : (aiSignal ? 'CẬP NHẬT BÁO CÁO MỚI' : 'PHÂN TÍCH TÍN HIỆU')}
         </button>
+        <button 
+        onClick={() => setIsChatOpen(true)}
+        className={`w-full mt-2 h-12 rounded-xl flex items-center justify-center gap-2 font-black text-[10px] uppercase transition-all border ${isDark ? 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10' : 'border-purple-300 text-purple-600 hover:bg-purple-50'}`}
+    >
+        <BrainCircuit size={16} />
+        {aiSignal ? 'CHAT VỚI AI VỀ COIN NÀY' : 'HỎI AI VỀ COIN NÀY'}
+        </button>
     </div>
 
         {/* CỘT 2: AI REPORT (6 CỘT - THAY THẾ DEMO TRADING) */}
@@ -969,6 +979,14 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
 
                 </div>
             </div>
+            <StockAiChat
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            ticker={symbol}
+            companyName={allCryptos.find(c => c.symbol === symbol)?.name || symbol}
+            aiReport={aiSignal ? `Phân tích kỹ thuật: ${aiSignal.tech_analysis}\n\nVĩ mô: ${aiSignal.macro_analysis}\n\nChiến lược: ${aiSignal.advice}` : null}
+            isDark={isDark}
+        />
         </div>
     );
 }
