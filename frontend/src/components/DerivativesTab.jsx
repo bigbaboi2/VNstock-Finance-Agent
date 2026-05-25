@@ -26,6 +26,7 @@ export default function DerivativesTab({
   exportingDeriv,
   macroContext,   
   lastAiDerivTime,
+  currentUser, 
 }) {
     // USESTATE
 const [chartHeight, setChartHeight] = useState(500);
