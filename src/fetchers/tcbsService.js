@@ -11,8 +11,7 @@ export const fetchTcbsData = async (symbol) => {
     let logs = [];
     
     try {
-        // Vẫn giữ ống hút BCTC từ CafeF
-        const [incomeRes, balanceRes] = await Promise.all([
+         const [incomeRes, balanceRes] = await Promise.all([
             axios.get(`https://cafef.vn/du-lieu/Ajax/PageNew/DataChiTieuByTime.ashx?symbol=${ticker}&type=1`, { headers: HEADERS })
                  .catch(e => { logs.push(`❌ Lỗi KQKD: ${e.message}`); return null; }),
                  
@@ -20,33 +19,29 @@ export const fetchTcbsData = async (symbol) => {
                  .catch(e => { logs.push(`❌ Lỗi CĐKT: ${e.message}`); return null; })
         ]);
 
-        // 🎯 TÍNH NĂNG MỚI: RADAR DÒ PDF ONECLICK CỦA TCBS
-        const pdfUrl = `https://static.tcbs.com.vn/oneclick/${ticker}.pdf`;
+         const pdfUrl = `https://static.tcbs.com.vn/oneclick/${ticker}.pdf`;
         let validPdfUrl = null;
         try {
-            // Dùng axios.head để ping nhẹ xem file có tồn tại không (không tải nội dung)
-            const pdfCheck = await axios.head(pdfUrl);
+             const pdfCheck = await axios.head(pdfUrl);
             if (pdfCheck.status === 200) {
                 validPdfUrl = pdfUrl;
-                logs.push(`✅ TCBS OneClick: Đã định vị được kho báu PDF.`);
+                logs.push(`✅ TCBS OneClick: Đã định vị được nguồn PDF.`);
             }
         } catch (err) {
             logs.push(`⚠️ TCBS OneClick: Mã này chưa có Báo cáo PDF.`);
         }
 
-        // Đóng gói data thô
-        const rawData = {
+         const rawData = {
             incomeStatement: incomeRes?.data || null,
             balanceSheet: balanceRes?.data || null,
-            reportPdf: validPdfUrl // Lưu link vào DB để dự phòng
+            reportPdf: validPdfUrl 
         };
 
         if (incomeRes?.data || balanceRes?.data) {
             logs.push(`✅ BCTC: Đã hút sạch BCTC các Quý từ hệ thống ngầm CafeF.`);
         }
 
-        // Trả thêm validPdfUrl ra ngoài cho server.js
-        return { success: true, rawData, validPdfUrl, logs };
+         return { success: true, rawData, validPdfUrl, logs };
 
     } catch (error) {
         return { success: false, logs: [`❌ BCTC Service Lỗi: ${error.message}`] };
