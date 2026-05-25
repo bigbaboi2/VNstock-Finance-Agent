@@ -1,7 +1,9 @@
 import { Activity, Zap, Database, HelpCircle, BarChart3, ChevronDown, ChevronUp, X } from 'lucide-react';
 import TradingChart from './TradingChart';
 import StockAiChat from './StockAiChat'; 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+
 export default function PaperTradingTab({
   isDark, UI,
   currentUser,
@@ -23,7 +25,46 @@ export default function PaperTradingTab({
   executePaperSearch,
   handlePaperTrade,
   handleCancelOrder,
-}) {const [isChatOpen, setIsChatOpen] = useState(false);
+}) {
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [livePrices, setLivePrices] = useState({});
+    
+    useEffect(() => {
+      if (!portfolio?.holdings || portfolio.holdings.length === 0) return;
+
+      const fetchHoldingsPrices = async () => {
+          const newPrices = { ...livePrices };
+          
+          await Promise.all(portfolio.holdings.map(async (h) => {
+              try {
+                  let url = '';
+                  // Phân luồng lấy giá tùy theo loại tài sản
+                  if (h.assetType === 'VN_STOCKS') {
+                      url = `/api/history/${h.symbol}?interval=1 ngày`;
+                  } else if (h.assetType === 'CRYPTO') {
+                      url = `/api/crypto/history/${h.symbol}?interval=1 ngày`;
+                  }
+                  
+                  if (url) {
+                      const res = await axios.get(url);
+                      if (res.data?.success && res.data.data?.length > 0) {
+                          let closePrice = res.data.data[res.data.data.length - 1].close;
+                          // Khử sai số giá của VN Stocks (x1000)
+                          if (h.assetType === 'VN_STOCKS' && closePrice < 1000) closePrice *= 1000;
+                          newPrices[h.symbol] = closePrice;
+                      }
+                  }
+              } catch (error) {
+                  // Lỗi ngầm bỏ qua để không gián đoạn UI
+              }
+          }));
+          
+          setLivePrices(newPrices);
+      };
+      fetchHoldingsPrices();
+      const timer = setInterval(fetchHoldingsPrices, 10000);
+      return () => clearInterval(timer);
+     }, [portfolio?.holdings]);
 
   return (
     <div className={`flex-1 flex w-full h-full overflow-hidden animate-in zoom-in-95 duration-500 ${isDark ? 'bg-[#05080c]' : 'bg-slate-50'}`}>
@@ -114,18 +155,18 @@ export default function PaperTradingTab({
                                 </div>
                             )}
                             
-                            {portfolio?.holdings?.map((h, i) => {
-                                const stockInfo = allStocks.find(s => s.symbol === h.symbol) || {};
-                                const isExpanded = expandedSymbol === h.symbol; // Kiểm tra xem mã này có đang được mở rộng không
-
-                                let currentPrice = h.avgPrice;
-                                if (paperChartData && paperSymbol === h.symbol) {
-                                    currentPrice = paperChartData[paperChartData.length - 1].close;
-                                    if (h.assetType === 'VN_STOCKS' && currentPrice < 1000) currentPrice *= 1000;
-                                }
+                                {portfolio?.holdings?.map((h, i) => {
+                                    const stockInfo = allStocks.find(s => s.symbol === h.symbol) || {};
+                                    const isExpanded = expandedSymbol === h.symbol;
+                                    let currentPrice = livePrices[h.symbol] || h.avgPrice;
+                                if (paperChartData && paperSymbol === h.symbol && paperChartData.length > 0) {
+                                        let chartPrice = paperChartData[paperChartData.length - 1].close;
+                                        if (h.assetType === 'VN_STOCKS' && chartPrice < 1000) chartPrice *= 1000;
+                                        currentPrice = chartPrice;
+                                    }
                                 const pnl = (currentPrice - h.avgPrice) * h.volume;
                                 const pnlPercent = h.avgPrice > 0 ? ((currentPrice - h.avgPrice) / h.avgPrice) * 100 : 0;
-                                
+
                                 return (
                                     <div 
                                         key={i} 
