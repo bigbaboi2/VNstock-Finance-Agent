@@ -1,6 +1,7 @@
 import { Activity, Zap, Database, HelpCircle, BarChart3, ChevronDown, ChevronUp, X } from 'lucide-react';
 import TradingChart from './TradingChart';
-
+import StockAiChat from './StockAiChat'; 
+import { useState } from 'react';
 export default function PaperTradingTab({
   isDark, UI,
   currentUser,
@@ -22,9 +23,11 @@ export default function PaperTradingTab({
   executePaperSearch,
   handlePaperTrade,
   handleCancelOrder,
-}) {
+}) {const [isChatOpen, setIsChatOpen] = useState(false);
+
   return (
     <div className={`flex-1 flex w-full h-full overflow-hidden animate-in zoom-in-95 duration-500 ${isDark ? 'bg-[#05080c]' : 'bg-slate-50'}`}>
+
         {/* CỘT TRÁI: QUẢN LÝ VÍ & DANH MỤC */}
                 <div className={`w-[400px] border-r flex flex-col relative z-30 ${UI.leftCol}`}>
                     {/* 2. HEADER */}
@@ -377,7 +380,15 @@ export default function PaperTradingTab({
                                         />
                                     </div>
                                 </div>
-
+                                {paperSymbol && (
+                                    <button 
+                                        onClick={() => setIsChatOpen(true)}
+                                        className="w-full mt-2 h-12 rounded-xl flex items-center justify-center gap-2 font-black text-[10px] uppercase bg-blue-500/10 text-blue-500 border border-blue-500/30 hover:bg-blue-500 hover:text-white transition-all active:scale-95"
+                                    >
+                                        <HelpCircle size={16} />
+                                        HỎI AI TRƯỚC KHI VÀO LỆNH {paperSymbol}
+                                    </button>
+                                )}  
                                 {/* TỔNG QUAN TIỀN */}
                                 {paperChartData && (
                                     <div className="pt-4 border-t border-white/10">
@@ -394,6 +405,7 @@ export default function PaperTradingTab({
                                             </span>
                                         </div>
                                     </div>
+
                                 )}
                             </div>
 
@@ -413,7 +425,16 @@ export default function PaperTradingTab({
                             </div>
                         </div>
                     </div>   
-                </div>      
+                </div>    
+                <StockAiChat
+                    isOpen={isChatOpen}
+                    onClose={() => setIsChatOpen(false)}
+                    ticker={paperSymbol}
+                    companyName={allStocks.find(s => s.symbol === paperSymbol)?.companyName || paperSymbol}
+                    aiReport={null} 
+                    isDark={isDark}
+                    currentUser={currentUser}
+                />  
         </div>
   );
 }
