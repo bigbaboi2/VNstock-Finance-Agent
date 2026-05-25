@@ -1,4 +1,4 @@
-import { analyzeWithGemini, getMarkdownFromTcbsPdf, searchNewsWithAI, getQuickActionWithGemini, analyzeDerivativesWithGemini } from './services/aiService.js';
+import { analyzeWithGemini, getMarkdownFromTcbsPdf, searchNewsWithAI, getQuickActionWithGemini, analyzeDerivativesWithGemini, chatWithStockAI } from './services/aiService.js';
 import express from 'express';
 import cors from 'cors';
 import chalk from 'chalk';
@@ -1350,6 +1350,49 @@ app.post('/api/analyze/:ticker', async (req, res) => {
         return res.json({ success: true, aiReport, actionPanelData: actionPanelData });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
+    }
+});
+app.post('/api/stock-chat/:ticker', async (req, res) => {
+    const ticker = req.params.ticker.toUpperCase();
+    const { question, history = [], aiReport, user } = req.body;
+ 
+    if (!question || !question.trim()) {
+        return res.status(400).json({ success: false, message: 'Câu hỏi không được để trống.' });
+    }
+ 
+    try {
+         let reportContent = aiReport || null;
+ 
+        if (!reportContent) {
+            const masterRecord = await Stock.findOne({ symbol: ticker });
+            if (masterRecord?.reports?.length > 0) {
+                const userReports = user
+                    ? masterRecord.reports.filter(r => r.user === user)
+                    : [];
+                const bestReport = userReports.length > 0
+                    ? userReports[userReports.length - 1]
+                    : masterRecord.reports[masterRecord.reports.length - 1];
+                reportContent = bestReport?.content || null;
+ 
+                if (reportContent) {
+                    console.log(chalk.cyan(`[CHAT] Đã lấy báo cáo từ DB cho ${ticker} (user: ${user || 'any'})`));
+                } else {
+                    console.log(chalk.yellow(`[CHAT] Không tìm thấy báo cáo cho ${ticker} trong DB`));
+                }
+            }
+        } else {
+            console.log(chalk.cyan(`[CHAT] Nhận báo cáo từ client cho ${ticker}`));
+        }
+ 
+        const answer = await chatWithStockAI(ticker, question.trim(), history, reportContent);
+        return res.json({ success: true, answer });
+ 
+    } catch (error) {
+        console.error(chalk.red(`❌ [CHAT ROUTE] ${ticker}:`), error.message);
+        return res.status(500).json({
+            success: false,
+            message: 'AI đang bận, vui lòng thử lại sau vài giây.'
+        });
     }
 });
 // API: SECTOR HEATMAP + WATCHLIST

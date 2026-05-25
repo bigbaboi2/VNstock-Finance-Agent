@@ -1,7 +1,7 @@
 import { 
   Activity, Zap, FileText, Database, BrainCircuit, 
   BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe,
-  ArrowLeft 
+  ArrowLeft, MessageSquare
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,6 +10,7 @@ import TradingChart from './TradingChart';
 import MarketOverview from './MarketOverview';
 import MarketRadar from './MarketRadar';
 import { useState, useEffect} from 'react';
+import StockAiChat from './StockAiChat';
 
 export default function VnStocksTab({
   isDark, UI,
@@ -41,10 +42,12 @@ export default function VnStocksTab({
   heatmapData = [],
   loadingHeatmap,
   lastAiVnTime,
+  currentUser, 
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
-  
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
   // STATE CỦA BẢN ĐỒ NHIỆT
   const [heatmapView, setHeatmapView] = useState('sectors'); 
   const [heatmapSector, setHeatmapSector] = useState(null);
@@ -208,6 +211,19 @@ export default function VnStocksTab({
                       <BrainCircuit size={18} />
                       {analyzing ? 'AI ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
                   </button>
+                  {marketData && (
+                    <button
+                      onClick={() => setIsChatOpen(true)}
+                      className={`w-full h-12 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-3 mb-2 border
+                        ${isDark
+                          ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-400/20 hover:border-yellow-400/60'
+                          : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100 hover:border-yellow-400'
+                        }`}
+                    >
+                      <MessageSquare size={18} />
+                      {aiReport ? 'CHAT VỀ MÃ NÀY VỚI AI' : 'HỎI AI VỀ MÃ NÀY'}
+                    </button>
+                  )}
                  
                   {lastAiVnTime && (() => {
                       const elapsed = Date.now() - lastAiVnTime;
@@ -909,6 +925,19 @@ export default function VnStocksTab({
             </div>
           </div>
         </div>
+        <StockAiChat
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        ticker={marketData?.stockInfo?.symbol || ''}
+        companyName={
+          marketData?.companyProfile?.companyName ||
+          marketData?.stockInfo?.companyName || ''
+        }
+        aiReport={aiReport}
+        isDark={isDark}
+        currentUser={currentUser}
+      />
+ 
     </>
   );
 }
