@@ -157,7 +157,11 @@ useEffect(() => {
   const [vn30Data, setVn30Data] = useState([]);
   const [errorAlert, setErrorAlert] = useState('');
   const [userHistory, setUserHistory] = useState([]);
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [loadingHeatmap, setLoadingHeatmap] = useState(false);  
   const [expandedSymbol, setExpandedSymbol] = useState(null);
+  const [lastAiVnTime, setLastAiVnTime] = useState(null);
+  const [lastAiVnSnapshot, setLastAiVnSnapshot] = useState(null);
   // STATE AI PHÁI SINH VN
   const [aiDerivReport, setAiDerivReport] = useState(null);
   const [analyzingDeriv, setAnalyzingDeriv] = useState(false);
@@ -165,6 +169,10 @@ useEffect(() => {
   const [lastNewsSave, setLastNewsSave] = useState('');
   const [refreshingNews, setRefreshingNews] = useState(false);
   const [exportingDeriv, setExportingDeriv] = useState(false);
+  const [macroContext, setMacroContext] = useState(null);
+   
+  const [lastAiDerivTime, setLastAiDerivTime]       = useState(null);  
+  const [lastAiDerivSnapshot, setLastAiDerivSnapshot] = useState(null);
 
 // =========================================================
   // STATE & LOGIC: ĐẦU TƯ GIẢ LẬP (PAPER TRADING)
@@ -177,11 +185,12 @@ useEffect(() => {
   const [paperChartData, setPaperChartData] = useState(null);
   const [paperInterval, setPaperInterval] = useState('1 ngày');
   
-   const [paperOrderType, setPaperOrderType] = useState('MP');  
+  const [paperOrderType, setPaperOrderType] = useState('MP');  
   const [paperLimitPrice, setPaperLimitPrice] = useState('');
   const [paperSuggestions, setPaperSuggestions] = useState([]);
   const [showPaperSuggestions, setShowPaperSuggestions] = useState(false);
   const [showPaperHelp, setShowPaperHelp] = useState(false);
+ 
   // GỌI API LẤY TIN TỨC PHÁI SINH TAB ON
     useEffect(() => {
       if (activeMode === 'VN_DERIVATIVES') {
@@ -220,46 +229,76 @@ useEffect(() => {
     }
   };
 // LGOCI GỌI AI PHÁI SINH VN
-  const handleAiDerivAnalysis = async () => {
-    if (!derivRadar || !derivChartData) return addLog('[LỖI] Thiếu dữ liệu Phái sinh để AI phân tích!');
+ const handleAiDerivAnalysis = async (forceRefresh = false) => {
+    if (!derivRadar || !derivChartData) return addLog('[ERROR] Thiếu dữ liệu phái sinh VN cho AI!');
+ 
+    const now = Date.now();
+    const MIN_INTERVAL_MS = 5 * 60 * 1000;  
+ 
+    const currentSnapshot = {
+        score:       derivAnalysis.score,
+        basis:       derivRadar.basisSpeed,
+        totalImpact: (derivRadar.influencers||[]).reduce((s,x)=>s+(parseFloat(x.realImpact)||0),0).toFixed(2),
+        oiTrend:     derivRadar.oiTrend,
+    };
+ 
+    const isSignificantChange = lastAiDerivSnapshot && (
+        Math.abs((currentSnapshot.score        - lastAiDerivSnapshot.score))         >= 15  || 
+        Math.abs((parseFloat(currentSnapshot.basis)       - parseFloat(lastAiDerivSnapshot.basis)))       >= 1.5 || 
+        Math.abs((parseFloat(currentSnapshot.totalImpact) - parseFloat(lastAiDerivSnapshot.totalImpact))) >= 1.0 || 
+        currentSnapshot.oiTrend !== lastAiDerivSnapshot.oiTrend                                             
+    );
+ 
+    const timeSinceLast = lastAiDerivTime ? now - lastAiDerivTime : Infinity;
+    const enoughTimeElapsed = timeSinceLast >= MIN_INTERVAL_MS;
+ 
+    if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed) {
+        const remainSec = Math.round((MIN_INTERVAL_MS - timeSinceLast) / 1000);
+        addLog(`[AI CACHE] Đang trả về dữ liệu phân tích phái sinh dã lưu. Biến động lớn: ${isSignificantChange}. Thử lại trong ${remainSec}s hoặc đợi thị trường biến động.`);
+        return;
+    }
+ 
     setAnalyzingDeriv(true);
-    addLog('Đang nén dữ liệu Quant MCP gửi cho OMNI DUCK...');
-    
+    addLog('Đang đóng gói dữ liệu cho AI...');
+ 
     try {
         const payload = {
-            currentF1M: derivRadar.vn30f1m,
-            vn30: derivRadar.vn30,
-            basis: derivRadar.basis,
-            speed: derivRadar.basisSpeed,
-            poc: volumeProfile?.pocPrice || 0,
+            currentF1M:  derivRadar.vn30f1m,
+            vn30:        derivRadar.vn30,
+            basis:       derivRadar.basis,
+            speed:       derivRadar.basisSpeed,
+            poc:         volumeProfile?.pocPrice || 0,
             pocDistance: (((derivRadar.vn30f1m - volumeProfile?.pocPrice) / volumeProfile?.pocPrice) * 100).toFixed(2),
-            oi: derivRadar.oi,
-            oiTrend: derivRadar.oiTrend,
-            fNet: derivRadar.foreignNet,
-            ema3: derivAnalysis.ema3,
-            ema8: derivAnalysis.ema8,
-            atr: derivAnalysis.atr,
-            totalImpact: derivRadar.influencers?.reduce((sum, s) => sum + (parseFloat(s.realImpact)||0), 0).toFixed(2),
-            score: derivAnalysis.score,
-            mechTrend: derivAnalysis.mechTrend,
-            mechAction: derivAnalysis.mechAction,
-            rrRatio: derivAnalysis.rrRatio,
-            sl: derivAnalysis.sl,
-            tp1: derivAnalysis.tp1,
-            tp2: derivAnalysis.tp2
+            oi:          derivRadar.oi,
+            oiTrend:     derivRadar.oiTrend,
+            fNet:        derivRadar.foreignNet,
+            ema3:        derivAnalysis.ema3,
+            ema8:        derivAnalysis.ema8,
+            atr:         derivAnalysis.atr,
+            totalImpact: currentSnapshot.totalImpact,
+            score:       derivAnalysis.score,
+            mechTrend:   derivAnalysis.mechTrend,
+            mechAction:  derivAnalysis.mechAction,
+            rrRatio:     derivAnalysis.rrRatio,
+            sl:          derivAnalysis.sl,
+            tp1:         derivAnalysis.tp1,
+            tp2:         derivAnalysis.tp2,
+            newsHeadlines: (derivNews || []).slice(0, 5).map(n => `[${n.sentiment}] ${n.title}`).join('\n'),
         };
+ 
         const res = await axios.post('/api/analyze-derivatives', payload);
-        if(res.data.success) {
-            setAiDerivReport(res.data.data);
-            addLog('[OK] OMNI DUCK đã trả về chiến lược Phái sinh!');
+        if (res.data.success) {
+            setAiDerivReport(res.data.data);       
+            setLastAiDerivTime(now);                
+            setLastAiDerivSnapshot(currentSnapshot);  
         }
+
     } catch (err) {
-        addLog('Lỗi AI Phái sinh: ' + err.message);
+        addLog('AI Derivatives error: ' + err.message);
     } finally {
         setAnalyzingDeriv(false);
     }
-  };
-  /// thêm mới 
+};
   const handleExportDeriv = async () => {
     if (!derivRadar || !derivChartData) {
         addLog('[LỖI] Chưa có dữ liệu Phái sinh để xuất!');
@@ -277,7 +316,6 @@ useEffect(() => {
         });
  
         if (res.data.success) {
-            // Tải file JSON về máy người dùng
             const blob = new Blob(
                 [JSON.stringify(res.data.data, null, 2)],
                 { type: 'application/json' }
@@ -292,10 +330,11 @@ useEffect(() => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
- 
+            if (res.data.data?.macroContext) setMacroContext(res.data.data.macroContext);
             const summary = res.data.data.newsSentimentSummary;
             addLog(`[OK] Đã xuất file! ${summary.total} tin (${summary.withFullContent} có content), ${(derivChartData||[]).length} nến, ${(res.data.data.influencers||[]).length} trụ cột.`);
         }
+
     } catch (err) {
         addLog(`[LỖI EXPORT] ${err.message}`);
     } finally {
@@ -691,6 +730,18 @@ const derivAnalysis = React.useMemo(() => {
         console.error("Lỗi lấy lịch sử:", error);
     }
   };
+  const fetchHeatmap = useCallback(async () => {
+      setLoadingHeatmap(true);
+      try {
+          const res = await axios.get('/api/market-heatmap');
+          if (res.data.success) setHeatmapData(res.data.data);
+      } catch(e) {}
+      finally { setLoadingHeatmap(false); }
+  }, []);
+
+  useEffect(() => {
+      if (activeMode === 'VN_STOCKS') fetchHeatmap();
+  }, [activeMode]);
 
   const [clock, setClock] = useState({ time: '00:00:00', ms: '000' });
 
@@ -865,10 +916,10 @@ const derivAnalysis = React.useMemo(() => {
       
     setSuggestions(filtered);
   }, [input, allStocks, loadingMarket]);
-  const fetchMarketData = async () => {
+    const fetchMarketData = async (forceSymbol) => {
     setActiveInterval('1 ngày');
-    if (!input) return;
-    const symbol = input.toUpperCase();
+    const symbol = forceSymbol ? forceSymbol.toUpperCase() : input.toUpperCase();
+    if (!symbol) return;
 
     const exists = allStocks.some(s => s.symbol === symbol);
     if (!exists && !symbol.startsWith('VN30')) {
@@ -968,51 +1019,71 @@ const derivAnalysis = React.useMemo(() => {
     setFetchProgress(100);
     addLog('Đã ngắt luồng tin tức theo lệnh!');
   };
-
-  const handleAiAnalysis = async () => {
+// Logic ai button
+const handleAiAnalysis = async (forceRefresh = false) => {
     if (!marketData || !chartData) {
         addLog(`[Lỗi] Thiếu dữ liệu biểu đồ để AI phân tích!`);
         return;
     }
+
+    const now = Date.now();
+    const MIN_INTERVAL_MS = 5 * 60 * 1000;
+
+    const currentSnapshot = {
+        price: marketData.stockInfo.currentPrice,
+        newsCount: marketData.deepNewsData?.length || 0,
+    };
+
+    const isSignificantChange = lastAiVnSnapshot && (
+        currentSnapshot.price !== lastAiVnSnapshot.price ||
+        currentSnapshot.newsCount > lastAiVnSnapshot.newsCount + 2
+    );
+
+    const timeSinceLast = lastAiVnTime ? now - lastAiVnTime : Infinity;
+    const enoughTimeElapsed = timeSinceLast >= MIN_INTERVAL_MS;
+
+    if (!forceRefresh && aiReport && !isSignificantChange && !enoughTimeElapsed) {
+        const remainSec = Math.round((MIN_INTERVAL_MS - timeSinceLast) / 1000);
+        addLog(`[AI CACHE] Đang dùng phân tích đã lưu. Thử lại sau ${remainSec}s hoặc có biến động mới.`);
+        return;
+    }
+
     setAnalyzing(true);
     addLog(`Đang biên dịch khối dữ liệu đa chiều cho AI...`);
-    
+
     const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
-        title: n.title,
-        date: n.date
+        title: n.title, date: n.date
     }));
 
     const aiPayload = {
-        stockInfo: marketData.stockInfo, 
-        companyProfile: { 
+        stockInfo: marketData.stockInfo,
+        companyProfile: {
             overview: marketData.companyProfile?.overview,
-            companyName: marketData.companyProfile?.companyName 
-        }, 
+            companyName: marketData.companyProfile?.companyName
+        },
         technicalData: chartData.slice(-30),
-        marketContext: vnIndexData.slice(-5), 
+        marketContext: vnIndexData.slice(-5),
         news: optimizedNews,
-        user: currentUser, 
-        timestamp: new Date().toISOString() 
+        user: currentUser,
+        timestamp: new Date().toISOString()
     };
 
     try {
-      const response = await axios.post(`/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
-      setAiReport(response.data.aiReport);
-      addLog(`[OK] OMNI DUCK hoàn tất chiến lược và đã lưu Database!`);
-      setShowLogs(false);
-      if (response.data.actionPanelData) {
-          setActionData(response.data.actionPanelData);
-      }
-      if (currentUser && typeof fetchUserHistory === 'function') {
-          fetchUserHistory();
-      }
+        const response = await axios.post(`/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
+        setAiReport(response.data.aiReport);
+        setLastAiVnTime(now);
+        setLastAiVnSnapshot(currentSnapshot);
+        addLog(`[OK] OMNI DUCK hoàn tất chiến lược và đã lưu Database!`);
+        setShowLogs(false);
+        if (response.data.actionPanelData) setActionData(response.data.actionPanelData);
+        if (currentUser) fetchUserHistory();
     } catch (err) {
-      addLog('Lỗi xử lý AI: Tràn bộ nhớ hoặc mất kết nối');
-      console.error(err);
+        addLog('Lỗi xử lý AI: Tràn bộ nhớ hoặc mất kết nối');
+        console.error(err);
     } finally {
-      setAnalyzing(false);
+        setAnalyzing(false);
     }
-  }
+};
   useEffect(() => {
   const handleEsc = (e) => {
     if (e.key === 'Escape' && showLogs) {
@@ -1253,6 +1324,10 @@ const derivAnalysis = React.useMemo(() => {
             userHistory={userHistory}
             setInput={setInput}
             fetchMarketData={fetchMarketData}
+            heatmapData={heatmapData}
+            loadingHeatmap={loadingHeatmap}
+            lastAiVnTime={lastAiVnTime}
+
         />
         )}
         {/* ========================================================= */}
@@ -1281,6 +1356,8 @@ const derivAnalysis = React.useMemo(() => {
             addLog={addLog}
             handleExportDeriv={handleExportDeriv}
             exportingDeriv={exportingDeriv}
+            lastAiDerivTime={lastAiDerivTime}
+            macroContext={macroContext}
         />
         )}
         {/* ========================================================= */}

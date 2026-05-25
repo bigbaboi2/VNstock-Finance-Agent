@@ -334,7 +334,22 @@ app.get('/api/info/:ticker', async (req, res) => {
 
         const responseData = {
             stockInfo: { symbol: ticker, currentPrice: currentPrice ? currentPrice.toLocaleString('vi-VN') : '---', change, changePercent, marketCap: cafefRes.mktCap || '---', pe: cafefRes.pe || '---', eps, pb, bvps, totalVolume, buyVolume, sellVolume, companyName: companyFullName, exchange: cafefRes.exchange || 'VNX' },
-            companyProfile: { companyName: companyFullName, overview: cafefRes.overview || 'Hệ thống đang cập nhật...', marketCap: cafefRes.mktCap || '---', peRatio: cafefRes.pe || '---' },
+           companyProfile: {
+            companyName:     companyFullName,
+            overview:        cafefRes.overview || 'Hệ thống đang cập nhật...',
+            marketCap:       cafefRes.mktCap || '---',
+            peRatio:         cafefRes.pe || '---',
+            exchange:        cafefRes.exchange || '---',
+            industry:        cafefRes.profileData?.industry || null,
+            listing_date:    cafefRes.profileData?.listingDate || null,
+            charter_capital: cafefRes.profileData?.capital || null,
+            shares_listed:   cafefRes.profileData?.sharesListed || null,
+            address:         cafefRes.profileData?.address || null,
+            phone:           cafefRes.profileData?.phone || null,
+            email:           cafefRes.profileData?.email || null,
+            website:         cafefRes.profileData?.website || null,
+            description:     cafefRes.profileData?.description || null,
+        },
             reportPdf: tcbsRes.validPdfUrl || null
         };
 
@@ -850,19 +865,15 @@ app.post('/api/deriv-export', async (req, res) => {
             .limit(20)
             .lean();
  
-        //If there is not enough new news → get more old news so the AI ​​doesn't lack context
-        const allNews = latestNews.length >= 5
+         const allNews = latestNews.length >= 5
             ? latestNews
             : await DerivNews.find().sort({ timestamp: -1 }).limit(20).lean();
  
-        //=== FIX 4a: Calculate actual due date ===
-        const expiryInfo = getExpiryInfo();
+         const expiryInfo = getExpiryInfo();
  
-        //=== FIX 4b: Fetch DXY, Dow Futures, SP500 từ Yahoo Finance ===
-        const globalMarket = await fetchGlobalMarketContext();
+         const globalMarket = await fetchGlobalMarketContext();
  
-        //=== FIX 2: Calculate pocDistance on the server (more certain) ===
-        const f1mPrice  = parseFloat(derivRadar?.vn30f1m) || 0;
+         const f1mPrice  = parseFloat(derivRadar?.vn30f1m) || 0;
         const pocPrice  = parseFloat(volumeProfile?.pocPrice) || 0;
         const pocDistancePct = (f1mPrice && pocPrice)
             ? (((f1mPrice - pocPrice) / pocPrice) * 100).toFixed(2)
@@ -925,8 +936,7 @@ app.post('/api/deriv-export', async (req, res) => {
                 tp1:        derivAnalysis?.tp1           || null,
                 tp2:        derivAnalysis?.tp2           || null,
                 rrRatio:    derivAnalysis?.rrRatio       || null,
-                //FIX 1: mechReason is now passed from the frontend
-                mechReason: derivAnalysis?.mechReason    || null,
+                 mechReason: derivAnalysis?.mechReason    || null,
             },
  
             //=== BLOCK 5: VOLUME PROFILE + pocDistance ===
@@ -979,8 +989,7 @@ app.post('/api/deriv-export', async (req, res) => {
             },
  
             //=== BLOCK 9 (NEW): INTER-MARKET MACRO CONTEXT ===
-            //FIX 4: real data from Yahoo Finance + calculated maturity schedule
-            macroContext: {
+             macroContext: {
                 //Expiry date of F1M contract
                 expiryDate:   expiryInfo.expiryDate,
                 daysToExpiry: expiryInfo.daysToExpiry,
@@ -1206,7 +1215,7 @@ app.get('/api/news/:ticker', async (req, res) => {
         let cachedNews = masterRecord.deepNewsData || [];
         let newDeepNewsData = [];
 
-        for (const news of cachedNews.slice(0, 15)) {
+        for (const news of cachedNews.slice(0, )) {
             if (isClientDisconnected) break;
             res.write(`data: ${JSON.stringify(news)}\n\n`);
         }
@@ -1216,16 +1225,24 @@ app.get('/api/news/:ticker', async (req, res) => {
         const uniqueNewLinks = fetchedLinks.filter(item => !seenLinks.has(item.link));
 
         if (uniqueNewLinks.length > 0 && !isClientDisconnected) {
-            for (const news of uniqueNewLinks.slice(0, 10)) {
+            for (const news of uniqueNewLinks.slice(0, 15)) {
                 if (isClientDisconnected) break;
-                try {
-                    const content = await scrapeArticleContent(news.link);
-                    if (content && content.length > 50) {
-                        const validNews = { title: news.title, link: news.link, source: news.link, content: content, date: new Date().toLocaleDateString('vi-VN') };
-                        newDeepNewsData.push(validNews);
-                        res.write(`data: ${JSON.stringify(validNews)}\n\n`);
-                    }
-                } catch (e) {}
+        try {
+            const content = await scrapeArticleContent(news.link);
+            const validNews = {
+                title: news.title,
+                link: news.link,
+                source: news.link,
+                content: (content && content.length > 50) ? content : news.title,
+                date: new Date().toLocaleDateString('vi-VN')
+            };
+            newDeepNewsData.push(validNews);
+            res.write(`data: ${JSON.stringify(validNews)}\n\n`);
+        } catch (e) {
+            const fallback = { title: news.title, link: news.link, source: news.link, content: news.title, date: new Date().toLocaleDateString('vi-VN') };
+            newDeepNewsData.push(fallback);
+            res.write(`data: ${JSON.stringify(fallback)}\n\n`);
+        }
             }
         }
 
@@ -1245,6 +1262,21 @@ app.get('/api/news/:ticker', async (req, res) => {
             res.write(`event: error\ndata: {}\n\n`);
             res.end();
         }
+    }
+});
+// AI analyze button
+app.post('/api/analyze-derivatives', async (req, res) => {
+    try {
+        const payload = req.body;
+        const report = await analyzeDerivativesWithGemini(payload);
+        
+        res.json({ 
+            success: true, 
+            data: report 
+        });
+    } catch (error) {
+        console.error('❌ Lỗi AI Phái sinh:', error);
+        res.status(500).json({ success: false, message: 'Không thể kết nối AI Phái sinh' });
     }
 });
 
@@ -1319,6 +1351,73 @@ app.post('/api/analyze/:ticker', async (req, res) => {
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
+});
+// API: SECTOR HEATMAP + WATCHLIST
+app.get('/api/market-heatmap', async (req, res) => {
+    const SECTORS = [
+        { name: 'NGÂN HÀNG', stocks: ['VCB','TCB','MBB','CTG','BID','STB','VPB','LPB','HDB','ACB','EIB','MSB','TPB','OCB','SHB','NAB','ABB','PGB'] },
+        { name: 'BẤT ĐỘNG SẢN', stocks: ['VHM','NVL','DIG','PDR','KDH','VIC','NLG','DXG','BCM','CEO','HDG','LDG','NRC','ITC','SCR','TDH','HDC','VPI'] },
+        { name: 'CHỨNG KHOÁN', stocks: ['SSI','VND','VCI','SHS','HCM','BSI','FTS','AGR','APS','CTS','EVS','IVS','MBS','ORS','TVB','VDS'] },
+        { name: 'THÉP', stocks: ['HPG','HSG','NKG','TLH','TVN','SMC','VGS','POM','TIS','TNA'] },
+        { name: 'CÔNG NGHỆ', stocks: ['FPT','CMG','VGI','ELC','ITD','SAM','ST8','SGT','VTC','FOX','ONE','POW'] },
+        { name: 'DẦU KHÍ', stocks: ['PVD','PVS','BSR','PLX','GAS','PVC','PVB','PVT','OIL','PXS','CNG','PGV'] },
+        { name: 'BÁN LẺ', stocks: ['MWG','FRT','DGW','PNJ','AST','DPC','SVC','VRE','HAX','VGC','CTF','SFG'] },
+        { name: 'HÓA CHẤT', stocks: ['DGC','DCM','DPM','CSV','BFC','LAS','PMB','PCE','TPC','DDV','PHP','VDB'] },
+        { name: 'VẬN TẢI', stocks: ['GMD','HAH','VSC','SCS','VTP','VOS','VFR','NCT','ACV','MHC','TCL','TMS'] },
+        { name: 'THỰC PHẨM', stocks: ['VNM','MSN','SAB','QNS','KDC','MCH','HNG','ANV','VHC','IDI','ACL','ABT','BAF','MML','SGC','VCF'] },
+    ];
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - (5 * 24 * 60 * 60);
+    const allSymbols = SECTORS.flatMap(s => s.stocks);
+    const priceMap = {};
+    for (let i = 0; i < allSymbols.length; i += 8) {
+        const chunk = allSymbols.slice(i, i+8);
+        await Promise.all(chunk.map(async sym => {
+            try {
+                const r = await axios.get(
+                    `https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${sym}&resolution=1D`,
+                    { timeout: 5000 }
+                );
+                const c = r.data?.c || [], v = r.data?.v || [];
+                if (c.length >= 2) {
+                    const last = c[c.length-1], prev = c[c.length-2];
+                    const vol5 = v.slice(-5);
+                    priceMap[sym] = {
+                        price: last * 1000,
+                        changePct: parseFloat(((last-prev)/prev*100).toFixed(2)),
+                        volume: v[v.length-1] || 0,
+                        vol5dAvg: vol5.reduce((a,b)=>a+b,0) / vol5.length
+                    };
+                }
+            } catch(e) {}
+        }));
+    }
+        const sectorData = SECTORS.map(sec => {
+        const stocks = sec.stocks.map(sym => ({ sym, ...priceMap[sym] })).filter(s => s.price);
+        const avgChange = stocks.length
+            ? stocks.reduce((a,b)=>a+parseFloat(b.changePct||0),0)/stocks.length : 0;
+        const watchlist = stocks
+            .filter(s => s.changePct > 0 && s.volume > s.vol5dAvg * 1.1)
+            .sort((a,b) => b.changePct - a.changePct)
+            .slice(0, 3)
+            .map(s => ({ sym: s.sym, changePct: s.changePct, price: s.price }));
+
+        const droplist = stocks
+            .filter(s => s.changePct < 0 && s.volume > s.vol5dAvg * 1.1)
+            .sort((a,b) => a.changePct - b.changePct)  
+            .slice(0, 3)
+            .map(s => ({ sym: s.sym, changePct: s.changePct, price: s.price }));
+
+        return { 
+            name: sec.name, 
+            avgChange: parseFloat(avgChange.toFixed(2)), 
+            stocks: stocks.map(s => ({ sym: s.sym, changePct: s.changePct, price: s.price, volume: s.volume || 0 })),
+            watchlist,
+            droplist
+        };
+
+    });
+    return res.json({ success: true, data: sectorData });
 });
 
 app.get('/api/ai-news/:ticker', async (req, res) => {

@@ -357,10 +357,11 @@ Bạn đang phân tích dữ liệu Phái sinh VN30F1M (Thị trường Việt N
 - Điểm hợp lưu hệ thống (Confluence Score): ${derivData.score}/100
 - Đề xuất Máy móc: ${derivData.mechTrend} -> ${derivData.mechAction}
 - Thông số Risk/Reward (R:R) hệ thống đề xuất: 1:${derivData.rrRatio} (SL: ${derivData.sl}, TP1: ${derivData.tp1}, TP2: ${derivData.tp2})
+${derivData.newsHeadlines ? `\n[TIN TỨC VĨ MÔ GẦN NHẤT]\n${derivData.newsHeadlines}` : ''}
 
 [QUY TẮC TƯ DUY RÀNG BUỘC - CHAIN OF THOUGHT]
 Bạn PHẢI phân tích theo đúng trình tự 4 bước sau trước khi đưa ra kết luận:
-1. ĐỌC ORDERFLOW & THANH KHOẢN (Liquidity): Đối chiếu độ lệch Basis, vị thế Khối ngoại và khối lượng OI để xem phe nào đang bị kẹp hàng (Trapped).
+1. ĐỌC ORDERFLOW & THANH KHOẢN (Liquidity): Đối chiếu độ lệch Basis, vị thế Khối ngoại và khối lượng OI để xem phe nào đang bị kẹp hàng (Trapped), Đối chiếu thêm với tin tức vĩ mô gần nhất nếu có.
 2. KIỂM TRA VÙNG POC (Point of Control): Giá đang ở trên hay dưới POC? Lực hút về POC có mạnh không?
 3. ĐÁNH GIÁ SỨC MẠNH TRỤ (Influencers): Lực của 10 mã vốn hóa lớn nhất đang thuận hay nghịch với Basis?
 4. ĐỐI CHIẾU MICRO-STRUCTURE: Tốc độ xé Basis và EMA3/EMA8 có ủng hộ điểm đảo chiều ngắn hạn (Scalp/Day Trade) không?

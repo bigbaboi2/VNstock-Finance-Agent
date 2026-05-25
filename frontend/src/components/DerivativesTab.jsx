@@ -1,6 +1,8 @@
-import { Activity, Zap, HelpCircle, BarChart3, BrainCircuit, Database, Globe, RefreshCw} from 'lucide-react';
+import { Activity, Zap, HelpCircle, BarChart3, BrainCircuit, Database, Globe, RefreshCw } from 'lucide-react';
 import TradingChart from './TradingChart';
 import AtomLoader from './AtomLoader';
+import ReactMarkdown from 'react-markdown';
+import { useState, useRef, useCallback } from 'react';
 
 export default function DerivativesTab({
   derivNews,
@@ -21,7 +23,31 @@ export default function DerivativesTab({
   addLog,
   handleExportDeriv,
   exportingDeriv,
+  macroContext,   
+  lastAiDerivTime,
 }) {
+    // USESTATE
+const [chartHeight, setChartHeight] = useState(500);
+const dragStartY = useRef(null);
+const dragStartH = useRef(null);
+ 
+const onChartDragStart = useCallback((e) => {
+    dragStartY.current  = e.clientY;
+    dragStartH.current  = chartHeight;
+ 
+    const onMouseMove = (ev) => {
+        const delta = ev.clientY - dragStartY.current;
+        // Clamp between 280px and 750px
+        setChartHeight(Math.min(750, Math.max(280, dragStartH.current + delta)));
+    };
+    const onMouseUp = () => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+}, [chartHeight]);
+
   return (
     <>
         {/* CỘT TRÁI PHÁI SINH: VN30 ENGINE , BASIS RADAR , NEWS*/}
@@ -85,11 +111,9 @@ export default function DerivativesTab({
                             return (
                                 <div key={stock.symbol} className={`flex items-center justify-between p-3 rounded-xl border shadow-sm transition-all ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                                     
-                                    {/* 1. TÊN MÃ */}
-                                    <span className="font-black text-sm text-yellow-500 w-10">{stock.symbol}</span>
+                                     <span className="font-black text-sm text-yellow-500 w-10">{stock.symbol}</span>
                                     
-                                    {/* 2. TRỤC THANH ĐỐI XỨNG  */}
-                                    <div className={`flex-1 mx-4 h-1.5 rounded-full relative flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                                     <div className={`flex-1 mx-4 h-1.5 rounded-full relative flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
                                         <div className="absolute left-1/2 top-[-2px] bottom-[-2px] w-[2px] bg-slate-500/50 z-10 transform -translate-x-1/2 rounded-full"></div>
                                         
                                         <div className="w-1/2 h-full relative">
@@ -111,8 +135,7 @@ export default function DerivativesTab({
                                         </div>
                                     </div>
                                     
-                                    {/* 3. CON SỐ PHẦN TRĂM & LỰC TÁC ĐỘNG THỰC TẾ  */}
-                                    <div className="flex flex-col items-end w-16 shrink-0">
+                                     <div className="flex flex-col items-end w-16 shrink-0">
                                         <span className={`text-[11px] font-black ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
                                             {isUp ? '+' : ''}{changeVal}%
                                         </span>
@@ -125,14 +148,12 @@ export default function DerivativesTab({
                             );
                         })}
                         </div>                                     
-                        {/* WIDGET CẬP NHẬT: OI & KHỐI NGOẠI RÒNG CHUẨN TERMINAL */}
-                        <div className="mt-8 grid grid-cols-2 gap-4 pb-10">
+                         <div className="mt-8 grid grid-cols-2 gap-4 pb-10">
                             {/* WIDGET 1: VỊ THẾ MỞ (OI) */}
                             <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
                                 <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${UI.textMuted}`}>Vị thế mở (OI)</p>
                                 <p className={`text-xl font-mono font-black ${UI.textBold}`}>
-                                    {/* FIX LỖI : Ép kiểu an toàn  g */}
-                                    {(derivRadar && !isNaN(Number(derivRadar.oi))) 
+                                     {(derivRadar && !isNaN(Number(derivRadar.oi))) 
                                         ? Number(derivRadar.oi).toLocaleString('vi-VN') 
                                         : '---'}
                                     {(derivRadar && !isNaN(Number(derivRadar.oi))) && <span className="text-[10px] font-bold text-slate-500 ml-1">HĐ</span>}
@@ -243,52 +264,67 @@ export default function DerivativesTab({
                     <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Derivatives Execution Flow</h3>
                 </div>
             </div>
-
-    {/* CHART AREA WITH VOLUME PROFILE */}
-            <div className="grid grid-cols-4 gap-6 mb-8">
-                {/* KHU VỰC 1: ĐỒ THỊ KỸ THUẬT PHÁI SINH */}
-                <div className={`col-span-3 h-[500px] rounded-[24px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark ? 'bg-black/40 border-orange-500/20' : 'bg-white border-orange-200'}`}>
+            {/* CHART AREA */}
+            <div
+                className={`sticky top-0 z-10 grid grid-cols-4 gap-6 mb-4 ${isDark ? 'bg-[#0d1117]' : 'bg-slate-50'}`}
+                style={{ paddingBottom: '8px', paddingTop: '4px' }}
+            >
+                {/* CHART */}
+                <div
+                    className={`col-span-3 rounded-[24px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark?'bg-black/40 border-orange-500/20':'bg-white border-orange-200'}`}
+                    style={{ height: chartHeight + 'px' }}
+                >
                     {derivChartData ? (
-                        <TradingChart 
-                            data={derivChartData} 
-                            theme={isDark ? 'dark' : 'light'}
-                            onIntervalChange={setDerivInterval} 
+                        <TradingChart
+                            data={derivChartData}
+                            theme={isDark?'dark':'light'}
+                            onIntervalChange={setDerivInterval}
                             currentInterval={derivInterval}
                         />
                     ) : (
                         <AtomLoader message="ĐANG ĐỒNG BỘ CHART PHÁI SINH REALTIME..." />
                     )}
+            
+                {/* DRAG HANDLE — resize grip, always visible */}
+                <div
+                    onMouseDown={onChartDragStart}
+                    className="absolute bottom-0 left-0 right-0 h-6 cursor-ns-resize flex flex-col items-center justify-center gap-[3px] group"
+                    title="Kéo lên/xuống để thay đổi chiều cao chart"
+                >
+                    <div className={`w-8 h-[2px] rounded-full transition-all duration-150 ${isDark ? 'bg-white/20 group-hover:bg-orange-500' : 'bg-black/15 group-hover:bg-orange-500'}`} />
+                    <div className={`w-5 h-[2px] rounded-full transition-all duration-150 ${isDark ? 'bg-white/20 group-hover:bg-orange-500' : 'bg-black/15 group-hover:bg-orange-500'}`} />
+                    <div className={`text-[8px] font-black tracking-widest select-none transition-all duration-150 ${isDark ? 'text-white/20 group-hover:text-orange-500' : 'text-black/20 group-hover:text-orange-500'}`}>
+                        ↕
+                    </div>
                 </div>
-
-                {/* KHU VỰC 2: BỨC TƯỜNG KHỐI LƯỢNG VOLUME PROFILE */}
-                <div className={`col-span-1 rounded-[24px] border shadow-sm p-4 flex flex-col relative ${isDark ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200'}`}>
+            </div>
+                {/* VOLUME PROFILE */}
+                <div
+                    className={`col-span-1 rounded-[24px] border shadow-sm p-4 flex flex-col relative ${isDark?'bg-black/20 border-white/5':'bg-white border-slate-200'}`}
+                    style={{ height: chartHeight + 'px' }}
+                >
                     <div className="flex items-center justify-between mb-4">
                         <p className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>Volume Profile</p>
-                        <div onMouseEnter={() => setShowVolInfo(true)} onMouseLeave={() => setShowVolInfo(false)}>
-                            <HelpCircle size={14} className="text-orange-500 cursor-pointer" />
+                        <div onMouseEnter={()=>setShowVolInfo(true)} onMouseLeave={()=>setShowVolInfo(false)}>
+                            <HelpCircle size={14} className="text-orange-500 cursor-pointer"/>
                             {showVolInfo && (
-                                <div className={`absolute right-0 top-10 mt-1 w-56 p-3 rounded-xl shadow-xl z-50 text-[10px] font-bold leading-relaxed ${isDark ? 'bg-[#1a222e] text-slate-300 border border-slate-700' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                                    Biểu đồ bức tường khối lượng (Intraday). Hiển thị các mức giá xảy ra nhiều giao dịch nhất trong ngày. Giúp xác định vùng kẹt lệnh (POC) làm hỗ trợ/kháng cự cứng.
+                                <div className={`absolute right-0 top-10 mt-1 w-56 p-3 rounded-xl shadow-xl z-50 text-[10px] font-bold leading-relaxed ${isDark?'bg-[#1a222e] text-slate-300 border border-slate-700':'bg-white text-slate-600 border border-slate-200'}`}>
+                                    Biểu đồ bức tường khối lượng (Intraday). Hiển thị các mức giá xảy ra nhiều giao dịch nhất trong ngày.
                                 </div>
                             )}
                         </div>
                     </div>
-                    
-                    <div className="flex-1 flex flex-col gap-1 justify-around">
-                        {volumeProfile ? (
-                            volumeProfile.bins.map((bin, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-mono w-10 ${UI.textMuted}`}>{bin.priceCenter}</span>
-                                    <div className={`flex-1 h-3 rounded-sm overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                        <div className="bg-orange-500/60 h-full transition-all duration-500" style={{width: `${(bin.volume / volumeProfile.maxVol) * 100}%`}}></div>
-                                    </div>
+                    <div className="flex-1 flex flex-col gap-1 justify-around overflow-hidden">
+                        {volumeProfile ? volumeProfile.bins.map((bin,idx)=>(
+                            <div key={idx} className="flex items-center gap-2">
+                                <span className={`text-[10px] font-mono w-10 ${UI.textMuted}`}>{bin.priceCenter}</span>
+                                <div className={`flex-1 h-3 rounded-sm overflow-hidden flex ${isDark?'bg-slate-800':'bg-slate-100'}`}>
+                                    <div className="bg-orange-500/60 h-full transition-all duration-500" style={{width:`${(bin.volume/volumeProfile.maxVol)*100}%`}}/>
                                 </div>
-                            ))
-                        ) : (
+                            </div>
+                        )) : (
                             <div className="flex flex-col items-center justify-center py-12 opacity-80">
-                                <div className="scale-75">
-                                    <AtomLoader message="READING POC..." />
-                                </div>
+                                <div className="scale-75"><AtomLoader message="READING POC..."/></div>
                             </div>
                         )}
                     </div>
@@ -307,79 +343,12 @@ export default function DerivativesTab({
                 </div>
 
                 {/* MAIN GRID */}
-                <div className="grid grid-cols-3 gap-6">
-
-                    {/* ================================================= */}
-                    {/* CỘT 1: BIẾN SỐ ĐỘNG LỰC HỌC                       */}
-                    {/* ================================================= */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-yellow-500">
-                            <Activity size={16} />
-                            <span className="text-xs font-black uppercase tracking-widest">Biến số Động lực học</span>
-                        </div>
-                            <ul className={`text-[11px] leading-relaxed font-bold space-y-3 ${UI.textMuted}`}>
-                                {[
-                                    { label: 'Tốc độ xé Basis:', val: `${(parseFloat(derivRadar?.basisSpeed) || 0) > 0 ? '+' : ''}${derivRadar?.basisSpeed || 0} điểm/nhịp`, 
-                                    color: (parseFloat(derivRadar?.basisSpeed) || 0) > 0 ? 'text-emerald-500' : (parseFloat(derivRadar?.basisSpeed) || 0) < 0 ? 'text-red-500' : 'text-slate-400', 
-                                    tip: 'Tốc độ thu hẹp/mở rộng khoảng cách giữa Phái sinh và Cơ sở trong thời gian ngắn.' },
-
-                                    { label: 'Tổng lực 10 Trụ:', val: `${(derivRadar?.influencers || []).reduce((sum, stock) => sum + (parseFloat(stock.realImpact) || 0), 0) > 0 ? '+' : ''}${(derivRadar?.influencers || []).reduce((sum, stock) => sum + (parseFloat(stock.realImpact) || 0), 0).toFixed(2)} điểm`, 
-                                    color: (derivRadar?.influencers || []).reduce((sum, stock) => sum + (parseFloat(stock.realImpact) || 0), 0) > 0 ? 'text-emerald-500' : 'text-red-500', 
-                                    tip: 'Tổng điểm số thực tế mà 10 mã vốn hóa lớn nhất đang tác động lên VN30.' },
-
-                                    { label: 'Vùng kẹt POC:', val: volumeProfile?.pocPrice ? parseFloat(volumeProfile.pocPrice).toFixed(1) : 'Đang tính...', 
-                                    color: isDark ? 'text-white bg-white/10 px-1.5 py-0.5 rounded' : 'text-slate-800 bg-black/10 px-1.5 py-0.5 rounded', 
-                                    tip: 'Point of Control: Mức giá có khối lượng khớp lệnh khủng nhất trong phiên.' },
-
-                                    { label: 'Xu thái OI:', val: derivRadar?.oiTrend || 'ĐANG QUÉT...', 
-                                    color: 'text-orange-500', 
-                                    tip: 'Xu hướng dòng tiền giữ qua đêm (Open Interest) đang tăng hay giảm.' },
-
-                                    { label: 'Ngoại ròng (Net):', val: `${(parseFloat(derivRadar?.foreignNet) || 0) > 0 ? '+' : ''}${derivRadar?.foreignNet || 0} HĐ`, 
-                                    color: (parseFloat(derivRadar?.foreignNet) || 0) > 0 ? 'text-emerald-500' : 'text-red-500',
-                                    tip: 'Lượng hợp đồng Khối ngoại đang Long/Short chủ động.' }
-
-                                ].map((item, idx) => (
-                                    <li key={idx} className="flex items-center gap-1.5 relative group cursor-default">
-                                        <span>• {item.label}</span>
-                                        <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors" />
-                                        <span className={`ml-auto ${item.color}`}>{item.val}</span>
-                                        
-                                        {/* TOOLTIP HIỆN KHI HOVER */}
-                                        <div className={`absolute left-0 bottom-full mb-2 w-48 p-2 rounded-lg shadow-xl text-[9px] font-bold leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 ${isDark ? 'bg-[#1a222e] text-slate-300 border border-slate-700' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                                            {item.tip}
-                                            <div className={`absolute -bottom-1 left-4 w-2 h-2 rotate-45 border-b border-r ${isDark ? 'bg-[#1a222e] border-slate-700' : 'bg-white border-slate-200'}`}></div>
-                                        </div>
-                                    </li>
-                                ))}
-                                {/* Các dòng tĩnh bên dưới giữ nguyên */}
-                                <li>• VWAP: <span className={(parseFloat(derivRadar?.vn30f1m) || 0) >= parseFloat(derivAnalysis.vwap) ? 'text-emerald-500' : 'text-red-500'}>{derivAnalysis.vwap} ({(parseFloat(derivRadar?.vn30f1m) || 0) >= parseFloat(derivAnalysis.vwap) ? 'TRÊN ↑' : 'DƯỚI ↓'})</span></li>
-                                <li>• CVD: <span className={(derivAnalysis.cvd || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}>{(derivAnalysis.cvd || 0) >= 0 ? '+' : ''}{Number(derivAnalysis.cvd || 0).toLocaleString('vi-VN')} HĐ</span></li>
-                                <li>• OI Signal: <span className={derivAnalysis.oiInterpretation.color}>{derivAnalysis.oiInterpretation.label}</span></li>
-                            </ul>
-                        {/* Nút Gọi AI */}
-                        <button 
-                            onClick={handleAiDerivAnalysis} disabled={analyzingDeriv}
-                            className={`w-full h-12 rounded-xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest transition-all shadow-lg ${analyzingDeriv ? 'bg-slate-700 text-slate-400' : 'bg-orange-500 hover:bg-orange-400 text-white shadow-orange-500/20 active:scale-95'}`}
-                        >
-                            <BrainCircuit size={16} className={analyzingDeriv ? "animate-spin" : "animate-pulse"} />
-                            {analyzingDeriv ? 'ĐANG CHẠY THUẬT TOÁN QUANT MCP...' : 'AI LẬP KẾ HOẠCH VÀO LỆNH'}
-                        </button>
-
-                        {/* Khung Hiển thị AI Report (Dùng Markdown) */}
-                        {aiDerivReport && (
-                            <div className={`flex-1 overflow-y-auto custom-scrollbar rounded-2xl border p-4 ${isDark ? 'bg-[#0a0e14] border-orange-500/30' : 'bg-white border-orange-200 shadow-inner'}`}>
-                                <div className={`prose max-w-none prose-sm prose-headings:text-orange-500 prose-headings:font-black prose-headings:uppercase prose-p:leading-relaxed prose-strong:text-emerald-500 prose-li:text-[11px] ${isDark ? 'prose-invert prose-p:text-slate-300' : 'prose-p:text-slate-700'}`}>
-                                    <ReactMarkdown>{aiDerivReport}</ReactMarkdown>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ================================================= */}
-                    {/* CỘT 2: THAY THẾ BẰNG ORDER FLOW & MACRO MATRIX    */}
-                    {/* ================================================= */}
-                    <div className={`border-l pl-6 space-y-5 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
+                <div className="grid grid-cols-3 gap-6" style={{ minHeight: 0 }}>
+ 
+                    {/* ============================================================
+                        COL 1: ORDER FLOW & MACRO MATRIX  
+                        ============================================================ */}
+                    <div className="space-y-5">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-purple-400">
                                 <Database size={16} />
@@ -387,8 +356,8 @@ export default function DerivativesTab({
                             </div>
                             <span className="text-[9px] font-bold text-purple-400 uppercase bg-purple-500/10 px-2 py-0.5 rounded">Quant Input</span>
                         </div>
-
-                        {/* WIDGET 1: MARKET DEPTH IMBALANCE (ĐỘ SÂU SỔ LỆNH) */}
+                
+                        {/* WIDGET 1: BID/ASK IMBALANCE */}
                         <div className={`p-4 rounded-2xl border shadow-sm ${isDark ? 'bg-[#131922] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                             <p className="text-[9px] uppercase font-black tracking-widest text-slate-400 mb-2">Độ lệch Sổ lệnh (Bid/Ask Imbalance)</p>
                             <div className="flex items-center justify-between text-xs font-black mb-1">
@@ -401,43 +370,44 @@ export default function DerivativesTab({
                             </div>
                             <p className={`text-[8px] font-bold italic mt-1 text-right ${UI.textMuted}`}>Phe Long đang giữ tường mua chủ động</p>
                         </div>
-
-                        {/* WIDGET 2: WHALE TRADES TRACKER (QUÉT LỆNH LỚN) */}
+                
+                        {/* WIDGET 2: WHALE SWEEP TRACKER */}
                         <div className={`p-4 rounded-2xl border shadow-sm flex flex-col h-32 ${isDark ? 'bg-[#131922] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-                                <p className="text-[9px] uppercase font-black tracking-widest text-slate-400 mb-2">Quét lệnh Cá mập (&gt;50 HĐ/Lệnh)</p>                                    <div className="flex-1 overflow-y-auto font-mono text-[10px] space-y-1 custom-scrollbar pr-1">
-                                <div className="flex justify-between text-emerald-400 font-bold bg-emerald-500/5 p-1 rounded"><span>[14:42:10] SWEEP LONG</span> <span>+120 HĐ</span></div>
-                                <div className="flex justify-between text-red-400 font-bold bg-red-500/5 p-1 rounded"><span>[14:41:05] SWEEP SHORT</span> <span>-65 HĐ</span></div>
-                                <div className="flex justify-between text-emerald-400 font-bold bg-emerald-500/5 p-1 rounded"><span>[14:38:50] SWEEP LONG</span> <span>+80 HĐ</span></div>
-                                <div className="flex justify-between text-slate-400"><span>[14:35:12] NO LARGE TRADES</span> <span>---</span></div>
+                            <p className="text-[9px] uppercase font-black tracking-widest text-slate-400 mb-2">Quét lệnh Cá mập (&gt;50 HĐ/Lệnh)</p>
+                            <div className="flex-1 overflow-y-auto font-mono text-[10px] space-y-1 custom-scrollbar pr-1">
+                                <div className="flex justify-between text-emerald-400 font-bold bg-emerald-500/5 p-1 rounded"><span>[14:42:10] SWEEP LONG</span><span>+120 HĐ</span></div>
+                                <div className="flex justify-between text-red-400 font-bold bg-red-500/5 p-1 rounded"><span>[14:41:05] SWEEP SHORT</span><span>-65 HĐ</span></div>
+                                <div className="flex justify-between text-emerald-400 font-bold bg-emerald-500/5 p-1 rounded"><span>[14:38:50] SWEEP LONG</span><span>+80 HĐ</span></div>
+                                <div className="flex justify-between text-slate-400"><span>[14:35:12] NO LARGE TRADES</span><span>---</span></div>
                             </div>
                         </div>
-
-                        {/* WIDGET 3: LIÊN THỊ TRƯỜNG & LỊCH SỰ KIỆN */}
+                
+                        {/* WIDGET 3: MACRO CONTEXT —   with real data from macroContext prop */}
                         <div className={`p-4 rounded-2xl border shadow-sm space-y-2 ${isDark ? 'bg-[#131922] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                             <p className="text-[9px] uppercase font-black tracking-widest text-slate-400 mb-1">Cảnh báo Vĩ mô & Liên thị trường</p>
                             <div className="flex justify-between items-center text-[11px] font-bold">
                                 <span className={UI.textMuted}>• Đáo hạn Phái sinh:</span>
-                                <span className="text-yellow-500 font-black">Còn 4 ngày</span>
+                                <span className="text-yellow-500 font-black">{macroContext?.expiryLabel || 'Còn 4 ngày'}</span>
                             </div>
                             <div className="flex justify-between items-center text-[11px] font-bold">
                                 <span className={UI.textMuted}>• Sức mạnh USD (DXY):</span>
-                                <span className="text-red-400">104.2 (+0.25% ↑)</span>
+                                <span className={parseFloat(macroContext?.dxy?.change) >= 0 ? 'text-red-400' : 'text-emerald-400'}>
+                                    {macroContext?.dxy?.value || '104.2'} ({macroContext?.dxy?.changePercent >= 0 ? '+' : ''}{macroContext?.dxy?.changePercent || '+0.25'}% {parseFloat(macroContext?.dxy?.change) >= 0 ? '↑' : '↓'})
+                                </span>
                             </div>
                             <div className="flex justify-between items-center text-[11px] font-bold">
                                 <span className={UI.textMuted}>• Dow Jones Futures:</span>
-                                <span className="text-emerald-400">+180.5 điểm ↑</span>
+                                <span className={parseFloat(macroContext?.dowFutures?.change) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                    {parseFloat(macroContext?.dowFutures?.change) >= 0 ? '+' : ''}{macroContext?.dowFutures?.change || '+180.5'} điểm {parseFloat(macroContext?.dowFutures?.change) >= 0 ? '↑' : '↓'}
+                                </span>
                             </div>
                             <div className="flex justify-between items-center text-[11px] font-bold">
-                                <span className={UI.textMuted}>• Tỷ giá USD/VND Chợ đen:</span>
-                                <span className="text-red-400">25.480 (Áp lực)</span>
+                                <span className={UI.textMuted}>• Tỷ giá USD/VND (VCB):</span>
+                                <span className="text-red-400">{macroContext?.usdVnd?.official || '25.480'} (Áp lực)</span>
                             </div>
                         </div>
-                    </div>
-
-                    {/* ================================================= */}
-                    {/* CỘT 3: CONFLUENCE SIGNAL METRIC VS AI BUTTON      */}
-                    {/* ================================================= */}
-                    <div className={`border-l pl-6 space-y-6 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
+                
+                        {/* CONFLUENCE SCORE CARD */}
                         <div className={`rounded-2xl border p-5 ${derivAnalysis.bgColor}`}>
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-[10px] uppercase tracking-[0.3em] font-black text-slate-400">Confluence Score</p>
@@ -449,42 +419,196 @@ export default function DerivativesTab({
                                 <div className="h-full bg-orange-500 transition-all duration-700" style={{ width: `${derivAnalysis.score}%` }} />
                             </div>
                         </div>
+                    </div>
+                
+                    {/* ============================================================
+                        COL 2: AI SCALPING ASSISTANT — SCROLLS INDEPENDENTLY
+                         ============================================================ */}
+                    <div
+                        className="flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-1"
+                        style={{ maxHeight: '680px' }}   
+                    >
+                        {/* --- TASK 4: ACTION PANEL (above AI report) --- */}
+                        <div className={`rounded-[24px] border p-5 ${derivAnalysis.bgColor}`}>
+                             <div className="flex items-center gap-2 mb-4">
+                                <Zap size={16} className={derivAnalysis.mechColor} />
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${derivAnalysis.mechColor}`}>
+                                    Action Panel — {derivAnalysis.mechAction}
+                                </span>
+                            </div>
+                
+                             <div className="grid grid-cols-2 gap-2 mb-3">
+                                {[
+                                    { label: 'ENTRY', val: `${(parseFloat(derivRadar?.vn30f1m)||0).toFixed(1)}`, color: 'text-white' },
+                                    { label: 'SL (−1.5 ATR)', val: derivAnalysis.sl, color: 'text-red-400' },
+                                    { label: 'TP1 (1R)', val: derivAnalysis.tp1, color: 'text-emerald-400' },
+                                    { label: 'TP2 (2.2R)', val: derivAnalysis.tp2, color: 'text-emerald-300' },
+                                ].map(item => (
+                                    <div key={item.label} className={`rounded-xl p-3 flex flex-col items-center ${isDark ? 'bg-black/30' : 'bg-white/60'} border border-white/10`}>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">{item.label}</span>
+                                        <span className={`text-base font-black ${item.color}`}>{item.val}</span>
+                                    </div>
+                                ))}
+                            </div>
+                
+                             <div className={`flex items-center justify-between px-3 py-2 rounded-xl mb-3 ${isDark ? 'bg-black/20' : 'bg-white/50'}`}>
+                                <span className="text-[10px] font-black text-yellow-400 uppercase">R:R Ratio</span>
+                                <span className="text-sm font-black">1 : {derivAnalysis.rrRatio}</span>
+                            </div>
+                
+                             <div className="flex flex-wrap gap-1 mb-3">
+                                {[
+                                    { label: `EMA3 ${derivAnalysis.shortTermTrend === 1 ? '↑' : '↓'} EMA8`, ok: true },
+                                    { label: `OI ${derivAnalysis.oiInterpretation?.label}`, ok: derivAnalysis.oiUp },
+                                    { label: `Khối ngoại ${(parseFloat(derivRadar?.foreignNet)||0) >= 0 ? 'MUA' : 'BÁN'} ${Math.abs(parseFloat(derivRadar?.foreignNet)||0)} HĐ`, ok: (parseFloat(derivRadar?.foreignNet)||0) >= 0 },
+                                    { label: `Tổng trụ ${(derivAnalysis.totalImpact||0) >= 0 ? '+' : ''}${(derivAnalysis.totalImpact||0).toFixed ? Number(derivAnalysis.totalImpact).toFixed(2) : derivAnalysis.totalImpact} đ`, ok: (parseFloat(derivAnalysis.totalImpact)||0) >= 0 },
+                                    { label: `POC ${derivAnalysis.pocDistance}`, ok: true },
+                                    { label: `Score ${derivAnalysis.score}/100`, ok: derivAnalysis.score >= 50 },
+                                ].map((b, i) => (
+                                    <span key={i} className={`text-[9px] font-black px-2 py-0.5 rounded-full ${b.ok ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                        {b.label}
+                                    </span>
+                                ))}
+                            </div>
+                
+                             <p className={`text-[10px] italic leading-relaxed ${UI.textMuted}`}>{derivAnalysis.mechReason}</p>
+                        </div>
+                        {/* AI CALL BUTTON */}
+                        <div>
+                            {lastAiDerivTime && (() => {
+                                const elapsed = Date.now() - lastAiDerivTime;
+                                const remainMs = 5 * 60 * 1000 - elapsed;
+                                const canCallAI = elapsed >= 5 * 60 * 1000;
+                                const remainMin = Math.floor(remainMs / 60000);
+                                const remainSec = Math.floor((remainMs % 60000) / 1000);
+                                return (
+                                    <div className="text-center mb-2 space-y-0.5">
+                                        <p className={`text-[9px] font-mono ${UI.textMuted}`}>
+                                            Phân tích gần nhất: {new Date(lastAiDerivTime).toLocaleTimeString('vi-VN')}
+                                        </p>
+                                        {canCallAI ? (
+                                            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-wider">
+                                                ✓ Sẵn sàng phân tích mới
+                                            </p>
+                                        ) : (
+                                            <p className="text-[9px] font-mono text-yellow-500">
+                                                Còn {remainMin}:{String(remainSec).padStart(2,'0')} để tối ưu dữ liệu phân tích
+                                                {' '}(hoặc bấm ↻ để phân tích mới ngay)
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
-                        <div className={`rounded-3xl border p-6 ${derivAnalysis.bgColor}`}>
-                            <div className={`text-2xl font-black mb-4 ${derivAnalysis.mechColor}`}>
-                                {derivAnalysis.mechAction}
-                            </div>
-                            <div className="space-y-3 mb-6">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400 font-bold">ENTRY</span>
-                                    <span className="font-black">{(parseFloat(derivRadar?.vn30f1m) || 0).toFixed(1)}</span>
+                            {analyzingDeriv ? (
+                                <div className={`w-full rounded-xl overflow-hidden border ${isDark?'bg-slate-800/60 border-orange-500/20':'bg-orange-50 border-orange-200'}`}>
+                                    <AtomLoader message="ĐANG PACK KHỐI DỮ LIỆU CHO AI..." />
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-red-400 font-bold">SL (-1.5 ATR)</span>
-                                    <span className="font-black">{derivAnalysis.sl}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-emerald-400 font-bold">TP1 (1R)</span>
-                                    <span className="font-black">{derivAnalysis.tp1}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-emerald-400 font-bold">TP2 (2.2R)</span>
-                                    <span className="font-black">{derivAnalysis.tp2}</span>
-                                </div>
-                                <div className="flex justify-between pt-2 border-t border-white/10">
-                                    <span className="text-yellow-400 font-bold">R:R Ratio</span>
-                                    <span className="font-black">1:{derivAnalysis.rrRatio}</span>
+                            ) : (
+                                <button
+                                    onClick={handleAiDerivAnalysis}
+                                    className="w-full h-12 rounded-xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest transition-all shadow-lg bg-orange-500 hover:bg-orange-400 text-white shadow-orange-500/20 active:scale-95"
+                                >
+                                    <BrainCircuit size={16} className="animate-pulse"/>
+                                    AI LẬP KẾ HOẠCH VÀO LỆNH
+                                </button>
+                            )}
+                        </div>
+                
+                        {/* AI REPORT */}
+                        {aiDerivReport && (
+                            <div className={`rounded-2xl border p-4 ${isDark?'bg-[#0a0e14] border-orange-500/30':'bg-white border-orange-200 shadow-inner'}`}>
+                                <div className={`prose max-w-none prose-sm prose-headings:text-orange-500 prose-headings:font-black prose-headings:uppercase prose-p:leading-relaxed prose-strong:text-emerald-500 prose-li:text-[11px] ${isDark?'prose-invert prose-p:text-slate-300':'prose-p:text-slate-700'}`}>
+                                    <ReactMarkdown>{aiDerivReport}</ReactMarkdown>
                                 </div>
                             </div>
-                            <div className={`text-sm italic leading-relaxed ${UI.textNormal}`}>
-                                {derivAnalysis.mechReason}
+                        )}
+                    </div>
+                
+                     <div className={`border-l pl-6 space-y-5 ${isDark?'border-white/10':'border-orange-200'}`}>
+
+                        {/* ATR Visual */}
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Biến động ATR</p>
+                                <div className="relative group cursor-default">
+                                    <HelpCircle size={12} className="text-slate-400 hover:text-yellow-500 transition-colors"/>
+                                    <div className={`absolute left-0 bottom-full mb-2 w-56 p-2 rounded-lg shadow-xl text-[9px] font-bold leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 ${isDark?'bg-[#1a222e] text-slate-300 border border-slate-700':'bg-white text-slate-600 border border-slate-200'}`}>
+                                        <strong>ATR (Average True Range)</strong> — Đo biên độ dao động trung bình của giá trong N nến gần nhất. ATR càng cao → thị trường càng biến động mạnh → SL/TP cần đặt xa hơn. Hệ thống dùng ATR × 1.5 cho SL và ATR × 1.0 / 2.2 cho TP.
+                                    </div>
+                                </div>
+                            </div>
+                            <div className={`rounded-2xl p-4 border ${isDark?'bg-[#131922] border-white/5':'bg-slate-50 border-slate-200'}`}>
+                                <div className="flex justify-between text-[10px] font-bold mb-2">
+                                    <span className="text-slate-400">ATR hiện tại</span>
+                                    <span className="text-orange-500 font-black">{derivAnalysis.atr} điểm</span>
+                                </div>
+                                <div className={`w-full h-2 rounded-full ${isDark?'bg-slate-800':'bg-slate-200'}`}>
+                                    <div className="h-full bg-orange-500 rounded-full transition-all duration-700"
+                                        style={{width:`${Math.min((parseFloat(derivAnalysis.atr)||0)/10*100,100)}%`}}/>
+                                </div>
+                                <div className="flex justify-between text-[9px] mt-1 text-slate-500">
+                                    <span>Thấp</span><span>Cao (10đ)</span>
+                                </div>
                             </div>
                         </div>
-                        <div className={`border-l pl-6 space-y-4 flex flex-col h-full ${isDark ? 'border-white/10' : 'border-orange-200'}`}>  
-                    </div>
-                    </div>
 
-                </div>  
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-yellow-500 mb-1">
+                                <Activity size={14} />
+                                <span className="text-[9px] font-black uppercase tracking-widest">Biến số Động lực học</span>
+                            </div>
+                            <ul className={`text-[11px] leading-relaxed font-bold space-y-2.5 ${UI.textMuted}`}>
+                                {[
+                                    { label: 'Tốc độ xé Basis:', val: `${(parseFloat(derivRadar?.basisSpeed)||0)>0?'+':''}${derivRadar?.basisSpeed||0} đ/nhịp`, color: (parseFloat(derivRadar?.basisSpeed)||0)>0?'text-emerald-500':(parseFloat(derivRadar?.basisSpeed)||0)<0?'text-red-500':'text-slate-400', tip:'Tốc độ thu hẹp/mở rộng khoảng cách F1M vs VN30 Index. Basis xé nhanh → dòng tiền đang chạy mạnh về một phía.' },
+                                    { label: 'Tổng lực 10 Trụ:', val: `${(derivRadar?.influencers||[]).reduce((s,x)=>s+(parseFloat(x.realImpact)||0),0)>0?'+':''}${(derivRadar?.influencers||[]).reduce((s,x)=>s+(parseFloat(x.realImpact)||0),0).toFixed(2)} đ`, color:(derivRadar?.influencers||[]).reduce((s,x)=>s+(parseFloat(x.realImpact)||0),0)>0?'text-emerald-500':'text-red-500', tip:'Tổng điểm tác động thực tế của 10 mã vốn hóa lớn nhất lên VN30. Âm = sức kéo xuống.' },
+                                    { label: 'Vùng kẹt POC:', val: volumeProfile?.pocPrice ? parseFloat(volumeProfile.pocPrice).toFixed(1) : 'Đang tính...', color: isDark?'text-white':'text-slate-800', tip:'Point of Control — mức giá có khối lượng khớp lệnh lớn nhất phiên. Giá thường bị hút về đây.' },
+                                    { label: 'Xu thái OI:', val: derivRadar?.oiTrend||'ĐANG QUÉT...', color:'text-orange-500', tip:'Open Interest tăng = tiền mới vào thị trường. OI giảm = đang đóng vị thế hàng loạt.' },
+                                    { label: 'Ngoại ròng (Net):', val: `${(parseFloat(derivRadar?.foreignNet)||0)>0?'+':''}${derivRadar?.foreignNet||0} HĐ`, color:(parseFloat(derivRadar?.foreignNet)||0)>0?'text-emerald-500':'text-red-500', tip:'Số hợp đồng Khối ngoại mua/bán ròng. Ngoại mua ròng mạnh = tín hiệu Long đáng tin.' },
+                                ].map((item,idx)=>(
+                                    <li key={idx} className="flex items-center gap-1.5 relative group cursor-default">
+                                        <span>• {item.label}</span>
+                                        <HelpCircle size={11} className="text-slate-400 hover:text-yellow-500 transition-colors flex-shrink-0"/>
+                                        <span className={`ml-auto ${item.color}`}>{item.val}</span>
+                                        <div className={`absolute left-0 bottom-full mb-2 w-52 p-2 rounded-lg shadow-xl text-[9px] font-bold leading-relaxed opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 ${isDark?'bg-[#1a222e] text-slate-300 border border-slate-700':'bg-white text-slate-600 border border-slate-200'}`}>
+                                            {item.tip}
+                                        </div>
+                                    </li>
+                                ))}
+                                <li>• VWAP: <span className={(parseFloat(derivRadar?.vn30f1m)||0)>=parseFloat(derivAnalysis.vwap)?'text-emerald-500':'text-red-500'}>{derivAnalysis.vwap} ({(parseFloat(derivRadar?.vn30f1m)||0)>=parseFloat(derivAnalysis.vwap)?'TRÊN ↑':'DƯỚI ↓'})</span></li>
+                                <li>• CVD: <span className={(derivAnalysis.cvd||0)>=0?'text-emerald-500':'text-red-500'}>{(derivAnalysis.cvd||0)>=0?'+':''}{Number(derivAnalysis.cvd||0).toLocaleString('vi-VN')} HĐ</span></li>
+                                <li>• OI Signal: <span className={derivAnalysis.oiInterpretation.color}>{derivAnalysis.oiInterpretation.label}</span></li>
+                            </ul>
+                        </div>
+
+                        <div className={`rounded-2xl p-4 border space-y-2 ${isDark?'bg-[#131922] border-white/5':'bg-slate-50 border-slate-200'}`}>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Biên phiên hôm nay</p>
+                            <div className="flex justify-between text-[11px] font-bold">
+                                <span className="text-slate-400">High phiên</span>
+                                <span className="text-emerald-400">{derivAnalysis.sessionHigh}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px] font-bold">
+                                <span className="text-slate-400">Low phiên</span>
+                                <span className="text-red-400">{derivAnalysis.sessionLow}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px] font-bold">
+                                <span className="text-slate-400">VWAP</span>
+                                <span className="text-yellow-400">{derivAnalysis.vwap}</span>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => handleAiDerivAnalysis(true)}
+                            disabled={analyzingDeriv}
+                            title="Bỏ qua cache, ép AI phân tích lại ngay lập tức dù chưa đủ 5 phút hoặc chưa có biến động lớn"
+                            className={`w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all
+                                ${isDark?'border-white/10 text-slate-400 hover:border-orange-500/40 hover:text-orange-400':'border-slate-200 text-slate-400 hover:border-orange-300 hover:text-orange-500'}
+                                disabled:opacity-30 active:scale-95`}
+                        >
+                            ↻ Phân tích lại ngay
+                        </button>
+                    </div>
+                </div>
             </div>  
         </div> 
     </>
