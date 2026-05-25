@@ -1391,6 +1391,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             exportingDeriv={exportingDeriv}
             lastAiDerivTime={lastAiDerivTime}
             macroContext={macroContext}
+            currentUser={currentUser} 
         />
         )}
         {/* ========================================================= */}
