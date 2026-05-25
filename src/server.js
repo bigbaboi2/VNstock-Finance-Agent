@@ -1,6 +1,7 @@
 import { analyzeWithGemini, getMarkdownFromTcbsPdf, searchNewsWithAI, getQuickActionWithGemini, analyzeDerivativesWithGemini, chatWithStockAI } from './services/aiService.js';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import chalk from 'chalk';
 import path from 'path';
 import axios from 'axios';
@@ -25,7 +26,10 @@ import { registerCryptoRoutes } from './services/cryptoService.js';
 import cron from 'node-cron';
 import * as cheerio from 'cheerio';
 import DerivNews from '../models/DerivNews.js';
-{/*////////////////////////*/}
+
+const app = express();
+const PORT = 3001;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -34,11 +38,21 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log(chalk.bgGreen.black.bold(' ✔ KẾT NỐI MONGODB THÀNH CÔNG BẰNG LINK BYPASS ')))
     .catch(err => console.error(chalk.red('❌ Lỗi kết nối MongoDB:'), err));
 
-const app = express();
-const PORT = 3001;
+const corsOptions = {
+  origin: ['https://finance-duck-terminal.vercel.app', 'http://localhost:5173'],
+  optionsSuccessStatus: 200
+};
 
-app.use(cors({ origin: '*' }));
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 250, 
+  message: 'Wait some minutes, server crashing!'
+});
+
+app.use(limiter);
+app.use(cors(corsOptions)); 
 app.use(express.json());
+
 registerCryptoRoutes(app);
 
 const analyzeSentiment = (title) => {
@@ -53,7 +67,7 @@ const analyzeSentiment = (title) => {
         if (text.includes('tăng lãi suất') && !text.includes('nhnn') && !text.includes('ngân hàng nhà nước')) return 'negative';
         if (text.includes('hút ròng mạnh')) return 'negative';
 
-        const positiveWords = ['tăng', 'bình ổn', 'vượt đỉnh', 'bơm', 'hạ nhiệt', 'kỷ lục', 'phục hồi', 'tích cực', 'nới lỏng', 'phao cứu sinh'];
+        const positiveWords = ['tăng', 'bình ổn', 'vượt đỉnh', 'bơm', 'hạ nhiệt', 'kỷ lục', 'phục hồi', 'tích cực', 'nới lỏng', 'phát triển', 'phao cứu sinh'];
         const negativeWords = ['giảm', 'gây áp lực', 'thủng', 'bán tháo', 'rút ròng', 'hút ròng', 'căng thẳng', 'phá giá', 'tiêu cực', 'bắt bớ'];
         
         if (negativeWords.some(w => text.includes(w))) return 'negative';
