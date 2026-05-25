@@ -410,6 +410,7 @@ useEffect(() => {
           }
           executionPrice = limitVal; 
       }
+      const isAssetMarketOpen = (paperMarket === 'CRYPTO' || paperMarket === 'GLOBAL') ? true : marketOpen;
 
       try {
           const res = await axios.post('/api/portfolio/trade', {
@@ -420,7 +421,7 @@ useEffect(() => {
               orderType: paperOrderType, 
               volume: Number(paperVolume),
               price: executionPrice,
-              isMarketOpen: marketOpen 
+              isMarketOpen: isAssetMarketOpen
           });
           
           if (res.data.success) {
@@ -1275,7 +1276,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
       <div className={`w-full h-full flex flex-col transition-opacity duration-500 ${!currentUser ? 'opacity-0 pointer-events-none blur-md' : 'opacity-100'}`}>
         <AppHeader
         isDark={isDark} UI={UI} theme={isDark ? 'dark' : 'light'}
-        activeMode={activeMode} marketOpen={marketOpen}
+        activeMode={activeMode} 
+        marketOpen={activeMode === 'CRYPTO' ? true : marketOpen}
         input={input} setInput={setInput}
         showSuggestions={showSuggestions} setShowSuggestions={setShowSuggestions}
         suggestions={suggestions} setSuggestions={setSuggestions}
