@@ -981,7 +981,8 @@ const derivAnalysis = React.useMemo(() => {
       });
 
       await new Promise((resolve) => {
-        const source = new EventSource(`${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}`);
+        const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}?skip_ngrok=1`;
+        const source = new EventSource(newsUrl);
         eventSourceRef.current = source;
 
         source.onmessage = (event) => {
@@ -1329,6 +1330,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             heatmapData={heatmapData}
             loadingHeatmap={loadingHeatmap}
             lastAiVnTime={lastAiVnTime}
+            currentUser={currentUser}
 
         />
         )}
