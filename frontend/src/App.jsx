@@ -981,30 +981,58 @@ const derivAnalysis = React.useMemo(() => {
       });
 
       await new Promise((resolve) => {
-        const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}?skip_ngrok=1`;
-        const source = new EventSource(newsUrl);
-        eventSourceRef.current = source;
+  const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}`;
+  const controller = new AbortController();
+  eventSourceRef.current = controller;
 
-        source.onmessage = (event) => {
-          const newsItem = JSON.parse(event.data);
-          setMarketData(prev => {
-            if (!prev) return prev;
-            const currentNews = prev.deepNewsData || [];
-            if (currentNews.some(n => n.link === newsItem.link)) return prev;
-            return { ...prev, deepNewsData: [newsItem, ...currentNews] };          
-          });
-        };
+  const closeAll = () => {
+    controller.abort();
+    setLoadingMarket(false);
+    setFetchProgress(100);
+    resolve();
+  };
 
-        const closeAll = () => {
-          if (eventSourceRef.current) eventSourceRef.current.close();
-          setLoadingMarket(false);
-          setFetchProgress(100);
-          resolve();
-        };
+  fetch(newsUrl, {
+    headers: {
+      'ngrok-skip-browser-warning': 'true',
+      'Accept': 'text/event-stream',
+    },
+    signal: controller.signal,
+  }).then(async (response) => {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-        source.addEventListener('done', closeAll);
-        source.addEventListener('error', closeAll);
-      });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data?.type === 'done') { closeAll(); return; }
+            setMarketData(prev => {
+              if (!prev) return prev;
+              const currentNews = prev.deepNewsData || [];
+              if (currentNews.some(n => n.link === data.link)) return prev;
+              return { ...prev, deepNewsData: [data, ...currentNews] };
+            });
+          } catch {}
+        }
+        if (line === 'event: done') { closeAll(); return; }
+      }
+    }
+    closeAll();
+  }).catch((err) => {
+    if (err.name !== 'AbortError') {
+      addLog(`[Lỗi stream tin tức]: ${err.message}`);
+    }
+    closeAll();
+  });
+});
 
     } catch (err) {
       addLog(`Lỗi hệ thống: ${err.message}`);
@@ -1013,14 +1041,15 @@ const derivAnalysis = React.useMemo(() => {
   };
 
   const stopNewsStream = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+  if (eventSourceRef.current) {
+     if (typeof eventSourceRef.current.close === 'function') {
+      eventSourceRef.current.close(); 
+    } else if (typeof eventSourceRef.current.abort === 'function') {
+      eventSourceRef.current.abort();  
     }
-    setLoadingMarket(false); 
-    setFetchProgress(100);
-    addLog('Đã ngắt luồng tin tức theo lệnh!');
-  };
+    eventSourceRef.current = null;
+  }
+};
 // Logic ai button
 const handleAiAnalysis = async (forceRefresh = false) => {
     if (!marketData || !chartData) {

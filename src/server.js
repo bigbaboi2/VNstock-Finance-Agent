@@ -1216,11 +1216,14 @@ app.get('/api/deriv-radar', async (req, res) => {
 //==========================================
 app.get('/api/news/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+    
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-     res.setHeader('ngrok-skip-browser-warning', 'true'); 
-    res.flushHeaders(); 
+    res.flushHeaders();
 
     let isClientDisconnected = false;
     req.on('close', () => { isClientDisconnected = true; });
