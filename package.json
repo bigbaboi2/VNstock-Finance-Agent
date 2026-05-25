@@ -5,7 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev:backend": "nodemon server/server.js",
+    "dev:tunnel": "npx ngrok http --domain=finalize-rasping-decency.ngrok-free.dev 3001",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:tunnel\""
   },
   "keywords": [],
   "author": "",
@@ -25,5 +28,9 @@
     "puppeteer": "^24.43.0",
     "vader-sentiment": "^1.1.3",
     "yahoo-finance2": "^2.11.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.14"
   }
 }

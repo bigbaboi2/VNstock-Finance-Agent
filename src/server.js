@@ -558,7 +558,6 @@ app.post('/api/portfolio/trade', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
-
 //========================================================
 //API: BACKGROUND ORDER MATCHING
 //========================================================
@@ -570,9 +569,7 @@ setInterval(async () => {
         const minutes = now.getMinutes();
         const totalMinutes = hours * 60 + minutes;
 
-        const isMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
-
-        if (!isMarketOpen) return; 
+        const isVnMarketOpen = day >= 1 && day <= 5 && totalMinutes >= 540 && totalMinutes <= 900;
 
         const portfolios = await Portfolio.find({ "pendingOrders": { $exists: true, $not: {$size: 0} } });
         if (portfolios.length === 0) return;
@@ -605,6 +602,10 @@ setInterval(async () => {
             for (let i = portfolio.pendingOrders.length - 1; i >= 0; i--) {
                 const order = portfolio.pendingOrders[i];
                 if (order.status !== 'PENDING') continue;
+
+                if (order.assetType === 'VN_STOCKS' || order.assetType === 'VN_DERIVATIVES') {
+                    if (!isVnMarketOpen) continue; 
+                }
 
                 const currentPrice = livePrices[order.symbol];
                 if (!currentPrice) continue;
@@ -651,7 +652,6 @@ setInterval(async () => {
         }
     } catch (error) {}
 }, 10000);
-
 //==========================================
 //API: GENERAL MARKET RADAR
 //==========================================
