@@ -40,7 +40,9 @@ mongoose.connect(process.env.MONGODB_URI)
 
 const corsOptions = {
   origin: ['https://your-frontend.example.com', 'http://localhost:5173'],
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 };
 
 const limiter = rateLimit({
@@ -1217,6 +1219,7 @@ app.get('/api/news/:ticker', async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+     res.setHeader('ngrok-skip-browser-warning', 'true'); 
     res.flushHeaders(); 
 
     let isClientDisconnected = false;
