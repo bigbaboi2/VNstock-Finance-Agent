@@ -3,6 +3,7 @@ import TradingChart from './TradingChart';
 import AtomLoader from './AtomLoader';
 import ReactMarkdown from 'react-markdown';
 import { useState, useRef, useCallback } from 'react';
+import StockAiChat from './StockAiChat';
 
 export default function DerivativesTab({
   derivNews,
@@ -30,7 +31,7 @@ export default function DerivativesTab({
 const [chartHeight, setChartHeight] = useState(500);
 const dragStartY = useRef(null);
 const dragStartH = useRef(null);
- 
+ const [isChatOpen, setIsChatOpen] = useState(false);
 const onChartDragStart = useCallback((e) => {
     dragStartY.current  = e.clientY;
     dragStartH.current  = chartHeight;
@@ -422,7 +423,7 @@ const onChartDragStart = useCallback((e) => {
                     </div>
                 
                     {/* ============================================================
-                        COL 2: AI SCALPING ASSISTANT — SCROLLS INDEPENDENTLY
+                        COL 2: AI SCALPING ASSISTANT 
                          ============================================================ */}
                     <div
                         className="flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-1"
@@ -505,16 +506,26 @@ const onChartDragStart = useCallback((e) => {
                                     <AtomLoader message="ĐANG PACK KHỐI DỮ LIỆU CHO AI..." />
                                 </div>
                             ) : (
-                                <button
+                            <button
                                     onClick={handleAiDerivAnalysis}
                                     className="w-full h-12 rounded-xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest transition-all shadow-lg bg-orange-500 hover:bg-orange-400 text-white shadow-orange-500/20 active:scale-95"
                                 >
                                     <BrainCircuit size={16} className="animate-pulse"/>
                                     AI LẬP KẾ HOẠCH VÀO LỆNH
-                                </button>
+                            </button>
                             )}
+                            <button
+                                onClick={() => setIsChatOpen(true)}
+                                className={`w-full mt-2 h-12 rounded-xl flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest transition-all border shadow-sm active:scale-95
+                                    ${isDark 
+                                        ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/20' 
+                                        : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'
+                                    }`}
+                            >
+                                <BrainCircuit size={16} />
+                                {aiDerivReport ? 'CHAT VỚI AI VỀ PHÁI SINH' : 'HỎI AI VỀ PHÁI SINH'}
+                            </button>
                         </div>
-                
                         {/* AI REPORT */}
                         {aiDerivReport && (
                             <div className={`rounded-2xl border p-4 ${isDark?'bg-[#0a0e14] border-orange-500/30':'bg-white border-orange-200 shadow-inner'}`}>
@@ -523,7 +534,7 @@ const onChartDragStart = useCallback((e) => {
                                 </div>
                             </div>
                         )}
-                    </div>
+                        </div>
                 
                      <div className={`border-l pl-6 space-y-5 ${isDark?'border-white/10':'border-orange-200'}`}>
 
@@ -611,6 +622,15 @@ const onChartDragStart = useCallback((e) => {
                 </div>
             </div>  
         </div> 
+            <StockAiChat
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            ticker="VN30F1M"
+            companyName="Hợp đồng tương lai VN30"
+            aiReport={aiDerivReport}
+            isDark={isDark}
+            currentUser={currentUser}
+        />  
     </>
   );
 }
