@@ -436,3 +436,46 @@ export async function analyzeCryptoSignalWithGemini(symbol, liveData) {
         return { signal: "WAIT", confidence: "0%", advice: "Lỗi AI: " + error.message };
     }
 }
+// =========================================================
+// 🚀 7. HÀM CHAT VỚI AI — ĐỌC BÁO CÁO ĐÃ LƯU
+// =========================================================
+export async function chatWithStockAI(ticker, question, history = [], aiReport = null) {
+    console.log(chalk.cyan(`\n💬 [CHAT] Câu hỏi về ${ticker}: "${question.substring(0, 60)}..."`));
+ 
+     const reportContext = aiReport
+        ? `\n\n[BÁO CÁO PHÂN TÍCH ĐÃ LƯU — ${ticker.toUpperCase()}]\n${aiReport}\n[HẾT BÁO CÁO]`
+        : `\n\n[CẢNH BÁO: Chưa có báo cáo lưu cho ${ticker}. Trả lời dựa trên kiến thức chung về TTCK Việt Nam.]`;
+ 
+     const historyText = history.length > 0
+        ? '\n\n[LỊCH SỬ CHAT GẦN ĐÂY]\n' +
+          history.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n')
+        : '';
+ 
+    const prompt = `Bạn là OMNI DUCK — Trợ lý phân tích tài chính cho TTCK Việt Nam.
+Nhiệm vụ: Trả lời câu hỏi về mã ${ticker.toUpperCase()} dựa trên báo cáo phân tích đã lưu bên dưới.
+ 
+NGUYÊN TẮC:
+1. Ưu tiên tuyệt đối thông tin từ BÁO CÁO ĐÃ LƯU.
+2. Trả lời trực tiếp, súc tích, dùng số liệu cụ thể.
+3. Nếu báo cáo chưa đề cập → nói rõ "Báo cáo hiện tại chưa đề cập điểm này."
+4. Dùng **bold** cho số liệu quan trọng, bullet points khi liệt kê.
+5. KHÔNG bịa số liệu. KHÔNG đưa lời khuyên đầu tư tuyệt đối.
+6. Tối đa 300 từ (trừ khi câu hỏi yêu cầu chi tiết hơn).
+${reportContext}${historyText}
+ 
+[CÂU HỎI]
+${question}
+ 
+Trả lời bằng tiếng Việt, chuyên nghiệp, đi thẳng vào vấn đề:`;
+ 
+    try {
+        const result = await generateWithAutoSwitch([prompt]);
+        const answer = result.response.text();
+        console.log(chalk.green(`✔ [CHAT] Đã trả lời ${ticker} (${answer.length} ký tự)`));
+        return answer;
+    } catch (error) {
+        console.error(chalk.red(`❌ [CHAT] Lỗi AI ${ticker}:`), error.message);
+        throw error;
+    }
+}
+ 
