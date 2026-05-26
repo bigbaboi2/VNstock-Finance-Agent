@@ -1,8 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send, Loader2, ChevronDown, RotateCcw, Bot, User, Minimize2, GripVertical } from 'lucide-react';
+import { X, Send, Loader2, ChevronDown, RotateCcw, Bot, User, Minimize2, History } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const MAX_HISTORY_MESSAGES = 40;    
+const MAX_TICKERS_STORED   = 15;   
+const STORAGE_PREFIX       = 'omni_chat_';
 
 // ─── QUICK SUGGESTION CHIPS ───────────────────────────────────────────────────
 const QUICK_PROMPTS = [
@@ -13,6 +18,63 @@ const QUICK_PROMPTS = [
   'So sánh với trung bình ngành?',
   'Triển vọng ngắn hạn 1-3 tháng?',
 ];
+
+// ─── STORAGE HELPERS ──────────────────────────────────────────────────────────
+function getChatKey(ticker) {
+  return `${STORAGE_PREFIX}${ticker}`;
+}
+
+function loadChatHistory(ticker) {
+  try {
+    const raw = localStorage.getItem(getChatKey(ticker));
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data.messages) ? data.messages : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveChatHistory(ticker, messages) {
+  if (!ticker || messages.length === 0) return;
+  try {
+     const toSave = messages.slice(-MAX_HISTORY_MESSAGES);
+    localStorage.setItem(getChatKey(ticker), JSON.stringify({
+      messages: toSave,
+      savedAt: Date.now(),
+    }));
+    pruneOldTickers(ticker);
+  } catch {
+   }
+}
+
+function pruneOldTickers(currentTicker) {
+   try {
+    const keys = Object.keys(localStorage)
+      .filter(k => k.startsWith(STORAGE_PREFIX))
+      .map(k => ({
+        key: k,
+        ticker: k.replace(STORAGE_PREFIX, ''),
+        savedAt: (() => {
+          try { return JSON.parse(localStorage.getItem(k))?.savedAt || 0; } catch { return 0; }
+        })(),
+      }))
+      .sort((a, b) => a.savedAt - b.savedAt);  
+
+    if (keys.length > MAX_TICKERS_STORED) {
+       const toDelete = keys
+        .filter(k => k.ticker !== currentTicker)
+        .slice(0, keys.length - MAX_TICKERS_STORED);
+      toDelete.forEach(k => localStorage.removeItem(k.key));
+    }
+  } catch {
+     
+  }
+}
+
+function clearChatHistory(ticker) {
+  try { localStorage.removeItem(getChatKey(ticker)); } catch { /* pass */ }
+}
 
 // ─── ANIMATED CHAT ICON ───────────────────────────────────────────────────────
 function ChatIcon({ size = 36 }) {
@@ -104,6 +166,7 @@ export default function StockAiChat({
   const [isMinimized, setIsMinimized]       = useState(false);
   const [showQuickPrompts, setShowQuickPrompts] = useState(true);
   const [showWarning, setShowWarning]       = useState(true);
+  const [hasRestoredHistory, setHasRestoredHistory] = useState(false);
 
   // ── RESIZE STATE ─────────────────────────────────────────
   const [size, setSize] = useState({ w: 420, h: 600 });
@@ -119,7 +182,7 @@ export default function StockAiChat({
   const dragOffset = useRef({ x: 0, y: 0 });
   const [pos, setPos] = useState({ x: null, y: null });
 
-  // ── DRAG: global mousemove / mouseup ────────────────────
+  // ── DRAG  ────────────────────
   useEffect(() => {
     const onMouseMove = (e) => {
       if (isDragging.current) {
@@ -180,26 +243,56 @@ export default function StockAiChat({
   }, []);
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  // ── FOCUS input khi mở ──────────────────────────────────
+  // ── FOCUS ──────────────────────────────────
   useEffect(() => {
     if (isOpen && !isMinimized) setTimeout(() => inputRef.current?.focus(), 150);
   }, [isOpen, isMinimized]);
 
-  // ── Tin chào khi mở / đổi ticker ────────────────────────
+  // ── SAVE  ──────────────────
+  useEffect(() => {
+    if (ticker && messages.length > 1) {
+       saveChatHistory(ticker, messages);
+    }
+  }, [messages, ticker]);
+
+  // ── ───
   useEffect(() => {
     if (isOpen && ticker) {
-      setMessages([{
+      const savedMsgs = loadChatHistory(ticker);
+      const greetingMsg = {
         role: 'assistant',
         content: aiReport
           ? `Xin chào! Tôi đã đọc xong báo cáo phân tích **${ticker}**${companyName ? ` — ${companyName}` : ''}.\n\nHỏi tôi bất cứ điều gì về mã này: điểm mạnh, rủi ro, chiến lược vào lệnh, hay so sánh với ngành. Tôi sẽ trả lời dựa trên dữ liệu thực tế đã phân tích. 🎯`
           : `Xin chào! Tôi là **OMNI DUCK AI**.\n\nChưa có báo cáo mới cho **${ticker}**, nhưng tôi sẽ tìm lại báo cáo cũ đã lưu (nếu có) và trả lời dựa trên kiến thức chung về mã này.\n\nBạn muốn hỏi gì?`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      }]);
-      setShowQuickPrompts(true);
+      };
+
+      if (savedMsgs.length > 1) {
+         const separator = {
+          role: 'system-separator',
+          content: `— Lịch sử trò chuyện cũ về ${ticker} (${savedMsgs.length - 1} tin nhắn) —`,
+          time: '',
+        };
+         const resumeMsg = {
+          role: 'assistant',
+          content: aiReport
+            ? `✅ Đã khôi phục lịch sử chat **${ticker}**. Báo cáo mới đã được nạp — tôi sẵn sàng tiếp tục tư vấn!`
+            : `✅ Đã khôi phục lịch sử chat **${ticker}**. Hãy hỏi tôi nhé!`,
+          time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages([separator, ...savedMsgs.slice(1), resumeMsg]);
+        setHasRestoredHistory(true);
+        setShowQuickPrompts(false);
+      } else {
+         setMessages([greetingMsg]);
+        setHasRestoredHistory(false);
+        setShowQuickPrompts(true);
+      }
+
       setShowWarning(true);
       setInput('');
     }
-  }, [isOpen, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, ticker]);  
 
   // ── SEND MESSAGE ─────────────────────────────────────────
   const handleSend = useCallback(async (textOverride) => {
@@ -218,7 +311,11 @@ export default function StockAiChat({
     setLoading(true);
 
     try {
-      const history = messages.slice(1).map(m => ({ role: m.role, content: m.content }));
+       const history = messages
+        .filter(m => m.role !== 'system-separator')
+        .slice(1)
+        .map(m => ({ role: m.role, content: m.content }));
+
       const res = await axios.post(`/api/stock-chat/${ticker}`, {
         question: text,
         history,
@@ -247,7 +344,9 @@ export default function StockAiChat({
   };
 
   const handleClearChat = () => {
-    setMessages(prev => [prev[0]]);
+    clearChatHistory(ticker);
+    setMessages(prev => [prev.find(m => m.role === 'assistant') || prev[0]]);
+    setHasRestoredHistory(false);
     setShowQuickPrompts(true);
     setShowWarning(true);
     inputRef.current?.focus();
@@ -290,9 +389,9 @@ export default function StockAiChat({
           <p className={`text-[11px] font-black uppercase tracking-widest leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
             AI Chat — {ticker}
           </p>
-          {messages.length > 1 && (
+          {messages.filter(m => m.role !== 'system-separator').length > 1 && (
             <p className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {messages.length - 1} tin nhắn
+              {messages.filter(m => m.role !== 'system-separator').length - 1} tin nhắn
             </p>
           )}
         </div>
@@ -329,7 +428,7 @@ export default function StockAiChat({
         }
       `}</style>
 
-      {/* ── HEADER (drag handle) ── */}
+      {/* ── HEADER  ── */}
       <div
         onMouseDown={startDrag}
         className={`shrink-0 px-4 py-3 border-b-2 flex items-center gap-3 cursor-move select-none
@@ -350,11 +449,12 @@ export default function StockAiChat({
           <p className={`text-[10px] truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {aiReport ? '✦ Đã nạp báo cáo phân tích' : '⚠ Chưa có báo cáo — dùng kiến thức chung'}
             {companyName ? ` · ${companyName}` : ''}
+            {hasRestoredHistory ? ' · 🕓 Đã khôi phục lịch sử' : ''}
           </p>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {messages.length > 1 && (
+          {messages.filter(m => m.role !== 'system-separator').length > 1 && (
             <button
               onClick={handleClearChat}
               title="Xóa lịch sử chat"
@@ -381,7 +481,7 @@ export default function StockAiChat({
         </div>
       </div>
 
-      {/* ── WARNING nếu chưa có report (có nút X để tắt) ── */}
+      {/* ── WARNING  ── */}
       {!aiReport && showWarning && (
         <div className={`shrink-0 mx-4 mt-3 px-4 py-3 rounded-xl border flex items-start gap-2 text-[11px] relative
           ${isDark ? 'bg-yellow-500/5 border-yellow-500/20 text-yellow-300' : 'bg-yellow-50 border-yellow-400 text-yellow-800'}`}
@@ -403,9 +503,22 @@ export default function StockAiChat({
 
       {/* ── MESSAGES AREA ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 custom-scrollbar">
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} isDark={isDark} />
-        ))}
+        {messages.map((msg, i) => {
+           if (msg.role === 'system-separator') {
+            return (
+              <div key={i} className={`flex items-center gap-2 my-3 select-none`}>
+                <div className={`flex-1 h-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+                <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border
+                  ${isDark ? 'text-slate-500 border-white/10 bg-white/3' : 'text-slate-400 border-slate-200 bg-slate-50'}`}>
+                  <History size={10} />
+                  {msg.content}
+                </span>
+                <div className={`flex-1 h-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+              </div>
+            );
+          }
+          return <MessageBubble key={i} msg={msg} isDark={isDark} />;
+        })}
         {loading && (
           <div className="flex gap-2.5 mb-4">
             <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center mt-0.5
@@ -421,8 +534,8 @@ export default function StockAiChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── QUICK PROMPTS (có nút X để tắt) ── */}
-      {showQuickPrompts && messages.length <= 1 && (
+      {/* ── QUICK PROMPTS   ── */}
+      {showQuickPrompts && messages.filter(m => m.role !== 'system-separator').length <= 1 && (
         <div className={`shrink-0 px-4 pb-3 border-t pt-3 ${isDark ? 'border-white/5' : 'border-slate-300'}`}>
           <div className="flex items-center justify-between mb-2.5">
             <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -493,7 +606,6 @@ export default function StockAiChat({
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={14} />}
           </button>
         </div>
-        {/* ── hint text: fixed color for dark mode ── */}
         <p className={`text-[10px] mt-2 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           Enter để gửi · Shift+Enter xuống dòng
         </p>
