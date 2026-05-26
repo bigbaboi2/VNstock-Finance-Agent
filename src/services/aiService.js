@@ -198,8 +198,8 @@ export async function analyzeWithGemini(ticker, data) {
     const sellVol = data?.stockInfo?.sellVolume || "N/A";
 
     const newsArray = data?.news || [];
-    const newsSummary = newsArray.slice(0, 5).map((n, i) => {
-        return `${i + 1}. [${n.date || 'Mới nhất'}] ${n.title}`;
+    const newsSummary = newsArray.slice(0, 20).map((n, i) => {
+        return `${i + 1}. [${n.sentiment || 'neutral'}][${n.date || 'Mới nhất'}] ${n.title}`;
     }).join('\n');
 
    const systemPrompt = `Bạn là Giám đốc Nghiên cứu Chiến lược Phân tích Định lượng của hệ thống OMNI DUCK. 

@@ -1,7 +1,8 @@
 import { 
   Activity, Zap, FileText, Database, BrainCircuit, 
-  BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe,
-  ArrowLeft, MessageSquare, FileJson
+  BarChart3, ChevronDown, ChevronUp, HelpCircle,
+  ArrowLeft, MessageSquare, FileJson, ExternalLink,
+  TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -300,13 +301,14 @@ export default function VnStocksTab({
                       const sym = marketData.stockInfo?.symbol;
                       console.log(`[HỆ THỐNG] Đang lấy full AI feed từ server cho ${sym}...`);
                       try {
-                        const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
-                          title:   n.title,
-                          date:    n.date,
-                          link:    n.link    || null,
-                          content: n.content && n.content !== n.title && n.content.length > 80
-                                     ? n.content.substring(0, 2000)
-                                     : null,
+                        const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
+                          title:     n.title,
+                          date:      n.date,
+                          sentiment: n.sentiment || 'neutral',
+                          link:      n.link    || null,
+                          content:   n.content && n.content !== n.title && n.content.length > 80
+                                       ? n.content.substring(0, 2000)
+                                       : null,
                         }));
                         const payload = {
                           stockInfo: marketData.stockInfo,
@@ -409,25 +411,73 @@ export default function VnStocksTab({
                     )}
                   </div>
 
-                  {(marketData.deepNewsData || []).map((news, index) => (
-                    <a key={index} href={news.link} target="_blank" rel="noopener noreferrer" className={`block rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${news.isAiGenerated ? (isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400') : (isDark ? 'bg-[#10151C]' : 'bg-white')}`}>
-                      <h3 className={`font-bold text-sm leading-snug transition-colors ${news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : `group-hover:text-yellow-500 ${UI.textNormal}`}`}>
-                          {news.title}
-                      </h3>
-                      <div className="mt-3 flex justify-between items-center gap-3">
-                        <div className="flex gap-2 items-center flex-1 min-w-0">
-                           <span className={`shrink-0 text-[9px] px-2 py-1 rounded font-black uppercase tracking-widest ${news.isAiGenerated ? 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' : (isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500')}`}>
-                             {news.isAiGenerated ? 'AI FOUND' : `SOURCE ${index + 1}`}
-                           </span>
-                           <span className={`text-[10px] font-medium truncate ${UI.textMuted}`}>
-                               {news.date && <span className={`${news.isAiGenerated ? 'text-purple-300' : 'text-yellow-500'} font-bold mr-1`}>{news.date}</span>}
-                               <span className="opacity-60 italic">• {news.source || news.link || 'Internet'}</span>
-                           </span>
-                        </div>
-                        <Globe size={14} className={`shrink-0 ${news.isAiGenerated ? 'text-purple-500' : UI.textMuted} group-hover:text-yellow-500 transition-colors`} />
-                      </div>
-                    </a>
-                  ))}
+                  {(() => {
+                    const newsList = marketData.deepNewsData || [];
+                    const total = newsList.length;
+
+                    // Helpers
+                    const getSentimentBadge = (news) => {
+                      if (news.isAiGenerated) return { label: 'AI', icon: <Bot size={9}/>, cls: 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' };
+                      const s = news.sentiment;
+                      const m = news.mode;
+                      if (s === 'positive')  return { label: 'Tích cực', icon: <TrendingUp size={9}/>,   cls: isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border border-emerald-300' };
+                      if (s === 'negative')  return { label: 'Tiêu cực', icon: <TrendingDown size={9}/>, cls: isDark ? 'bg-red-500/20 text-red-400 border border-red-500/40'         : 'bg-red-50 text-red-700 border border-red-300' };
+                      if (m === 'official')  return { label: 'Chính thức', icon: <Newspaper size={9}/>,  cls: isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'     : 'bg-blue-50 text-blue-700 border border-blue-300' };
+                      if (m === 'rumor')     return { label: 'Tin đồn',   icon: <Radio size={9}/>,       cls: isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'   : 'bg-amber-50 text-amber-700 border border-amber-300' };
+                      if (m === 'negative')  return { label: 'Rủi ro',    icon: <ShieldAlert size={9}/>, cls: isDark ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40': 'bg-orange-50 text-orange-700 border border-orange-300' };
+                      return { label: 'Tổng hợp', icon: <Minus size={9}/>, cls: isDark ? 'bg-white/5 text-slate-400 border border-white/10' : 'bg-slate-100 text-slate-500 border border-slate-200' };
+                    };
+
+                    const getCardStyle = (news) => {
+                      if (news.isAiGenerated)     return isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
+                      if (news.sentiment === 'negative') return isDark ? 'bg-[#130c0c] border-red-900/40' : 'bg-red-50/50 border-red-200';
+                      if (news.sentiment === 'positive') return isDark ? 'bg-[#081310] border-emerald-900/40' : 'bg-emerald-50/50 border-emerald-200';
+                      return isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-100';
+                    };
+
+                    return newsList.map((news, index) => {
+                      const badge = getSentimentBadge(news);
+                      const titleColor = news.isAiGenerated
+                        ? 'text-purple-400 group-hover:text-purple-300'
+                        : news.sentiment === 'negative'
+                          ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}`
+                          : `group-hover:text-yellow-500 ${UI.textNormal}`;
+
+                      return (
+                        <a key={index} href={news.link} target="_blank" rel="noopener noreferrer"
+                          className={`block rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${getCardStyle(news)}`}>
+                          
+                          {/* Header row: badge + counter */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className={`inline-flex items-center gap-1 shrink-0 text-[9px] px-2 py-[3px] rounded-full font-black uppercase tracking-widest ${badge.cls}`}>
+                              {badge.icon}{badge.label}
+                            </span>
+                            <span className={`text-[9px] font-mono font-bold tabular-nums ${UI.textMuted} opacity-50`}>
+                              {index + 1}/{total}
+                            </span>
+                          </div>
+
+                          {/* Title */}
+                          <h3 className={`font-bold text-sm leading-snug transition-colors ${titleColor}`}>
+                            {news.title}
+                          </h3>
+
+                          {/* Footer: date + source + external link icon */}
+                          <div className="mt-3 flex justify-between items-center gap-3">
+                            <span className={`text-[10px] font-medium truncate ${UI.textMuted}`}>
+                              {news.date && (
+                                <span className={`${news.isAiGenerated ? 'text-purple-300' : 'text-yellow-500'} font-bold mr-1`}>
+                                  {news.date}
+                                </span>
+                              )}
+                              <span className="opacity-60 italic">• {news.source || news.link || 'Internet'}</span>
+                            </span>
+                            <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
+                          </div>
+                        </a>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
