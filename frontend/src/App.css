@@ -26,7 +26,7 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(250, 204, 21, 0.4); /* Chuyển màu vàng mờ khi di chuột vào */
+  background: rgba(250, 204, 21, 0.4); /*Turns translucent yellow when hovering */
 }
 
 html, body {
@@ -34,7 +34,7 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100vh;
-  overflow: hidden; /* Cấm trình duyệt tạo thanh cuộn tổng, để 2 cột tự cuộn độc lập */
+  overflow: hidden; /*Forbid the browser to create a total scroll bar, so that the 2 columns scroll independently */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -42,8 +42,8 @@ html, body {
 #root {
   width: 100%;
   height: 100vh;
-  max-width: none !important; /* Lệnh thép: Không cho phép giới hạn chiều rộng */
-  margin: 0 !important;       /* Xóa margin tự động căn giữa */
-  padding: 0 !important;      /* Xóa lề padding dư thừa */
+  max-width: none !important; /*No width limit allowed */
+  margin: 0 !important;       /*Delete automatically centered margin */
+  padding: 0 !important;      /*Remove excess padding */
   text-align: left;
 }
