@@ -23,7 +23,7 @@ export async function getCachedData(ticker) {
         }
         return null;  
     } catch (error) {
-        console.error("❌ Lỗi lấy Cache từ MongoDB:", error.message);
+        console.error("[LỖI] Lỗi lấy Cache từ MongoDB:", error.message);
         return null; 
     }
 }
@@ -40,6 +40,6 @@ export async function saveToCache(ticker, data) {
             { upsert: true, new: true }
         );
     } catch (error) {
-        console.error("❌ Lỗi lưu Cache lên MongoDB:", error.message);
+        console.error("[LỖI] Lỗi lưu Cache lên MongoDB:", error.message);
     }
 }

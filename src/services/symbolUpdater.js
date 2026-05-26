@@ -70,7 +70,6 @@ export async function updateSymbolsDatabase() {
     } catch (error) {
         console.log(chalk.red(`[LỖI] Quá trình đồng bộ thất bại: ${error.message}`));
 
-        // 🚀 NẾU LỖI MẠNG, ĐỌC NGƯỢC LẠI TỪ MONGODB ĐỂ CỨU CÁNH
         const existingStocks = await Stock.find({});
         if (existingStocks.length > 0) {
             console.log(chalk.green(`[HỆ THỐNG] Đã khôi phục dữ liệu từ Cloud MongoDB cũ.`));

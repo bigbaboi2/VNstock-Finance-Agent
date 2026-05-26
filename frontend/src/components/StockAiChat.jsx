@@ -330,7 +330,7 @@ export default function StockAiChat({
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `❌ Lỗi kết nối: ${err.response?.data?.message || err.message}. Vui lòng thử lại.`,
+        content: `[LỖI] kết nối: ${err.response?.data?.message || err.message}. Vui lòng thử lại.`,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       }]);
     } finally {
