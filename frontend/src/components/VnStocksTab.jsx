@@ -20,6 +20,7 @@ export default function VnStocksTab({
   aiReport,
   analyzing,
   loadingMarket,
+  aiReportError,
   loadingAiNews,
   activeInterval,
   showExtraStats, setShowExtraStats,
@@ -47,6 +48,54 @@ export default function VnStocksTab({
 {
   const [historyLimit, setHistoryLimit] = useState(3);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const aiError = aiReportError;
+
+  // ── LOADING ENTERTAINMENT ──
+  // Facts: nguồn thực tế từ SSC, HOSE, HNX, VBMA, WB, FTSE Russell
+  const VN_STOCK_FACTS = [
+    { type: 'fact', icon: '📊', text: 'HOSE (Sở GDCK TP.HCM) khai trương ngày 28/7/2000 với phiên đầu tiên chỉ có 2 mã: REE và SAM. Khớp lệnh 2 lần/ngày.' },
+    { type: 'fact', icon: '🏛️', text: 'HNX (Sở GDCK Hà Nội) thành lập năm 2005, ban đầu là sàn OTC cho doanh nghiệp vừa và nhỏ, nay bao gồm cả thị trường trái phiếu chính phủ.' },
+    { type: 'fact', icon: '📈', text: 'Biên độ dao động giá trên HOSE là ±7%/phiên, HNX ±10%/phiên, UPCoM ±15%/phiên. Riêng cổ phiếu ngày IPO có thể dao động không giới hạn.' },
+    { type: 'fact', icon: '⏱️', text: 'Quy tắc T+2: Cổ phiếu mua ngày T sẽ được về tài khoản sau 2 ngày làm việc (T+2), và chỉ bán được sau đó.' },
+    { type: 'fact', icon: '🌏', text: 'FTSE Russell xếp Việt Nam vào nhóm Frontier Market từ 2018. Mục tiêu nâng hạng lên Secondary Emerging Market đang được cơ quan quản lý thúc đẩy.' },
+    { type: 'fact', icon: '💹', text: 'VN-Index được tính theo phương pháp vốn hóa thị trường (market-cap weighted), tương tự S&P 500 — cổ phiếu vốn hóa lớn ảnh hưởng chỉ số nhiều hơn.' },
+    { type: 'fact', icon: '🏦', text: 'Nhóm ngân hàng chiếm tỷ trọng lớn nhất VN-Index, thường dao động 30–40% tổng vốn hóa toàn thị trường.' },
+    { type: 'fact', icon: '💰', text: 'Thanh khoản HOSE những phiên sôi động có thể vượt 25.000 tỷ đồng (~1 tỷ USD), ngang ngửa các sàn lớn ở Đông Nam Á như SET (Thái Lan).' },
+    { type: 'fact', icon: '📉', text: 'VN-Index từng giảm hơn 70% trong giai đoạn khủng hoảng 2007–2009, từ đỉnh ~1.170 điểm xuống còn ~235 điểm — mức giảm mạnh nhất lịch sử.' },
+    { type: 'fact', icon: '🧾', text: 'Thuế TNCN khi bán cổ phiếu tại Việt Nam là 0,1% trên giá trị giao dịch (không phân biệt lãi hay lỗ), thu tại nguồn qua công ty chứng khoán.' },
+    { type: 'fact', icon: '🔒', text: 'Room ngoại (foreign ownership limit) tối đa thông thường là 49% cho công ty thường, 30% cho ngân hàng, trừ trường hợp được cấp phép đặc biệt.' },
+    { type: 'fact', icon: '📦', text: 'Lô tối thiểu khi đặt lệnh trên HOSE và HNX là 100 cổ phiếu. UPCoM cho phép đặt lẻ từ 1 cổ phiếu.' },
+    { type: 'quiz', icon: '🧠', question: 'VN30 theo dõi bao nhiêu cổ phiếu?', options: ['20 mã', '30 mã', '50 mã', '100 mã'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'Lệnh ATO khớp vào thời điểm nào?', options: ['Cuối phiên chiều', 'Mở cửa phiên sáng', 'Giữa phiên liên tục', 'Bất kỳ lúc nào'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'P/E = 15 nghĩa là gì?', options: ['Lợi nhuận gấp 15 lần giá', 'Mất 15 năm hoàn vốn theo lợi nhuận hiện tại', 'Giá trị sổ sách gấp 15 lần', 'Tăng trưởng 15%/năm'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'Margin call xảy ra khi nào?', options: ['Cổ phiếu tăng trần', 'Tài khoản lãi lớn', 'Tài sản ròng xuống dưới ngưỡng tối thiểu', 'Hết phiên giao dịch'], answer: 2 },
+    { type: 'quiz', icon: '🧠', question: 'RSI trên 70 thường báo hiệu điều gì?', options: ['Vùng quá bán', 'Vùng quá mua', 'Xu hướng tăng mạnh', 'Cổ phiếu đang giảm'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'Đường MACD cắt Signal Line từ dưới lên là tín hiệu gì?', options: ['Bán ra', 'Mua vào (bullish)', 'Giữ nguyên', 'Không có ý nghĩa'], answer: 1 },
+  ];
+  const VN_FACTS_ONLY = VN_STOCK_FACTS.filter(c => c.type === 'fact');
+  const VN_QUIZ_ONLY  = VN_STOCK_FACTS.filter(c => c.type === 'quiz');
+  const randFrom = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  const [loadingCard, setLoadingCard] = useState(() => randFrom(VN_STOCK_FACTS));
+  const [quizSelected, setQuizSelected] = useState(null);
+  const [cardFlip, setCardFlip] = useState(false);
+
+  const advanceCard = (nextCard) => {
+    setCardFlip(true);
+    setTimeout(() => {
+      setLoadingCard(nextCard || randFrom(VN_STOCK_FACTS));
+      setQuizSelected(null);
+      setCardFlip(false);
+    }, 350);
+  };
+
+  // Facts tự chuyển mỗi 7s — quiz chỉ chuyển khi người dùng đã chọn đáp án
+  useEffect(() => {
+    if (!analyzing) { setQuizSelected(null); setCardFlip(false); return; }
+    if (loadingCard.type !== 'fact') return; // quiz: không auto-advance
+    const t = setTimeout(() => advanceCard(randFrom(VN_FACTS_ONLY)), 7000);
+    return () => clearTimeout(t);
+  }, [analyzing, loadingCard]);
 
   // STATE CỦA BẢN ĐỒ NHIỆT
   const [heatmapView, setHeatmapView] = useState('sectors'); 
@@ -229,7 +278,14 @@ export default function VnStocksTab({
                       const sym = marketData.stockInfo?.symbol;
                       console.log(`🦆 Đang lấy full AI feed từ server cho ${sym}...`);
                       try {
-                        const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({ title: n.title, date: n.date }));
+                        const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
+                          title:   n.title,
+                          date:    n.date,
+                          link:    n.link    || null,
+                          content: n.content && n.content !== n.title && n.content.length > 80
+                                     ? n.content.substring(0, 2000)
+                                     : null,
+                        }));
                         const payload = {
                           stockInfo: marketData.stockInfo,
                           companyProfile: { overview: marketData.companyProfile?.overview, companyName: marketData.companyProfile?.companyName },
@@ -239,12 +295,10 @@ export default function VnStocksTab({
                           user: currentUser,
                           timestamp: new Date().toISOString(),
                         };
-                        const res = await fetch(`/api/debug-feed/${sym}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(payload),
-                        });
+                        const res = await fetch(`/api/debug-feed/${sym}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), });
+                        if (!res.ok) { const text = await res.text(); throw new Error(`Server lỗi ${res.status}: ${text.slice(0, 300)}`); }
                         const json = await res.json();
+                        
                         console.group(`🦆 FULL AI FEED [${sym}] — ${json._debugMeta?.totalSizeKB} KB`);
                         console.table(json._debugMeta);
                         console.log('📋 previousAnalysis:', json.data?.previousAnalysis ? json.data.previousAnalysis.slice(0, 300) + '...' : 'null');
@@ -843,9 +897,77 @@ export default function VnStocksTab({
           )} 
 
           {analyzing && (
-            <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center shadow-xl ${UI.card}`}>
-              <div className="w-16 h-16 rounded-full border-4 border-yellow-400 border-t-transparent animate-spin mb-8" />
-              <h2 className="text-yellow-500 font-black text-sm tracking-[0.3em] uppercase animate-pulse">OMNI DUCK ĐANG TƯ DUY...</h2>
+            <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center shadow-xl px-8 ${UI.card}`}>
+              {/* Spinner + title */}
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-8 h-8 rounded-full border-[3px] border-yellow-400 border-t-transparent animate-spin shrink-0" />
+                <h2 className="text-yellow-500 font-black text-xs tracking-[0.25em] uppercase animate-pulse">OMNI DUCK ĐANG TƯ DUY...</h2>
+              </div>
+
+              {/* Fact / Quiz card */}
+              <div
+                className={`w-full max-w-sm rounded-2xl border transition-all duration-300 ${cardFlip ? 'opacity-0 scale-95' : 'opacity-100 scale-100'} ${isDark ? 'bg-white/4 border-white/10' : 'bg-slate-50 border-slate-200'}`}
+                style={{ minHeight: 160 }}
+              >
+                {loadingCard.type === 'fact' ? (
+                  <div className="p-5 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{loadingCard.icon}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Bạn có biết?</span>
+                    </div>
+                    <p className={`text-sm leading-relaxed font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{loadingCard.text}</p>
+                  </div>
+                ) : (
+                  <div className="p-5 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{loadingCard.icon}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>Câu hỏi nhanh</span>
+                    </div>
+                    <p className={`text-sm font-bold leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{loadingCard.question}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {loadingCard.options.map((opt, i) => {
+                        const isCorrect = i === loadingCard.answer;
+                        const isSelected = quizSelected === i;
+                        const revealed = quizSelected !== null;
+                        let cls = `text-[11px] font-bold px-3 py-2 rounded-xl border text-left transition-all cursor-pointer `;
+                        if (!revealed) cls += isDark ? 'border-white/10 text-slate-400 hover:border-yellow-400/50 hover:text-yellow-300' : 'border-slate-200 text-slate-500 hover:border-yellow-400 hover:text-yellow-700';
+                        else if (isCorrect) cls += 'border-emerald-500 bg-emerald-500/15 text-emerald-400';
+                        else if (isSelected) cls += 'border-red-500 bg-red-500/10 text-red-400';
+                        else cls += isDark ? 'border-white/5 text-slate-600' : 'border-slate-100 text-slate-400';
+                        return (
+                          <button key={i} className={cls} onClick={() => { setQuizSelected(i); setTimeout(() => advanceCard(randFrom(VN_QUIZ_ONLY)), 1800); }} disabled={revealed}>
+                            {revealed && isCorrect ? '\u2713 ' : revealed && isSelected ? '\u2717 ' : ''}{opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {quizSelected !== null && (
+                      <p className={`text-[11px] font-bold ${quizSelected === loadingCard.answer ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {quizSelected === loadingCard.answer ? '\ud83c\udf89 Ch\u00ednh x\u00e1c!' : `\u274c \u0110\u00e1p \u00e1n \u0111\u00fang: ${loadingCard.options[loadingCard.answer]}`}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <p className={`mt-4 text-[10px] font-medium tracking-wider ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{loadingCard.type === 'fact' ? 'Fact mới sau 7 giây' : 'Chọn đáp án để tiếp tục'}</p>
+            </div>
+          )}
+
+          {/* AI ERROR STATE */}
+          {!analyzing && aiError && !aiReport && (
+            <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center px-10 shadow-xl ${UI.card}`}>
+              <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 ${isDark ? 'bg-red-500/15' : 'bg-red-50'}`}>
+                <span className="text-3xl">\u26a0\ufe0f</span>
+              </div>
+              <h2 className={`font-black text-sm tracking-[0.2em] uppercase mb-3 ${isDark ? 'text-red-400' : 'text-red-600'}`}>Ph\u00e2n t\u00edch th\u1ea5t b\u1ea1i</h2>
+              <p className={`text-center text-sm leading-relaxed mb-6 max-w-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{aiError}</p>
+              <button
+                onClick={() => { handleAiAnalysis(true); }}
+                className={`px-6 py-2.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all active:scale-95 border ${isDark ? 'border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-50'}`}
+              >
+                \u21bb Th\u1eed l\u1ea1i
+              </button>
             </div>
           )}
 
