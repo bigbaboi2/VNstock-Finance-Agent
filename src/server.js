@@ -1372,6 +1372,64 @@ app.post('/api/analyze/:ticker', async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 });
+
+// ──  Trả về toàn bộ data thực tế gửi vào AI ( for debugging ) ──
+app.post('/api/debug-feed/:ticker', async (req, res) => {
+    const ticker = req.params.ticker.toUpperCase();
+    const fullData = { ...req.body };
+    const user = fullData.user || 'Unknown';
+
+    try {
+        const masterRecord = await Stock.findOne({ symbol: ticker });
+        if (masterRecord?.reports?.length > 0) {
+            const userReports = masterRecord.reports.filter(r => r.user === user);
+            fullData.previousAnalysis = userReports.length > 0
+                ? userReports[userReports.length - 1].content
+                : null;
+        } else {
+            fullData.previousAnalysis = null;
+        }
+
+        try {
+            const marketScraped = await scrapeCafefMarketOverview();
+            const to = Math.floor(Date.now() / 1000);
+            const from = to - (15 * 24 * 60 * 60);
+            const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
+            if (vnRes.data?.t && marketScraped.success) {
+                const d = vnRes.data;
+                const rawVnIndex = d.t.map((ts, i) => ({ close: Number(d.c[i]), volume: Number(d.v[i]) || 0 }));
+                const symbolsDb = await Stock.find({});
+                const mi = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
+                if (mi.success) fullData.marketContext = mi.intelligence;
+            }
+        } catch { fullData.marketContext = 'Không lấy được dữ liệu thị trường'; }
+
+        const markdownData = await getMarkdownFromTcbsPdf(ticker);
+        if (markdownData) fullData.tcbsMarkdownData = markdownData;
+
+        const jsonStr = JSON.stringify(fullData, null, 2);
+        const sizeKB = (Buffer.byteLength(jsonStr, 'utf8') / 1024).toFixed(1);
+
+        return res.json({
+            success: true,
+            _debugMeta: {
+                ticker,
+                exportedAt: new Date().toISOString(),
+                totalSizeKB: sizeKB,
+                fields: Object.keys(fullData),
+                hasPreviousAnalysis: !!fullData.previousAnalysis,
+                hasMarketContext: !!fullData.marketContext,
+                hasTcbsData: !!fullData.tcbsMarkdownData,
+                technicalBars: fullData.technicalData?.length || 0,
+                newsCount: fullData.news?.length || 0,
+            },
+            data: fullData
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 app.post('/api/stock-chat/:ticker', async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const { question, history = [], aiReport, user } = req.body;

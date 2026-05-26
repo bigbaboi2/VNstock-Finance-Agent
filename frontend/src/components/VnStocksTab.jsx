@@ -1,7 +1,7 @@
 import { 
   Activity, Zap, FileText, Database, BrainCircuit, 
   BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe,
-  ArrowLeft, MessageSquare
+  ArrowLeft, MessageSquare, FileJson
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -224,6 +224,61 @@ export default function VnStocksTab({
                       {aiReport ? 'CHAT VỀ MÃ NÀY VỚI AI' : 'HỎI AI VỀ MÃ NÀY'}
                     </button>
                   )}
+                  {marketData && (() => {
+                    const handleExportData = async () => {
+                      const sym = marketData.stockInfo?.symbol;
+                      console.log(`🦆 Đang lấy full AI feed từ server cho ${sym}...`);
+                      try {
+                        const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({ title: n.title, date: n.date }));
+                        const payload = {
+                          stockInfo: marketData.stockInfo,
+                          companyProfile: { overview: marketData.companyProfile?.overview, companyName: marketData.companyProfile?.companyName },
+                          technicalData: chartData.slice(-30),
+                          marketContext: vnIndexData.slice(-5),
+                          news: optimizedNews,
+                          user: currentUser,
+                          timestamp: new Date().toISOString(),
+                        };
+                        const res = await fetch(`/api/debug-feed/${sym}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                        });
+                        const json = await res.json();
+                        console.group(`🦆 FULL AI FEED [${sym}] — ${json._debugMeta?.totalSizeKB} KB`);
+                        console.table(json._debugMeta);
+                        console.log('📋 previousAnalysis:', json.data?.previousAnalysis ? json.data.previousAnalysis.slice(0, 300) + '...' : 'null');
+                        console.log('🌐 marketContext (server):', json.data?.marketContext);
+                        console.log('📄 tcbsMarkdownData:', json.data?.tcbsMarkdownData ? json.data.tcbsMarkdownData.slice(0, 300) + '...' : 'null');
+                        console.log('📦 Full data:', json.data);
+                        console.groupEnd();
+                        const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `ai-full-feed-${sym}-${Date.now()}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (err) {
+                        console.error('Export lỗi:', err);
+                        alert('Export thất bại: ' + err.message);
+                      }
+                    };
+                    return (
+                      <button
+                        onClick={handleExportData}
+                        title="Xuất TOÀN BỘ data thực tế AI nhận (gồm previousAnalysis, marketContext từ server, TCBS PDF...)"
+                        className={`w-full h-9 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 mb-2 border text-[11px] uppercase tracking-widest
+                          ${isDark
+                            ? 'bg-white/3 text-slate-500 border-white/8 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30'
+                            : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
+                          }`}
+                      >
+                        <FileJson size={13} />
+                        Export Full AI Feed (Server)
+                      </button>
+                    );
+                  })()}
                  
                   {lastAiVnTime && (() => {
                       const elapsed = Date.now() - lastAiVnTime;
