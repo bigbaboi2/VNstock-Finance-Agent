@@ -1068,6 +1068,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
     setAnalyzing(true);
     addLog(`[AI CORE] Khởi chạy thuật toán cho mã ${marketData.stockInfo.symbol}...`);
+    addLog(`[AI CORE] Đang gửi bóc tách dữ liệu BCTC cho mã ${marketData.stockInfo.symbol}...`);
     const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
         title:   n.title,
         date:    n.date,

@@ -90,7 +90,7 @@ export const analyzeDerivatives = async (req, res) => {
         const report = await analyzeDerivativesWithGemini(payload);
         res.json({ success: true, data: report });
     } catch (error) {
-        console.error('❌ Lỗi AI Phái sinh:', error);
+        console.error('[LỖI] Lỗi AI Phái sinh:', error);
         res.status(500).json({ success: false, message: 'Không thể kết nối AI Phái sinh' });
     }
 };

@@ -98,7 +98,7 @@ async function fetchGlobalMarketContext() {
             }
         } catch (err2) {
             result.fetchStatus = `error: ${err.message}`;
-            console.log(chalk.red(`❌ [EXPORT] Không fetch được dữ liệu Yahoo: ${err.message}`));
+            console.log(chalk.red(`[LỖI] Không fetch được dữ liệu Yahoo: ${err.message}`));
         }
     }
  
@@ -109,8 +109,8 @@ export const getDerivRadar = async (req, res) => {
         let newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
         
         if (!newsList || newsList.length === 0) {
-            console.log(chalk.yellow('📭 [HỆ THỐNG] Kho dữ liệu tin trống. Đang tải tin tức mới nhất...'));
-            await fetchAndSaveNews();            
+            console.log(chalk.yellow(`[HỆ THỐNG] Kho dữ liệu tin trống. Đang tải tin tức mới nhất...`));
+            await fetchAndSaveNews();
             newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
         }
         
@@ -322,12 +322,12 @@ try {
  
         const exportPath = path.join(__dirname, 'deriv_full_export.json');
         fs.writeFileSync(exportPath, JSON.stringify(exportPayload, null, 2), 'utf-8');
-        console.log(chalk.bgGreen.black.bold(` 📊 [EXPORT] Xuất xong → ${exportPath} | DXY=${exportPayload.macroContext.dxy.value} | Dow=${exportPayload.macroContext.dowFutures.value} | Đáo hạn còn ${exportPayload.macroContext.daysToExpiry} ngày `));
+        console.log(chalk.greenBright.italic(` [EXPORT] Xuất xong → ${exportPath} | DXY=${exportPayload.macroContext.dxy.value} | Dow=${exportPayload.macroContext.dowFutures.value} | Đáo hạn còn ${exportPayload.macroContext.daysToExpiry} ngày `));
  
         res.json({ success: true, data: exportPayload, filePath: exportPath });
  
     } catch (error) {
-        console.error('❌ [EXPORT] Lỗi:', error.message);
+        console.error('[LỖI]', error.message);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -337,7 +337,7 @@ try {
         let newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
         
         if (!newsList || newsList.length === 0) {
-            console.log(chalk.yellow('📭 [HỆ THỐNG] Kho dữ liệu tin trống. Đang tải tin tức mới nhất...'));
+            console.log(chalk.yellow('[HỆ THỐNG] Kho dữ liệu tin trống. Đang tải tin tức mới nhất...'));
             await fetchAndSaveNews();            
             newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
         }

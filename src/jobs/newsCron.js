@@ -32,7 +32,7 @@ const analyzeSentiment = (title) => {
 };
 
 export const fetchAndSaveNews = async () => {
-    console.log('🔄 [CRON - ACTION] Đang cào tin tức Vĩ mô, Reddit & Facebook...');
+    console.log('[HỆ THỐNG] Đang cào tin tức Vĩ mô, Reddit & Facebook...');
     try {
         const mainUrl = `https://news.google.com/rss/search?q=tỷ+giá+OR+lãi+suất+OR+VN30+OR+phái+sinh+OR+NHNN&hl=vi&gl=VN&ceid=VN:vi`;
         const socialUrl = `https://news.google.com/rss/search?q=phái+sinh+VN30+(site:reddit.com+OR+site:facebook.com)&hl=vi&gl=VN&ceid=VN:vi`;

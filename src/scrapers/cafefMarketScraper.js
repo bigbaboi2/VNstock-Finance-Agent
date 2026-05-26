@@ -108,7 +108,7 @@ const fetchForeignFlow = async (from, to) => {
         console.log(chalk.green(`[SCRAPER] ForeignFlow: netValue=${(netValue/1e9).toFixed(1)}B, topBuy=${topBuy.length} mã, topSell=${topSell.length} mã`));
         return { netValue, topBuy, topSell };
     } catch (err) {
-        console.log(chalk.yellow(`[SCRAPER] Bỏ qua foreignFlow (${err.message})`));
+        console.log(chalk.yellow(`[SCRAPER] Lỗi, bỏ qua foreignFlow (${err.message})`));
         return { netValue: 0, topBuy: [], topSell: [] };
     }
 };
@@ -134,7 +134,7 @@ const fetchRealMarketBreadth = async () => {
         console.log(chalk.green(`[SCRAPER] MarketBreadth thực: tăng=${up}, giảm=${down}, đứng=${unchanged}`));
         return { up, down, unchanged, _isReal: true };
     } catch (err) {
-        console.log(chalk.yellow(`[SCRAPER] Bỏ qua breadth API (${err.message}), dùng fallback từ CORE_STOCKS`));
+        console.log(chalk.yellow(`[SCRAPER] Lỗi, bỏ qua breadth API (${err.message}), dùng fallback từ CORE_STOCKS`));
         return null;
     }
 };
@@ -194,8 +194,6 @@ export const scrapeCafefMarketOverview = async () => {
 
                 const marketCapProxy = volume * currentPrice;
 
-                console.log(chalk.gray(`  [SCRAPER] ${res.symbol}: close=${currentPrice.toFixed(0)}, changePct=${changePct.toFixed(2)}%, m3d=${momentum3d.toFixed(2)}%, vol=${(volume/1e6).toFixed(1)}M`));
-
                 if (!res._fromLiquidity) {
                     if (changePct > 0.05) breadthFromCore.up += 1;
                     else if (changePct < -0.05) breadthFromCore.down += 1;
@@ -215,7 +213,6 @@ export const scrapeCafefMarketOverview = async () => {
         }
 
         // === FIX 3: Ưu tiên breadth thực từ API, fallback mới dùng breadth từ CORE_STOCKS ===
-        // Không còn nhân x15 vô lý nữa
         let marketBreadth;
         if (realBreadth && realBreadth.up > 0) {
             marketBreadth = realBreadth;
