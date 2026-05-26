@@ -56,7 +56,7 @@ startPortfolioMatcher();
 startDerivUpdater();
 
 app.listen(PORT, async () => {
-    console.log(chalk.bgGreen.black.bold(`\n OMNI DUCK SERVER MONGODB READY: http://localhost:${PORT} `));
+    console.log(chalk.bgGreen.black.italic(`\n OMNI DUCK SERVER MONGODB READY (local test: http://localhost:${PORT}) `));
     
     try {
 
@@ -65,6 +65,6 @@ app.listen(PORT, async () => {
         startCryptoUpdater();
         startCronJobs();    
     } catch (error) {
-        console.error(chalk.red('[X] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
+        console.error(chalk.red('[LỖI] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
     }
 });

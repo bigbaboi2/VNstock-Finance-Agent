@@ -5,11 +5,6 @@ import CryptoCoin from '../../models/CryptoCoin.js';
 const TOP_COINS = 200;
 
 export async function updateCryptoSymbols() {
-
-    console.log(
-        chalk.cyan('\n[CRYPTO] Đang quét danh sách coin từ CoinGecko...')
-    );
-
     try {
 
         const res = await axios.get(
@@ -59,7 +54,7 @@ export async function updateCryptoSymbols() {
 
         console.log(
             chalk.green(
-                `✔ Đã cập nhật ${coins.length} coin phổ biến nhất.`
+                `[HỆ THỐNG] Đã cập nhật ${coins.length} coin phổ biến nhất.`
             )
         );
 
