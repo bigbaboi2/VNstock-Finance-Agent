@@ -11,11 +11,9 @@ function getExpiryInfo() {
     const vnNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
  
     const getThirdThursdayOfMonth = (year, month) => {
-        //month: 0-indexed
-        const d = new Date(year, month, 1);
+         const d = new Date(year, month, 1);
         const dayOfWeek = d.getDay(); 
-        //First Thursday
-        const firstThursday = ((4 - dayOfWeek + 7) % 7) + 1;
+         const firstThursday = ((4 - dayOfWeek + 7) % 7) + 1;
         return new Date(year, month, firstThursday + 14); 
     };
  
@@ -39,8 +37,15 @@ function getExpiryInfo() {
     };
 }
  
-//─── HELPER: Fetch DXY + Dow Futures từ Yahoo Finance ───
+//─── HELPER: Fetch DXY + Dow Futures từ Yahoo Finance (cache 5 phút) ───
+const _globalMktCache = { data: null, updatedAt: 0 };
+const GLOBAL_MKT_TTL  = 5 * 60 * 1000;  
+
 async function fetchGlobalMarketContext() {
+     if (_globalMktCache.data && (Date.now() - _globalMktCache.updatedAt) < GLOBAL_MKT_TTL) {
+        return _globalMktCache.data;
+    }
+
     const result = {
         dxy:        { value: null, change: null, changePercent: null },
         dowFutures: { value: null, change: null, changePercent: null },
@@ -100,6 +105,11 @@ async function fetchGlobalMarketContext() {
             result.fetchStatus = `error: ${err.message}`;
             console.log(chalk.red(`[LỖI] Không fetch được dữ liệu Yahoo: ${err.message}`));
         }
+    }
+ 
+     if (result.fetchStatus === 'ok') {
+        _globalMktCache.data      = result;
+        _globalMktCache.updatedAt = Date.now();
     }
  
     return result;

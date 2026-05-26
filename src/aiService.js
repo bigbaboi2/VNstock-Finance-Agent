@@ -287,6 +287,7 @@ export async function searchNewsWithAI(ticker, existingTitles = [], mode = 'bala
         ? `\nTIN ĐÃ BIẾT (không lặp lại): ${existingTitles.join(' | ')}.`
         : '';
 
+    // Prompt khác nhau theo mode — negative bias cho balanced/negative/rumor
     const modeInstruction = {
         official: `Tìm 6 bài báo MỚI NHẤT từ nguồn chính thống (CafeF, VietStock, Báo Đầu tư, VnEconomy, NDH) về cổ phiếu ${ticker}. Ưu tiên: kết quả kinh doanh, thay đổi nhân sự cấp cao, M&A, chia cổ tức, phát hành cổ phiếu.`,
         balanced: `Tìm 8 bài báo MỚI NHẤT về cổ phiếu ${ticker}. YÊU CẦU CÂN BẰNG: ít nhất 3 bài phải là TIN XẤU hoặc RỦI RO (bán tháo, margin call, ngoại bán ròng, nợ xấu, vi phạm, điều tra, kiểm toán, thanh khoản kém). Phần còn lại: tin tích cực, kết quả kinh doanh, dòng tiền.`,
