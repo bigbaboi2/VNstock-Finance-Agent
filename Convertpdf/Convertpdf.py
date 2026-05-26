@@ -36,7 +36,7 @@ async def parse_pdf(file: UploadFile = File(...)):
             print(f"{Fore.GREEN}[✔] Tạo file tạm thành công tại: {Fore.LIGHTBLACK_EX}{temp_file_path}")
             
             print(f"{Fore.YELLOW}[3/5] 🧠 Khởi động động cơ AI Docling. Đang bóc tách cấu trúc Layout, Bảng biểu & Biểu đồ...")
-            print(f"{Fore.YELLOW}[•] Trạng thái: Đang cày cuốc nền (Local Processing)...")
+            print(f"{Fore.YELLOW}[•] Trạng thái: Đang bóc tách trong nền (Local Processing)...")
             
             result = converter.convert(temp_file_path)
             
@@ -45,7 +45,7 @@ async def parse_pdf(file: UploadFile = File(...)):
             
             duration = round(time.time() - start_time, 2)
             print(f"{Fore.GREEN}[5/5] 🎉 Xử lý tệp thành công!")
-            print(f"{Fore.GREEN}[✔] Tổng thời gian AI cày cuốc: {Fore.YELLOW}{duration} giây.")
+            print(f"{Fore.GREEN}[✔] Tổng thời gian AI xử lý: {Fore.YELLOW}{duration} giây.")
             print(f"{Fore.BLUE}=================================================================\n")
             
             return {"success": True, "markdown": markdown_text}
@@ -61,3 +61,8 @@ async def parse_pdf(file: UploadFile = File(...)):
             temp_file.close()
             if os.path.exists(temp_file.name):
                os.unlink(temp_file.name)
+
+if __name__ == "__main__":
+    import uvicorn
+    print(f"{Fore.CYAN}[SYSTEM]{Fore.WHITE} Khởi động FastAPI server tại http://0.0.0.0:8000 ...")
+    uvicorn.run("Convertpdf:app", host="0.0.0.0", port=8000, reload=False)
