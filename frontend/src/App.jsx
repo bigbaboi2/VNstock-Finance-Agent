@@ -23,25 +23,20 @@ function App() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [authForm, setAuthForm] = useState({ username: '', password: '', isRegister: false });
 
-  // CONFIG: THEME ENGINE
-  const [theme, setTheme] = useState('dark');
-  const isDark = theme === 'dark';
+// CONFIG: THEME ENGINE
+const [theme, setTheme] = useState(() => {
+  const savedTheme = localStorage.getItem(`omni_theme_${currentUser}`);
+  return savedTheme || 'dark';
+});
+const isDark = theme === 'dark';
 
-  useEffect(() => {
-    if (currentUser) {
-        const savedTheme = localStorage.getItem(`omni_theme_${currentUser}`);
-        if (savedTheme) setTheme(savedTheme);
-    }
-  }, [currentUser]);
-
-  const handleToggleTheme = () => {
+const handleToggleTheme = () => {
     const newTheme = isDark ? 'light' : 'dark';
     setTheme(newTheme);
     if (currentUser) {
         localStorage.setItem(`omni_theme_${currentUser}`, newTheme);
     }
   };
-
   // LOGIC: AUTHENTICATION HANDLERS
   const [authError, setAuthError] = useState('');
 
@@ -1082,7 +1077,12 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     addLog(`Đang biên dịch khối dữ liệu đa chiều cho AI...`);
 
     const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
-        title: n.title, date: n.date
+        title:   n.title,
+        date:    n.date,
+        link:    n.link    || null,
+        content: n.content && n.content !== n.title && n.content.length > 80
+                   ? n.content.substring(0, 2000)
+                   : null,
     }));
 
     const aiPayload = {
@@ -1161,7 +1161,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                     .filter(n => !existingLinks.has(n.link))
                     .map(n => ({ ...n, isAiGenerated: true }));
 
-                addLog(`[OK] Phân tích AI: Thêm ${brandNewAiArticles.length} tin mới, Nâng cấp màu tím cho các tin cũ quan trọng.`);
+                addLog(`[OK] Phân tích AI: Thêm ${brandNewAiArticles.length} tin mới, các tin quan trọng cũ đã chuyển sang màu tím.`);
 
                 return {
                     ...prev,
