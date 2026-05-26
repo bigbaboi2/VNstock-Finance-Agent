@@ -2,8 +2,6 @@ import axios from 'axios';
 import Portfolio from '../../models/Portfolio.js';
 
 export const startPortfolioMatcher = () => {
-    console.log('[HỆ THỐNG] Trình khớp lệnh ảo đang chạy ngầm...');
-    
     setInterval(async () => {
         try {
             const now = new Date();
@@ -94,7 +92,7 @@ export const startPortfolioMatcher = () => {
                 if (isUpdated) await portfolio.save();
             }
         } catch (error) {
-            console.error('[CẢNH BÁO]Lỗi khi khớp lệnh ngầm:', error.message);
+            console.error('[LỖI] Lỗi khi khớp lệnh ngầm:', error.message);
         }
     }, 10000);
 };

@@ -10,10 +10,10 @@ const FALLBACK_STOCKS = [
 ];
 
 export async function updateSymbolsDatabase() {
-    console.log(chalk.cyan('\n[OMNI DUCK QUANT] Đang đồng bộ danh sách mã chứng khoán lên Cloud MongoDB...'));
+    console.log(chalk.yellowBright('\n[HỆ THỐNG] Đang đồng bộ danh sách mã chứng khoán lên Cloud MongoDB...'));
 
     try {
-        console.log(chalk.yellow('Đang kết nối vệ tinh CafeF...'));
+        console.log(chalk.yellow('[HỆ THỐNG] Đang kết nối vệ tinh CafeF...'));
         const cafefRes = await axios.get('https://cafefnew.mediacdn.vn/Search/company.json', { timeout: 8000 });
         
         if (cafefRes.data && Array.isArray(cafefRes.data)) {
@@ -61,22 +61,22 @@ export async function updateSymbolsDatabase() {
                 });
 
                 await Stock.bulkWrite(finalBulkOps);
-                console.log(chalk.green(`✔ VỆ TINH CAFEF: Đã nạp & đồng bộ thành công ${allStocks.length} mã lên MongoDB.`));
+                console.log(chalk.green(`[HỆ THỐNG] Truy xuất CAFEF: Đã nạp & đồng bộ thành công ${allStocks.length} mã lên MongoDB.`));
                 return allStocks;
             }
         }
         throw new Error("Dữ liệu CafeF trả về không hợp lệ hoặc quá ít.");
 
     } catch (error) {
-        console.log(chalk.red(`✘ LỖI ĐỒNG BỘ: ${error.message}`));
-        
+        console.log(chalk.red(`[LỖI] Quá trình đồng bộ thất bại: ${error.message}`));
+
         // 🚀 NẾU LỖI MẠNG, ĐỌC NGƯỢC LẠI TỪ MONGODB ĐỂ CỨU CÁNH
         const existingStocks = await Stock.find({});
         if (existingStocks.length > 0) {
-            console.log(chalk.green(`✔ Đã khôi phục dữ liệu từ Cloud MongoDB cũ.`));
+            console.log(chalk.green(`[HỆ THỐNG] Đã khôi phục dữ liệu từ Cloud MongoDB cũ.`));
             return existingStocks;
         } else {
-            console.log(chalk.yellow(`✔ Database trống, nạp mảng dự phòng khẩn cấp vào MongoDB...`));
+            console.log(chalk.yellow(`[CẢNH BÁO] Database trống, nạp mảng dự phòng khẩn cấp vào MongoDB...`));
             const fallbackOps = FALLBACK_STOCKS.map(s => ({
                 updateOne: {
                     filter: { symbol: s.symbol },

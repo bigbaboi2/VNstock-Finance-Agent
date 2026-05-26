@@ -39,9 +39,9 @@ export const fetchAndSaveNews = async () => {
         
         const [mainRes, socialRes] = await Promise.all([
             axios.get(mainUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 })
-                 .catch((err) => { console.log(chalk.red('❌ LỖI GOOGLE NEWS 1: ' + err.message)); return { data: '' }; }),
+                 .catch((err) => { console.log(chalk.red('[LỖI] GOOGLE NEWS 1: ' + err.message)); return { data: '' }; }),
             axios.get(socialUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 })
-                 .catch((err) => { console.log(chalk.red('❌ LỖI GOOGLE NEWS 2: ' + err.message)); return { data: '' }; })
+                 .catch((err) => { console.log(chalk.red('[LỖI] GOOGLE NEWS 2: ' + err.message)); return { data: '' }; })
         ]);
         
         const newArticles = [];
@@ -88,7 +88,7 @@ export const fetchAndSaveNews = async () => {
         }
  
         if (newArticles.length === 0) {
-            console.log(chalk.yellow('⚠️ [CRON] Không lấy được bài nào từ RSS. Dừng.'));
+            console.log(chalk.yellow('[CẢNH BÁO] Không lấy được bài nào từ RSS. Dừng.'));
             return;
         }
 
@@ -97,7 +97,7 @@ export const fetchAndSaveNews = async () => {
         const brandNewArticles = newArticles.filter(a => !existingLinks.has(a.link));
         const alreadyHave = newArticles.length - brandNewArticles.length;
  
-        console.log(chalk.cyan(`ℹ️  [CRON] RSS trả về ${newArticles.length} bài. Đã có: ${alreadyHave}. Bài mới thực sự: ${brandNewArticles.length}`));
+        console.log(chalk.cyan(`[CRON] RSS trả về ${newArticles.length} bài. Đã có: ${alreadyHave}. Bài mới thực sự: ${brandNewArticles.length}`));
  
         if (brandNewArticles.length === 0) {
             const dbCount = await DerivNews.countDocuments();
@@ -106,7 +106,7 @@ export const fetchAndSaveNews = async () => {
                 const oldIds = oldest.map(d => d._id);
                 const oldLinks = new Set(oldest.map(d => d.link));
                 await DerivNews.deleteMany({ _id: { $in: oldIds } });
-                console.log(chalk.yellow(`♻️  [CRON] Không có tin mới. Đã rotate xoá ${oldIds.length} tin cũ nhất để làm mới feed.`));
+                console.log(chalk.yellow(`[CẢNH BÁO] Không có tin mới. Đã rotate xoá ${oldIds.length} tin cũ nhất để làm mới feed.`));
                 for (const article of newArticles.filter(a => oldLinks.has(a.link)).slice(0, 5)) {
                     if (article.source !== 'Reddit F1M' && article.source !== 'Facebook Group') {
                         try { article.content = await scrapeArticleContent(article.link) || article.title; }
@@ -132,12 +132,12 @@ export const fetchAndSaveNews = async () => {
             const localTestPath = path.join(__dirname, '../../deriv_news_local_test.json');
             fs.writeFileSync(localTestPath, JSON.stringify(latestForExport, null, 2), 'utf-8');
             const withContent = latestForExport.filter(a => a.content && a.content !== a.title).length;
-            console.log(chalk.bgCyan.black.bold(` 📂 [TEST LOCAL] Đã xuất ${latestForExport.length} tin (${withContent} có full content) → ${localTestPath} `));
+            console.log(chalk.bgCyan.black.bold(` [TEST LOCAL] Đã xuất ${latestForExport.length} tin (${withContent} có full content) → ${localTestPath} `));
         } catch (fsErr) {
-            console.error('❌ Lỗi ghi file test local:', fsErr.message);
+            console.error('[LỖI] Ghi file test local:', fsErr.message);
         }
  
-        console.log(`✅ [CRON] Đã nạp và cào full text ${addedCount} tin tức.`);
+        console.log(`[CRON] Đã nạp và cào full text ${addedCount} tin tức.`);
  
         const count = await DerivNews.countDocuments();
         if (count > 30) {
@@ -147,11 +147,11 @@ export const fetchAndSaveNews = async () => {
         }
         lastNewsSyncTime = new Date();
     } catch (error) {
-        console.error('❌ [CRON - LỖI]', error.message);
+        console.error('[CRON-LỖI]', error.message);
     }
 };
  
 export const startCronJobs = () => {
     cron.schedule('0 */6 * * *', fetchAndSaveNews);
-    console.log('⏳ [CRON] Đã lên lịch lấy dữ liệu tin vĩ mô (Chu kỳ 6h).');
+    console.log('[CRON] Đã lên lịch lấy dữ liệu tin vĩ mô mỗi 6h.');
 };
