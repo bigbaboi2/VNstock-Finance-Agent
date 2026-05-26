@@ -1069,13 +1069,14 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     setAnalyzing(true);
     addLog(`[AI CORE] Khởi chạy thuật toán cho mã ${marketData.stockInfo.symbol}...`);
     addLog(`[AI CORE] Đang gửi bóc tách dữ liệu BCTC cho mã ${marketData.stockInfo.symbol}...`);
-    const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
-        title:   n.title,
-        date:    n.date,
-        link:    n.link    || null,
-        content: n.content && n.content !== n.title && n.content.length > 80
-                   ? n.content.substring(0, 2000)
-                   : null,
+    const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
+        title:     n.title,
+        date:      n.date,
+        sentiment: n.sentiment || 'neutral',
+        link:      n.link    || null,
+        content:   n.content && n.content !== n.title && n.content.length > 80
+                     ? n.content.substring(0, 2000)
+                     : null,
     }));
 
     const aiPayload = {
