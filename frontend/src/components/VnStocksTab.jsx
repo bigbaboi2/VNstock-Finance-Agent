@@ -429,9 +429,9 @@ export default function VnStocksTab({
                     };
 
                     const getCardStyle = (news) => {
-                      if (news.isAiGenerated)     return isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
-                      if (news.sentiment === 'negative') return isDark ? 'bg-[#130c0c] border-red-900/40' : 'bg-red-50/50 border-red-200';
-                      if (news.sentiment === 'positive') return isDark ? 'bg-[#081310] border-emerald-900/40' : 'bg-emerald-50/50 border-emerald-200';
+                      if (news.isAiGenerated)           return isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
+                      if (news.sentiment === 'negative') return isDark ? 'bg-[#130c0c] border-red-900/40'                                            : 'bg-red-50/50 border-red-200';
+                      if (news.sentiment === 'positive') return isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
                       return isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-100';
                     };
 
@@ -441,7 +441,15 @@ export default function VnStocksTab({
                         ? 'text-purple-400 group-hover:text-purple-300'
                         : news.sentiment === 'negative'
                           ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}`
-                          : `group-hover:text-yellow-500 ${UI.textNormal}`;
+                          : news.sentiment === 'positive'
+                            ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}`
+                            : `group-hover:text-yellow-500 ${UI.textNormal}`;
+
+                      const dateColor = news.isAiGenerated
+                        ? 'text-purple-300'
+                        : news.sentiment === 'positive'
+                          ? 'text-emerald-400'
+                          : 'text-yellow-500';
 
                       return (
                         <a key={index} href={news.link} target="_blank" rel="noopener noreferrer"
@@ -466,13 +474,13 @@ export default function VnStocksTab({
                           <div className="mt-3 flex justify-between items-center gap-3">
                             <span className={`text-[10px] font-medium truncate ${UI.textMuted}`}>
                               {news.date && (
-                                <span className={`${news.isAiGenerated ? 'text-purple-300' : 'text-yellow-500'} font-bold mr-1`}>
+                                <span className={`${dateColor} font-bold mr-1`}>
                                   {news.date}
                                 </span>
                               )}
                               <span className="opacity-60 italic">• {news.source || news.link || 'Internet'}</span>
                             </span>
-                            <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
+                            <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
                           </div>
                         </a>
                       );
