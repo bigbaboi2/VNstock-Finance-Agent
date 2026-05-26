@@ -17,10 +17,11 @@ import derivativesRoutes from './routes/derivatives.routes.js';
 import marketRoutes from './routes/market.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import historyRoutes from './routes/history.routes.js';
+import cryptoRoutes from './routes/crypto.routes.js';
 
 // Import  (Jobs & Services)
 
-import { registerCryptoRoutes } from './services/cryptoService.js';
+import { startCryptoUpdater } from './jobs/cryptoUpdater.js';
 import { updateSymbolsDatabase } from './services/symbolUpdater.js';
 import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import { startPortfolioMatcher } from './jobs/portfolioMatcher.js';
@@ -42,7 +43,7 @@ connectDB();
 setupMiddlewares(app);
 app.use(express.json());
 
-registerCryptoRoutes(app);
+app.use('/api/crypto', cryptoRoutes);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/portfolio', portfolioRoutes);
@@ -55,15 +56,15 @@ startPortfolioMatcher();
 startDerivUpdater();
 
 app.listen(PORT, async () => {
-    console.log(chalk.bgGreen.black.bold(`\n 🚀 OMNI DUCK SERVER MONGODB READY: http://localhost:${PORT} `));
+    console.log(chalk.bgGreen.black.bold(`\n OMNI DUCK SERVER MONGODB READY: http://localhost:${PORT} `));
     
     try {
 
         await updateSymbolsDatabase();     
         await updateCryptoSymbols();   
-        
+        startCryptoUpdater();
         startCronJobs();    
     } catch (error) {
-        console.error(chalk.red('❌ Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
+        console.error(chalk.red('[X] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
     }
 });

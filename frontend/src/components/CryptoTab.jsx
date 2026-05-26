@@ -300,7 +300,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
             };
             const res = await axios.post('/api/crypto/signal', payload);
             if (res.data.success) setAiSignal(res.data.data);
-        } catch (error) { addLog("Lỗi AI: " + error.message); }
+        } catch (error) { addLog("[LỖI] Lỗi AI: " + error.message); }
         finally { setLoadingAi(false); }
     };
     // ───────────────────────────────────────────────────
@@ -312,10 +312,10 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
             const res = await axios.get('/api/crypto/radar');
             if (res.data.success) {
                 setRadarData(res.data.data);
-                addLog('[CRYPTO] Radar: Fear & Greed + Dominance đã cập nhật');
+                addLog('[HỆ THỐNG] Radar: Fear & Greed + Dominance đã cập nhật');
             }
         } catch (e) {
-            addLog(`[CRYPTO] Lỗi radar: ${e.message}`);
+            addLog(`[LỖI] Lỗi radar: ${e.message}`);
         } finally {
             setLoadingRadar(false);
         }
@@ -339,7 +339,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                  const raw = chartRes.data.data;
                 const candles = Array.isArray(raw) ? raw : raw.chartData || [];
                 setChartData(candles);
-                addLog(`[CRYPTO] ✅ Chart ${sym}: ${candles.length} nến`);
+                addLog(`[CRYPTO] Chart ${sym}: ${candles.length} nến`);
             }
             if (priceRes?.data?.success) {
                 const d = priceRes.data.data;
@@ -351,10 +351,10 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                     setAiSignal(null); 
                 }
 
-                addLog(`[CRYPTO] ✅ Giá ${sym}: $${d.currentPrice?.toLocaleString()} | Score: ${d.technicals?.score ?? '--'}`);
+                addLog(`[CRYPTO] Giá ${sym}: $${d.currentPrice?.toLocaleString()} | Score: ${d.technicals?.score ?? '--'}`);
             }
         } catch (e) {
-            addLog(`[CRYPTO] ❌ Lỗi tải ${sym}: ${e.message}`);
+            addLog(`[LỖI] Lỗi tải ${sym}: ${e.message}`);
         } finally {
             setLoadingChart(false);
             setLoadingPrice(false);
@@ -391,10 +391,10 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
              const res = await axios.get(`/api/crypto/news/${sym}`);
             if (res.data.success && res.data.data?.length > 0) {
                 setCryptoNews(res.data.data);
-                addLog(`[CRYPTO] 📰 Tải ${res.data.data.length} tin tức cho ${sym}`);
+                addLog(`[CRYPTO] Tải ${res.data.data.length} tin tức cho ${sym}`);
             }
         } catch (e) {
-             addLog(`[CRYPTO] ⚠️ News API chưa sẵn sàng cho ${sym}`);
+             addLog(`[CẢNH BÁO] News API chưa sẵn sàng cho ${sym}`);
         } finally {
             setLoadingNews(false);
         }
@@ -433,44 +433,6 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
         setSearchInput(s);
         setShowSuggestions(false);
     };
-
-    // ───────────────────────────────────────────────────
-    // ACTIONS: Demo Trade
-    // ───────────────────────────────────────────────────
-    const handleTrade = (side) => {
-        const px = priceData?.currentPrice;
-        if (!px) { showMsg('Chưa có giá. Tìm kiếm mã trước!'); return; }
-        const qty = parseFloat(tradeQty);
-        if (!qty || qty <= 0) { showMsg('Khối lượng không hợp lệ!'); return; }
-        const cost = qty * px;
-        if (side === 'BUY') {
-            if (cost > balance) { showMsg(`Không đủ số dư! Cần $${cost.toFixed(2)}`); return; }
-            setBalance(b => parseFloat((b - cost).toFixed(4)));
-            setPositions(prev => {
-                const ex = prev.find(p => p.symbol === symbol);
-                if (ex) {
-                    const nq = ex.qty + qty;
-                    const na = (ex.qty * ex.entry + qty * px) / nq;
-                    return prev.map(p => p.symbol === symbol ? { ...p, qty: parseFloat(nq.toFixed(8)), entry: parseFloat(na.toFixed(4)) } : p);
-                }
-                return [...prev, { symbol, qty, entry: px }];
-            });
-            showMsg(`✅ MUA ${qty} ${symbol} @ ${fmtUSD(px)}`);
-            addLog(`[DEMO CRYPTO] MUA ${qty} ${symbol} @ $${px?.toLocaleString()}`);
-        } else {
-            const pos = positions.find(p => p.symbol === symbol);
-            if (!pos || pos.qty < qty) { showMsg(`Không đủ ${symbol} để bán!`); return; }
-            const pnl = (px - pos.entry) * qty;
-            setBalance(b => parseFloat((b + qty * px).toFixed(4)));
-            setPositions(prev => {
-                const nq = pos.qty - qty;
-                return nq <= 0.000001 ? prev.filter(p => p.symbol !== symbol) : prev.map(p => p.symbol === symbol ? { ...p, qty: parseFloat(nq.toFixed(8)) } : p);
-            });
-            showMsg(`✅ BÁN ${qty} ${symbol} | PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`);
-            addLog(`[DEMO CRYPTO] BÁN ${qty} ${symbol} @ $${px?.toLocaleString()} | PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`);
-        }
-    };
-    const showMsg = (m) => { setTradeMsg(m); setTimeout(() => setTradeMsg(''), 4000); };
 
     // ───────────────────────────────────────────────────
     // COMPUTED: Technicals shorthand

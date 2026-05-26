@@ -1,13 +1,13 @@
 import chalk from 'chalk';
 
-// ==========================================
-// CORE QUANTITATIVE ENGINE: MARKET INTELLIGENCE
-// ==========================================
+//==========================================
+//CORE QUANTITATIVE ENGINE v2.0
+//==========================================
 export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatabase) => {
     try {
         if (!vnIndexData || vnIndexData.length < 2) {
             return {
-                success: true, 
+                success: true,
                 intelligence: {
                     indexChangePct: "0.00",
                     breadthRatio: "50.0",
@@ -26,52 +26,72 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         const prevIndex = vnIndexData[vnIndexData.length - 2];
         const indexChangePct = ((latestIndex.close - prevIndex.close) / prevIndex.close) * 100;
 
-        // ------------------------------------------
-        // 1. TÍNH TOÁN ĐỘ RỘNG THỊ TRƯỜNG  
-        // ------------------------------------------
+        //----------------------------------------
+        //1. MARKET WIDTH
+        //----------------------------------------
         const totalAdvDec = marketBreadth.up + marketBreadth.down;
         const breadthRatio = totalAdvDec > 0 ? (marketBreadth.up / totalAdvDec) * 100 : 50;
 
-        // ------------------------------------------
-        // 2. TÍNH TOÁN ĐIỂM SỨC MẠNH NGÀNH  
-        // ------------------------------------------
+        const breadthSource = marketBreadth._isReal ? 'thực' : (marketBreadth._isFallback ? 'ước tính' : 'raw');
+        console.log(chalk.cyan(`[QUANT] BreadthRatio=${breadthRatio.toFixed(1)}% (nguồn: ${breadthSource}, ↑${marketBreadth.up} ↓${marketBreadth.down})`));
+
+        //----------------------------------------
+        //2. SEGMENTATION + SPS CALCULATION v2
+        //----------------------------------------
         let sectorRawData = {};
         let totalActiveVolume = 0;
+        let totalMarketCapProxy = 0;
 
-        // ── DEBUG LOG ──
-        console.log(chalk.cyan(`[QUANT] activeVolumeStocks nhận được: ${activeVolumeStocks.length} mã`));
+        console.log(chalk.cyan(`[QUANT] activeVolumeStocks: ${activeVolumeStocks.length} mã`));
         console.log(chalk.cyan(`[QUANT] foreignFlow: topBuy=${foreignFlow.topBuy?.length || 0}, topSell=${foreignFlow.topSell?.length || 0}`));
         if (activeVolumeStocks.length > 0) {
             console.log(chalk.cyan(`[QUANT] Mẫu stock[0]: ${JSON.stringify(activeVolumeStocks[0])}`));
         }
 
-         activeVolumeStocks.forEach(stock => {
- 
+        activeVolumeStocks.forEach(stock => {
             const dbMatch = symbolsDatabase.find(s => s.symbol === stock.symbol);
             const sector = stock.sector || dbMatch?.sector;
 
             if (!sector) {
                 console.log(chalk.yellow(`[QUANT] Bỏ qua ${stock.symbol} - không có sector`));
-                return;  
+                return;
             }
 
             if (!sectorRawData[sector]) {
-                sectorRawData[sector] = { totalVolume: 0, sumChangePct: 0, count: 0, netForeignVal: 0, stocks:[] };
+                sectorRawData[sector] = {
+                    totalVolume: 0,
+                    sumChangePct: 0,
+                    sumMomentum3d: 0,  
+                    count: 0,
+                    netForeignVal: 0,
+                    totalMarketCap: 0, 
+                    weightedUp: 0,     
+                    weightedDown: 0,  
+                    stocks: []
+                };
             }
+
+            const cap = stock.marketCapProxy || 1;
             sectorRawData[sector].totalVolume += stock.volume;
             sectorRawData[sector].sumChangePct += stock.changePct;
+            sectorRawData[sector].sumMomentum3d += (stock.momentum3d ?? stock.changePct); 
             sectorRawData[sector].count += 1;
+            sectorRawData[sector].totalMarketCap += cap;
+
+            //=== FIX 5: Weighted breadth theo marketCapProxy ===
+            if (stock.changePct > 0.05) sectorRawData[sector].weightedUp += cap;
+            else if (stock.changePct < -0.05) sectorRawData[sector].weightedDown += cap;
 
             sectorRawData[sector].stocks.push({ symbol: stock.symbol, changePct: stock.changePct });
             totalActiveVolume += stock.volume;
+            totalMarketCapProxy += cap;
         });
 
-        // ── DEBUG LOG sau khi phân ngành ──
-        console.log(chalk.cyan(`[QUANT] Các ngành đã phân loại: ${Object.keys(sectorRawData).join(', ') || 'KHÔNG CÓ NGÀNH NÀO'}`));
-        console.log(chalk.cyan(`[QUANT] totalActiveVolume: ${totalActiveVolume}`));
+        console.log(chalk.cyan(`[QUANT] Ngành đã phân loại: ${Object.keys(sectorRawData).join(', ') || 'KHÔNG CÓ'}`));
 
-         const processForeignFlow = (flowList, isBuy) => {
-            flowList.forEach(item => {
+        //Integrate foreignFlow into each industry
+        const processForeignFlow = (flowList, isBuy) => {
+            (flowList || []).forEach(item => {
                 const dbMatch = symbolsDatabase.find(s => s.symbol === item.symbol);
                 const sector = dbMatch?.sector || 'KHÁC';
                 if (sectorRawData[sector]) {
@@ -82,24 +102,35 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         processForeignFlow(foreignFlow.topBuy, true);
         processForeignFlow(foreignFlow.topSell, false);
 
-        // Chấm điểm SPS cho từng ngành
+        //----------------------------------------
+        //3. SPS v2 SCORING
+        //----------------------------------------
         let sectorScores = [];
         for (const [sector, data] of Object.entries(sectorRawData)) {
             if (sector === 'KHÁC' || data.count === 0) continue;
 
-            const avgChange = data.sumChangePct / data.count; 
-            const volShare = (data.totalVolume / totalActiveVolume) * 100; 
+            const avgChange = data.sumChangePct / data.count;
 
- 
+            const avgMomentum3d = data.sumMomentum3d / data.count;
+
+            const volShare = totalActiveVolume > 0
+                ? (data.totalVolume / totalActiveVolume) * 100
+                : 0;
+
             const volAmplifier = Math.max(0.5, Math.min(2.0, volShare / 10));
 
             let foreignScore = 0;
-            if (data.netForeignVal > 100000000000) foreignScore = 3; 
-            else if (data.netForeignVal < -100000000000) foreignScore = -3; 
-            else foreignScore = (data.netForeignVal / 100000000000) * 3;
+            if (data.netForeignVal > 100_000_000_000) foreignScore = 3;
+            else if (data.netForeignVal < -100_000_000_000) foreignScore = -3;
+            else foreignScore = (data.netForeignVal / 100_000_000_000) * 3;
 
- 
-            const sps = (avgChange * volAmplifier) + foreignScore;
+            const totalCap = data.totalMarketCap || 1;
+            const weightedBreadthRatio = data.weightedUp / totalCap;  
+            const weightedBreadthScore = (weightedBreadthRatio - 0.5) * 2; 
+
+            const sps = (avgChange * 0.6 + avgMomentum3d * 0.4) * volAmplifier
+                        + foreignScore
+                        + weightedBreadthScore * 0.5;
 
             const sortedStocks = data.stocks.sort((a, b) => b.changePct - a.changePct);
             const topGainers = sortedStocks.slice(0, 2).map(s => s.symbol);
@@ -107,21 +138,24 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
 
             sectorScores.push({
                 name: sector,
-                sps: sps,
-                avgChange: avgChange,
-                volShare: volShare,
+                sps,
+                avgChange,
+                avgMomentum3d,      
+                volShare,
                 foreignFlow: data.netForeignVal,
-                topGainers: topGainers, 
-                topLosers: topLosers   
+                weightedBreadthRatio,
+                topGainers,
+                topLosers
             });
         }
-         console.log(chalk.cyan(`[QUANT] sectorScores (${sectorScores.length} ngành):`));
-        sectorScores.forEach(s => console.log(chalk.cyan(`  ${s.name}: sps=${s.sps.toFixed(3)}, avgChange=${s.avgChange.toFixed(3)}%, volShare=${s.volShare.toFixed(1)}%`)));
 
-        // Sắp xếp ngành từ mạnh nhất đến yếu nhất
+        console.log(chalk.cyan(`[QUANT] sectorScores (${sectorScores.length} ngành):`));
+        sectorScores.forEach(s => console.log(
+            chalk.cyan(`  ${s.name}: sps=${s.sps.toFixed(3)}, avgChange=${s.avgChange.toFixed(2)}%, m3d=${s.avgMomentum3d.toFixed(2)}%, vol=${s.volShare.toFixed(1)}%`)
+        ));
+
         sectorScores.sort((a, b) => b.sps - a.sps);
 
-     
         let strongSectors = sectorScores.filter(s => s.sps > 0.3).slice(0, 3).map(s => ({
             name: s.name,
             tickers: s.topGainers
@@ -133,7 +167,6 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             }));
         }
 
-  
         let weakSectors = sectorScores.filter(s => s.sps < -0.3).slice(0, 3).map(s => ({
             name: s.name,
             tickers: s.topLosers
@@ -145,13 +178,12 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             }));
         }
 
-        // ── DEBUG LOG kết quả filter ──
-        console.log(chalk.green(`[QUANT] strongSectors (${strongSectors.length}): ${strongSectors.map(s=>s.name).join(', ') || 'TRỐNG'}`));
-        console.log(chalk.red(`[QUANT] weakSectors (${weakSectors.length}): ${weakSectors.map(s=>s.name).join(', ') || 'TRỐNG'}`));
+        console.log(chalk.green(`[QUANT] strongSectors: ${strongSectors.map(s => s.name).join(', ') || 'TRỐNG'}`));
+        console.log(chalk.red(`[QUANT] weakSectors: ${weakSectors.map(s => s.name).join(', ') || 'TRỐNG'}`));
 
-        // ------------------------------------------
-        // 3. ĐỊNH DẠNG KỊCH BẢN THỊ TRƯỜNG CHUNG (MARKET VERDICT)
-        // ------------------------------------------
+        //----------------------------------------
+        //4. MARKET SCENARIO FORMAT
+        //----------------------------------------
         let marketStatus = "ĐI NGANG TÍCH LŨY";
         let statusType = "neutral";
         let diagnosticDesc = "Dòng tiền phân hóa, không có xu hướng rõ ràng.";
@@ -200,12 +232,14 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             intelligence: {
                 indexChangePct: indexChangePct.toFixed(2),
                 breadthRatio: breadthRatio.toFixed(1),
+                breadthSource,       
+                foreignNetValue: foreignFlow.netValue || 0,  
                 marketStatus,
                 statusType,
                 diagnosticDesc,
                 strongSectors,
                 weakSectors,
-                sectorDetails: sectorScores.slice(0, 5) 
+                sectorDetails: sectorScores.slice(0, 5)
             }
         };
 
