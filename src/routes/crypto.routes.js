@@ -5,8 +5,19 @@ import {
     getCryptoFunding, getCryptoLiquidations, getCryptoSymbols
 } from '../controllers/crypto.controller.js';
 import { fetchCryptoData } from '../services/cryptoService.js';
+import { ensureCryptoUpdaterRunning } from '../jobs/cryptoUpdater.js';
 
 const router = express.Router();
+
+// ─── Lazy-start middleware ────────────────────────────────────────────────────
+// Background polling chỉ khởi động khi có request đầu tiên vào /api/crypto/*
+// Không tốn tài nguyên khi không ai dùng tab Crypto
+// ─────────────────────────────────────────────────────────────────────────────
+router.use((req, res, next) => {
+    // Không await — fire-and-forget, không làm chậm response
+    ensureCryptoUpdaterRunning().catch(() => {});
+    next();
+});
 
 router.get('/symbols',             getCryptoSymbols);
 router.get('/news/:symbol',        getCryptoNews);
