@@ -129,8 +129,19 @@ const PdfCacheModel = mongoose.models.TcbsPdfCache || mongoose.model('TcbsPdfCac
 // =========================================================
 // 🚀 2. HÀM TẢI VÀ DỊCH BÁO CÁO TCBS  
 // =========================================================
+
+const _tcbsPdfCache = new Map(); 
+const TCBS_PDF_TTL = 4 * 60 * 60 * 1000; 
+
 export async function getMarkdownFromTcbsPdf(ticker) {
     const tickerUpper = ticker.toUpperCase();
+
+    const cached = _tcbsPdfCache.get(tickerUpper);
+    if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL) {
+        console.log(chalk.green(`⚡ [TCBS PDF] Dùng cache cho ${tickerUpper} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
+        return cached.markdown;
+    }
+
     const pdfUrl = `https://static.tcbs.com.vn/oneclick/${tickerUpper}.pdf`;
     
     try {
@@ -147,7 +158,7 @@ export async function getMarkdownFromTcbsPdf(ticker) {
             contentType: 'application/pdf' 
         });
 
-         const doclingResponse = await axios.post('http://localhost:8000/parse-pdf', formData, {
+        const doclingResponse = await axios.post('http://localhost:8000/parse-pdf', formData, {
             headers: formData.getHeaders(),
             timeout: 300000 
         });
@@ -155,15 +166,15 @@ export async function getMarkdownFromTcbsPdf(ticker) {
         if (doclingResponse.data.success) {
             let rawMarkdown = doclingResponse.data.markdown;
 
-            // 4. LỌC NHIỄU SƠ BỘ  
-             let cleanMarkdown = rawMarkdown
+            let cleanMarkdown = rawMarkdown
                 .replace(/Techcom Securities/g, '')
                 .replace(/Hotline: 1800 588 826; cskh@tcbs\.com\.vn/g, '')
                 .replace(/Giải thích các chỉ tiêu tài chính/g, '')
                 .replace(/\n{3,}/g, '\n\n')
                 .trim();
 
-            console.log(chalk.green(`✔ Xử lý xong! Dữ liệu TCBS sạch đã về tới Node.js.`));
+            _tcbsPdfCache.set(tickerUpper, { markdown: cleanMarkdown, ts: Date.now() });
+            console.log(chalk.green(`✔ Xử lý xong! Dữ liệu TCBS sạch đã về tới Node.js. Đã cache cho lần sau.`));
             return cleanMarkdown; 
         } else {
             console.log(chalk.red(`❌ Trạm Docling báo lỗi: ${doclingResponse.data.error}`));
@@ -478,4 +489,3 @@ Trả lời bằng tiếng Việt, chuyên nghiệp, đi thẳng vào vấn đ�
         throw error;
     }
 }
- 
