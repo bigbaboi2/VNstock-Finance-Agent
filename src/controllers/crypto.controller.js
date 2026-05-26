@@ -186,3 +186,11 @@ export const getCryptoLiquidations = async (req, res) => {
         return res.json({ success: true, isEstimated: true, data: { longLiqUsd: '---', shortLiqUsd: '---', totalLiqUsd: '---', dominantSide: 'Cần COINGLASS_API_KEY', note: 'Thêm COINGLASS_API_KEY=xxx vào .env' } });
     }
 };
+export const getCryptoSymbols = async (req, res) => {
+    try {
+        const coins = await CryptoCoin.find({}, { symbol: 1, name: 1, image: 1, _id: 0 }).lean();
+        return res.json(coins);
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
