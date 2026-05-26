@@ -8,8 +8,6 @@ import axios from 'axios';
 };
 
 export const startDerivUpdater = () => {
-    console.log('[HỆ THỐNG] theo dõi dòng tiền Phái sinh (OI) đã khởi động...');
-    
     setInterval(async () => {
         try {
             const res = await axios.get(`https://finfo-api.vndirect.com.vn/v4/derivatives_prices?q=code:VN30F1M`, { 
