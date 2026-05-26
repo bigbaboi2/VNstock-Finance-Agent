@@ -12,6 +12,61 @@ import MarketRadar from './MarketRadar';
 import { useState, useEffect} from 'react';
 import StockAiChat from './StockAiChat';
 
+function CompanyOverview({ profile, isDark, UI }) {
+  const [expanded, setExpanded] = useState(false);
+  const p = profile;
+  const hasDetail = p?.industry || p?.address;
+
+  return (
+    <div className={`rounded-xl border mb-5 overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className={`w-full flex items-center justify-between px-4 pt-4 pb-2 transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'}`}
+      >
+        <p className="text-[10px] uppercase tracking-widest text-yellow-500 font-black flex items-center gap-2">
+          <Activity size={12} /> Tổng quan doanh nghiệp
+        </p>
+        {hasDetail && (
+          expanded
+            ? <ChevronUp size={14} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
+            : <ChevronDown size={14} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
+        )}
+      </button>
+
+      {hasDetail ? (
+        <div className="px-4 pb-3 space-y-1.5">
+          {p.industry        && <p className={`text-[11px] ${UI.textMuted}`}>🏭 <span className="font-bold">Ngành:</span> {p.industry}</p>}
+          {p.listing_date    && <p className={`text-[11px] ${UI.textMuted}`}>📅 <span className="font-bold">GDĐT:</span> {p.listing_date}</p>}
+          {p.charter_capital && <p className={`text-[11px] ${UI.textMuted}`}>💰 <span className="font-bold">Vốn điều lệ:</span> {p.charter_capital}</p>}
+          {p.shares_listed   && <p className={`text-[11px] ${UI.textMuted}`}>📊 <span className="font-bold">CP niêm yết:</span> {p.shares_listed}</p>}
+        </div>
+      ) : (
+        <div className="px-4 pb-4">
+          <p className={`text-[11px] leading-relaxed italic whitespace-pre-line ${UI.textMuted}`}>{p?.overview}</p>
+        </div>
+      )}
+
+      {expanded && hasDetail && (
+        <div className={`px-4 pb-4 pt-3 border-t space-y-1.5 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+          {p.address  && <p className={`text-[11px] ${UI.textMuted}`}>📍 {p.address}</p>}
+          {p.phone    && <p className={`text-[11px] ${UI.textMuted}`}>📞 {p.phone}</p>}
+          {p.email    && <a href={`mailto:${p.email}`} className="text-[11px] text-blue-400 hover:underline block">✉️ {p.email}</a>}
+          {p.website  && <a href={p.website} target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:underline block">🌐 {p.website}</a>}
+          {p.description && (
+            <div className={`mt-2 pt-2 border-t space-y-2 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+              {p.description.split('\n\n').map((section, i) => (
+                <p key={i} className={`text-[11px] leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {section}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function VnStocksTab({
   isDark, UI,
   allStocks,
@@ -51,7 +106,6 @@ export default function VnStocksTab({
   const aiError = aiReportError;
 
   // ── LOADING ENTERTAINMENT ──
-  // Facts: nguồn thực tế từ SSC, HOSE, HNX, VBMA, WB, FTSE Russell
   const VN_STOCK_FACTS = [
     { type: 'fact', icon: '📊', text: 'HOSE (Sở GDCK TP.HCM) khai trương ngày 28/7/2000 với phiên đầu tiên chỉ có 2 mã: REE và SAM. Khớp lệnh 2 lần/ngày.' },
     { type: 'fact', icon: '🏛️', text: 'HNX (Sở GDCK Hà Nội) thành lập năm 2005, ban đầu là sàn OTC cho doanh nghiệp vừa và nhỏ, nay bao gồm cả thị trường trái phiếu chính phủ.' },
@@ -89,7 +143,6 @@ export default function VnStocksTab({
     }, 350);
   };
 
-  // Facts tự chuyển mỗi 7s — quiz chỉ chuyển khi người dùng đã chọn đáp án
   useEffect(() => {
     if (!analyzing) { setQuizSelected(null); setCardFlip(false); return; }
     if (loadingCard.type !== 'fact') return; // quiz: không auto-advance
@@ -219,38 +272,7 @@ export default function VnStocksTab({
                       </div>
                   )}
 
-                  <div className={`rounded-xl p-4 border mb-5 ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-                    <p className="text-[10px] uppercase tracking-widest text-yellow-500 font-black mb-3 flex items-center gap-2">
-                      <Activity size={12} /> Tổng quan doanh nghiệp
-                    </p>
-                    {(() => {
-                      const p = marketData.companyProfile;
-                      if (p?.industry || p?.address) {
-                        return (
-                          <div className="space-y-1.5">
-                          {p.industry        && <p className={`text-[11px] ${UI.textMuted}`}>🏭 <span className="font-bold">Ngành:</span> {p.industry}</p>}
-                          {p.listing_date    && <p className={`text-[11px] ${UI.textMuted}`}>📅 <span className="font-bold">GDĐT:</span> {p.listing_date}</p>}
-                          {p.charter_capital && <p className={`text-[11px] ${UI.textMuted}`}>💰 <span className="font-bold">Vốn điều lệ:</span> {p.charter_capital}</p>}
-                          {p.shares_listed   && <p className={`text-[11px] ${UI.textMuted}`}>📊 <span className="font-bold">CP niêm yết:</span> {p.shares_listed}</p>}
-                          {p.address         && <p className={`text-[11px] ${UI.textMuted}`}>📍 {p.address}</p>}
-                          {p.phone           && <p className={`text-[11px] ${UI.textMuted}`}>📞 {p.phone}</p>}
-                          {p.email           && <a href={`mailto:${p.email}`} className="text-[11px] text-blue-400 hover:underline block">✉️ {p.email}</a>}
-                          {p.website         && <a href={p.website} target="_blank" rel="noreferrer" className="text-[11px] text-blue-400 hover:underline block">🌐 {p.website}</a>}
-                          {p.description && (
-                              <div className={`mt-3 pt-3 border-t space-y-2 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                                  {p.description.split('\n\n').map((section, i) => (
-                                      <p key={i} className={`text-[11px] leading-relaxed whitespace-pre-line ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                          {section}
-                                          </p>
-                                    ))}
-                               </div>
-                  )}
-              </div>
-            );
-          }
-                      return <p className={`text-[11px] leading-relaxed italic whitespace-pre-line ${UI.textMuted}`}>{p?.overview}</p>;
-                    })()}
-                  </div>
+                  <CompanyOverview profile={marketData.companyProfile} isDark={isDark} UI={UI} />
 
                   <button
                       onClick={handleAiAnalysis}
@@ -276,7 +298,7 @@ export default function VnStocksTab({
                   {marketData && (() => {
                     const handleExportData = async () => {
                       const sym = marketData.stockInfo?.symbol;
-                      console.log(`🦆 Đang lấy full AI feed từ server cho ${sym}...`);
+                      console.log(`[HỆ THỐNG] Đang lấy full AI feed từ server cho ${sym}...`);
                       try {
                         const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
                           title:   n.title,
