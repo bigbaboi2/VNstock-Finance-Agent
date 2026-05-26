@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import './App.css'
 import axios from 'axios'
@@ -1099,6 +1098,16 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         timestamp: new Date().toISOString()
     };
 
+    // ── DEBUG: In toàn bộ data feed ra console ──
+    console.group(`🦆 OMNI DUCK — AI Data Feed [${marketData.stockInfo.symbol}]`);
+    console.log('📊 stockInfo:', aiPayload.stockInfo);
+    console.log('🏢 companyProfile:', aiPayload.companyProfile);
+    console.log('📈 technicalData (30 nến):', aiPayload.technicalData);
+    console.log('🌐 marketContext (VN-INDEX 5 ngày):', aiPayload.marketContext);
+    console.log('📰 news (10 tin):', aiPayload.news);
+    console.log('📦 Full JSON (copy để test):', JSON.stringify(aiPayload, null, 2));
+    console.groupEnd();
+
     try {
         const response = await axios.post(`/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
         setAiReport(response.data.aiReport);
@@ -1391,7 +1400,6 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             exportingDeriv={exportingDeriv}
             lastAiDerivTime={lastAiDerivTime}
             macroContext={macroContext}
-            currentUser={currentUser} 
         />
         )}
         {/* ========================================================= */}
