@@ -30,13 +30,13 @@ export const fetchCafefData = async (symbol) => {
     try {
         const [infoRes, financeRes, ownerRes, historyRes] = await Promise.all([
             axios.get(`https://cafef.vn/du-lieu/ajax/pagenew/companyinfor.ashx?symbol=${ticker}`, { headers: HEADERS, timeout: 8000 })
-                 .catch(e => { logs.push(`❌ Lỗi Info: ${e.message}`); return null; }),
+                 .catch(e => { logs.push(`[LỖI] Info: ${e.message}`); return null; }),
             axios.get(`https://cafef.vn/du-lieu/Ajax/PageNew/ChiSoTaiChinh.ashx?Symbol=${ticker}`, { headers: HEADERS, timeout: 8000 })
-                 .catch(e => { logs.push(`❌ Lỗi Finance: ${e.message}`); return null; }),
+                 .catch(e => { logs.push(`[LỖI] Finance: ${e.message}`); return null; }),
             axios.get(`https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=${ticker}`, { headers: HEADERS, timeout: 8000 })
-                 .catch(e => { logs.push(`❌ Lỗi Ownership: ${e.message}`); return null; }),
+                 .catch(e => { logs.push(`[LỖI] Ownership: ${e.message}`); return null; }),
             axios.get(`https://cafef.vn/du-lieu/Ajax/PageNew/GetCompanyHistory.ashx?Symbol=${ticker}`, { headers: HEADERS, timeout: 8000 })
-                 .catch(e => { logs.push(`⚠️ Lỗi History: ${e.message}`); return null; }),
+                 .catch(e => { logs.push(`[LỖI] History: ${e.message}`); return null; }),
         ]);
 
         let mktCap = '---', pe = '---', companyName = ticker, exchange = 'VNX';
@@ -158,6 +158,6 @@ export const fetchCafefData = async (symbol) => {
         };
 
     } catch (error) {
-        return { success: false, logs: [`❌ CafeF Service Lỗi: ${error.message}`] };
+        return { success: false, logs: [`[LỖI] CafeF Service: ${error.message}`] };
     }
 };

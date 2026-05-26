@@ -87,7 +87,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             totalMarketCapProxy += cap;
         });
 
-        console.log(chalk.cyan(`[QUANT] Ngành đã phân loại: ${Object.keys(sectorRawData).join(', ') || 'KHÔNG CÓ'}`));
+        console.log(chalk.white(`[QUANT] Ngành đã phân loại: ${Object.keys(sectorRawData).join(', ') || 'KHÔNG CÓ'}`));
 
         //Integrate foreignFlow into each industry
         const processForeignFlow = (flowList, isBuy) => {
@@ -150,9 +150,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         }
 
         console.log(chalk.cyan(`[QUANT] sectorScores (${sectorScores.length} ngành):`));
-        sectorScores.forEach(s => console.log(
-            chalk.cyan(`  ${s.name}: sps=${s.sps.toFixed(3)}, avgChange=${s.avgChange.toFixed(2)}%, m3d=${s.avgMomentum3d.toFixed(2)}%, vol=${s.volShare.toFixed(1)}%`)
-        ));
+        ;
 
         sectorScores.sort((a, b) => b.sps - a.sps);
 

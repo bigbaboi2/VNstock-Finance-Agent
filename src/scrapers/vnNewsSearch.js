@@ -15,9 +15,8 @@ export async function searchVnNewsDirectly(ticker) {
         const $ = cheerio.load(data, { xmlMode: true });
         const results = [];
 
-        // Tìm các thẻ <item> chứa tin tức
         $('item').each((i, el) => {
-            if (i < 20) { // Lấy 6 tin mới nhất
+            if (i < 25) {
                 results.push({
                     title: $(el).find('title').text(),
                     link: $(el).find('link').text()
@@ -27,7 +26,7 @@ export async function searchVnNewsDirectly(ticker) {
 
         return results;
     } catch (error) {
-        console.error(`❌ Lỗi Google News RSS cho mã ${ticker}:`, error.message);
+        console.error(`[LỖI] Google News RSS cho mã ${ticker}:`, error.message);
         return [];
     }
 }
