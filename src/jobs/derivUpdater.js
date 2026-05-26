@@ -8,7 +8,7 @@ import axios from 'axios';
 };
 
 export const startDerivUpdater = () => {
-    console.log('⏳ [JOB] Hệ thống theo dõi dòng tiền Phái sinh (OI) đã khởi động...');
+    console.log('[HỆ THỐNG] theo dõi dòng tiền Phái sinh (OI) đã khởi động...');
     
     setInterval(async () => {
         try {

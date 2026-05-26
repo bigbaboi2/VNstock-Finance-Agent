@@ -186,45 +186,43 @@ useEffect(() => {
   const [showPaperHelp, setShowPaperHelp] = useState(false);
  
   // GỌI API LẤY TIN TỨC PHÁI SINH TAB ON
-    useEffect(() => {
+  useEffect(() => {
       if (activeMode === 'VN_DERIVATIVES') {
           addLog('[HỆ THỐNG] Đang kết nối Database tin tức Vĩ mô Phái sinh...');
           axios.get('/api/deriv-news')
               .then(res => { 
                   if (res.data.success) {
                       setDerivNews(res.data.data); 
-                      addLog(`[THÀNH CÔNG] Đã tải ${res.data.data.length} bản tin Vĩ mô.`);
-                      console.log("==> DATA TIN TỨC: ", res.data.data); // Hiện ra màn F12 Console
+                      addLog(`[THÀNH CÔNG] Nạp hoàn tất ${res.data.data.length} bản tin Vĩ mô.`);
                   } else {
-                      addLog('[CẢNH BÁO] API trả về lỗi: Không có success flag.');
+                      addLog('[CẢNH BÁO] Kết nối thành công nhưng không có dữ liệu trả về.');
                   }
               })
               .catch(err => {
-                  console.error("Lỗi lấy tin phái sinh:", err);
-                  addLog(`[LỖI NGHIÊM TRỌNG] Mất kết nối Trạm tin tức: ${err.message}`);
+                  addLog(`[LỖI] Mất kết nối Trạm tin tức Phái sinh: ${err.message}`);
               });
       }
-    }, [activeMode]);
+  }, [activeMode]);
     // GỌI LẤY TIN TỨC NGAY
-    const handleRefreshDerivNews = async () => {
-    setRefreshingNews(true);
-    addLog('[HỆ THỐNG] Đang quét dữ liệu vĩ mô ...');
-    try {
-        const res = await axios.post('/api/deriv-news/refresh');
-        if (res.data.success) {
-            setDerivNews(res.data.data);
-            setLastNewsSave(res.data.lastSave);
-            addLog(`[THÀNH CÔNG] Đã cập nhật ma trận tin tức. Trạm lưu: ${res.data.lastSave}`);
-        }
-    } catch (error) {
-        addLog(`[LỖI] Không thể ép luồng quét tin: ${error.message}`);
-    } finally {
-        setRefreshingNews(false);
-    }
+  const handleRefreshDerivNews = async () => {
+      setRefreshingNews(true);
+      addLog('[HỆ THỐNG] Đang khởi chạy tiến trình quét dữ liệu vĩ mô...');
+      try {
+          const res = await axios.post('/api/deriv-news/refresh');
+          if (res.data.success) {
+              setDerivNews(res.data.data);
+              setLastNewsSave(res.data.lastSave);
+              addLog(`[THÀNH CÔNG] Cập nhật ma trận tin tức hoàn tất. Bản ghi: ${res.data.lastSave}`);
+          }
+      } catch (error) {
+          addLog(`[LỖI] Không thể đồng bộ luồng quét tin: ${error.message}`);
+      } finally {
+          setRefreshingNews(false);
+      }
   };
 // LGOCI GỌI AI PHÁI SINH VN
- const handleAiDerivAnalysis = async (forceRefresh = false) => {
-    if (!derivRadar || !derivChartData) return addLog('[ERROR] Thiếu dữ liệu phái sinh VN cho AI!');
+const handleAiDerivAnalysis = async (forceRefresh = false) => {
+    if (!derivRadar || !derivChartData) return addLog('[CẢNH BÁO] Trống dữ liệu phái sinh VN. AI từ chối phân tích.');
  
     const now = Date.now();
     const MIN_INTERVAL_MS = 5 * 60 * 1000;  
@@ -246,15 +244,13 @@ useEffect(() => {
     const timeSinceLast = lastAiDerivTime ? now - lastAiDerivTime : Infinity;
     const enoughTimeElapsed = timeSinceLast >= MIN_INTERVAL_MS;
  
-    if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed) {
+if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed) {
         const remainSec = Math.round((MIN_INTERVAL_MS - timeSinceLast) / 1000);
-        addLog(`[AI CACHE] Đang trả về dữ liệu phân tích phái sinh dã lưu. Biến động lớn: ${isSignificantChange}. Thử lại trong ${remainSec}s hoặc đợi thị trường biến động.`);
+        addLog(`[AI CACHE] Sử dụng báo cáo Phái sinh đã lưu. Thử lại sau ${remainSec}s.`);
         return;
     }
- 
     setAnalyzingDeriv(true);
-    addLog('Đang đóng gói dữ liệu cho AI...');
- 
+    addLog('[HỆ THỐNG] Đang đóng gói dữ liệu Phái sinh đa chiều cho AI...');
     try {
         const payload = {
             currentF1M:  derivRadar.vn30f1m,
@@ -293,13 +289,10 @@ useEffect(() => {
         setAnalyzingDeriv(false);
     }
 };
-  const handleExportDeriv = async () => {
-    if (!derivRadar || !derivChartData) {
-        addLog('[LỖI] Chưa có dữ liệu Phái sinh để xuất!');
-        return;
-    }
+const handleExportDeriv = async () => {
+    if (!derivRadar || !derivChartData) return addLog('[LỖI] Chưa có dữ liệu Phái sinh để xuất tệp.');
     setExportingDeriv(true);
-    addLog('[EXPORT] Đang gom toàn bộ dữ liệu Phái sinh để xuất...');
+    addLog('[EXPORT] Đang tổng hợp dữ liệu chuẩn bị xuất tệp...');
     try {
         const res = await axios.post('/api/deriv-export', {
             derivRadar,
@@ -326,11 +319,11 @@ useEffect(() => {
             URL.revokeObjectURL(url);
             if (res.data.data?.macroContext) setMacroContext(res.data.data.macroContext);
             const summary = res.data.data.newsSentimentSummary;
-            addLog(`[OK] Đã xuất file! ${summary.total} tin (${summary.withFullContent} có content), ${(derivChartData||[]).length} nến, ${(res.data.data.influencers||[]).length} trụ cột.`);
+          addLog(`[EXPORT] Xuất tệp hoàn tất. Tổng hợp ${summary.total} tin và ${(derivChartData||[]).length} nến.`);
         }
 
     } catch (err) {
-        addLog(`[LỖI EXPORT] ${err.message}`);
+        addLog(`[LỖI] Quá trình Export thất bại: ${err.message}`);
     } finally {
         setExportingDeriv(false);
     }
@@ -373,7 +366,7 @@ useEffect(() => {
           .then(res => {
               if (res.data.success && res.data.data.length > 0) {
                   setPaperChartData(res.data.data);
-                  addLog(`[GIẢ LẬP] Đã tải dữ liệu realtime mã ${cleanSymbol}`);
+                  addLog(`[DEMOTRADE] Đã tải dữ liệu realtime mã ${cleanSymbol}`);
               } else {
                   setPaperChartData(null);
                   setErrorAlert(`Không tìm thấy dữ liệu biểu đồ cho mã ${cleanSymbol}!`);
@@ -421,9 +414,9 @@ useEffect(() => {
           if (res.data.success) {
               setPortfolio(res.data.data);
               if (res.data.isPending) {
-                  addLog(`[SỔ LỆNH] Lệnh ${type} ${paperOrderType} ${paperSymbol} đã được đưa vào hàng đợi.`);
+                  addLog(`[DEMOTRADE] Lệnh ${type} ${paperOrderType} ${paperSymbol} đã được đưa vào hàng đợi.`);
               } else {
-                  addLog(`[KHỚP LỆNH] Đã khớp ${type} ${paperVolume} ${paperSymbol} tại giá ${executionPrice.toLocaleString('vi-VN')}`);
+                  addLog(`[DEMOTRADE] Đã khớp ${type} ${paperVolume} ${paperSymbol} tại giá ${executionPrice.toLocaleString('vi-VN')}`);
               }
           }
       } catch (error) {
@@ -439,7 +432,7 @@ const handleCancelOrder = async (orderId) => {
           });
           if (res.data.success) {
               setPortfolio(res.data.data);
-              addLog(`[SỔ LỆNH] Đã hủy lệnh chờ thành công, giải phóng nguồn vốn.`);
+              addLog(`[DEMOTRADE] Đã hủy lệnh chờ thành công, giải phóng nguồn vốn.`);
           }
       } catch (error) {
           setErrorAlert(error.response?.data?.message || "Lỗi khi thực thi hủy lệnh!");
@@ -783,12 +776,12 @@ const derivAnalysis = React.useMemo(() => {
         if (intelRes?.data?.success) setMarketIntel(intelRes.data.data);
 
       if (intelRes?.data?.isLive) {
-            addLog('[LIVE] Radar cập nhật ma trận thị trường thời gian thực.');
-        } else {
-            addLog('[STATIC] Đã nạp dữ liệu thị trường chung cuối phiên từ MongoDB.');
+            addLog('[HỆ THỐNG] Radar cập nhật ma trận thị trường (Realtime).');
+            } else {
+            addLog('[HỆ THỐNG] Nạp dữ liệu thị trường cuối phiên từ Database.');
         }
       } catch (error) {
-        console.error("Lỗi lấy dữ liệu Radar:", error);
+          addLog(`[LỖI] Hệ thống Radar mất kết nối máy chủ: ${error.message}`);
       }
     };
 
@@ -798,7 +791,7 @@ const derivAnalysis = React.useMemo(() => {
     if (marketOpen) {
         interval = setInterval(fetchRadarData, 60000); 
     } else {
-        addLog('🔒 Thị trường đóng cửa. Hệ thống ngắt các tiến trình lấy dữ liệu.');
+        addLog('[HỆ THỐNG] Thị trường đóng cửa. Tạm ngưng tiến trình đồng bộ Realtime.');
     }
     
     return () => {
@@ -859,12 +852,12 @@ const derivAnalysis = React.useMemo(() => {
     const loadSymbols = async () => {
       try {
         setLoadingSymbols(true)
-        addLog('Đang tải danh sách mã...')
+        addLog('[HỆ THỐNG] Đang tải danh sách mã...')
         const response = await axios.get('/api/symbols')
         setAllStocks(response.data)
-        addLog(`Đã nạp ${response.data.length} mã chứng khoán`)
+        addLog(`[HỆ THỐNG] Đã nạp ${response.data.length} mã chứng khoán`)
       } catch (err) {
-        addLog('Lỗi kết nối Backend')
+        addLog('[LỖI] Kết nối Backend thất bại')
       } finally {
         setLoadingSymbols(false)
       }
@@ -912,36 +905,36 @@ const derivAnalysis = React.useMemo(() => {
     setSuggestions(filtered);
   }, [input, allStocks, loadingMarket]);
     const fetchMarketData = async (forceSymbol) => {
-    setActiveInterval('1 ngày');
-    const symbol = forceSymbol ? forceSymbol.toUpperCase() : input.toUpperCase();
-    if (!symbol) return;
+      setActiveInterval('1 ngày');
+      const symbol = forceSymbol ? forceSymbol.toUpperCase() : input.toUpperCase();
+      if (!symbol) return;
+      const exists = allStocks.some(s => s.symbol === symbol);
+      
+      // TÌM kiểm mã chứng khoán  
+      if (!exists && !symbol.startsWith('VN30')) {
+          addLog(`[CẢNH BÁO] Mã cổ phiếu [${symbol}] không hợp lệ hoặc đã hủy niêm yết.`);
+          setErrorAlert(`MÃ CỔ PHIẾU "${symbol}" KHÔNG TỒN TẠI HOẶC ĐÃ HỦY NIÊM YẾT!`);
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setTimeout(() => setErrorAlert(''), 4000); 
+          return; 
+      }
 
-    const exists = allStocks.some(s => s.symbol === symbol);
-    if (!exists && !symbol.startsWith('VN30')) {
-        addLog(`Cảnh báo: Mã [${symbol}] không tồn tại trong hệ thống!`);
-        setErrorAlert(`MÃ CỔ PHIẾU "${symbol}" KHÔNG TỒN TẠI HOẶC ĐÃ HỦY NIÊM YẾT!`);
-        setSuggestions([]);
-        setShowSuggestions(false);
-        setTimeout(() => setErrorAlert(''), 4000); 
-        return; 
-    }
+      const localStock = allStocks.find(s => s.symbol === symbol);
 
-    const localStock = allStocks.find(s => s.symbol === symbol);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setAiReport(null);
+      setChartData(null);
+      setLoadingMarket(true);
+      setFetchProgress(20);
 
-    setSuggestions([]);
-    setShowSuggestions(false);
-    setAiReport(null);
-    setChartData(null);
-    setLoadingMarket(true);
-    setFetchProgress(20);
-
-    setMarketData({
-      stockInfo: { symbol, currentPrice: '...', change: 0, changePercent: 0, marketCap: '...', pe: '...', totalVolume: '...', foreignBuy: '...', companyName: localStock ? localStock.name : 'Đang tìm kiếm...', exchange: localStock ? localStock.exchange : 'VNX' },
-      companyProfile: { companyName: localStock ? localStock.name : '...', overview: 'Đang kết nối dữ liệu tài chính...' },
-      deepNewsData: []
-    });
-    addLog(`Đang khởi tạo đa luồng cho mã ${symbol}...`);
-
+      setMarketData({
+        stockInfo: { symbol, currentPrice: '...', change: 0, changePercent: 0, marketCap: '...', pe: '...', totalVolume: '...', foreignBuy: '...', companyName: localStock ? localStock.name : 'Đang tìm kiếm...', exchange: localStock ? localStock.exchange : 'VNX' },
+        companyProfile: { companyName: localStock ? localStock.name : '...', overview: 'Đang kết nối dữ liệu tài chính...' },
+        deepNewsData: []
+      });
+        addLog(`[HỆ THỐNG] Khởi tạo đa luồng phân tích mã ${symbol}...`);
     try {
       axios.get(`/api/history/${symbol}`).then(res => {
         const hData = res.data?.data || [];
@@ -959,7 +952,7 @@ const derivAnalysis = React.useMemo(() => {
               totalVolume: latest.value ? latest.value.toLocaleString('vi-VN') : '...'
             }
           }));
-          addLog(`[OK] Đã khớp Giá & Biểu đồ.`);
+          addLog(`[THÀNH CÔNG] Đồng bộ Giá & Biểu đồ kỹ thuật.`);
         }
       });
 
@@ -969,7 +962,7 @@ const derivAnalysis = React.useMemo(() => {
           if (res.data.logs && res.data.logs.length > 0) {
               res.data.logs.forEach(logMsg => addLog(logMsg));
           } else {
-              addLog(`[OK] Đã nạp Hồ sơ doanh nghiệp.`);
+            addLog(`[THÀNH CÔNG] Đồng bộ Hồ sơ doanh nghiệp.`);
           }
         }
       });
@@ -1022,14 +1015,14 @@ const derivAnalysis = React.useMemo(() => {
     closeAll();
   }).catch((err) => {
     if (err.name !== 'AbortError') {
-      addLog(`[Lỗi stream tin tức]: ${err.message}`);
+      addLog(`[LỖI]: stream tin tức thất bại! ${err.message}`);
     }
     closeAll();
   });
 });
 
     } catch (err) {
-      addLog(`Lỗi hệ thống: ${err.message}`);
+      addLog(`[LỖI]: Hệ thống - ${err.message}`);
       setLoadingMarket(false);
     }
   };
@@ -1047,7 +1040,7 @@ const derivAnalysis = React.useMemo(() => {
 // Logic ai button
 const handleAiAnalysis = async (forceRefresh = false) => {
     if (!marketData || !chartData) {
-        addLog(`[Lỗi] Thiếu dữ liệu biểu đồ để AI phân tích!`);
+       addLog(`[CẢNH BÁO] Trống dữ liệu biểu đồ. AI từ chối phân tích.`);
         return;
     }
 
@@ -1069,13 +1062,12 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
     if (!forceRefresh && aiReport && !isSignificantChange && !enoughTimeElapsed) {
         const remainSec = Math.round((MIN_INTERVAL_MS - timeSinceLast) / 1000);
-        addLog(`[AI CACHE] Đang dùng phân tích đã lưu. Thử lại sau ${remainSec}s hoặc có biến động mới.`);
+        addLog(`[AI CACHE] Truy xuất báo cáo AI đã lưu. Thử lại sau ${remainSec}s.`);
         return;
     }
 
     setAnalyzing(true);
-    addLog(`Đang biên dịch khối dữ liệu đa chiều cho AI...`);
-
+    addLog(`[AI CORE] Khởi chạy thuật toán cho mã ${marketData.stockInfo.symbol}...`);
     const optimizedNews = (marketData.deepNewsData || []).slice(0, 10).map(n => ({
         title:   n.title,
         date:    n.date,
@@ -1113,12 +1105,12 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         setAiReport(response.data.aiReport);
         setLastAiVnTime(now);
         setLastAiVnSnapshot(currentSnapshot);
-        addLog(`[OK] OMNI DUCK hoàn tất chiến lược và đã lưu Database!`);
+        addLog(`[THÀNH CÔNG] AI hoàn tất chiến lược và đã lưu vào Database.`);
         setShowLogs(false);
         if (response.data.actionPanelData) setActionData(response.data.actionPanelData);
         if (currentUser) fetchUserHistory();
     } catch (err) {
-        addLog('Lỗi xử lý AI: Tràn bộ nhớ hoặc mất kết nối');
+        addLog('[LỖI] Xử lý AI thất bại: Tràn bộ nhớ hoặc mất kết nối API.');
         console.error(err);
     } finally {
         setAnalyzing(false);
@@ -1139,8 +1131,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     const symbol = marketData.stockInfo.symbol;
     
     setLoadingAiNews(true);
-    addLog(`🕵️‍♂️ Agent OMNI DUCK đi rà quét tin tức mạng cho ${symbol}...`);
-
+    addLog(`[AI CORE] Đang rà quét mạng lưới thông tin cho mã ${symbol}...`);   
     try {
         const res = await axios.get(`/api/ai-news/${symbol}`);
         const aiArticles = res.data?.data || []; 
@@ -1161,7 +1152,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                     .filter(n => !existingLinks.has(n.link))
                     .map(n => ({ ...n, isAiGenerated: true }));
 
-                addLog(`[OK] Phân tích AI: Thêm ${brandNewAiArticles.length} tin mới, các tin quan trọng cũ đã chuyển sang màu tím.`);
+                addLog(`[THÀNH CÔNG] Mạng lưới AI lọc được ${brandNewAiArticles.length} tin tức độc quyền.`);     
 
                 return {
                     ...prev,
@@ -1169,10 +1160,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 };
             });
         } else {
-            addLog(`Không tìm thấy tin tức nào từ AI.`);
+            addLog(`[CẢNH BÁO] Không có tin tức mới được AI trích xuất.`);
         }
     } catch (error) {
-        addLog(`Lỗi khi AI săn tin tức.`);
+        addLog(`[LỖI] Tìm kiếm tin tức AI mất kết nối tới máy chủ.`);
     } finally {
         setLoadingAiNews(false);
     }
@@ -1183,19 +1174,19 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     if (!marketData || !marketData.stockInfo.symbol) return;
     const symbol = marketData.stockInfo.symbol;
     
-    addLog(`Đang tải dữ liệu biểu đồ khung: ${newInterval}...`);
+    addLog(`[HỆ THỐNG] Đang tải dữ liệu biểu đồ khung: ${newInterval}...`);
 
     try {
       const res = await axios.get(`/api/history/${symbol}?interval=${newInterval}`);
       const hData = res.data?.data || [];
       if (hData.length > 0) {
         setChartData([...hData]); 
-        addLog(`[OK] Đã cập nhật biểu đồ sang khung ${newInterval}`);
+        addLog(`[HỆ THỐNG] Đã cập nhật biểu đồ sang khung ${newInterval}`);
       } else {
-        addLog(`[Cảnh báo] Không có dữ liệu cho khung ${newInterval}`);
+        addLog(`[CẢNH BÁO] Không có dữ liệu cho khung ${newInterval}`);
       }
     } catch (err) {
-      addLog(`Lỗi tải biểu đồ khung ${newInterval}`);
+      addLog(`[CẢNH BÁO] Lỗi tải biểu đồ khung ${newInterval}`);
     }
   };
 
@@ -1228,7 +1219,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             if (!shouldUpdate) return; 
 
             setIsUpdatingAction(true);
-            addLog(`⚡ [LỆNH KHẨN] Kích hoạt Action Panel do: ${triggerReason}`);
+            addLog(`[CẢNH BÁO] Đã kích hoạt Action Panel khẩn cấp. Lý do: ${triggerReason}`);
 
             try {
                 const latestNewsTitle = currentNewsCount > 0 ? marketData.deepNewsData[currentNewsCount - 1].title : 'Không có';
