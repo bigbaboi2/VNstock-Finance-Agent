@@ -9,14 +9,12 @@ import {
     analyzeDerivativesWithGemini, 
     chatWithStockAI 
 } from '../services/aiService.js';
-import { searchVnNewsDirectly } from '../scrapers/vnNewsSearch.js';
+import { searchVnNewsDirectly, rescoreSentiment } from '../scrapers/vnNewsSearch.js';
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
 
-// Số tin lưu tối đa trong DB per stock
 const MAX_NEWS_DB = 80;
-// Số tin scrape mỗi lần fetch
 const MAX_SCRAPE  = 12;
 
 export const getLiveNews = async (req, res) => {
@@ -43,13 +41,13 @@ export const getLiveNews = async (req, res) => {
         let cachedNews = masterRecord.deepNewsData || [];
         let newDeepNewsData = [];
 
-        // Stream toàn bộ tin cache về client ngay
+// Stream all cache information to the client immediately
         for (const news of cachedNews) {
             if (isClientDisconnected) break;
             res.write(`data: ${JSON.stringify(news)}\n\n`);
         }
 
-        // Fetch bài mới theo mode 
+// Fetch new posts by mode
         const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
         const seenLinks    = new Set(cachedNews.map(n => n.link));
         const uniqueNew    = fetchedLinks.filter(item => !seenLinks.has(item.link));
@@ -65,7 +63,7 @@ export const getLiveNews = async (req, res) => {
                             scrapeArticleContent(news.link),
                             new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000))
                         ]);
-                        return {
+                        const raw = {
                             title:     news.title,
                             link:      news.link,
                             source:    news.source || news.link,
@@ -74,6 +72,7 @@ export const getLiveNews = async (req, res) => {
                             date:      new Date().toLocaleDateString('vi-VN'),
                             mode,
                         };
+                        return rescoreSentiment(raw);
                     } catch {
                         return {
                             title: news.title, link: news.link,
