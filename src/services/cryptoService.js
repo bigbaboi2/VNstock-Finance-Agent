@@ -760,64 +760,6 @@ export function registerCryptoRoutes(app) {
             });
         }
     });
-
-    // ----------------------------------------------------------
-    // ROUTE 6: /api/crypto/history/:symbol
-    // Trả về: OHLCV dạng giống /api/history/:ticker cho VN Stocks
-     // ----------------------------------------------------------
-    app.get('/api/crypto/history/:symbol', async (req, res) => {
-        const symbol = req.params.symbol.toUpperCase();
-        const interval = req.query.interval || '1 ngày';
-
-        const intervalMap = {
-            '1 phút': '1m', '5 phút': '5m', '15 phút': '15m',
-            '30 phút': '30m', '1 giờ': '1h', '4 giờ': '4h',
-            '1 ngày': '1d', '1 tuần': '1w'
-        };
-        const limitMap = {
-            '1m': 500, '5m': 300, '15m': 200, '30m': 200,
-            '1h': 200, '4h': 200, '1d': 365, '1w': 200
-        };
-
-        const binanceInterval = intervalMap[interval] || '1d';
-        const limit = limitMap[binanceInterval] || 200;
-        const pair = `${symbol}USDT`;
-
-        try {
-            const kRes = await axios.get(
-                `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${binanceInterval}&limit=${limit}`,
-                { timeout: 8000 }
-            );
-            const candles = kRes.data.map(k => ({
-                time: new Date(k[0]).toISOString().replace('T', ' ').substring(0, ['1d','1w'].includes(binanceInterval) ? 10 : 16),
-                open: parseFloat(k[1]),
-                high: parseFloat(k[2]),
-                low: parseFloat(k[3]),
-                close: parseFloat(k[4]),
-                volume: parseFloat(k[5])
-            }));
-            return res.json({ success: true, data: candles });
-        } catch (error) {
-             try {
-                const bvMap = { '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
-                const bybitInt = bvMap[binanceInterval] || 'D';
-                const bRes = await axios.get(
-                    `https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=${bybitInt}&limit=${limit}`,
-                    { timeout: 8000 }
-                );
-                if (bRes.data?.result?.list) {
-                    const candles = bRes.data.result.list.reverse().map(k => ({
-                        time: new Date(parseInt(k[0])).toISOString().substring(0, 16).replace('T', ' '),
-                        open: parseFloat(k[1]), high: parseFloat(k[2]),
-                        low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5])
-                    }));
-                    return res.json({ success: true, data: candles });
-                }
-            } catch (e) { /*  */ }
-            return res.status(500).json({ success: false, data: [], message: error.message });
-        }
-    });
-
     console.log(chalk.bgMagenta.black.bold(' ✔ CRYPTO ROUTES ĐÃ ĐĂNG KÝ THÀNH CÔNG '));
 }
 
@@ -834,3 +776,54 @@ function translateFearGreed(label) {
     };
     return map[label] || label;
 }
+// ============================================================
+//EXPORT: Provide OHLCV data to history.controller.js// ============================================================
+export const fetchCryptoData = async (symbol, interval) => {
+    const intervalMap = {
+        '1 phút': '1m', '5 phút': '5m', '15 phút': '15m',
+        '30 phút': '30m', '1 giờ': '1h', '4 giờ': '4h',
+        '1 ngày': '1d', '1 tuần': '1w'
+    };
+    const limitMap = {
+        '1m': 500, '5m': 300, '15m': 200, '30m': 200,
+        '1h': 200, '4h': 200, '1d': 365, '1w': 200
+    };
+
+    const binanceInterval = intervalMap[interval] || '1d';
+    const limit = limitMap[binanceInterval] || 200;
+    const pair = `${symbol}USDT`;
+
+    try {
+//Try getting it from Binance first
+        const kRes = await axios.get(
+            `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${binanceInterval}&limit=${limit}`,
+            { timeout: 8000 }
+        );
+        return kRes.data.map(k => ({
+            time: new Date(k[0]).toISOString().replace('T', ' ').substring(0, ['1d','1w'].includes(binanceInterval) ? 10 : 16),
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5])
+        }));
+    } catch (error) {
+//Fallback to Bybit if Binance crashes
+         try {
+            const bvMap = { '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
+            const bybitInt = bvMap[binanceInterval] || 'D';
+            const bRes = await axios.get(
+                `https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=${bybitInt}&limit=${limit}`,
+                { timeout: 8000 }
+            );
+            if (bRes.data?.result?.list) {
+                return bRes.data.result.list.reverse().map(k => ({
+                    time: new Date(parseInt(k[0])).toISOString().substring(0, 16).replace('T', ' '),
+                    open: parseFloat(k[1]), high: parseFloat(k[2]),
+                    low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5])
+                }));
+            }
+        } catch (e) { }
+        throw new Error('Lỗi lấy dữ liệu từ cả Binance và Bybit');
+    }
+};
