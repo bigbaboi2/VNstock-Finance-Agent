@@ -14,8 +14,17 @@ import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
 
+// Số tin lưu tối đa trong DB per stock
+const MAX_NEWS_DB = 80;
+// Số tin scrape mỗi lần fetch
+const MAX_SCRAPE  = 12;
+
 export const getLiveNews = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
+    // mode: 'official' | 'balanced' | 'negative' | 'rumor' — default balanced
+    const mode = ['official', 'balanced', 'negative', 'rumor'].includes(req.query.mode)
+                 ? req.query.mode : 'balanced';
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
     res.setHeader('ngrok-skip-browser-warning', 'true');
@@ -34,41 +43,66 @@ export const getLiveNews = async (req, res) => {
         let cachedNews = masterRecord.deepNewsData || [];
         let newDeepNewsData = [];
 
-        for (const news of cachedNews.slice(0, )) {
+        // Stream toàn bộ tin cache về client ngay
+        for (const news of cachedNews) {
             if (isClientDisconnected) break;
             res.write(`data: ${JSON.stringify(news)}\n\n`);
         }
 
-        const fetchedLinks = await searchVnNewsDirectly(ticker);
-        const seenLinks = new Set(cachedNews.map(n => n.link)); 
-        const uniqueNewLinks = fetchedLinks.filter(item => !seenLinks.has(item.link));
+        // Fetch bài mới theo mode 
+        const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
+        const seenLinks    = new Set(cachedNews.map(n => n.link));
+        const uniqueNew    = fetchedLinks.filter(item => !seenLinks.has(item.link));
 
-        if (uniqueNewLinks.length > 0 && !isClientDisconnected) {
-            for (const news of uniqueNewLinks.slice(0, 15)) {
+        if (uniqueNew.length > 0 && !isClientDisconnected) {
+            const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
+            for (let i = 0; i < toScrape.length; i += 3) {
                 if (isClientDisconnected) break;
-                try {
-                    const content = await scrapeArticleContent(news.link);
-                    const validNews = {
-                        title: news.title,
-                        link: news.link,
-                        source: news.link,
-                        content: (content && content.length > 50) ? content : news.title,
-                        date: new Date().toLocaleDateString('vi-VN')
-                    };
-                    newDeepNewsData.push(validNews);
-                    res.write(`data: ${JSON.stringify(validNews)}\n\n`);
-                } catch (e) {
-                    const fallback = { title: news.title, link: news.link, source: news.link, content: news.title, date: new Date().toLocaleDateString('vi-VN') };
-                    newDeepNewsData.push(fallback);
-                    res.write(`data: ${JSON.stringify(fallback)}\n\n`);
+                const batch   = toScrape.slice(i, i + 3);
+                const scraped = await Promise.all(batch.map(async (news) => {
+                    try {
+                        const content = await Promise.race([
+                            scrapeArticleContent(news.link),
+                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000))
+                        ]);
+                        return {
+                            title:     news.title,
+                            link:      news.link,
+                            source:    news.source || news.link,
+                            sentiment: news.sentiment || 'neutral',
+                            content:   (content && content.length > 80) ? content : news.title,
+                            date:      new Date().toLocaleDateString('vi-VN'),
+                            mode,
+                        };
+                    } catch {
+                        return {
+                            title: news.title, link: news.link,
+                            source: news.source || news.link,
+                            sentiment: news.sentiment || 'neutral',
+                            content: news.title,
+                            date: new Date().toLocaleDateString('vi-VN'),
+                            mode,
+                        };
+                    }
+                }));
+                for (const item of scraped) {
+                    if (isClientDisconnected) break;
+                    newDeepNewsData.push(item);
+                    res.write(`data: ${JSON.stringify(item)}\n\n`);
                 }
             }
         }
 
+        // Lưu DB — giữ tối đa MAX_NEWS_DB, dedup theo link
         if (newDeepNewsData.length > 0) {
             masterRecord = await Stock.findOne({ symbol: ticker });
-            let combinedNews = [...newDeepNewsData, ...(masterRecord.deepNewsData || [])];
-            masterRecord.deepNewsData = combinedNews.slice(0, 50); 
+            const combined = [...newDeepNewsData, ...(masterRecord.deepNewsData || [])];
+            const seen = new Set();
+            masterRecord.deepNewsData = combined.filter(n => {
+                if (seen.has(n.link)) return false;
+                seen.add(n.link);
+                return true;
+            }).slice(0, MAX_NEWS_DB);
             await masterRecord.save();
         }
 
@@ -232,22 +266,24 @@ export const stockChat = async (req, res) => {
 
 export const getAiNews = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
+    const mode   = ['official', 'balanced', 'negative', 'rumor'].includes(req.query.mode)
+                   ? req.query.mode : 'balanced';
     try {
         let masterRecord = await Stock.findOne({ symbol: ticker });
         if (!masterRecord) masterRecord = new Stock({ symbol: ticker, deepNewsData: [] });
-        
-        const cachedNews = masterRecord.deepNewsData || [];
-        const recentTitles = cachedNews.slice(0, 5).map(n => n.title);
-        const aiNews = await searchNewsWithAI(ticker, recentTitles);
 
-        const seenLinks = new Set(cachedNews.map(n => n.link));
+        const cachedNews    = masterRecord.deepNewsData || [];
+        const recentTitles  = cachedNews.slice(0, 5).map(n => n.title);
+        const aiNews        = await searchNewsWithAI(ticker, recentTitles, mode);
+
+        const seenLinks     = new Set(cachedNews.map(n => n.link));
         const validNewAiNews = [];
-        let dbChanged = false; 
+        let dbChanged = false;
 
         for (const news of aiNews) {
             if (news.link) {
                 if (!seenLinks.has(news.link)) {
-                    validNewAiNews.push({ ...news, isAiGenerated: true });
+                    validNewAiNews.push({ ...news, isAiGenerated: true, mode });
                     seenLinks.add(news.link);
                     dbChanged = true;
                 } else {
@@ -261,7 +297,13 @@ export const getAiNews = async (req, res) => {
         }
 
         if (dbChanged) {
-            masterRecord.deepNewsData = [...validNewAiNews, ...cachedNews].slice(0, 50); 
+            const combined = [...validNewAiNews, ...cachedNews];
+            const seen = new Set();
+            masterRecord.deepNewsData = combined.filter(n => {
+                if (seen.has(n.link)) return false;
+                seen.add(n.link);
+                return true;
+            }).slice(0, MAX_NEWS_DB);
             await masterRecord.save();
         }
         return res.status(200).json({ success: true, data: aiNews });
