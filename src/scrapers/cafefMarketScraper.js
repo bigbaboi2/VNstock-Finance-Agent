@@ -19,7 +19,7 @@ const CORE_STOCKS = [
 export const scrapeCafefMarketOverview = async () => {
     try {
         const to = Math.floor(Date.now() / 1000);
-        const from = to - (4 * 24 * 60 * 60); 
+        const from = to - (10 * 24 * 60 * 60);
         
         let marketBreadth = { up: 0, down: 0, unchanged: 0 };
         let activeVolumeStocks = [];
@@ -41,12 +41,18 @@ export const scrapeCafefMarketOverview = async () => {
                     const d = res.data;
                     const len = d.c.length;
                     const currentPrice = Number(d.c[len - 1]);
-                    const prevPrice = len > 1 ? Number(d.c[len - 2]) : currentPrice;
-                    const volume = Number(d.v[len - 1]) || 0;
-                    const changePct = prevPrice ? ((currentPrice - prevPrice) / prevPrice) * 100 : 0;
 
-                    if (changePct > 0) marketBreadth.up += 1;
-                    else if (changePct < 0) marketBreadth.down += 1;
+                    const prevClose = len > 1 ? Number(d.c[len - 2]) : 0;
+                    const openToday = Number(d.o?.[len - 1]) || 0;
+                    const refPrice = prevClose > 0 ? prevClose : openToday;
+
+                    const volume = Number(d.v[len - 1]) || 0;
+                    const changePct = refPrice > 0 ? ((currentPrice - refPrice) / refPrice) * 100 : 0;
+
+                    console.log(chalk.gray(`  [SCRAPER] ${res.symbol}: close=${currentPrice}, prevClose=${prevClose}, open=${openToday}, changePct=${changePct.toFixed(2)}%, len=${len}`));
+
+                    if (changePct > 0.05) marketBreadth.up += 1;
+                    else if (changePct < -0.05) marketBreadth.down += 1;
                     else marketBreadth.unchanged += 1;
 
                     activeVolumeStocks.push({

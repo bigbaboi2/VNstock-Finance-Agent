@@ -27,21 +27,33 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         const indexChangePct = ((latestIndex.close - prevIndex.close) / prevIndex.close) * 100;
 
         // ------------------------------------------
-        // 1. TÍNH TOÁN ĐỘ RỘNG THỊ TRƯỜNG (MARKET BREADTH)
+        // 1. TÍNH TOÁN ĐỘ RỘNG THỊ TRƯỜNG  
         // ------------------------------------------
         const totalAdvDec = marketBreadth.up + marketBreadth.down;
         const breadthRatio = totalAdvDec > 0 ? (marketBreadth.up / totalAdvDec) * 100 : 50;
 
         // ------------------------------------------
-        // 2. TÍNH TOÁN ĐIỂM SỨC MẠNH NGÀNH (SECTOR POWER SCORE - SPS)
+        // 2. TÍNH TOÁN ĐIỂM SỨC MẠNH NGÀNH  
         // ------------------------------------------
         let sectorRawData = {};
         let totalActiveVolume = 0;
 
-        // Bóc tách top thanh khoản vào từng ngành
-        activeVolumeStocks.forEach(stock => {
+        // ── DEBUG LOG ──
+        console.log(chalk.cyan(`[QUANT] activeVolumeStocks nhận được: ${activeVolumeStocks.length} mã`));
+        console.log(chalk.cyan(`[QUANT] foreignFlow: topBuy=${foreignFlow.topBuy?.length || 0}, topSell=${foreignFlow.topSell?.length || 0}`));
+        if (activeVolumeStocks.length > 0) {
+            console.log(chalk.cyan(`[QUANT] Mẫu stock[0]: ${JSON.stringify(activeVolumeStocks[0])}`));
+        }
+
+         activeVolumeStocks.forEach(stock => {
+ 
             const dbMatch = symbolsDatabase.find(s => s.symbol === stock.symbol);
-            const sector = stock.sector || dbMatch?.sector || 'KHÁC';
+            const sector = stock.sector || dbMatch?.sector;
+
+            if (!sector) {
+                console.log(chalk.yellow(`[QUANT] Bỏ qua ${stock.symbol} - không có sector`));
+                return;  
+            }
 
             if (!sectorRawData[sector]) {
                 sectorRawData[sector] = { totalVolume: 0, sumChangePct: 0, count: 0, netForeignVal: 0, stocks:[] };
@@ -52,12 +64,13 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
 
             sectorRawData[sector].stocks.push({ symbol: stock.symbol, changePct: stock.changePct });
             totalActiveVolume += stock.volume;
-
-
         });
 
-        // Bơm dữ liệu Khối ngoại vào cấu trúc ngành
-        const processForeignFlow = (flowList, isBuy) => {
+        // ── DEBUG LOG sau khi phân ngành ──
+        console.log(chalk.cyan(`[QUANT] Các ngành đã phân loại: ${Object.keys(sectorRawData).join(', ') || 'KHÔNG CÓ NGÀNH NÀO'}`));
+        console.log(chalk.cyan(`[QUANT] totalActiveVolume: ${totalActiveVolume}`));
+
+         const processForeignFlow = (flowList, isBuy) => {
             flowList.forEach(item => {
                 const dbMatch = symbolsDatabase.find(s => s.symbol === item.symbol);
                 const sector = dbMatch?.sector || 'KHÁC';
@@ -76,13 +89,17 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
 
             const avgChange = data.sumChangePct / data.count; 
             const volShare = (data.totalVolume / totalActiveVolume) * 100; 
-            
-            let foreignScore = 0;
-            if (data.netForeignVal > 100000000000) foreignScore = 10; 
-            else if (data.netForeignVal < -100000000000) foreignScore = -10; 
-            else foreignScore = (data.netForeignVal / 100000000000) * 10;
 
-            const sps = (avgChange * 10 * 0.4) + (volShare * 0.4) + (foreignScore * 0.2);
+ 
+            const volAmplifier = Math.max(0.5, Math.min(2.0, volShare / 10));
+
+            let foreignScore = 0;
+            if (data.netForeignVal > 100000000000) foreignScore = 3; 
+            else if (data.netForeignVal < -100000000000) foreignScore = -3; 
+            else foreignScore = (data.netForeignVal / 100000000000) * 3;
+
+ 
+            const sps = (avgChange * volAmplifier) + foreignScore;
 
             const sortedStocks = data.stocks.sort((a, b) => b.changePct - a.changePct);
             const topGainers = sortedStocks.slice(0, 2).map(s => s.symbol);
@@ -98,17 +115,39 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                 topLosers: topLosers   
             });
         }
+         console.log(chalk.cyan(`[QUANT] sectorScores (${sectorScores.length} ngành):`));
+        sectorScores.forEach(s => console.log(chalk.cyan(`  ${s.name}: sps=${s.sps.toFixed(3)}, avgChange=${s.avgChange.toFixed(3)}%, volShare=${s.volShare.toFixed(1)}%`)));
+
         // Sắp xếp ngành từ mạnh nhất đến yếu nhất
         sectorScores.sort((a, b) => b.sps - a.sps);
-        const strongSectors = sectorScores.filter(s => s.sps > 2).slice(0, 3).map(s => ({
+
+     
+        let strongSectors = sectorScores.filter(s => s.sps > 0.3).slice(0, 3).map(s => ({
             name: s.name,
             tickers: s.topGainers
         }));
-        
-        const weakSectors = sectorScores.filter(s => s.sps < -2).slice(-3).map(s => ({
+        if (strongSectors.length === 0 && sectorScores.length > 0) {
+            strongSectors = sectorScores.slice(0, 2).filter(s => s.avgChange > 0).map(s => ({
+                name: s.name,
+                tickers: s.topGainers
+            }));
+        }
+
+  
+        let weakSectors = sectorScores.filter(s => s.sps < -0.3).slice(0, 3).map(s => ({
             name: s.name,
             tickers: s.topLosers
         }));
+        if (weakSectors.length === 0 && sectorScores.length > 0) {
+            weakSectors = [...sectorScores].reverse().slice(0, 2).filter(s => s.avgChange < 0).map(s => ({
+                name: s.name,
+                tickers: s.topLosers
+            }));
+        }
+
+        // ── DEBUG LOG kết quả filter ──
+        console.log(chalk.green(`[QUANT] strongSectors (${strongSectors.length}): ${strongSectors.map(s=>s.name).join(', ') || 'TRỐNG'}`));
+        console.log(chalk.red(`[QUANT] weakSectors (${weakSectors.length}): ${weakSectors.map(s=>s.name).join(', ') || 'TRỐNG'}`));
 
         // ------------------------------------------
         // 3. ĐỊNH DẠNG KỊCH BẢN THỊ TRƯỜNG CHUNG (MARKET VERDICT)
