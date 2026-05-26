@@ -1,13 +1,15 @@
 import mongoose from 'mongoose';
 
 const NewsSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    link: { type: String, required: true },
-    source: { type: String },
-    content: { type: String },
-    date: { type: String },
+    title:         { type: String, required: true },
+    link:          { type: String, required: true },
+    source:        { type: String },
+    content:       { type: String },
+    date:          { type: String },
+    sentiment:     { type: String, enum: ['positive', 'negative', 'neutral'], default: 'neutral' },
+    mode:          { type: String, enum: ['official', 'balanced', 'negative', 'rumor'], default: 'balanced' },
     isAiGenerated: { type: Boolean, default: false }
-}, { _id: false }); 
+}, { _id: false });
 
 const ReportSchema = new mongoose.Schema({
     user: { type: String, required: true },

@@ -32,10 +32,32 @@ const fetchGlobalMarket = async () => {
     } catch (e) { console.log(chalk.yellow(`[CRYPTO] Global market lỗi: ${e.message}`)); }
 };
 
-export const startCryptoUpdater = () => {
-    fetchFearGreed();
-    fetchGlobalMarket();
-    setInterval(fetchFearGreed, TTL_FEAR_GREED);
-    setInterval(fetchGlobalMarket, TTL_GLOBAL_MARKET);
-    console.log('[HỆ THỐNG] Giám sát Market Crypto đã khởi động...');
+// ─── Lazy Updater ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+let _started = false;
+let _fearGreedTimer  = null;
+let _globalMktTimer  = null;
+
+export const ensureCryptoUpdaterRunning = async () => {
+    if (_started) return; 
+    _started = true;
+
+    console.log(chalk.bgCyan.black(' [CRYPTO] Lazy updater khởi động lần đầu — có người dùng tab Crypto '));
+
+    await Promise.all([fetchFearGreed(), fetchGlobalMarket()]);
+
+    _fearGreedTimer = setInterval(fetchFearGreed, TTL_FEAR_GREED);
+    _globalMktTimer = setInterval(fetchGlobalMarket, TTL_GLOBAL_MARKET);
 };
+
+export const stopCryptoUpdater = () => {
+    if (!_started) return;
+    clearInterval(_fearGreedTimer);
+    clearInterval(_globalMktTimer);
+    _fearGreedTimer = null;
+    _globalMktTimer = null;
+    _started = false;
+    console.log(chalk.gray('[CRYPTO] Lazy updater đã dừng.'));
+};
+
+export const startCryptoUpdater = ensureCryptoUpdaterRunning;
