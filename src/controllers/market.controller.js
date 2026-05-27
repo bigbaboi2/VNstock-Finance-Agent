@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import axios from 'axios';
 import Stock from '../../models/Stock.js';
 import CryptoCoin from '../../models/CryptoCoin.js';
@@ -8,6 +9,9 @@ import { updateSymbolsDatabase } from '../services/symbolUpdater.js';
 import { updateCryptoSymbols } from '../services/cryptoSymbolUpdater.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
+
+// ─── Lock: chống block event loop khi quant đang chạy ───────────────────────
+let _isQuantRunning = false;
 
 //1. Get the list of stock codes
 export const getSymbols = async (req, res) => {
@@ -128,34 +132,62 @@ export const getMarketRadar = async (req, res) => {
             }
         }
 
-        const scrapedData = await scrapeCafefMarketOverview();
-        if (!scrapedData.success) throw new Error("Không thể trích xuất dữ liệu từ CafeF");
+        if (_isQuantRunning) {
+            console.log(chalk.yellow('[QUANT] Tiến trình đang chạy, trả cache cho request này...'));
+            const cached = await Stock.findOne({ symbol: 'VNINDEX' });
+            if (cached?.cafeF?.lastQuantIntelligence) {
+                return res.json({ success: true, isLive: false, _fromLock: true, data: cached.cafeF.lastQuantIntelligence });
+            }
+            return res.json({ success: true, isLive: false, _fromLock: true, data: null });
+        }
 
-        const to = Math.floor(Date.now() / 1000);
-        const from = to - (15 * 24 * 60 * 60);
-        const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
-        if (!vnRes.data || !vnRes.data.t) throw new Error("Mất kết nối dữ liệu VN-INDEX");
+        _isQuantRunning = true;
+        try {
+            const scrapedData = await scrapeCafefMarketOverview();
+            if (!scrapedData.success) throw new Error("Không thể trích xuất dữ liệu từ CafeF");
 
-        const d = vnRes.data;
-        const formattedVnIndex = d.t.map((timestamp, index) => ({
-            close: Number(d.c[index]),
-            volume: Number(d.v[index]) || 0 
-        }));
+            const to = Math.floor(Date.now() / 1000);
+            const from = to - (15 * 24 * 60 * 60);
+            const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
+            if (!vnRes.data || !vnRes.data.t) throw new Error("Mất kết nối dữ liệu VN-INDEX");
 
-        const symbolsDatabase = await Stock.find({});
-        const finalIntelligence = analyzeMarketIntelligence(formattedVnIndex, scrapedData, symbolsDatabase);
-        if (!finalIntelligence.success) throw new Error(finalIntelligence.error);
+            const d = vnRes.data;
+            const formattedVnIndex = d.t.map((timestamp, index) => ({
+                close: Number(d.c[index]),
+                volume: Number(d.v[index]) || 0 
+            }));
 
-        let vnIndexRecord = await Stock.findOne({ symbol: 'VNINDEX' });
-        if (!vnIndexRecord) vnIndexRecord = new Stock({ symbol: 'VNINDEX' });
-        
-        if (!vnIndexRecord.cafeF) vnIndexRecord.cafeF = {};
-        vnIndexRecord.cafeF.lastQuantIntelligence = finalIntelligence.intelligence;
-        vnIndexRecord.markModified('cafeF'); 
-        await vnIndexRecord.save();
+            const symbolsDatabase = await Stock.find({});
+            const finalIntelligence = analyzeMarketIntelligence(formattedVnIndex, scrapedData, symbolsDatabase);
+            if (!finalIntelligence.success) throw new Error(finalIntelligence.error);
 
-        return res.json({ success: true, isLive: true, data: finalIntelligence.intelligence });
+            const intel = finalIntelligence.intelligence;
+
+            let vnIndexRecord = await Stock.findOne({ symbol: 'VNINDEX' });
+            if (!vnIndexRecord) vnIndexRecord = new Stock({ symbol: 'VNINDEX' });
+            
+            if (!vnIndexRecord.cafeF) vnIndexRecord.cafeF = {};
+            vnIndexRecord.cafeF.lastQuantIntelligence = intel;
+            vnIndexRecord.markModified('cafeF'); 
+            await vnIndexRecord.save();
+
+            // Summarize logs and send them to the frontend terminal
+            const quantLogs = [
+                `[QUANT] ${intel.marketStatus} | ${intel.indexChangePct > 0 ? '+' : ''}${intel.indexChangePct}% | Breadth: ${intel.breadthRatio}%`,
+                intel.strongSectors?.length ? `[QUANT] 📈 Mạnh: ${intel.strongSectors.map(s => s.name).join(', ')}` : null,
+                intel.weakSectors?.length   ? `[QUANT] 📉 Yếu: ${intel.weakSectors.map(s => s.name).join(', ')}`   : null,
+                intel.topGainers?.length    ? `[QUANT] Top tăng: ${intel.topGainers.map(s => `${s.symbol}(+${s.changePct}%)`).join(' ')}` : null,
+            ].filter(Boolean);
+
+            console.log(chalk.gray('─'.repeat(60)));
+            return res.json({ success: true, isLive: true, logs: quantLogs, data: intel });
+
+        } finally {
+            _isQuantRunning = false;
+        }
+
     } catch (error) {
+        _isQuantRunning = false;
         const fallback = await Stock.findOne({ symbol: 'VNINDEX' });
         if (fallback && fallback.cafeF?.lastQuantIntelligence) {
             return res.json({ success: true, isLive: false, data: fallback.cafeF.lastQuantIntelligence });
@@ -164,7 +196,6 @@ export const getMarketRadar = async (req, res) => {
     }
 };
 
-//4. Heat map of industry groups (Heatmap)
 export const getMarketHeatmap = async (req, res) => {
     const SECTORS = [
         { name: 'NGÂN HÀNG', stocks: ['VCB','TCB','MBB','CTG','BID','STB','VPB','LPB','HDB','ACB','EIB','MSB','TPB','OCB','SHB','NAB','ABB','PGB'] },

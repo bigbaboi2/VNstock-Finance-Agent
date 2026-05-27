@@ -52,7 +52,7 @@ export const fetchCafefData = async (symbol) => {
             listingDate  = rawData.info.NgayGDDauTien || null;
             if (rawData.info.VDL)    capital      = (rawData.info.VDL / 1_000_000_000).toFixed(0) + ' tỷ';
             if (rawData.info.KLCPNY) sharesListed = Number(rawData.info.KLCPNY).toLocaleString('vi-VN');
-            logs.push(`✅ CafeF: Đã lấy thông tin cơ bản (${exchange}).`);
+            logs.push(`[✅] CafeF: Đã lấy thông tin cơ bản (${exchange}).`);
         }
 
         // === PARSE GetCompanyHistory ===
@@ -114,7 +114,7 @@ export const fetchCafefData = async (symbol) => {
 
             if (parts.length > 0) description = parts.join('\n\n');
 
-            logs.push(`✅ CafeF: Lấy được profile công ty (địa chỉ, mô tả, lịch sử).`);
+            logs.push(`[✅] CafeF: Lấy được profile công ty (địa chỉ, mô tả, lịch sử).`);
         }
 
         // === PARSE CAFEF FINANCE (vốn hóa, P/E) ===
@@ -124,12 +124,12 @@ export const fetchCafefData = async (symbol) => {
             if (capItem?.Value) mktCap = capItem.Value + ' Tỷ';
             const peItem = rawData.finance.find(item => item.Code === 'P/E');
             if (peItem?.Value) pe = peItem.Value;
-            logs.push(`✅ CafeF: Đã lấy Vốn hóa (${mktCap}) & P/E (${pe}).`);
+            logs.push(`[✅] CafeF: Đã lấy Vốn hóa (${mktCap}) & P/E (${pe}).`);
         }
 
         if (ownerRes?.data) {
             rawData.ownership = ownerRes.data.Data || ownerRes.data;
-            logs.push(`✅ CafeF: Đã lấy fulldata Cơ cấu sở hữu.`);
+            logs.push(`[✅] CafeF: Đã lấy fulldata Cơ cấu sở hữu.`);
         }
 
         // === BUILD OVERVIEW STRING ===
