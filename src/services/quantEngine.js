@@ -1,8 +1,19 @@
 import chalk from 'chalk';
 
 //==========================================
-//CORE QUANTITATIVE ENGINE v2.0
+//CORE QUANTITATIVE ENGINE v3.0
 //==========================================
+
+//─── Dynamic SPS threshold based on daily fluctuations ─────────────────────────────────
+const calcSpsThreshold = (indexChangePct) => {
+    const abs = Math.abs(indexChangePct);
+    if (abs > 1.5) return 0.6;
+    if (abs > 1.0) return 0.5;
+    if (abs > 0.5) return 0.35;
+    if (abs > 0.2) return 0.25;
+    return 0.15;
+};
+
 export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatabase) => {
     try {
         if (!vnIndexData || vnIndexData.length < 2) {
@@ -10,234 +21,226 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                 success: true,
                 intelligence: {
                     indexChangePct: "0.00",
-                    breadthRatio: "50.0",
-                    marketStatus: "ĐANG QUÉT RADAR...",
-                    statusType: "neutral",
+                    breadthRatio:   "50.0",
+                    marketStatus:   "ĐANG QUÉT RADAR...",
+                    statusType:     "neutral",
                     diagnosticDesc: "Hệ thống đang thu thập dữ liệu giá từ máy chủ...",
-                    strongSectors: [],
-                    weakSectors: [],
-                    sectorDetails: []
+                    strongSectors: [], weakSectors: [], sectorDetails: [],
                 }
             };
         }
 
         const { marketBreadth, foreignFlow, activeVolumeStocks } = scrapedData;
-        const latestIndex = vnIndexData[vnIndexData.length - 1];
-        const prevIndex = vnIndexData[vnIndexData.length - 2];
+
+        const latestIndex  = vnIndexData[vnIndexData.length - 1];
+        const prevIndex    = vnIndexData[vnIndexData.length - 2];
         const indexChangePct = ((latestIndex.close - prevIndex.close) / prevIndex.close) * 100;
+        const spsThreshold   = calcSpsThreshold(indexChangePct);
 
         //----------------------------------------
-        //1. MARKET WIDTH
+        //1. MARKET BREADTH
         //----------------------------------------
-        const totalAdvDec = marketBreadth.up + marketBreadth.down;
+        const totalAdvDec  = marketBreadth.up + marketBreadth.down;
         const breadthRatio = totalAdvDec > 0 ? (marketBreadth.up / totalAdvDec) * 100 : 50;
+        const breadthSource = marketBreadth._isReal ? `thực (${marketBreadth._source || 'api'})` : `ước tính (${marketBreadth._source || 'core'})`;
+        console.log(chalk.cyan(`[QUANT] BreadthRatio=${breadthRatio.toFixed(1)}% (${breadthSource}, ↑${marketBreadth.up} ↓${marketBreadth.down})`));
 
-        const breadthSource = marketBreadth._isReal ? 'thực' : (marketBreadth._isFallback ? 'ước tính' : 'raw');
-        console.log(chalk.cyan(`[QUANT] BreadthRatio=${breadthRatio.toFixed(1)}% (nguồn: ${breadthSource}, ↑${marketBreadth.up} ↓${marketBreadth.down})`));
-
-        //----------------------------------------
-        //2. SEGMENTATION + SPS CALCULATION v2
-        //----------------------------------------
-        let sectorRawData = {};
-        let totalActiveVolume = 0;
-        let totalMarketCapProxy = 0;
-
-        console.log(chalk.cyan(`[QUANT] activeVolumeStocks: ${activeVolumeStocks.length} mã`));
-        console.log(chalk.cyan(`[QUANT] foreignFlow: topBuy=${foreignFlow.topBuy?.length || 0}, topSell=${foreignFlow.topSell?.length || 0}`));
-        if (activeVolumeStocks.length > 0) {
-            console.log(chalk.cyan(`[QUANT] Mẫu stock[0]: ${JSON.stringify(activeVolumeStocks[0])}`));
+        //------------------------------------------
+        //2. FALLBACK: no activeVolumeStocks
+        //------------------------------------------
+        if (!activeVolumeStocks || activeVolumeStocks.length === 0) {
+            console.log(chalk.yellow('[QUANT] activeVolumeStocks rỗng — dùng breadth-only mode'));
+            const { marketStatus, statusType, diagnosticDesc } = buildScenario(
+                indexChangePct, breadthRatio, [], [], foreignFlow?.netValue || 0
+            );
+            return {
+                success: true,
+                _dataQuality: 'breadth_only', //flag to let the frontend know the data is incomplete
+                intelligence: {
+                    indexChangePct: indexChangePct.toFixed(2),
+                    breadthRatio:   breadthRatio.toFixed(1),
+                    breadthSource,
+                    foreignNetValue: foreignFlow?.netValue || 0,
+                    marketStatus,
+                    statusType,
+                    diagnosticDesc: diagnosticDesc + ' (⚠ Dữ liệu ngành chưa đầy đủ)',
+                    strongSectors: [], weakSectors: [], sectorDetails: [],
+                }
+            };
         }
 
-        activeVolumeStocks.forEach(stock => {
-            const dbMatch = symbolsDatabase.find(s => s.symbol === stock.symbol);
-            const sector = stock.sector || dbMatch?.sector;
+        //------------------------------------------
+        //3. SEGMENTATION — assign sectors to all codes
+        //------------------------------------------
+        const symbolsDbMap = Object.fromEntries(
+            (symbolsDatabase || []).map(s => [s.symbol, s.sector]).filter(([, v]) => v)
+        );
 
-            if (!sector) {
-                console.log(chalk.yellow(`[QUANT] Bỏ qua ${stock.symbol} - không có sector`));
-                return;
-            }
+        let sectorRawData  = {};
+        let totalActiveVol = 0;
+        let totalMarketCap = 0;
+
+        activeVolumeStocks.forEach(stock => {
+            //Prioritize sectors from stock data (enriched in scraper) > DB > ignore
+            const sector = stock.sector || symbolsDbMap[stock.symbol];
+            if (!sector) return;
 
             if (!sectorRawData[sector]) {
                 sectorRawData[sector] = {
-                    totalVolume: 0,
-                    sumChangePct: 0,
-                    sumMomentum3d: 0,  
-                    count: 0,
-                    netForeignVal: 0,
-                    totalMarketCap: 0, 
-                    weightedUp: 0,     
-                    weightedDown: 0,  
+                    totalVolume: 0, sumChangePct: 0,
+                    sumMomentum3d: 0, fullMomentumCount: 0,
+                    count: 0, netForeignVal: 0,
+                    totalMarketCap: 0, weightedUp: 0, weightedDown: 0,
                     stocks: []
                 };
             }
 
             const cap = stock.marketCapProxy || 1;
-            sectorRawData[sector].totalVolume += stock.volume;
-            sectorRawData[sector].sumChangePct += stock.changePct;
-            sectorRawData[sector].sumMomentum3d += (stock.momentum3d ?? stock.changePct); 
-            sectorRawData[sector].count += 1;
-            sectorRawData[sector].totalMarketCap += cap;
+            sectorRawData[sector].totalVolume     += stock.volume;
+            sectorRawData[sector].sumChangePct    += stock.changePct;
+            sectorRawData[sector].count           += 1;
+            sectorRawData[sector].totalMarketCap  += cap;
 
-            //=== FIX 5: Weighted breadth theo marketCapProxy ===
-            if (stock.changePct > 0.05) sectorRawData[sector].weightedUp += cap;
+            //FIX momentum3d: only accumulates when data is enough (>=4 candles), avoiding interference
+            if (stock._hasFullMomentum !== false) {
+                sectorRawData[sector].sumMomentum3d    += stock.momentum3d;
+                sectorRawData[sector].fullMomentumCount += 1;
+            }
+
+            if      (stock.changePct >  0.05) sectorRawData[sector].weightedUp   += cap;
             else if (stock.changePct < -0.05) sectorRawData[sector].weightedDown += cap;
 
             sectorRawData[sector].stocks.push({ symbol: stock.symbol, changePct: stock.changePct });
-            totalActiveVolume += stock.volume;
-            totalMarketCapProxy += cap;
+            totalActiveVol += stock.volume;
+            totalMarketCap += cap;
         });
 
-        console.log(chalk.white(`[QUANT] Ngành đã phân loại: ${Object.keys(sectorRawData).join(', ') || 'KHÔNG CÓ'}`));
-
-        //Integrate foreignFlow into each industry
+        //------------------------------------------
+        //4. FOREIGN FLOW → sector
+        //------------------------------------------
+        //FIX: use enriched sectors from scraper (including code outside CORE_STOCKS)
         const processForeignFlow = (flowList, isBuy) => {
             (flowList || []).forEach(item => {
-                const dbMatch = symbolsDatabase.find(s => s.symbol === item.symbol);
-                const sector = dbMatch?.sector || 'KHÁC';
-                if (sectorRawData[sector]) {
-                    sectorRawData[sector].netForeignVal += isBuy ? item.value : -Math.abs(item.value);
-                }
+                const sector = item.sector || symbolsDbMap[item.symbol];
+                if (!sector || !sectorRawData[sector]) return;
+                sectorRawData[sector].netForeignVal += isBuy
+                    ? item.value
+                    : -Math.abs(item.value);
             });
         };
-        processForeignFlow(foreignFlow.topBuy, true);
+        processForeignFlow(foreignFlow.topBuy,  true);
         processForeignFlow(foreignFlow.topSell, false);
 
-        //----------------------------------------
-        //3. SPS v2 SCORING
-        //----------------------------------------
+        console.log(chalk.white(`[QUANT] Ngành: ${Object.keys(sectorRawData).join(', ') || 'TRỐNG'}`));
+
+        //------------------------------------------
+        //5. SPS v3 SCORING — dynamic threshold
+        //------------------------------------------
         let sectorScores = [];
         for (const [sector, data] of Object.entries(sectorRawData)) {
             if (sector === 'KHÁC' || data.count === 0) continue;
 
             const avgChange = data.sumChangePct / data.count;
 
-            const avgMomentum3d = data.sumMomentum3d / data.count;
+            //FIX: avgMomentum3d only counts codewords with enough data; fallback to avgChange if not present
+            const avgMomentum3d = data.fullMomentumCount > 0
+                ? data.sumMomentum3d / data.fullMomentumCount
+                : avgChange;
 
-            const volShare = totalActiveVolume > 0
-                ? (data.totalVolume / totalActiveVolume) * 100
+            //Momentum reliability: 0→1 (what % of codes have 4 candles)
+            const momentumReliability = data.count > 0
+                ? data.fullMomentumCount / data.count
                 : 0;
 
+            const volShare     = totalActiveVol > 0 ? (data.totalVolume / totalActiveVol) * 100 : 0;
             const volAmplifier = Math.max(0.5, Math.min(2.0, volShare / 10));
 
+            //Foreign score: scale theo 100B VNĐ
             let foreignScore = 0;
-            if (data.netForeignVal > 100_000_000_000) foreignScore = 3;
+            if (data.netForeignVal >  100_000_000_000) foreignScore =  3;
             else if (data.netForeignVal < -100_000_000_000) foreignScore = -3;
             else foreignScore = (data.netForeignVal / 100_000_000_000) * 3;
 
-            const totalCap = data.totalMarketCap || 1;
-            const weightedBreadthRatio = data.weightedUp / totalCap;  
-            const weightedBreadthScore = (weightedBreadthRatio - 0.5) * 2; 
+            const totalCap          = data.totalMarketCap || 1;
+            const weightedBreadth   = (data.weightedUp - data.weightedDown) / totalCap;
+            const weightedBreadthSc = weightedBreadth * 2; //range [-2, 2]
 
-            const sps = (avgChange * 0.6 + avgMomentum3d * 0.4) * volAmplifier
-                        + foreignScore
-                        + weightedBreadthScore * 0.5;
+            //SPS v3: reduce weight momentum when data is not reliable enough
+            const momentumWeight = 0.4 * momentumReliability;
+            const changeWeight   = 0.6 + 0.4 * (1 - momentumReliability);
 
-            const sortedStocks = data.stocks.sort((a, b) => b.changePct - a.changePct);
-            const topGainers = sortedStocks.slice(0, 2).map(s => s.symbol);
-            const topLosers = sortedStocks.slice().reverse().slice(0, 2).map(s => s.symbol);
+            const sps = (avgChange * changeWeight + avgMomentum3d * momentumWeight) * volAmplifier
+                      + foreignScore
+                      + weightedBreadthSc * 0.5;
+
+            const sorted     = [...data.stocks].sort((a, b) => b.changePct - a.changePct);
+            const topGainers = sorted.slice(0, 2).map(s => s.symbol);
+            const topLosers  = sorted.slice(-2).map(s => s.symbol).reverse();
 
             sectorScores.push({
-                name: sector,
-                sps,
-                avgChange,
-                avgMomentum3d,      
-                volShare,
+                name: sector, sps, avgChange, avgMomentum3d,
+                momentumReliability, volShare,
                 foreignFlow: data.netForeignVal,
-                weightedBreadthRatio,
-                topGainers,
-                topLosers
+                weightedBreadth,
+                topGainers, topLosers,
             });
         }
 
-        console.log(chalk.cyan(`[QUANT] sectorScores (${sectorScores.length} ngành):`));
-        ;
-
         sectorScores.sort((a, b) => b.sps - a.sps);
+        console.log(chalk.cyan(`[QUANT] SPS threshold=${spsThreshold.toFixed(2)}, sectors=${sectorScores.length}`));
 
-        let strongSectors = sectorScores.filter(s => s.sps > 0.3).slice(0, 3).map(s => ({
-            name: s.name,
-            tickers: s.topGainers
-        }));
+        //------------------------------------------
+        //6. STRONG /WEAK sectors — dynamic threshold
+        //------------------------------------------
+        let strongSectors = sectorScores
+            .filter(s => s.sps > spsThreshold)
+            .slice(0, 3)
+            .map(s => ({ name: s.name, tickers: s.topGainers, sps: +s.sps.toFixed(2) }));
+
         if (strongSectors.length === 0 && sectorScores.length > 0) {
-            strongSectors = sectorScores.slice(0, 2).filter(s => s.avgChange > 0).map(s => ({
-                name: s.name,
-                tickers: s.topGainers
-            }));
+            strongSectors = sectorScores
+                .slice(0, 2)
+                .filter(s => s.avgChange > 0)
+                .map(s => ({ name: s.name, tickers: s.topGainers, sps: +s.sps.toFixed(2) }));
         }
 
-        let weakSectors = sectorScores.filter(s => s.sps < -0.3).slice(0, 3).map(s => ({
-            name: s.name,
-            tickers: s.topLosers
-        }));
+        let weakSectors = sectorScores
+            .filter(s => s.sps < -spsThreshold)
+            .slice(0, 3)
+            .map(s => ({ name: s.name, tickers: s.topLosers, sps: +s.sps.toFixed(2) }));
+
         if (weakSectors.length === 0 && sectorScores.length > 0) {
-            weakSectors = [...sectorScores].reverse().slice(0, 2).filter(s => s.avgChange < 0).map(s => ({
-                name: s.name,
-                tickers: s.topLosers
-            }));
+            weakSectors = [...sectorScores]
+                .reverse()
+                .slice(0, 2)
+                .filter(s => s.avgChange < 0)
+                .map(s => ({ name: s.name, tickers: s.topLosers, sps: +s.sps.toFixed(2) }));
         }
 
-        console.log(chalk.green(`[QUANT] strongSectors: ${strongSectors.map(s => s.name).join(', ') || 'TRỐNG'}`));
-        console.log(chalk.red(`[QUANT] weakSectors: ${weakSectors.map(s => s.name).join(', ') || 'TRỐNG'}`));
+        console.log(chalk.green(`[QUANT] Strong: ${strongSectors.map(s => s.name).join(', ') || 'TRỐNG'}`));
+        console.log(chalk.red(`[QUANT]   Weak: ${weakSectors.map(s => s.name).join(', ')   || 'TRỐNG'}`));
 
         //----------------------------------------
-        //4. MARKET SCENARIO FORMAT
+        //7. MARKET SCENARIO
         //----------------------------------------
-        let marketStatus = "ĐI NGANG TÍCH LŨY";
-        let statusType = "neutral";
-        let diagnosticDesc = "Dòng tiền phân hóa, không có xu hướng rõ ràng.";
-
-        if (indexChangePct > 0.5) {
-            if (breadthRatio > 65) {
-                marketStatus = "BÙNG NỔ ĐÀ TĂNG";
-                statusType = "bullish";
-                diagnosticDesc = "Giá tăng kèm dòng tiền lan tỏa diện rộng. Củng cố xu hướng tăng.";
-            } else if (breadthRatio < 40) {
-                marketStatus = "XANH VỎ ĐỎ LÒNG (RỦI RO)";
-                statusType = "warning";
-                diagnosticDesc = "Chỉ số bị bóp méo bởi trụ. Tiền rút khỏi Midcap/Penny. Cẩn trọng Bull Trap.";
-            } else {
-                marketStatus = "TĂNG TRƯỞNG PHÂN HÓA";
-                statusType = "bullish";
-                diagnosticDesc = "Dòng tiền tập trung cục bộ vào nhóm cổ phiếu dẫn dắt.";
-            }
-        } else if (indexChangePct < -0.5) {
-            if (breadthRatio < 35) {
-                marketStatus = "ÁP LỰC BÁN THÁO";
-                statusType = "bearish";
-                diagnosticDesc = "Bán tháo hoảng loạn trên diện rộng. Rủi ro gãy nền hỗ trợ.";
-            } else if (breadthRatio > 50) {
-                marketStatus = "ĐỎ VỎ XANH LÒNG";
-                statusType = "neutral";
-                diagnosticDesc = "Nhóm vốn hóa lớn đè chỉ số, nhưng tiền vẫn tìm cơ hội ở lớp cổ phiếu ngách.";
-            } else {
-                marketStatus = "ĐIỀU CHỈNH LÀNH MẠNH";
-                statusType = "warning";
-                diagnosticDesc = "Nhịp rũ bỏ thông thường. Chờ tín hiệu kiệt cung.";
-            }
-        } else {
-            if (breadthRatio > 60) {
-                marketStatus = "TÍCH LŨY TÍCH CỰC";
-                statusType = "bullish";
-            } else if (breadthRatio < 40) {
-                marketStatus = "PHÂN PHỐI ẨN";
-                statusType = "warning";
-                diagnosticDesc = "Chỉ số đi ngang nhưng áp lực chốt lời ngầm đang diễn ra.";
-            }
-        }
+        const { marketStatus, statusType, diagnosticDesc } = buildScenario(
+            indexChangePct, breadthRatio, strongSectors, weakSectors, foreignFlow?.netValue || 0
+        );
 
         return {
             success: true,
             intelligence: {
-                indexChangePct: indexChangePct.toFixed(2),
-                breadthRatio: breadthRatio.toFixed(1),
-                breadthSource,       
-                foreignNetValue: foreignFlow.netValue || 0,  
+                indexChangePct:  indexChangePct.toFixed(2),
+                breadthRatio:    breadthRatio.toFixed(1),
+                breadthSource,
+                foreignNetValue: foreignFlow.netValue || 0,
+                spsThreshold:    +spsThreshold.toFixed(2),
                 marketStatus,
                 statusType,
                 diagnosticDesc,
                 strongSectors,
                 weakSectors,
-                sectorDetails: sectorScores.slice(0, 5)
+                sectorDetails: sectorScores.slice(0, 6),
             }
         };
 
@@ -246,3 +249,58 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         return { success: false, error: error.message };
     }
 };
+
+//─── Scenario builder (breadth-only mode) ─────────────
+function buildScenario(indexChangePct, breadthRatio, strongSectors, weakSectors, foreignNetValue) {
+    let marketStatus = "ĐI NGANG TÍCH LŨY";
+    let statusType   = "neutral";
+    let diagnosticDesc = "Dòng tiền phân hóa, không có xu hướng rõ ràng.";
+
+    const foreignBias = foreignNetValue > 200_000_000_000 ? ' Khối ngoại mua ròng mạnh hỗ trợ.'
+                      : foreignNetValue < -200_000_000_000 ? ' Khối ngoại bán ròng gây áp lực.'
+                      : '';
+
+    if (indexChangePct > 0.5) {
+        if (breadthRatio > 65) {
+            marketStatus   = "BÙNG NỔ ĐÀ TĂNG";
+            statusType     = "bullish";
+            diagnosticDesc = `Giá tăng kèm dòng tiền lan tỏa diện rộng. Củng cố xu hướng tăng.${foreignBias}`;
+        } else if (breadthRatio < 40) {
+            marketStatus   = "XANH VỎ ĐỎ LÒNG (RỦI RO)";
+            statusType     = "warning";
+            diagnosticDesc = `Chỉ số bị bóp méo bởi trụ. Tiền rút khỏi Midcap/Penny. Cẩn trọng Bull Trap.${foreignBias}`;
+        } else {
+            marketStatus   = "TĂNG TRƯỞNG PHÂN HÓA";
+            statusType     = "bullish";
+            diagnosticDesc = `Dòng tiền tập trung cục bộ vào nhóm cổ phiếu dẫn dắt.${foreignBias}`;
+        }
+    } else if (indexChangePct < -0.5) {
+        if (breadthRatio < 35) {
+            marketStatus   = "ÁP LỰC BÁN THÁO";
+            statusType     = "bearish";
+            diagnosticDesc = `Bán tháo hoảng loạn trên diện rộng. Rủi ro gãy nền hỗ trợ.${foreignBias}`;
+        } else if (breadthRatio > 50) {
+            marketStatus   = "ĐỎ VỎ XANH LÒNG";
+            statusType     = "neutral";
+            diagnosticDesc = `Nhóm vốn hóa lớn đè chỉ số, nhưng tiền vẫn tìm cơ hội ở lớp cổ phiếu ngách.${foreignBias}`;
+        } else {
+            marketStatus   = "ĐIỀU CHỈNH LÀNH MẠNH";
+            statusType     = "warning";
+            diagnosticDesc = `Nhịp rũ bỏ thông thường. Chờ tín hiệu kiệt cung.${foreignBias}`;
+        }
+    } else {
+        if (breadthRatio > 60) {
+            marketStatus   = "TÍCH LŨY TÍCH CỰC";
+            statusType     = "bullish";
+            diagnosticDesc = `Đa số mã tăng nhẹ, dòng tiền tích lũy nền.${foreignBias}`;
+        } else if (breadthRatio < 40) {
+            marketStatus   = "PHÂN PHỐI ẨN";
+            statusType     = "warning";
+            diagnosticDesc = `Chỉ số đi ngang nhưng áp lực chốt lời ngầm đang diễn ra.${foreignBias}`;
+        } else {
+            diagnosticDesc += foreignBias;
+        }
+    }
+
+    return { marketStatus, statusType, diagnosticDesc };
+}
