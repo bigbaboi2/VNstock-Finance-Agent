@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+//─── Query builders theo mode ─────────────────────────────────────────────────
 const buildQueries = (ticker, mode) => {
     const t = encodeURIComponent(ticker);
 
@@ -28,15 +29,19 @@ const buildQueries = (ticker, mode) => {
         case 'balanced':
         default:
             return [
+                //General official news
                 `https://news.google.com/rss/search?q=${t}+site:cafef.vn+OR+site:vietstock.vn+OR+site:baodautu.vn&hl=vi&gl=VN&ceid=VN:vi`,
+                //Positive news /opportunity
                 `https://news.google.com/rss/search?q=${t}+tăng+trưởng+OR+phục+hồi+OR+mua+ròng+OR+lợi+nhuận+OR+kỷ+lục&hl=vi&gl=VN&ceid=VN:vi`,
+                //Risky /negative news
                 `https://news.google.com/rss/search?q=${t}+rủi+ro+OR+giảm+OR+áp+lực+OR+bán+ròng+OR+nợ&hl=vi&gl=VN&ceid=VN:vi`,
+                //Analytical news /broad comments
                 `https://news.google.com/rss/search?q=${t}+cổ+phiếu&hl=vi&gl=VN&ceid=VN:vi`,
             ];
     }
 };
 
-//─── Sentiment scoring — use points─────────────────────────
+//─── Sentiment scoring — use points instead of if/else ─────────────────────────
 const NEGATIVE_PHRASES = [
     //Selling pressure
     { p: 'bán tháo',         w: 3 },
@@ -71,28 +76,29 @@ const NEGATIVE_PHRASES = [
     { p: 'phá giá',          w: 2 },
     { p: 'tiêu cực',         w: 1 },
     { p: 'gây áp lực',       w: 1 },
+    //Negative number in title
 ];
 
 const POSITIVE_PHRASES = [
-//Positive cash flow
+    //Positive cash flow
     { p: 'mua ròng',         w: 2 },
     { p: 'ngoại mua ròng',   w: 2 },
     { p: 'bơm ròng',         w: 2 },
-//Good business results
+    //Good business results
     { p: 'lợi nhuận tăng',   w: 3 },
     { p: 'doanh thu tăng',   w: 2 },
     { p: 'tăng trưởng',      w: 2 },
     { p: 'kỷ lục',           w: 2 },
     { p: 'vượt đỉnh',        w: 2 },
     { p: 'đột phá',          w: 2 },
-//Market recovery
+    //Market recovery
     { p: 'phục hồi mạnh',    w: 2 },
     { p: 'hồi phục',         w: 1 },
     { p: 'khởi sắc',         w: 2 },
     { p: 'bứt phá',          w: 2 },
     { p: 'sắc xanh',         w: 1 },
     { p: 'tăng điểm',        w: 1 },
- //Support policy
+    //Support policy
     { p: 'nới lỏng',         w: 2 },
     { p: 'hỗ trợ',           w: 1 },
     { p: 'bình ổn',          w: 1 },
@@ -101,9 +107,10 @@ const POSITIVE_PHRASES = [
 ];
 
 /**
- * weighted points system 
+*Detect sentiment from text (title or title + snippet content).
+ *Use a weighted points system instead of single match.
  * @param {string} title
- * @param {string} [content='']  — nội dung bổ sung (snippet, description)
+ * @param {string} [content='']  
  * @returns {'positive'|'negative'|'neutral'}
  */
 export const detectSentiment = (title, content = '') => {
@@ -126,13 +133,25 @@ export const detectSentiment = (title, content = '') => {
 
     if (negScore >= 3 && negScore > posScore) return 'negative';
     if (posScore >= 3 && posScore > negScore) return 'positive';
-    if (negScore >= 2 && negScore > posScore) return 'negative'; 
+    if (negScore >= 2 && negScore > posScore) return 'negative'; // tiêu đề rõ negative
     if (posScore >= 2 && posScore > negScore) return 'positive';
     return 'neutral';
 };
 
+//─── Helpers date ──────────────────────────────────────────────────────────────
+
+const parsePubDate = (pubStr) => {
+    if (!pubStr) return { publishedAt: new Date(), date: new Date().toLocaleDateString('vi-VN') };
+    const d = new Date(pubStr);
+    if (isNaN(d.getTime())) return { publishedAt: new Date(), date: new Date().toLocaleDateString('vi-VN') };
+    return {
+        publishedAt: d,
+        date: d.toLocaleDateString('vi-VN'),  
+    };
+};
+
 //─── Fetch RSS ─────────────────────────────────────────────────────────────────
-const fetchRSS = async (url, maxItems = 15) => {
+const fetchRSS = async (url, maxItems = 20) => {
     try {
         const { data } = await axios.get(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -144,10 +163,10 @@ const fetchRSS = async (url, maxItems = 15) => {
             if (i >= maxItems) return false;
             const title       = $(el).find('title').text().replace(/ - .*$/, '').trim();
             const link        = $(el).find('link').text().trim();
-            const pub         = $(el).find('pubDate').text();
+            const pubRaw      = $(el).find('pubDate').text();
             const src         = $(el).find('source').text() || extractDomain(link);
-            // Google News RSS thường có description/snippet — dùng làm content sơ bộ
             const description = $(el).find('description').text().trim();
+            const { publishedAt, date } = parsePubDate(pubRaw);
 
             if (title && title.length > 15 && link) {
                 results.push({
@@ -155,7 +174,8 @@ const fetchRSS = async (url, maxItems = 15) => {
                     link,
                     source:      src,
                     sentiment:   detectSentiment(title, description),
-                    publishedAt: pub,
+                    publishedAt,
+                    date,     
                 });
             }
         });
@@ -184,7 +204,7 @@ export const rescoreSentiment = (newsItem) => {
     return { ...newsItem, sentiment: refined };
 };
 
-//─── Phân phối sentiment đều ─────────────────────────────────
+//─── Phân phối sentiment đều (true balance) ─────────────────────────────────
 const distributeSentiment = (articles, mode) => {
     if (mode === 'negative') return articles;
     if (mode === 'official') return articles;
@@ -192,6 +212,7 @@ const distributeSentiment = (articles, mode) => {
     const negatives = articles.filter(a => a.sentiment === 'negative');
     const positives = articles.filter(a => a.sentiment === 'positive');
     const neutrals  = articles.filter(a => a.sentiment === 'neutral');
+
 
     const result = [];
     const maxLen = Math.max(negatives.length, positives.length, neutrals.length);
@@ -209,8 +230,11 @@ export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30
     const urls = buildQueries(cleanTicker, mode);
 
     const allResults = await Promise.all(urls.map(url => fetchRSS(url, 20)));
-    const merged      = dedupByLink(allResults.flat());
-    const distributed = distributeSentiment(merged, mode);
 
+
+    const merged = dedupByLink(allResults.flat())
+        .sort((a, b) => (b.publishedAt - a.publishedAt));
+
+    const distributed = distributeSentiment(merged, mode);
     return distributed.slice(0, limit);
 }
