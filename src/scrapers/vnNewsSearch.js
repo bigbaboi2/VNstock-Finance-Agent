@@ -151,6 +151,16 @@ const parsePubDate = (pubStr) => {
 };
 
 //─── Fetch RSS ─────────────────────────────────────────────────────────────────
+
+const extractRealLinkFromDescription = (descriptionHtml) => {
+    if (!descriptionHtml) return null;
+    const match = descriptionHtml.match(/href="([^"]+)"/);
+    if (match && match[1] && !match[1].includes('google.com')) {
+        return match[1];
+    }
+    return null;
+};
+
 const fetchRSS = async (url, maxItems = 20) => {
     try {
         const { data } = await axios.get(url, {
@@ -162,16 +172,18 @@ const fetchRSS = async (url, maxItems = 20) => {
         $('item').each((i, el) => {
             if (i >= maxItems) return false;
             const title       = $(el).find('title').text().replace(/ - .*$/, '').trim();
-            const link        = $(el).find('link').text().trim();
+            const googleLink  = $(el).find('link').text().trim();
             const pubRaw      = $(el).find('pubDate').text();
-            const src         = $(el).find('source').text() || extractDomain(link);
+            const src         = $(el).find('source').text() || extractDomain(googleLink);
             const description = $(el).find('description').text().trim();
             const { publishedAt, date } = parsePubDate(pubRaw);
 
-            if (title && title.length > 15 && link) {
+            const realLink = extractRealLinkFromDescription(description) || googleLink;
+
+            if (title && title.length > 15 && realLink) {
                 results.push({
                     title,
-                    link,
+                    link:        realLink,
                     source:      src,
                     sentiment:   detectSentiment(title, description),
                     publishedAt,

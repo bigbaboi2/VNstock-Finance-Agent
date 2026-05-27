@@ -1,6 +1,7 @@
 import axios from 'axios';
 import chalk from 'chalk';
 import Stock from '../../models/Stock.js';
+import DerivNews from '../../models/DerivNews.js';
 import { 
     analyzeWithGemini, 
     getMarkdownFromTcbsPdf, 
@@ -45,13 +46,20 @@ export const getLiveNews = async (req, res) => {
         let cachedNews = masterRecord.deepNewsData || [];
         let newDeepNewsData = [];
 
+        const isStaleGoogleLink = (n) => n.link && n.link.includes('news.google.com/rss/articles');
+        const staleCount = cachedNews.filter(isStaleGoogleLink).length;
+        if (staleCount > 0) {
+            cachedNews = cachedNews.filter(n => !isStaleGoogleLink(n));
+            masterRecord.deepNewsData = cachedNews;
+            await masterRecord.save();
+            console.log(`[FIX] Đã dọn ${staleCount} link Google redirect cũ cho ${ticker}`);
+        }
 
         for (const news of cachedNews) {
             if (isClientDisconnected) break;
             const rescored = rescoreSentiment(news);
             res.write(`data: ${JSON.stringify(rescored)}\n\n`);
         }
-
 
         const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
         const seenLinks    = new Set(cachedNews.map(n => n.link));
@@ -178,6 +186,24 @@ export const analyzeStock = async (req, res) => {
         const markdownData = await getMarkdownFromTcbsPdf(ticker);
         if (markdownData) fullData.tcbsMarkdownData = markdownData; 
 
+         try {
+            const macroNews = await DerivNews.find()
+                .sort({ timestamp: -1 })
+                .limit(20)
+                .lean();
+            if (macroNews.length > 0) {
+                fullData.macroNews = macroNews.map(n => ({
+                    title:     n.title,
+                    source:    n.source,
+                    sentiment: n.sentiment,
+                    timestamp: n.timestamp,
+                    content:   n.content || n.title,
+                }));
+            }
+        } catch (macroErr) {
+            console.log('[AI] Không lấy được macroNews:', macroErr.message);
+        }
+
         const aiReport = await analyzeWithGemini(ticker, fullData);
         const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);
         let finalAction = actionPanelData?.action || 'QUAN SÁT';
@@ -230,6 +256,24 @@ export const debugFeed = async (req, res) => {
         const markdownData = await getMarkdownFromTcbsPdf(ticker);
         if (markdownData) fullData.tcbsMarkdownData = markdownData;
 
+         try {
+            const macroNews = await DerivNews.find()
+                .sort({ timestamp: -1 })
+                .limit(20)
+                .lean();
+            if (macroNews.length > 0) {
+                fullData.macroNews = macroNews.map(n => ({
+                    title:     n.title,
+                    source:    n.source,
+                    sentiment: n.sentiment,
+                    timestamp: n.timestamp,
+                    content:   n.content || n.title,
+                }));
+            }
+        } catch (macroErr) {
+            console.log('[DEBUG] Không lấy được macroNews:', macroErr.message);
+        }
+
         const jsonStr = JSON.stringify(fullData, null, 2);
         const sizeKB = (Buffer.byteLength(jsonStr, 'utf8') / 1024).toFixed(1);
 
@@ -240,6 +284,7 @@ export const debugFeed = async (req, res) => {
                 fields: Object.keys(fullData), hasPreviousAnalysis: !!fullData.previousAnalysis,
                 hasMarketContext: !!fullData.marketContext, hasTcbsData: !!fullData.tcbsMarkdownData,
                 technicalBars: fullData.technicalData?.length || 0, newsCount: fullData.news?.length || 0,
+                macroNewsCount: fullData.macroNews?.length || 0,
             },
             data: fullData
         });
