@@ -33,11 +33,9 @@ const CORE_STOCKS = [
 const SECTOR_MAP = Object.fromEntries(CORE_STOCKS.map(s => [s.symbol, s.sector]));
 
 //=========================================================
-//SOURCE 1: entrade (primary)
-//SOURCE 2: TCBS public API (fallback)
+//BREADTH SOURCES: entrade - TCBS - VNDirect (Tầng 3)
 //=========================================================
 
-//---Market Breadth ---
 const fetchBreadthEntrade = async () => {
     const res = await axios.get(
         'https://services.entrade.com.vn/chart-api/v2/market-breadth?exchange=HOSE',
@@ -53,7 +51,6 @@ const fetchBreadthEntrade = async () => {
     };
 };
 
-//TCBS breadth: gọi market-stats
 const fetchBreadthTcbs = async () => {
     const res = await axios.get(
         'https://apipubaws.tcbs.com.vn/stock-insight/v1/market/market-stats',
@@ -67,8 +64,57 @@ const fetchBreadthTcbs = async () => {
     return { up, down, unchanged: Number(d.noChange || 0), _source: 'tcbs', _isReal: true };
 };
 
+const VNDIRECT_HEADERS = {
+    'User-Agent': UA,
+    'Accept': 'application/json, text/plain, */*',
+    'Origin':  'https://dboard.vndirect.com.vn',
+    'Referer': 'https://dboard.vndirect.com.vn/',
+};
+
+//─── Tầng 3: VNDirect ─────────────────────
+const fetchBreadthVndirect = async () => {
+    const ENDPOINTS = [
+        'https://finfo-api.vndirect.com.vn/v4/indices?q=code:VNINDEX&fields=code,advance,decline,noChange',
+        'https://finfo-api.vndirect.com.vn/v4/index_components?q=indexCode:VNINDEX&size=1&page=1',
+    ];
+    for (const url of ENDPOINTS) {
+        try {
+            const res = await axios.get(url, { headers: VNDIRECT_HEADERS, timeout: 8000 });
+            const d = res.data?.data?.[0] || res.data?.data || res.data;
+            const up   = Number(d?.advance || d?.advances || d?.upCount   || 0);
+            const down = Number(d?.decline || d?.declines || d?.downCount || 0);
+            if (up > 0 || down > 0) {
+                return { up, down, unchanged: Number(d?.noChange || d?.unchanged || 0), _source: 'vndirect', _isReal: true };
+            }
+        } catch {  }
+    }
+    throw new Error('VNDirect breadth: tất cả endpoint trả về zero');
+};
+
+//─── Tầng 4: SSI iBoard public API ───────────────────────────────────────────────────
+const fetchBreadthSsi = async () => {
+    const res = await axios.get(
+        'https://iboard-query.ssi.com.vn/v2/market-watch/market-stat?exchange=HOSE',
+        {
+            headers: {
+                'User-Agent': UA,
+                'Origin':  'https://iboard.ssi.com.vn',
+                'Referer': 'https://iboard.ssi.com.vn/',
+                'Accept':  'application/json',
+            },
+            timeout: 8000,
+        }
+    );
+    const d = res.data?.data || res.data;
+    if (!d) throw new Error('SSI iBoard: no data');
+    const up   = Number(d.advance   || d.noOfAdvance || d.advances || 0);
+    const down = Number(d.decline   || d.noOfDecline || d.declines || 0);
+    if (up === 0 && down === 0) throw new Error('SSI iBoard: breadth zero');
+    return { up, down, unchanged: Number(d.noChange || d.noOfNoChange || 0), _source: 'ssi', _isReal: true };
+};
+
 const fetchRealMarketBreadth = async () => {
-    for (const fn of [fetchBreadthEntrade, fetchBreadthTcbs]) {
+    for (const fn of [fetchBreadthEntrade, fetchBreadthTcbs, fetchBreadthVndirect, fetchBreadthSsi]) {
         try {
             const result = await fn();
             console.log(chalk.green(`[SCRAPER] Breadth thực (${result._source}): ↑${result.up} ↓${result.down}`));
@@ -80,7 +126,10 @@ const fetchRealMarketBreadth = async () => {
     return null;
 };
 
-//---Foreign Flow ---
+//=========================================================
+//FOREIGN FLOW SOURCES: entrade → TCBS → VNDirect (Tầng 3 — header dboard)
+//=========================================================
+
 const fetchForeignEntrade = async (from, to) => {
     const res = await axios.get(
         `https://services.entrade.com.vn/chart-api/v2/foreign-trading?exchange=HOSE&from=${from}&to=${to}`,
@@ -109,8 +158,83 @@ const fetchForeignTcbs = async () => {
     return { netValue, topBuy, topSell, _source: 'tcbs' };
 };
 
+//─── Tầng 3: VNDirect foreign flow (header dboard) ──────────────────────────────────────
+const fetchForeignVndirect = async () => {
+    const todayStr  = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    for (const date of [todayStr, yesterday]) {
+        try {
+            const res = await axios.get(
+                `https://finfo-api.vndirect.com.vn/v4/trading_statistics?q=date:${date}~type:STOCK~floor:HOSE&size=200`,
+                { headers: VNDIRECT_HEADERS, timeout: 8000 }
+            );
+            const items = res.data?.data || [];
+            if (!Array.isArray(items) || items.length === 0) continue;
+
+            let netValue = 0;
+            const stockMap = {};
+            items.forEach(i => {
+                const sym = i.code || i.symbol;
+                const net = Number(
+                    i.netForeignValue || i.foreignNetValue ||
+                    i.foreignNet      || i.fNetVal         ||
+                    i.netForeign      || 0
+                );
+                if (sym) stockMap[sym] = (stockMap[sym] || 0) + net;
+                netValue += net;
+            });
+
+            const sorted = Object.entries(stockMap).sort((a, b) => b[1] - a[1]);
+            const topBuy  = sorted.filter(([, v]) => v > 0).slice(0, 15)
+                .map(([symbol, value]) => ({ symbol, value }));
+            const topSell = sorted.filter(([, v]) => v < 0).slice(0, 15)
+                .map(([symbol, value]) => ({ symbol, value: Math.abs(value) }));
+
+            if (topBuy.length > 0 || topSell.length > 0) {
+                console.log(chalk.green(`[SCRAPER] ForeignFlow VNDirect (${date}): net=${(netValue/1e9).toFixed(1)}B`));
+                return { netValue, topBuy, topSell, _source: `vndirect_${date}` };
+            }
+        } catch (e) {
+            console.log(chalk.yellow(`[SCRAPER] VNDirect foreign (${date}) lỗi: ${e.message}`));
+        }
+    }
+    throw new Error('VNDirect: Không có dữ liệu foreign flow');
+};
+
+//─── Tầng 4: SSI iBoard foreign flow ─────────────────────────────────────────────────
+const fetchForeignSsi = async () => {
+    const res = await axios.get(
+        'https://iboard-query.ssi.com.vn/v2/market-watch/foreign-trading?exchange=HOSE',
+        {
+            headers: {
+                'User-Agent': UA,
+                'Origin':  'https://iboard.ssi.com.vn',
+                'Referer': 'https://iboard.ssi.com.vn/',
+                'Accept':  'application/json',
+            },
+            timeout: 8000,
+        }
+    );
+    const items = res.data?.data || res.data || [];
+    if (!Array.isArray(items) || items.length === 0) throw new Error('SSI foreign: empty');
+    const sorted = [...items].sort((a, b) => (b.netVal || b.netValue || 0) - (a.netVal || a.netValue || 0));
+    const topBuy  = sorted.filter(i => (i.netVal || i.netValue || 0) > 0).slice(0, 15)
+        .map(i => ({ symbol: i.symbol || i.ticker || i.code, value: Math.abs(i.netVal || i.netValue || 0) }));
+    const topSell = sorted.filter(i => (i.netVal || i.netValue || 0) < 0).slice(0, 15)
+        .map(i => ({ symbol: i.symbol || i.ticker || i.code, value: Math.abs(i.netVal || i.netValue || 0) }));
+    const netValue = items.reduce((s, i) => s + (i.netVal || i.netValue || 0), 0);
+    if (topBuy.length === 0 && topSell.length === 0) throw new Error('SSI foreign: no buy/sell data');
+    return { netValue, topBuy, topSell, _source: 'ssi' };
+};
+
 const fetchForeignFlow = async (from, to) => {
-    for (const fn of [() => fetchForeignEntrade(from, to), fetchForeignTcbs]) {
+    for (const fn of [
+        () => fetchForeignEntrade(from, to),
+        fetchForeignTcbs,
+        fetchForeignVndirect,
+        fetchForeignSsi,
+    ]) {
         try {
             const result = await fn();
             console.log(chalk.green(`[SCRAPER] ForeignFlow (${result._source}): net=${(result.netValue/1e9).toFixed(1)}B, buy=${result.topBuy.length}, sell=${result.topSell.length}`));
@@ -123,7 +247,6 @@ const fetchForeignFlow = async (from, to) => {
     return { netValue: 0, topBuy: [], topSell: [], _source: 'none' };
 };
 
-//---Heatmap /Top Liquidity ---
 const fetchHeatmapEntrade = async (from, to) => {
     const res = await axios.get(
         `https://services.entrade.com.vn/chart-api/v2/heatmap?exchange=HOSE&from=${from}&to=${to}`,
@@ -134,6 +257,7 @@ const fetchHeatmapEntrade = async (from, to) => {
     return symbols;
 };
 
+//─── FIX 4: Nếu heatmap entrade fail → dùng activeVolumeStocks (được tính sau)
 const fetchTopLiquidityStocks = async (from, to) => {
     try {
         const symbols = await fetchHeatmapEntrade(from, to);
@@ -144,15 +268,14 @@ const fetchTopLiquidityStocks = async (from, to) => {
             .filter(s => !coreSet.has(s.symbol))
             .slice(0, 10)
             .map(s => ({ symbol: s.symbol, sector: s.icbName2 || s.sector || 'KHÁC', _fromLiquidity: true }));
-        console.log(chalk.magenta(`[SCRAPER] Top liquidity: ${extras.map(s => s.symbol).join(', ')}`));
-        return extras;
+        console.log(chalk.magenta(`[SCRAPER] Top liquidity entrade: ${extras.map(s => s.symbol).join(', ')}`));
+        return { extras, _source: 'entrade' };
     } catch (err) {
-        console.log(chalk.yellow(`[SCRAPER] Heatmap fail (${err.message}) → bỏ qua extra stocks`));
-        return [];
+        console.log(chalk.yellow(`[SCRAPER] Heatmap entrade fail (${err.message}) → sẽ dùng activeVolumeStocks`));
+        return { extras: [], _source: 'fallback' };
     }
 };
 
-//---OHLC per stock (multi-source) ---
 const fetchOhlcEntrade = async (symbol, from, to) => {
     const res = await axios.get(
         `https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${symbol}&resolution=1D`,
@@ -167,10 +290,8 @@ const fetchOhlcTcbs = async (symbol, from, to) => {
         `https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=${symbol}&type=stock&resolution=D&from=${from}&to=${to}`,
         { headers: { ...HEADERS, Referer: 'https://tcinvest.tcbs.com.vn/' }, timeout: 8000 }
     );
-//TCBS trả về { data: [{open,high,low,close,volume,tradingDate}] }
     const bars = res.data?.data || [];
     if (!bars.length) throw new Error('Empty');
-//Normalize to entrance format {t,o,h,l,c,v}
     return {
         t: bars.map(b => new Date(b.tradingDate).getTime() / 1000),
         o: bars.map(b => b.open),
@@ -196,22 +317,23 @@ export const scrapeCafefMarketOverview = async () => {
         const to   = Math.floor(Date.now() / 1000);
         const from = to - (10 * 24 * 60 * 60);
 
-        const [foreignFlow, realBreadth, liquidityExtras] = await Promise.all([
+        const [foreignFlow, realBreadth, liquidityResult] = await Promise.all([
             fetchForeignFlow(from, to),
             fetchRealMarketBreadth(),
             fetchTopLiquidityStocks(from, to),
         ]);
 
+        const { extras: liquidityExtras, _source: liquiditySource } = liquidityResult;
+
         //Merge basket
-        const coreSet  = new Set(CORE_STOCKS.map(s => s.symbol));
+        const coreSet   = new Set(CORE_STOCKS.map(s => s.symbol));
         const allStocks = [
             ...CORE_STOCKS,
             ...liquidityExtras.filter(s => !coreSet.has(s.symbol)),
         ];
-        console.log(chalk.cyan(`[SCRAPER] Tổng mã fetch: ${allStocks.length} (${CORE_STOCKS.length} core + ${liquidityExtras.length} liquid)`));
+        console.log(chalk.cyan(`[SCRAPER] Tổng mã fetch: ${allStocks.length} (${CORE_STOCKS.length} core + ${liquidityExtras.length} liquid từ ${liquiditySource})`));
 
-        //Fetch OHLC song song — chunk 5
-        let breadthFromCore = { up: 0, down: 0, unchanged: 0 };
+        let breadthFromCore   = { up: 0, down: 0, unchanged: 0 };
         let activeVolumeStocks = [];
         const CHUNK = 5;
 
@@ -236,18 +358,14 @@ export const scrapeCafefMarketOverview = async () => {
                 const volume       = Number(d.v[len - 1]) || 0;
                 const changePct    = refPrice > 0 ? ((currentPrice - refPrice) / refPrice) * 100 : 0;
 
-                //FIX: momentum3d — find sessions ≥3 real days ago, do not use hard index
-                //len-1 = today, len-4 = 3 sessions ago (flexible index)
-                let momentum3d = changePct; //default fallback
+                let momentum3d = changePct;
                 if (len >= 4) {
                     const base = Number(d.c[len - 4]);
                     if (base > 0) momentum3d = ((currentPrice - base) / base) * 100;
                 } else if (len >= 2) {
-                    //There are only 2-3 candles → use the available time, mark to quant weight loss
                     const base = Number(d.c[0]);
                     if (base > 0) momentum3d = ((currentPrice - base) / base) * 100;
                 }
-                //If there is only 1 candlestick → momentum3d = changePct (unreliable, quant will detect via _shortData)
 
                 const marketCapProxy = volume * currentPrice;
 
@@ -263,7 +381,7 @@ export const scrapeCafefMarketOverview = async () => {
                     volume,
                     changePct,
                     momentum3d,
-                    _hasFullMomentum: len >= 4,  //flag to determine if the data is enough
+                    _hasFullMomentum: len >= 4,
                     marketCapProxy,
                     currentPrice,
                 });
@@ -272,8 +390,16 @@ export const scrapeCafefMarketOverview = async () => {
 
         console.log(chalk.cyan(`[SCRAPER] activeVolumeStocks: ${activeVolumeStocks.length} mã hợp lệ`));
 
-        //=== FIX foreign flow for external code CORE_STOCKS ===
-        //Assign sectors to topBuy/topSell using SECTOR_MAP or activeVolumeStocks
+        if (liquiditySource === 'fallback' && activeVolumeStocks.length > 0) {
+            const topLiqFromActive = [...activeVolumeStocks]
+                .sort((a, b) => (b.volume * b.currentPrice) - (a.volume * a.currentPrice))
+                .slice(0, 5);
+            console.log(chalk.yellow(
+                `[SCRAPER] Heatmap fallback — top vol từ activeVolumeStocks: ` +
+                topLiqFromActive.map(s => `${s.symbol}(${(s.volume * s.currentPrice / 1e9).toFixed(1)}B)`).join(', ')
+            ));
+        }
+
         const sectorFromActive = Object.fromEntries(
             activeVolumeStocks.map(s => [s.symbol, s.sector])
         );
@@ -286,7 +412,6 @@ export const scrapeCafefMarketOverview = async () => {
             topSell: foreignFlow.topSell.map(i => ({ ...i, sector: resolveSector(i.symbol) })),
         };
 
-        //Breadth: Real API > fallback scale from CORE_STOCKS
         let marketBreadth;
         if (realBreadth && realBreadth.up > 0) {
             marketBreadth = realBreadth;
