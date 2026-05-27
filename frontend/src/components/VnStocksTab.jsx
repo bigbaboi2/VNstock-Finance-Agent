@@ -10,8 +10,9 @@ import rehypeRaw from 'rehype-raw';
 import TradingChart from './TradingChart';
 import MarketOverview from './MarketOverview';
 import MarketRadar from './MarketRadar';
-import { useState, useEffect} from 'react';
+import { useState, useEffect, useRef } from 'react';
 import StockAiChat from './StockAiChat';
+import AtomLoader from './AtomLoader';
 
 function CompanyOverview({ profile, isDark, UI }) {
   const [expanded, setExpanded] = useState(false);
@@ -75,6 +76,7 @@ export default function VnStocksTab({
   chartData,
   aiReport,
   analyzing,
+  analysisStep = '',
   loadingMarket,
   aiReportError,
   loadingAiNews,
@@ -120,34 +122,105 @@ export default function VnStocksTab({
     { type: 'fact', icon: '🧾', text: 'Thuế TNCN khi bán cổ phiếu tại Việt Nam là 0,1% trên giá trị giao dịch (không phân biệt lãi hay lỗ), thu tại nguồn qua công ty chứng khoán.' },
     { type: 'fact', icon: '🔒', text: 'Room ngoại (foreign ownership limit) tối đa thông thường là 49% cho công ty thường, 30% cho ngân hàng, trừ trường hợp được cấp phép đặc biệt.' },
     { type: 'fact', icon: '📦', text: 'Lô tối thiểu khi đặt lệnh trên HOSE và HNX là 100 cổ phiếu. UPCoM cho phép đặt lẻ từ 1 cổ phiếu.' },
+    { type: 'fact', icon: '🦅', text: 'VinFast (VFS) niêm yết trên Nasdaq năm 2023, trở thành công ty Việt Nam đầu tiên IPO trên sàn chứng khoán Mỹ.' },
+    { type: 'fact', icon: '🏗️', text: 'Tập đoàn Vingroup là doanh nghiệp tư nhân có vốn hóa lớn nhất Việt Nam, hoạt động trải dài từ bất động sản, bán lẻ đến ô tô điện.' },
+    { type: 'fact', icon: '🌾', text: 'Việt Nam là quốc gia xuất khẩu gạo top 3 thế giới — các mã cổ phiếu nông nghiệp như LTG, NSC thường biến động theo giá gạo quốc tế.' },
+    { type: 'fact', icon: '⚡', text: 'Chỉ số HNX30 gồm 30 cổ phiếu vốn hóa lớn nhất sàn HNX, được cơ cấu lại 2 lần/năm vào tháng 1 và tháng 7.' },
+    { type: 'fact', icon: '🔋', text: 'Cổ phiếu penny tại Việt Nam thường là cổ phiếu có giá dưới 10.000 đồng — biên độ ±7% tương đương chỉ vài trăm đồng/cổ.' },
+    { type: 'fact', icon: '🎯', text: 'Lệnh ATO (At-the-Opening) và ATC (At-the-Closing) không có giá giới hạn — mục đích tạo thanh khoản tốt nhất lúc mở/đóng cửa.' },
+    { type: 'fact', icon: '🏙️', text: 'TP.HCM đóng góp hơn 50% thanh khoản toàn thị trường chứng khoán Việt Nam nhờ mật độ nhà đầu tư và doanh nghiệp tập trung.' },
+    { type: 'fact', icon: '💎', text: 'ROE (Return on Equity) trên 15% thường được coi là ngưỡng tốt tại Việt Nam — ngân hàng lớn thường đạt 18–22%.' },
+    { type: 'fact', icon: '📡', text: 'Hệ thống giao dịch KRX (Hàn Quốc) được triển khai tại HOSE từ năm 2021, thay thế hệ thống cũ, hỗ trợ giao dịch T+0 trong tương lai.' },
+    { type: 'fact', icon: '🌊', text: 'Sóng Elliott là lý thuyết phân tích kỹ thuật phổ biến tại Việt Nam — nhiều NĐT cá nhân dùng để dự đoán chu kỳ thị trường.' },
+    { type: 'fact', icon: '🐋', text: '"Cá mập" trong thị trường VN ám chỉ tổ chức, quỹ lớn — hành vi của họ thường được theo dõi qua khối lượng giao dịch bất thường.' },
+    { type: 'fact', icon: '📰', text: 'SSI Research, VNDirect và MBS là ba trung tâm phân tích được nhà đầu tư Việt Nam tham khảo nhiều nhất.' },
+    { type: 'fact', icon: '🔮', text: 'P/B (Price-to-Book) dưới 1 nghĩa là cổ phiếu giao dịch thấp hơn giá trị sổ sách — có thể là cơ hội hoặc bẫy giá trị.' },
+    { type: 'fact', icon: '🏆', text: 'Mã VCB (Vietcombank) thường được coi là "cổ phiếu chuẩn mực" nhờ thanh khoản cao, quản trị tốt và lợi nhuận ổn định.' },
+    { type: 'fact', icon: '🌐', text: 'Dragon Capital và VinaCapital là hai quỹ ngoại lớn nhất đang hoạt động tại thị trường chứng khoán Việt Nam.' },
+    { type: 'fact', icon: '📋', text: 'BCTC quý của doanh nghiệp niêm yết phải nộp trong 45 ngày sau khi kết thúc quý, BCTC năm trong 90 ngày.' },
+    { type: 'fact', icon: '🏠', text: 'Cổ phiếu bất động sản chiếm 15–20% vốn hóa VN-Index, nhạy cảm nhất với chính sách lãi suất và tín dụng của NHNN.' },
+    { type: 'fact', icon: '⚖️', text: 'Ủy ban Chứng khoán Nhà nước (SSC) là cơ quan quản lý thị trường vốn Việt Nam, trực thuộc Bộ Tài chính, thành lập năm 1996.' },
+    { type: 'fact', icon: '🎪', text: 'IPO lớn nhất lịch sử TTCK Việt Nam là VHM (Vinhomes) năm 2018, huy động gần 14.000 tỷ đồng trong ngày đầu niêm yết.' },
+    { type: 'fact', icon: '🔬', text: 'Phân tích cơ bản (FA) tập trung vào giá trị nội tại; phân tích kỹ thuật (TA) tập trung vào mẫu hình giá và khối lượng.' },
+    { type: 'fact', icon: '💡', text: 'Chiến lược "mua và nắm giữ" dài hạn tại VN-Index từ 2009–2022 mang lại lợi suất trung bình ~12–15%/năm.' },
+    { type: 'fact', icon: '🦁', text: 'Nhà đầu tư nước ngoài mua ròng kỷ lục trên HOSE thường xảy ra khi VND ổn định và lãi suất USD thấp.' },
+    { type: 'fact', icon: '🎲', text: 'Giao dịch margin tại Việt Nam cho phép vay tối đa 50% giá trị danh mục — tỷ lệ 1:1, thấp hơn nhiều thị trường phát triển.' },
+    { type: 'fact', icon: '🕰️', text: 'Phiên HOSE: Sáng 9:00–11:30, Chiều 13:00–14:30, ATC 14:30–14:45. HNX có thêm phiên thỏa thuận.' },
+    { type: 'fact', icon: '🌱', text: 'ESG (Môi trường, Xã hội, Quản trị) đang trở thành tiêu chí quan trọng cho nhà đầu tư nước ngoài khi chọn cổ phiếu Việt Nam.' },
+    { type: 'fact', icon: '🔥', text: '"Cháy tài khoản" xảy ra khi dùng margin quá mức — thị trường VN ghi nhận nhiều trường hợp trong giai đoạn 2021–2022.' },
+    { type: 'fact', icon: '🧲', text: 'Chứng quyền có bảo đảm (CW) được giới thiệu tại HOSE từ năm 2019, cho phép đầu tư đòn bẩy với rủi ro giới hạn.' },
+    { type: 'fact', icon: '🌍', text: 'GDP Việt Nam tăng trưởng bình quân 6–7%/năm trong 20 năm qua — một trong những nền kinh tế tăng trưởng nhanh nhất châu Á.' },
+    { type: 'fact', icon: '🏭', text: 'Ngành sản xuất xuất khẩu (dệt may, điện tử, thủy sản) đóng góp lớn vào GDP nhưng có ít mã niêm yết chất lượng cao trên sàn.' },
+    { type: 'fact', icon: '💳', text: 'Tài khoản chứng khoán tại VN cần xác thực eKYC — số lượng tài khoản mở mới kỷ lục trong 2020–2021 với hàng triệu NĐT mới.' },
+    { type: 'fact', icon: '🛡️', text: 'Quỹ bảo vệ nhà đầu tư (IDF) được quản lý bởi VSD, bảo vệ tối đa 50 triệu đồng/nhà đầu tư.' },
+    { type: 'fact', icon: '🚀', text: 'Cổ phiếu FPT tăng hơn 300% trong giai đoạn 2020–2023, nhờ tăng trưởng mảng công nghệ và AI toàn cầu.' },
+    { type: 'fact', icon: '🎯', text: 'Sharpe Ratio đo lường lợi nhuận vượt trội so với rủi ro — danh mục tốt có Sharpe > 1, xuất sắc khi > 2.' },
+    { type: 'fact', icon: '🔑', text: 'Đòn bẩy tài chính (D/E ratio) cao không nhất thiết xấu — ngân hàng VN thường có D/E 8–10x vì bản chất kinh doanh vốn.' },
+    { type: 'fact', icon: '🌺', text: 'Mùa BCTC VN tập trung vào tháng 1 (Q4 sơ bộ), tháng 4 (Q4 chính thức + Q1), tháng 7–8 (Q2) và tháng 10 (Q3).' },
+    { type: 'fact', icon: '🧩', text: 'VNMID theo dõi 70 cổ phiếu vốn hóa vừa, thường tăng trưởng tốt hơn VN-Index trong bull market do room tăng lớn hơn.' },
+    { type: 'fact', icon: '💻', text: 'Giao dịch thuật toán (algo trading) chiếm ngày càng lớn thanh khoản HOSE, đặc biệt qua SSI, VCSC, HSC.' },
+    { type: 'fact', icon: '🌙', text: '"January Effect" từng quan sát thấy trên TTCK VN: cổ phiếu vốn hóa nhỏ thường tăng mạnh vào đầu năm mới.' },
+    { type: 'fact', icon: '🏅', text: 'VN-Index đạt đỉnh lịch sử ~1.500 điểm vào tháng 4/2022, sau đó điều chỉnh sâu do ảnh hưởng từ thị trường trái phiếu.' },
+    { type: 'fact', icon: '📣', text: 'Insider trading bị phạt nặng tại VN — SSC tăng mức phạt lên đến 10 tỷ đồng và cấm hoạt động chứng khoán từ 2023.' },
     { type: 'quiz', icon: '🧠', question: 'VN30 theo dõi bao nhiêu cổ phiếu?', options: ['20 mã', '30 mã', '50 mã', '100 mã'], answer: 1 },
     { type: 'quiz', icon: '🧠', question: 'Lệnh ATO khớp vào thời điểm nào?', options: ['Cuối phiên chiều', 'Mở cửa phiên sáng', 'Giữa phiên liên tục', 'Bất kỳ lúc nào'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'P/E = 15 nghĩa là gì?', options: ['Lợi nhuận gấp 15 lần giá', 'Mất 15 năm hoàn vốn theo lợi nhuận hiện tại', 'Giá trị sổ sách gấp 15 lần', 'Tăng trưởng 15%/năm'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'P/E = 15 nghĩa là gì?', options: ['Lợi nhuận gấp 15 lần giá', 'Mất 15 năm hoàn vốn theo LN hiện tại', 'Giá trị sổ sách gấp 15 lần', 'Tăng trưởng 15%/năm'], answer: 1 },
     { type: 'quiz', icon: '🧠', question: 'Margin call xảy ra khi nào?', options: ['Cổ phiếu tăng trần', 'Tài khoản lãi lớn', 'Tài sản ròng xuống dưới ngưỡng tối thiểu', 'Hết phiên giao dịch'], answer: 2 },
     { type: 'quiz', icon: '🧠', question: 'RSI trên 70 thường báo hiệu điều gì?', options: ['Vùng quá bán', 'Vùng quá mua', 'Xu hướng tăng mạnh', 'Cổ phiếu đang giảm'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'Đường MACD cắt Signal Line từ dưới lên là tín hiệu gì?', options: ['Bán ra', 'Mua vào (bullish)', 'Giữ nguyên', 'Không có ý nghĩa'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'MACD cắt Signal từ dưới lên là tín hiệu gì?', options: ['Bán ra', 'Mua vào (bullish)', 'Giữ nguyên', 'Không có ý nghĩa'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'Biên độ dao động tối đa/phiên trên HOSE là?', options: ['±5%', '±7%', '±10%', '±15%'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'Sàn nào cho phép đặt lô lẻ từ 1 cổ phiếu?', options: ['HOSE', 'HNX', 'UPCoM', 'Cả ba'], answer: 2 },
+    { type: 'quiz', icon: '🧠', question: 'T+2 nghĩa là gì?', options: ['Mua 2 lần/ngày', 'Cổ phiếu về tài khoản sau 2 ngày', 'Lãi suất margin 2%', 'Khớp lệnh 2 lần'], answer: 1 },
+    { type: 'quiz', icon: '🧠', question: 'Chỉ số nào đo lường lợi nhuận trên vốn chủ sở hữu?', options: ['P/E', 'EPS', 'ROE', 'EBITDA'], answer: 2 },
+    { type: 'quiz', icon: '🧠', question: 'VN-Index được tính theo phương pháp nào?', options: ['Giá trung bình', 'Vốn hóa thị trường', 'Giá cao nhất/thấp nhất', 'Đồng đều các mã'], answer: 1 },
   ];
+
   const VN_FACTS_ONLY = VN_STOCK_FACTS.filter(c => c.type === 'fact');
   const VN_QUIZ_ONLY  = VN_STOCK_FACTS.filter(c => c.type === 'quiz');
   const randFrom = arr => arr[Math.floor(Math.random() * arr.length)];
 
-  const [loadingCard, setLoadingCard] = useState(() => randFrom(VN_STOCK_FACTS));
+//Keep track of displayed facts/quiz — don't show again
+  const shownFactIndicesRef = useRef(new Set());
+  const shownQuizIndicesRef = useRef(new Set());
+
+  const pickUnseen = (arr, seenSet) => {
+    if (seenSet.size >= arr.length) seenSet.clear();
+    let attempts = 0;
+    while (attempts < arr.length * 2) {
+      const idx = Math.floor(Math.random() * arr.length);
+      if (!seenSet.has(idx)) { seenSet.add(idx); return arr[idx]; }
+      attempts++;
+    }
+    return arr[0];
+  };
+
+  const [loadingCard, setLoadingCard] = useState(() => {
+    const idx = Math.floor(Math.random() * VN_FACTS_ONLY.length);
+    shownFactIndicesRef.current.add(idx);
+    return VN_FACTS_ONLY[idx];
+  });
   const [quizSelected, setQuizSelected] = useState(null);
   const [cardFlip, setCardFlip] = useState(false);
 
   const advanceCard = (nextCard) => {
     setCardFlip(true);
     setTimeout(() => {
-      setLoadingCard(nextCard || randFrom(VN_STOCK_FACTS));
+      setLoadingCard(nextCard);
       setQuizSelected(null);
       setCardFlip(false);
     }, 350);
   };
 
   useEffect(() => {
-    if (!analyzing) { setQuizSelected(null); setCardFlip(false); return; }
-    if (loadingCard.type !== 'fact') return; // quiz: không auto-advance
-    const t = setTimeout(() => advanceCard(randFrom(VN_FACTS_ONLY)), 7000);
+    if (!analyzing) {
+      setQuizSelected(null);
+      setCardFlip(false);
+      shownFactIndicesRef.current.clear();
+      shownQuizIndicesRef.current.clear();
+      return;
+    }
+    if (loadingCard.type !== 'fact') return;
+    const t = setTimeout(() => advanceCard(pickUnseen(VN_FACTS_ONLY, shownFactIndicesRef.current)), 15000);
     return () => clearTimeout(t);
   }, [analyzing, loadingCard]);
 
@@ -976,63 +1049,92 @@ export default function VnStocksTab({
            </div>      
           )} 
 
-          {analyzing && (
-            <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center shadow-xl px-8 ${UI.card}`}>
-              {/* Spinner + title */}
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-8 h-8 rounded-full border-[3px] border-yellow-400 border-t-transparent animate-spin shrink-0" />
-                <h2 className="text-yellow-500 font-black text-xs tracking-[0.25em] uppercase animate-pulse">OMNI DUCK ĐANG TƯ DUY...</h2>
-              </div>
+          {analyzing && (() => {
+            // Map analysisStep → progress % thực tế khớp với steps trong handleAiAnalysis
+            const STEP_PROGRESS = {
+              '🔍 Khởi tạo engine phân tích...':               5,
+              '📄 Đang tải báo cáo tài chính PDF...':          12,
+              '📊 Phân tích bảng cân đối kế toán...':          25,
+              '💰 Phân tích kết quả kinh doanh (P&L)...':      38,
+              '🔄 Phân tích lưu chuyển tiền tệ...':            50,
+              '📈 Tính toán chỉ số tài chính (ROE, P/E, EPS...)': 62,
+              '📰 Phân tích tin tức & sentiment thị trường...': 72,
+              '🕯️ Phân tích kỹ thuật (MACD, RSI, Bollinger)...': 80,
+              '🏭 So sánh với trung bình ngành...':             88,
+              '🧠 AI tổng hợp & sinh báo cáo chiến lược...':   93,
+              '✍️ Đang viết khuyến nghị đầu tư...':            97,
+            };
+            const syncedProgress = STEP_PROGRESS[analysisStep] ?? 3;
 
-              {/* Fact / Quiz card */}
-              <div
-                className={`w-full max-w-sm rounded-2xl border transition-all duration-300 ${cardFlip ? 'opacity-0 scale-95' : 'opacity-100 scale-100'} ${isDark ? 'bg-white/4 border-white/10' : 'bg-slate-50 border-slate-200'}`}
-                style={{ minHeight: 160 }}
-              >
-                {loadingCard.type === 'fact' ? (
-                  <div className="p-5 flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{loadingCard.icon}</span>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Bạn có biết?</span>
-                    </div>
-                    <p className={`text-sm leading-relaxed font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{loadingCard.text}</p>
-                  </div>
-                ) : (
-                  <div className="p-5 flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{loadingCard.icon}</span>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>Câu hỏi nhanh</span>
-                    </div>
-                    <p className={`text-sm font-bold leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{loadingCard.question}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {loadingCard.options.map((opt, i) => {
-                        const isCorrect = i === loadingCard.answer;
-                        const isSelected = quizSelected === i;
-                        const revealed = quizSelected !== null;
-                        let cls = `text-[11px] font-bold px-3 py-2 rounded-xl border text-left transition-all cursor-pointer `;
-                        if (!revealed) cls += isDark ? 'border-white/10 text-slate-400 hover:border-yellow-400/50 hover:text-yellow-300' : 'border-slate-200 text-slate-500 hover:border-yellow-400 hover:text-yellow-700';
-                        else if (isCorrect) cls += 'border-emerald-500 bg-emerald-500/15 text-emerald-400';
-                        else if (isSelected) cls += 'border-red-500 bg-red-500/10 text-red-400';
-                        else cls += isDark ? 'border-white/5 text-slate-600' : 'border-slate-100 text-slate-400';
-                        return (
-                          <button key={i} className={cls} onClick={() => { setQuizSelected(i); setTimeout(() => advanceCard(randFrom(VN_QUIZ_ONLY)), 1800); }} disabled={revealed}>
-                            {revealed && isCorrect ? '\u2713 ' : revealed && isSelected ? '\u2717 ' : ''}{opt}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {quizSelected !== null && (
-                      <p className={`text-[11px] font-bold ${quizSelected === loadingCard.answer ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {quizSelected === loadingCard.answer ? '\ud83c\udf89 Ch\u00ednh x\u00e1c!' : `\u274c \u0110\u00e1p \u00e1n \u0111\u00fang: ${loadingCard.options[loadingCard.answer]}`}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+            return (
+              <div className={`h-full rounded-[40px] border shadow-xl overflow-y-auto flex flex-col items-center px-8 pt-14 pb-12 ${UI.card}`}>
+                <div className="flex flex-col items-center w-full max-w-sm gap-5">
 
-              <p className={`mt-4 text-[10px] font-medium tracking-wider ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{loadingCard.type === 'fact' ? 'Đang truy xuất dữ liệu vui lòng đợi, 7s...' : 'Chọn đáp án để tiếp tục'}</p>
-            </div>
-          )}
+                {/* Fact / Quiz card */}
+                <div
+                  className={`w-full rounded-2xl border transition-all duration-300 ${cardFlip ? 'opacity-0 scale-95' : 'opacity-100 scale-100'} ${isDark ? 'bg-white/5 border-green-500/20' : 'bg-slate-50 border-green-200'}`}
+                >
+                  {loadingCard.type === 'fact' ? (
+                    <div className="p-5 flex flex-col gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{loadingCard.icon}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Bạn có biết?</span>
+                      </div>
+                      <p className={`text-sm leading-relaxed font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{loadingCard.text}</p>
+                    </div>
+                  ) : (
+                    <div className="p-5 flex flex-col gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{loadingCard.icon}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-green-400' : 'text-green-600'}`}>Câu hỏi nhanh</span>
+                      </div>
+                      <p className={`text-sm font-bold leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{loadingCard.question}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {loadingCard.options.map((opt, i) => {
+                          const isCorrect = i === loadingCard.answer;
+                          const isSelected = quizSelected === i;
+                          const revealed = quizSelected !== null;
+                          let cls = `text-[11px] font-bold px-3 py-2 rounded-xl border text-left transition-all cursor-pointer `;
+                          if (!revealed) cls += isDark ? 'border-white/10 text-slate-400 hover:border-yellow-400/50 hover:text-yellow-300' : 'border-slate-200 text-slate-500 hover:border-yellow-400 hover:text-yellow-700';
+                          else if (isCorrect) cls += 'border-emerald-500 bg-emerald-500/15 text-emerald-400';
+                          else if (isSelected) cls += 'border-red-500 bg-red-500/10 text-red-400';
+                          else cls += isDark ? 'border-white/5 text-slate-600' : 'border-slate-100 text-slate-400';
+                          return (
+                            <button key={i} className={cls} onClick={() => {
+                              setQuizSelected(i);
+                              setTimeout(() => advanceCard(pickUnseen(VN_QUIZ_ONLY, shownQuizIndicesRef.current)), 1800);
+                            }} disabled={revealed}>
+                              {revealed && isCorrect ? '✓ ' : revealed && isSelected ? '✗ ' : ''}{opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {quizSelected !== null && (
+                        <p className={`text-[11px] font-bold ${quizSelected === loadingCard.answer ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {quizSelected === loadingCard.answer ? '🎉 Chính xác!' : `❌ Đáp án đúng: ${loadingCard.options[loadingCard.answer]}`}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Hint text */}
+                <p className={`text-[9px] font-medium tracking-widest  text-center ${isDark ? 'italic text-slate-600' : 'text-slate-400'}`}>
+                  {loadingCard.type === 'fact' ? 'Đang lấy dữ liệu phân tích ai' : 'Chọn đáp án để tiếp tục'}
+                </p>
+
+                {/* Divider */}
+                <div className={`w-full h-px ${isDark ? 'bg-white/5' : 'bg-slate-200'}`} />
+
+                {/* AtomLoader */}
+                <AtomLoader
+                  message={analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'}
+                  progress={syncedProgress}
+                />
+
+                </div>{/* end inner cluster */}
+              </div>
+            );
+          })()}
 
           {/* AI ERROR STATE */}
           {!analyzing && aiError && !aiReport && (

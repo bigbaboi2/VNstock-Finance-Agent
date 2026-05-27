@@ -130,6 +130,7 @@ useEffect(() => {
   const [loadingMarket, setLoadingMarket] = useState(false);
   const [showExtraStats, setShowExtraStats] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState('');
   
   const eventSourceRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
@@ -1073,7 +1074,23 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     }
 
     setAnalyzing(true);
+    setAnalysisStep('🔍 Khởi tạo engine phân tích...');
     addLog(`[AI CORE] Khởi chạy thuật toán cho mã ${marketData.stockInfo.symbol}...`);
+
+    const steps = [
+      { delay: 800,  msg: '📄 Đang tải báo cáo tài chính PDF...' },
+      { delay: 2500, msg: '📊 Phân tích bảng cân đối kế toán...' },
+      { delay: 4500, msg: '💰 Phân tích kết quả kinh doanh (P&L)...' },
+      { delay: 6500, msg: '🔄 Phân tích lưu chuyển tiền tệ...' },
+      { delay: 8500, msg: '📈 Tính toán chỉ số tài chính (ROE, P/E, EPS...)' },
+      { delay: 10500, msg: '📰 Phân tích tin tức & sentiment thị trường...' },
+      { delay: 13000, msg: '🕯️ Phân tích kỹ thuật (MACD, RSI, Bollinger)...' },
+      { delay: 15500, msg: '🏭 So sánh với trung bình ngành...' },
+      { delay: 18000, msg: '🧠 AI tổng hợp & sinh báo cáo chiến lược...' },
+      { delay: 21000, msg: '✍️ Đang viết khuyến nghị đầu tư...' },
+    ];
+    const stepTimers = steps.map(s => setTimeout(() => setAnalysisStep(s.msg), s.delay));
+
     addLog(`[AI CORE] Đang gửi bóc tách dữ liệu BCTC cho mã ${marketData.stockInfo.symbol}...`);
     const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
         title:     n.title,
@@ -1121,7 +1138,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         addLog('[LỖI] Xử lý AI thất bại: Tràn bộ nhớ hoặc mất kết nối API.');
         console.error(err);
     } finally {
+        stepTimers.forEach(t => clearTimeout(t));
         setAnalyzing(false);
+        setAnalysisStep('');
     }
 };
   useEffect(() => {
@@ -1343,6 +1362,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             chartData={chartData}
             aiReport={aiReport}
             analyzing={analyzing}
+            analysisStep={analysisStep}
             loadingMarket={loadingMarket}
             loadingAiNews={loadingAiNews}
             activeInterval={activeInterval}
