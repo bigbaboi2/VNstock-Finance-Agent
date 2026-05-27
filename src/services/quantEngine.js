@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 //==========================================
-//CORE QUANTITATIVE ENGINE v3.0
+//CORE QUANTITATIVE ENGINE v4.0
 //==========================================
 
 //─── Dynamic SPS threshold based on daily fluctuations ─────────────────────────────────
@@ -12,6 +12,54 @@ const calcSpsThreshold = (indexChangePct) => {
     if (abs > 0.5) return 0.35;
     if (abs > 0.2) return 0.25;
     return 0.15;
+};
+
+//─── FIX 1: Tính top gainers/losers/volume từ activeVolumeStocks ─────────────────────────
+const calcTopStocks = (activeVolumeStocks) => {
+    if (!activeVolumeStocks || activeVolumeStocks.length === 0) {
+        return { topGainers: [], topLosers: [], topVolume: [] };
+    }
+
+    const valid = activeVolumeStocks.filter(s => s.currentPrice > 0 && s.volume > 0);
+
+    //Top 5 strongest increases
+    const topGainers = [...valid]
+        .sort((a, b) => b.changePct - a.changePct)
+        .slice(0, 5)
+        .map(s => ({
+            symbol:     s.symbol,
+            changePct:  +s.changePct.toFixed(2),
+            price:      s.currentPrice,
+            volume:     s.volume,
+            sector:     s.sector || null,
+        }));
+
+    //Top 5 strongest drops
+    const topLosers = [...valid]
+        .sort((a, b) => a.changePct - b.changePct)
+        .slice(0, 5)
+        .map(s => ({
+            symbol:     s.symbol,
+            changePct:  +s.changePct.toFixed(2),
+            price:      s.currentPrice,
+            volume:     s.volume,
+            sector:     s.sector || null,
+        }));
+
+    //Top 5 liquidity (volume × price = transaction value)
+    const topVolume = [...valid]
+        .sort((a, b) => (b.volume * b.currentPrice) - (a.volume * a.currentPrice))
+        .slice(0, 5)
+        .map(s => ({
+            symbol:      s.symbol,
+            changePct:   +s.changePct.toFixed(2),
+            price:       s.currentPrice,
+            volume:      s.volume,
+            valueTraded: Math.round(s.volume * s.currentPrice), 
+            sector:      s.sector || null,
+        }));
+
+    return { topGainers, topLosers, topVolume };
 };
 
 export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatabase) => {
@@ -26,6 +74,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                     statusType:     "neutral",
                     diagnosticDesc: "Hệ thống đang thu thập dữ liệu giá từ máy chủ...",
                     strongSectors: [], weakSectors: [], sectorDetails: [],
+                    topGainers: [], topLosers: [], topVolume: [],
                 }
             };
         }
@@ -36,6 +85,12 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         const prevIndex    = vnIndexData[vnIndexData.length - 2];
         const indexChangePct = ((latestIndex.close - prevIndex.close) / prevIndex.close) * 100;
         const spsThreshold   = calcSpsThreshold(indexChangePct);
+
+        //─── FIX 1: Always calculate top stocks first, regardless of whether there are sectors or not ───────
+        const { topGainers, topLosers, topVolume } = calcTopStocks(activeVolumeStocks);
+        console.log(chalk.magenta(`[QUANT] Top gainers: ${topGainers.map(s => `${s.symbol}(${s.changePct > 0 ? '+' : ''}${s.changePct}%)`).join(', ') || 'N/A'}`));
+        console.log(chalk.magenta(`[QUANT] Top losers:  ${topLosers.map(s => `${s.symbol}(${s.changePct}%)`).join(', ') || 'N/A'}`));
+        console.log(chalk.magenta(`[QUANT] Top volume:  ${topVolume.map(s => s.symbol).join(', ') || 'N/A'}`));
 
         //----------------------------------------
         //1. MARKET BREADTH
@@ -55,7 +110,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             );
             return {
                 success: true,
-                _dataQuality: 'breadth_only', //flag to let the frontend know the data is incomplete
+                _dataQuality: 'breadth_only',
                 intelligence: {
                     indexChangePct: indexChangePct.toFixed(2),
                     breadthRatio:   breadthRatio.toFixed(1),
@@ -65,6 +120,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                     statusType,
                     diagnosticDesc: diagnosticDesc + ' (⚠ Dữ liệu ngành chưa đầy đủ)',
                     strongSectors: [], weakSectors: [], sectorDetails: [],
+                    topGainers, topLosers, topVolume,
                 }
             };
         }
@@ -81,7 +137,6 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         let totalMarketCap = 0;
 
         activeVolumeStocks.forEach(stock => {
-            //Prioritize sectors from stock data (enriched in scraper) > DB > ignore
             const sector = stock.sector || symbolsDbMap[stock.symbol];
             if (!sector) return;
 
@@ -101,7 +156,6 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             sectorRawData[sector].count           += 1;
             sectorRawData[sector].totalMarketCap  += cap;
 
-            //FIX momentum3d: only accumulates when data is enough (>=4 candles), avoiding interference
             if (stock._hasFullMomentum !== false) {
                 sectorRawData[sector].sumMomentum3d    += stock.momentum3d;
                 sectorRawData[sector].fullMomentumCount += 1;
@@ -118,7 +172,6 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         //------------------------------------------
         //4. FOREIGN FLOW → sector
         //------------------------------------------
-        //FIX: use enriched sectors from scraper (including code outside CORE_STOCKS)
         const processForeignFlow = (flowList, isBuy) => {
             (flowList || []).forEach(item => {
                 const sector = item.sector || symbolsDbMap[item.symbol];
@@ -142,12 +195,10 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
 
             const avgChange = data.sumChangePct / data.count;
 
-            //FIX: avgMomentum3d only counts codewords with enough data; fallback to avgChange if not present
             const avgMomentum3d = data.fullMomentumCount > 0
                 ? data.sumMomentum3d / data.fullMomentumCount
                 : avgChange;
 
-            //Momentum reliability: 0→1 (what % of codes have 4 candles)
             const momentumReliability = data.count > 0
                 ? data.fullMomentumCount / data.count
                 : 0;
@@ -155,7 +206,6 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
             const volShare     = totalActiveVol > 0 ? (data.totalVolume / totalActiveVol) * 100 : 0;
             const volAmplifier = Math.max(0.5, Math.min(2.0, volShare / 10));
 
-            //Foreign score: scale theo 100B VNĐ
             let foreignScore = 0;
             if (data.netForeignVal >  100_000_000_000) foreignScore =  3;
             else if (data.netForeignVal < -100_000_000_000) foreignScore = -3;
@@ -163,9 +213,8 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
 
             const totalCap          = data.totalMarketCap || 1;
             const weightedBreadth   = (data.weightedUp - data.weightedDown) / totalCap;
-            const weightedBreadthSc = weightedBreadth * 2; //range [-2, 2]
+            const weightedBreadthSc = weightedBreadth * 2;
 
-            //SPS v3: reduce weight momentum when data is not reliable enough
             const momentumWeight = 0.4 * momentumReliability;
             const changeWeight   = 0.6 + 0.4 * (1 - momentumReliability);
 
@@ -241,6 +290,9 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                 strongSectors,
                 weakSectors,
                 sectorDetails: sectorScores.slice(0, 6),
+                topGainers,
+                topLosers,
+                topVolume,
             }
         };
 
