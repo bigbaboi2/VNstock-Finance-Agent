@@ -755,34 +755,40 @@ const derivAnalysis = React.useMemo(() => {
     };
 
 //Use setInterval instead of requestAnimationFrame — updating once per second is enough
-    updateTime(); //run the first time
+    updateTime(); 
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
     const fetchRadarData = async () => {
-      try {
-        const [vnRes, hnxRes, vn30Res, intelRes] = await Promise.all([
-          axios.get('/api/history/VNINDEX').catch(() => null),
-          axios.get('/api/history/HNX').catch(() => null),
-          axios.get('/api/history/VN30').catch(() => null),
-          axios.get('/api/market-radar').catch(() => null) 
-        ]);
-
-        if (vnRes?.data?.data) setVnIndexData(vnRes.data.data.slice(-30));
+      axios.all([
+        axios.get('/api/history/VNINDEX').catch(() => null),
+        axios.get('/api/history/HNX').catch(() => null),
+        axios.get('/api/history/VN30').catch(() => null),
+      ]).then(([vnRes, hnxRes, vn30Res]) => {
+        if (vnRes?.data?.data)  setVnIndexData(vnRes.data.data.slice(-30));
         if (hnxRes?.data?.data) setHnxIndexData(hnxRes.data.data.slice(-30));
         if (vn30Res?.data?.data) setVn30Data(vn30Res.data.data.slice(-30));
-        if (intelRes?.data?.success) setMarketIntel(intelRes.data.data);
+        addLog('[HỆ THỐNG] Đồng bộ biểu đồ chỉ số (VN-INDEX / HNX / VN30).');
+      }).catch(() => {});
 
-      if (intelRes?.data?.isLive) {
-            addLog('[HỆ THỐNG] Radar cập nhật ma trận thị trường (Realtime).');
-            } else {
-            addLog('[HỆ THỐNG] Nạp dữ liệu thị trường cuối phiên từ Database.');
+      // ── Luồng 2: QuantEngine — chạy độc lập, không block luồng 1 ──────────
+      axios.get('/api/market-radar').then(intelRes => {
+        if (intelRes?.data?.success) setMarketIntel(intelRes.data.data);
+        if (intelRes?.data?.isLive) {
+          addLog('[HỆ THỐNG] Radar cập nhật ma trận thị trường (Realtime).');
+        } else if (intelRes?.data?._fromLock) {
+          addLog('[HỆ THỐNG] Radar đang tính toán, dùng cache tạm thời...');
+        } else {
+          addLog('[HỆ THỐNG] Nạp dữ liệu thị trường cuối phiên từ Database.');
         }
-      } catch (error) {
-          addLog(`[LỖI] Hệ thống Radar mất kết nối máy chủ: ${error.message}`);
-      }
+        if (intelRes?.data?.logs?.length) {
+          intelRes.data.logs.forEach(log => addLog(log));
+        }
+      }).catch(error => {
+        addLog(`[LỖI] Hệ thống Radar mất kết nối máy chủ: ${error.message}`);
+      });
     };
 
     fetchRadarData(); 

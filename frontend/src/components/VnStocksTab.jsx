@@ -1030,7 +1030,7 @@ export default function VnStocksTab({
                 )}
               </div>
 
-              <p className={`mt-4 text-[10px] font-medium tracking-wider ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{loadingCard.type === 'fact' ? 'Fact mới sau 7 giây' : 'Chọn đáp án để tiếp tục'}</p>
+              <p className={`mt-4 text-[10px] font-medium tracking-wider ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{loadingCard.type === 'fact' ? 'Đang truy xuất dữ liệu vui lòng đợi, 7s...' : 'Chọn đáp án để tiếp tục'}</p>
             </div>
           )}
 
