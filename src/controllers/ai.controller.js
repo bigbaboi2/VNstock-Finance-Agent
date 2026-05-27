@@ -14,8 +14,12 @@ import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
 
+//Maximum number of records stored in DB per stock
 const MAX_NEWS_DB = 80;
-const MAX_SCRAPE  = 12;
+//Number of scraped messages per fetch
+const MAX_SCRAPE  = 20;
+//Number of parallel scrapes per batch
+const BATCH_SIZE  = 5;
 
 export const getLiveNews = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
@@ -41,22 +45,23 @@ export const getLiveNews = async (req, res) => {
         let cachedNews = masterRecord.deepNewsData || [];
         let newDeepNewsData = [];
 
-// Stream all cache information to the client immediately
+
         for (const news of cachedNews) {
             if (isClientDisconnected) break;
-            res.write(`data: ${JSON.stringify(news)}\n\n`);
+            const rescored = rescoreSentiment(news);
+            res.write(`data: ${JSON.stringify(rescored)}\n\n`);
         }
 
-// Fetch new posts by mode
+
         const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
         const seenLinks    = new Set(cachedNews.map(n => n.link));
         const uniqueNew    = fetchedLinks.filter(item => !seenLinks.has(item.link));
 
         if (uniqueNew.length > 0 && !isClientDisconnected) {
             const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
-            for (let i = 0; i < toScrape.length; i += 3) {
+            for (let i = 0; i < toScrape.length; i += BATCH_SIZE) {
                 if (isClientDisconnected) break;
-                const batch   = toScrape.slice(i, i + 3);
+                const batch   = toScrape.slice(i, i + BATCH_SIZE);
                 const scraped = await Promise.all(batch.map(async (news) => {
                     try {
                         const content = await Promise.race([
@@ -64,22 +69,25 @@ export const getLiveNews = async (req, res) => {
                             new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000))
                         ]);
                         const raw = {
-                            title:     news.title,
-                            link:      news.link,
-                            source:    news.source || news.link,
-                            sentiment: news.sentiment || 'neutral',
-                            content:   (content && content.length > 80) ? content : news.title,
-                            date:      new Date().toLocaleDateString('vi-VN'),
+                            title:       news.title,
+                            link:        news.link,
+                            source:      news.source || news.link,
+                            sentiment:   news.sentiment || 'neutral',
+                            content:     (content && content.length > 80) ? content : news.title,
+                            date:        news.date || new Date().toLocaleDateString('vi-VN'),
+                            publishedAt: news.publishedAt || new Date(),
                             mode,
                         };
                         return rescoreSentiment(raw);
                     } catch {
                         return {
-                            title: news.title, link: news.link,
-                            source: news.source || news.link,
-                            sentiment: news.sentiment || 'neutral',
-                            content: news.title,
-                            date: new Date().toLocaleDateString('vi-VN'),
+                            title:       news.title,
+                            link:        news.link,
+                            source:      news.source || news.link,
+                            sentiment:   news.sentiment || 'neutral',
+                            content:     news.title,
+                            date:        news.date || new Date().toLocaleDateString('vi-VN'),
+                            publishedAt: news.publishedAt || new Date(),
                             mode,
                         };
                     }
@@ -92,16 +100,18 @@ export const getLiveNews = async (req, res) => {
             }
         }
 
-        // Lưu DB — giữ tối đa MAX_NEWS_DB, dedup theo link
         if (newDeepNewsData.length > 0) {
             masterRecord = await Stock.findOne({ symbol: ticker });
             const combined = [...newDeepNewsData, ...(masterRecord.deepNewsData || [])];
             const seen = new Set();
-            masterRecord.deepNewsData = combined.filter(n => {
-                if (seen.has(n.link)) return false;
-                seen.add(n.link);
-                return true;
-            }).slice(0, MAX_NEWS_DB);
+            masterRecord.deepNewsData = combined
+                .filter(n => {
+                    if (seen.has(n.link)) return false;
+                    seen.add(n.link);
+                    return true;
+                })
+                .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0))
+                .slice(0, MAX_NEWS_DB);
             await masterRecord.save();
         }
 
