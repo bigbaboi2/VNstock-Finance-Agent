@@ -165,12 +165,30 @@ const doclingResponse = await axios.post('http://localhost:8000/parse-pdf?mode=t
         if (doclingResponse.data.success) {
             let rawMarkdown = doclingResponse.data.markdown;
 
-            let cleanMarkdown = rawMarkdown
+            // ─── [FIX] Post-process Docling turbo markdown ──────────────────
+
+            let cleanMarkdown = rawMarkdown;
+            
+            cleanMarkdown = cleanMarkdown
                 .replace(/Techcom Securities/g, '')
                 .replace(/Hotline: 1800 588 826; cskh@tcbs\.com\.vn/g, '')
                 .replace(/Giải thích các chỉ tiêu tài chính/g, '')
-                .replace(/\n{3,}/g, '\n\n')
-                .trim();
+                .replace(/<!-- image -->\n*/g, '');
+
+            for (let i = 0; i < 6; i++) {
+                cleanMarkdown = cleanMarkdown
+                    .replace(/(\S)  ([À-ỹđĐ])  (\S)/g, '$1$2$3')
+                    .replace(/(\S)  ([À-ỹđĐ])  /g, '$1$2 ')
+                    .replace(/ ([À-ỹđĐ])  (\S)/g, ' $1$2');
+            }
+
+           
+            for (let i = 0; i < 8; i++) {
+                cleanMarkdown = cleanMarkdown
+                    .replace(/([À-ỹA-Za-z(]) ([À-ỹ]{1,3}) ([A-Za-zÀ-ỹ)])/g, '$1$2$3');
+            }
+            
+            cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
 
             _tcbsPdfCache.set(tickerUpper, { markdown: cleanMarkdown, ts: Date.now() });
             console.log(chalk.green(`[THÀNH CÔNG] Docling xử lý xong! Dữ liệu TCBS đã được lưu cache.`));
@@ -226,14 +244,14 @@ BÁO CÁO PHẢI XUẤT RA THEO ĐÚNG CẤU TRÚC MARKDOWN SAU:
 - Nhận định Tay To: Lực mua/bán này đang "tố cáo" âm mưu gì của tạo lập?
 
 ## 🌐 PHẦN 2: PHÂN TÍCH VĨ MÔ & CHẤT XÚC TÁC (MACRO & CATALYSTS)
-- BỘ LỌC NHIỄU: Phớt lờ toàn bộ tin tức không liên quan tài chính. ( không cần gửi thông báo là: "đã bỏ qua các thông tin nhiễu" hoặc tương tự, chỉ cần phân tích các phần bên dưới)
-- Bóc tách 1-3 tin tức có "Sức sát thương" lớn nhất, mới nhất. Lý do ảnh hưởng theo chiều hướng nào.
+- BỘ LỌC NHIỄU: Phớt lờ toàn bộ tin tức không liên quan tài chính đến mã đang cần phân tích ( bao gồm cả nội dung tin tức). ( không cần gửi thông báo là: "đã bỏ qua các thông tin nhiễu" hoặc tương tự, chỉ cần phân tích các phần bên dưới)
+- Bóc tách 2-5 tin tức mới nhất, nóng nhất tác động của nó vẫn còn hiện hữu (gồm tin tiêu cực , tin chính thống , tin đồn) có "Sức sát thương" lớn nhất, mới nhất. Lý do ảnh hưởng theo chiều hướng nào, tâm lý nhà đầu tư.
 
 ## 🎯 [3] NHẬN ĐỊNH TOÀN DIỆN VÀ KHUYẾN NGHỊ CHIẾN LƯỢC
 [Kết hợp dữ liệu PDF và giá thực tế để đưa ra kết luận cốt lõi, đưa ra dự đoán biến động giá, trong ngắn hạn, dài hạn] 
 QUY TẮC TÔ MÀU (KỶ LUẬT THÉP - TIẾT CHẾ TỐI ĐA):
-- BẠN BỊ CẤM tô màu tràn lan. Báo cáo tĩnh lặng mới là báo cáo nguy hiểm.
-- Trong toàn bộ báo cáo, CHỈ ĐƯỢC PHÉP tô màu TỐI ĐA 3 TỪ KHÓA TÍCH CỰC và 3 TỪ KHÓA TIÊU CỰC mang tính quyết định nhất (ví dụ: MUA MẠNH, SẬP GÃY, VƯỢT ĐỈNH, DÒNG TIỀN RÚT).
+- BẠN BỊ CẤM tô màu tràn lan. Báo cáo tĩnh lặng mới là báo cáo nguy hiểm. Không bọc $số liệu$ trong thẻ $$, sử dụng thẻ in đậm, in nghiêng chuẩn quy tắc markdown để làm nổi bật.
+- Trong toàn bộ báo cáo, CHỈ ĐƯỢC PHÉP tô màu TỐI ĐA 5 TỪ KHÓA TÍCH CỰC và 5 TỪ KHÓA TIÊU CỰC mang tính quyết định nhất (ví dụ: MUA MẠNH, SẬP GÃY, VƯỢT ĐỈNH, DÒNG TIỀN RÚT).
 - Tích cực: bọc trong <span className="text-emerald-500 font-black uppercase">từ khóa</span>
 - Tiêu cực: bọc trong <span className="text-red-500 font-black uppercase">từ khóa</span>
  
