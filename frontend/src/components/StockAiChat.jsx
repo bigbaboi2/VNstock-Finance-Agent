@@ -255,9 +255,17 @@ export default function StockAiChat({
     }
   }, [messages, ticker]);
 
-  // ── ───
+//[FIX] Track current ticker with ref to avoid stale closure in API calls
+  const currentTickerRef = useRef(ticker);
+  useEffect(() => { currentTickerRef.current = ticker; }, [ticker]);
+
+//── Load /reset chat when opening or redeeming code ─────────────────
   useEffect(() => {
     if (isOpen && ticker) {
+      setInput('');
+      setLoading(false);
+      setShowWarning(true);
+
       const savedMsgs = loadChatHistory(ticker);
       const greetingMsg = {
         role: 'assistant',
@@ -288,11 +296,9 @@ export default function StockAiChat({
         setHasRestoredHistory(false);
         setShowQuickPrompts(true);
       }
-
-      setShowWarning(true);
-      setInput('');
     }
-  }, [isOpen, ticker]);  
+  // Depend cả ticker để reset ngay khi đổi mã, dù chat vẫn đang mở
+  }, [isOpen, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── SEND MESSAGE ─────────────────────────────────────────
   const handleSend = useCallback(async (textOverride) => {
@@ -316,7 +322,7 @@ export default function StockAiChat({
         .slice(1)
         .map(m => ({ role: m.role, content: m.content }));
 
-      const res = await axios.post(`/api/stock-chat/${ticker}`, {
+      const res = await axios.post(`/api/stock-chat/${currentTickerRef.current}`, {
         question: text,
         history,
         aiReport,
