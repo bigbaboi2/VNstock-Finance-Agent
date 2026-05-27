@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer';
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 //─── Selector map prioritizes by domain ────────────────────
 const DOMAIN_SELECTORS = {
@@ -25,28 +26,44 @@ const TRASH_SELECTORS = [
     'figure', 'figcaption'
 ];
 
-// ─── Lấy domain từ URL ────────────────────────────────────────────────────────
 const getDomain = (url) => {
     try { return new URL(url).hostname.replace('www.', ''); } catch { return ''; }
 };
 
-// ─── [FIX] Giải mã Google News redirect URL → URL báo thực ──────────────────
+//─── [FIX] Decoding Google News redirect URL → Real report URL ──────────────────
 export async function resolveGoogleNewsUrl(url) {
     if (!url || !url.includes('news.google.com')) return url;
     try {
+        //Follow redirect with axios (don't stream to avoid leaks)
         const response = await axios.get(url, {
             maxRedirects: 5,
             timeout: 8000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
             },
-            responseType: 'stream',
         });
         const finalUrl = response.request?.res?.responseUrl || response.config?.url || url;
-        await response.data.destroy(); 
         if (finalUrl && !finalUrl.includes('news.google.com')) {
             return finalUrl;
+        }
+
+        //Parse HTML response tìm canonical link hoặc meta refresh
+        if (response.data && typeof response.data === 'string') {
+            const $ = cheerio.load(response.data);
+            const canonical = $('link[rel="canonical"]').attr('href');
+            if (canonical && !canonical.includes('news.google.com')) return canonical;
+            const metaRefresh = $('meta[http-equiv="refresh"]').attr('content');
+            if (metaRefresh) {
+                const match = metaRefresh.match(/url=(.+)/i);
+                if (match && match[1] && !match[1].includes('news.google.com')) return match[1];
+            }
+            //Find links in JS redirect content
+            const jsRedirect = response.data.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
+            if (jsRedirect && jsRedirect[1] && !jsRedirect[1].includes('news.google.com')) {
+                return jsRedirect[1];
+            }
         }
         return url;
     } catch (err) {
@@ -57,11 +74,68 @@ export async function resolveGoogleNewsUrl(url) {
     }
 }
 
-// ─── Main scraper ─────────────────────────────────────────────────────────────
+//─── [NEW] Scrape with axios + cheerio (lightweight, no need for Puppeteer) ──────────
+async function scrapeWithAxios(resolvedUrl, maxChars = 4000) {
+    try {
+        const domain = getDomain(resolvedUrl);
+        const { data } = await axios.get(resolvedUrl, {
+            timeout: 12000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml',
+                'Accept-Language': 'vi-VN,vi;q=0.9',
+            },
+        });
+
+        const $ = cheerio.load(data);
+
+        //Delete trash
+        TRASH_SELECTORS.forEach(sel => $(sel).remove());
+
+        const prioritySelectors = DOMAIN_SELECTORS[domain] || [];
+
+        //Try priority selectors first
+        for (const sel of [...prioritySelectors, ...GENERIC_SELECTORS]) {
+            const container = $(sel).first();
+            if (!container.length) continue;
+
+            const paras = [];
+            container.find('p, h2, h3').each((_, el) => {
+                const text = $(el).text().trim();
+                if (text && text.length > 40) paras.push(text);
+            });
+
+            if (paras.length >= 3) {
+                return paras.join('\n').replace(/\s+/g, ' ').substring(0, maxChars);
+            }
+        }
+
+        //Fallback: get all <p>
+        const allParas = [];
+        $('p').each((_, el) => {
+            const text = $(el).text().trim();
+            if (text && text.length > 50) allParas.push(text);
+        });
+
+        const result = allParas.join('\n').replace(/\s+/g, ' ').substring(0, maxChars);
+        return result.length > 80 ? result : null;
+
+    } catch {
+        return null;
+    }
+}
+
+//─── Main scraper — axios first, Puppeteer does fallback ─────────────────────
 export async function scrapeArticleContent(url, maxChars = 4000) {
     let browser;
     try {
-        const resolvedUrl = await resolveGoogleNewsUrl(url);
+
+        const resolvedUrl = url;
+
+        const axiosResult = await scrapeWithAxios(resolvedUrl, maxChars);
+        if (axiosResult && axiosResult.length > 80) {
+            return axiosResult;
+        }
 
         browser = await puppeteer.launch({
             headless: true,
