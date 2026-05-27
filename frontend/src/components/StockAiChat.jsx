@@ -520,14 +520,36 @@ export default function StockAiChat({
           return <MessageBubble key={i} msg={msg} isDark={isDark} />;
         })}
         {loading && (
-          <div className="flex gap-2.5 mb-4">
+          <div className="flex gap-2.5 mb-4 animate-in fade-in duration-300">
             <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center mt-0.5
               ${isDark ? 'bg-[#1e2a3a] border border-yellow-500/30 text-yellow-400' : 'bg-slate-100 border border-slate-300 text-slate-600'}`}>
               <Bot size={14} />
             </div>
-            <div className={`rounded-2xl rounded-tl-sm border
+            <div className={`rounded-2xl rounded-tl-sm border px-4 py-3 flex flex-col gap-2 min-w-[140px]
               ${isDark ? 'bg-[#151d28] border-white/8' : 'bg-white border-slate-300 shadow-sm'}`}>
-              <TypingDots />
+              {/* Bouncing dots */}
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map(i => (
+                  <span
+                    key={i}
+                    style={{ animationDelay: `${i * 0.18}s`, animationDuration: '1s', animationTimingFunction: 'ease-in-out', animationIterationCount: 'infinite', animationName: 'chat-dot-bounce', display: 'inline-block' }}
+                    className={`w-2 h-2 rounded-full ${isDark ? 'bg-yellow-400' : 'bg-yellow-500'}`}
+                  />
+                ))}
+              </div>
+              {/* Shimmer bar */}
+              <div style={{
+                height: 2, borderRadius: 99,
+                background: isDark
+                  ? 'linear-gradient(90deg,rgba(250,204,21,0.15),rgba(74,222,128,0.35),rgba(250,204,21,0.15))'
+                  : 'linear-gradient(90deg,rgba(250,204,21,0.25),rgba(74,222,128,0.45),rgba(250,204,21,0.25))',
+                backgroundSize: '200% 100%',
+                animation: 'chat-shimmer 1.6s linear infinite',
+              }} />
+              <style>{`
+                @keyframes chat-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-6px);opacity:1} }
+                @keyframes chat-shimmer   { from{background-position:200% 0} to{background-position:-200% 0} }
+              `}</style>
             </div>
           </div>
         )}
