@@ -1,12 +1,14 @@
 import { Globe, Zap, Activity } from 'lucide-react';
 
 export default function MarketOverview({ isDark, UI, marketIntel, vnIndexData }) {
-    if (!marketIntel || !vnIndexData || vnIndexData.length < 2) {
+    const isLoading = !marketIntel;
+
+    if (isLoading) {
       return (
         <div className={`shrink-0 h-[180px] border-t flex items-center justify-center ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-300 bg-white'}`}>
           <div className="flex flex-col items-center opacity-50">
             <Activity size={24} className="mb-2 animate-pulse" />
-            <p className="text-xs font-black uppercase tracking-[0.2em]">OMNI DUCK ĐANG TÍNH TOÁN MAP...</p>
+            <p className="text-xs font-black uppercase tracking-[0.2em]">QUANT ENGINE ĐANG TÍNH TOÁN...</p>
           </div>
         </div>
       );
@@ -61,8 +63,7 @@ export default function MarketOverview({ isDark, UI, marketIntel, vnIndexData })
                 <span className={`w-16 shrink-0 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-emerald-500' : 'text-emerald-600'}`}>Hút Tiền:</span>
                 <div className="flex gap-2 flex-wrap">
                     {marketIntel?.strongSectors && marketIntel.strongSectors.length > 0 ? marketIntel.strongSectors.map((sec, idx) => {
-                        // Trích xuất tên ngành và các mã leader
-                        const name = sec.name || sec; // Dự phòng trường hợp data cache bị cũ
+                        const name = sec.name || sec;  
                         const tickers = sec.tickers && sec.tickers.length > 0 ? sec.tickers.join(', ') : '';
                         
                         return (
