@@ -10,7 +10,7 @@ const FALLBACK_STOCKS = [
 ];
 
 export async function updateSymbolsDatabase() {
-    console.log(chalk.yellowBright('\n[HỆ THỐNG] Đang đồng bộ danh sách mã chứng khoán lên Cloud MongoDB...'));
+    console.log(chalk.whiteBright('\n[HỆ THỐNG] Đang đồng bộ danh sách mã chứng khoán lên Cloud MongoDB...'));
 
     try {
         console.log(chalk.yellow('[HỆ THỐNG] Đang kết nối vệ tinh CafeF...'));

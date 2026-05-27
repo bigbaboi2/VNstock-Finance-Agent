@@ -117,10 +117,8 @@ const fetchRealMarketBreadth = async () => {
     for (const fn of [fetchBreadthEntrade, fetchBreadthTcbs, fetchBreadthVndirect, fetchBreadthSsi]) {
         try {
             const result = await fn();
-            console.log(chalk.green(`[SCRAPER] Breadth thực (${result._source}): ↑${result.up} ↓${result.down}`));
             return result;
         } catch (err) {
-            console.log(chalk.yellow(`[SCRAPER] Breadth source lỗi: ${err.message}`));
         }
     }
     return null;
@@ -192,11 +190,11 @@ const fetchForeignVndirect = async () => {
                 .map(([symbol, value]) => ({ symbol, value: Math.abs(value) }));
 
             if (topBuy.length > 0 || topSell.length > 0) {
-                console.log(chalk.green(`[SCRAPER] ForeignFlow VNDirect (${date}): net=${(netValue/1e9).toFixed(1)}B`));
+
                 return { netValue, topBuy, topSell, _source: `vndirect_${date}` };
             }
         } catch (e) {
-            console.log(chalk.yellow(`[SCRAPER] VNDirect foreign (${date}) lỗi: ${e.message}`));
+
         }
     }
     throw new Error('VNDirect: Không có dữ liệu foreign flow');
@@ -237,13 +235,11 @@ const fetchForeignFlow = async (from, to) => {
     ]) {
         try {
             const result = await fn();
-            console.log(chalk.green(`[SCRAPER] ForeignFlow (${result._source}): net=${(result.netValue/1e9).toFixed(1)}B, buy=${result.topBuy.length}, sell=${result.topSell.length}`));
             return result;
         } catch (err) {
-            console.log(chalk.yellow(`[SCRAPER] ForeignFlow source lỗi: ${err.message}`));
         }
     }
-    console.log(chalk.yellow('[SCRAPER] Tất cả ForeignFlow API fail → trả về rỗng'));
+
     return { netValue: 0, topBuy: [], topSell: [], _source: 'none' };
 };
 
@@ -257,7 +253,7 @@ const fetchHeatmapEntrade = async (from, to) => {
     return symbols;
 };
 
-//─── FIX 4: Nếu heatmap entrade fail → dùng activeVolumeStocks (được tính sau)
+//─── FIX 4: If heatmap entrade fails → use activeVolumeStocks (calculated later)
 const fetchTopLiquidityStocks = async (from, to) => {
     try {
         const symbols = await fetchHeatmapEntrade(from, to);
@@ -268,10 +264,10 @@ const fetchTopLiquidityStocks = async (from, to) => {
             .filter(s => !coreSet.has(s.symbol))
             .slice(0, 10)
             .map(s => ({ symbol: s.symbol, sector: s.icbName2 || s.sector || 'KHÁC', _fromLiquidity: true }));
-        console.log(chalk.magenta(`[SCRAPER] Top liquidity entrade: ${extras.map(s => s.symbol).join(', ')}`));
+
         return { extras, _source: 'entrade' };
     } catch (err) {
-        console.log(chalk.yellow(`[SCRAPER] Heatmap entrade fail (${err.message}) → sẽ dùng activeVolumeStocks`));
+
         return { extras: [], _source: 'fallback' };
     }
 };
@@ -331,7 +327,7 @@ export const scrapeCafefMarketOverview = async () => {
             ...CORE_STOCKS,
             ...liquidityExtras.filter(s => !coreSet.has(s.symbol)),
         ];
-        console.log(chalk.cyan(`[SCRAPER] Tổng mã fetch: ${allStocks.length} (${CORE_STOCKS.length} core + ${liquidityExtras.length} liquid từ ${liquiditySource})`));
+
 
         let breadthFromCore   = { up: 0, down: 0, unchanged: 0 };
         let activeVolumeStocks = [];
@@ -388,17 +384,15 @@ export const scrapeCafefMarketOverview = async () => {
             });
         }
 
-        console.log(chalk.cyan(`[SCRAPER] activeVolumeStocks: ${activeVolumeStocks.length} mã hợp lệ`));
 
-        if (liquiditySource === 'fallback' && activeVolumeStocks.length > 0) {
-            const topLiqFromActive = [...activeVolumeStocks]
+
+        const _topVolSummary = liquiditySource === 'fallback' && activeVolumeStocks.length > 0
+            ? [...activeVolumeStocks]
                 .sort((a, b) => (b.volume * b.currentPrice) - (a.volume * a.currentPrice))
-                .slice(0, 5);
-            console.log(chalk.yellow(
-                `[SCRAPER] Heatmap fallback — top vol từ activeVolumeStocks: ` +
-                topLiqFromActive.map(s => `${s.symbol}(${(s.volume * s.currentPrice / 1e9).toFixed(1)}B)`).join(', ')
-            ));
-        }
+                .slice(0, 3)
+                .map(s => `${s.symbol}(${(s.volume * s.currentPrice / 1e9).toFixed(1)}B)`)
+                .join(' ')
+            : null;
 
         const sectorFromActive = Object.fromEntries(
             activeVolumeStocks.map(s => [s.symbol, s.sector])
@@ -425,8 +419,24 @@ export const scrapeCafefMarketOverview = async () => {
                 _isFallback: true,
                 _source: 'core_stocks',
             };
-            console.log(chalk.yellow(`[SCRAPER] Dùng breadth ước tính (scaled ${allStocks.length} mã): ↑${marketBreadth.up} ↓${marketBreadth.down}`));
         }
+
+        // ─── SUMMARY BLOCK ──────────────────────────────────────────────
+        const _breadthLabel = marketBreadth._isFallback ? 'ước tính' : `thực (${marketBreadth._source})`;
+        const _foreignLabel = enrichedForeignFlow._source !== 'none'
+            ? `net=${((enrichedForeignFlow.netValue||0)/1e9).toFixed(1)}B (${enrichedForeignFlow._source})`
+            : 'không có dữ liệu';
+        const _liqLabel = liquiditySource === 'entrade'
+            ? `entrade +${liquidityExtras.length} mã`
+            : `fallback core | top: ${_topVolSummary || '—'}`;
+        console.log(
+            chalk.cyan(`[SCRAPER] `) +
+            chalk.white(`${allStocks.length} mã | `) +
+            chalk.cyan(`Breadth ${_breadthLabel}: ↑${marketBreadth.up} ↓${marketBreadth.down} | `) +
+            chalk.cyan(`Foreign: ${_foreignLabel} | `) +
+            chalk.magenta(`Liq: ${_liqLabel}`)
+        );
+        // ────────────────────────────────────────────────────────────────
 
         return {
             success: true,
