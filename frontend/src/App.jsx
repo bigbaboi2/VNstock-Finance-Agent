@@ -95,6 +95,8 @@ const handleToggleTheme = () => {
   };
 
   const handleGoHome = () => {
+    //[FIX] Close chat before going home
+    vnStocksCloseChatRef.current?.();
     setMarketData(null);
     setChartData(null);
     setAiReport(null);
@@ -135,6 +137,8 @@ useEffect(() => {
   const eventSourceRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
+  // [FIX] Ref to close VnStocks chat when switching tab /home
+  const vnStocksCloseChatRef = useRef(null);
   
   const [showLogs, setShowLogs] = useState(false);
   const [showVolInfo, setShowVolInfo] = useState(false);
@@ -1343,7 +1347,11 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         errorAlert={errorAlert}
         loadingMarket={loadingMarket}
         currentUser={currentUser}
-        setActiveMode={setActiveMode} handleLogout={handleLogout}
+        setActiveMode={(mode) => {
+          // [FIX] Đóng chat khi chuyển sang tab khác
+          vnStocksCloseChatRef.current?.();
+          setActiveMode(mode);
+        }} handleLogout={handleLogout}
         handleGoHome={handleGoHome} handleToggleTheme={handleToggleTheme}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
@@ -1388,6 +1396,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             loadingHeatmap={loadingHeatmap}
             lastAiVnTime={lastAiVnTime}
             currentUser={currentUser}
+            onRequestCloseChat={(fn) => { vnStocksCloseChatRef.current = fn; }}
 
         />
         )}

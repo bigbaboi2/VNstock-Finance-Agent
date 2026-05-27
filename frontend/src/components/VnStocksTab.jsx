@@ -2,7 +2,8 @@ import {
   Activity, Zap, FileText, Database, BrainCircuit, 
   BarChart3, ChevronDown, ChevronUp, HelpCircle,
   ArrowLeft, MessageSquare, FileJson, ExternalLink,
-  TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot
+  TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
+  Loader2, CheckCircle2, XCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -101,12 +102,21 @@ export default function VnStocksTab({
   heatmapData = [],
   loadingHeatmap,
   lastAiVnTime,
-  currentUser, 
+  currentUser,
+  onRequestCloseChat,  
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isExporting, setIsExporting]   = useState(false);
+  const [exportStatus, setExportStatus] = useState(null);
   const aiError = aiReportError;
+
+  useEffect(() => {
+    if (onRequestCloseChat) {
+      onRequestCloseChat(() => setIsChatOpen(false));
+    }
+  }, [onRequestCloseChat]);
 
   // ── LOADING ENTERTAINMENT ──
   const VN_STOCK_FACTS = [
@@ -371,7 +381,10 @@ export default function VnStocksTab({
                   )}
                   {marketData && (() => {
                     const handleExportData = async () => {
+                      if (isExporting) return;
                       const sym = marketData.stockInfo?.symbol;
+                      setIsExporting(true);
+                      setExportStatus(null);
                       console.log(`[HỆ THỐNG] Đang lấy full AI feed từ server cho ${sym}...`);
                       try {
                         const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
@@ -410,24 +423,83 @@ export default function VnStocksTab({
                         a.download = `ai-full-feed-${sym}-${Date.now()}.json`;
                         a.click();
                         URL.revokeObjectURL(url);
+                        setExportStatus('success');
+                        setTimeout(() => setExportStatus(null), 3000);
                       } catch (err) {
                         console.error('Export lỗi:', err);
-                        alert('Export thất bại: ' + err.message);
+                        setExportStatus('error');
+                        setTimeout(() => setExportStatus(null), 4000);
+                      } finally {
+                        setIsExporting(false);
                       }
                     };
                     return (
-                      <button
-                        onClick={handleExportData}
-                        title="Xuất TOÀN BỘ data thực tế AI nhận (gồm previousAnalysis, marketContext từ server, TCBS PDF...)"
-                        className={`w-full h-9 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 mb-2 border text-[11px] uppercase tracking-widest
-                          ${isDark
-                            ? 'bg-white/3 text-slate-500 border-white/8 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30'
-                            : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
-                          }`}
-                      >
-                        <FileJson size={13} />
-                        Export Full AI Feed (Server)
-                      </button>
+                      <div className="relative mb-2">
+                        <button
+                          onClick={handleExportData}
+                          disabled={isExporting}
+                          title="Xuất TOÀN BỘ data thực tế AI nhận (gồm previousAnalysis, marketContext từ server, TCBS PDF...)"
+                          className={`w-full h-9 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border text-[11px] uppercase tracking-widest overflow-hidden relative
+                            ${isExporting
+                              ? isDark
+                                ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30 cursor-not-allowed'
+                                : 'bg-yellow-50 text-yellow-600 border-yellow-300 cursor-not-allowed'
+                              : exportStatus === 'success'
+                                ? isDark
+                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                                  : 'bg-emerald-50 text-emerald-600 border-emerald-300'
+                                : exportStatus === 'error'
+                                  ? isDark
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                                    : 'bg-red-50 text-red-500 border-red-200'
+                                  : isDark
+                                    ? 'bg-white/3 text-slate-500 border-white/8 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30'
+                                    : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
+                            }`}
+                        >
+                          {/* Shimmer sweep khi đang export */}
+                          {isExporting && (
+                            <span
+                              className="absolute inset-0 pointer-events-none"
+                              style={{
+                                background: isDark
+                                  ? 'linear-gradient(90deg,transparent 0%,rgba(234,179,8,0.12) 50%,transparent 100%)'
+                                  : 'linear-gradient(90deg,transparent 0%,rgba(234,179,8,0.18) 50%,transparent 100%)',
+                                backgroundSize: '200% 100%',
+                                animation: 'exportSweep 1.4s linear infinite',
+                              }}
+                            />
+                          )}
+                          <style>{`
+                            @keyframes exportSweep {
+                              from { background-position: 200% 0; }
+                              to   { background-position: -200% 0; }
+                            }
+                          `}</style>
+
+                          {isExporting ? (
+                            <>
+                              <Loader2 size={13} className="animate-spin shrink-0" />
+                              <span>Đang lấy dữ liệu từ Server...</span>
+                            </>
+                          ) : exportStatus === 'success' ? (
+                            <>
+                              <CheckCircle2 size={13} className="shrink-0" />
+                              <span>Xuất thành công!</span>
+                            </>
+                          ) : exportStatus === 'error' ? (
+                            <>
+                              <XCircle size={13} className="shrink-0" />
+                              <span>Xuất thất bại — thử lại</span>
+                            </>
+                          ) : (
+                            <>
+                              <FileJson size={13} className="shrink-0" />
+                              <span>Export Full AI Feed (Server)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     );
                   })()}
                  

@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer';
+import axios from 'axios';
 
 //─── Selector map prioritizes by domain ────────────────────
 const DOMAIN_SELECTORS = {
@@ -29,10 +30,39 @@ const getDomain = (url) => {
     try { return new URL(url).hostname.replace('www.', ''); } catch { return ''; }
 };
 
+// ─── [FIX] Giải mã Google News redirect URL → URL báo thực ──────────────────
+export async function resolveGoogleNewsUrl(url) {
+    if (!url || !url.includes('news.google.com')) return url;
+    try {
+        const response = await axios.get(url, {
+            maxRedirects: 5,
+            timeout: 8000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            responseType: 'stream',
+        });
+        const finalUrl = response.request?.res?.responseUrl || response.config?.url || url;
+        await response.data.destroy(); 
+        if (finalUrl && !finalUrl.includes('news.google.com')) {
+            return finalUrl;
+        }
+        return url;
+    } catch (err) {
+        if (err.response?.headers?.location) {
+            return err.response.headers.location;
+        }
+        return url;
+    }
+}
+
 // ─── Main scraper ─────────────────────────────────────────────────────────────
 export async function scrapeArticleContent(url, maxChars = 4000) {
     let browser;
     try {
+        const resolvedUrl = await resolveGoogleNewsUrl(url);
+
         browser = await puppeteer.launch({
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -53,9 +83,9 @@ export async function scrapeArticleContent(url, maxChars = 4000) {
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         );
 
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 18000 });
+        await page.goto(resolvedUrl, { waitUntil: 'domcontentloaded', timeout: 18000 });
 
-        const domain = getDomain(url);
+        const domain = getDomain(resolvedUrl);
         const prioritySelectors = DOMAIN_SELECTORS[domain] || [];
 
         const fullText = await page.evaluate(
