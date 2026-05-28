@@ -293,7 +293,7 @@ export const analyzeStock = async (req, res) => {
         if (!masterRecord.reports) masterRecord.reports = [];
         masterRecord.reports.push({
             user: user, timestamp: fullData.timestamp || new Date().toISOString(),
-            content: aiReport, action: finalAction, price: fullData.stockInfo.currentPrice,
+            content: aiReport, action: finalAction, actionData: actionPanelData, price: fullData.stockInfo.currentPrice,
             changePercent: parseFloat(fullData.stockInfo.changePercent) || 0
         });
 
@@ -303,6 +303,44 @@ export const analyzeStock = async (req, res) => {
 
         return res.json({ success: true, aiReport, actionPanelData: actionPanelData });
     } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getLatestVnStockReport = async (req, res) => {
+    try {
+        const { symbol } = req.params;
+        const { user } = req.query;
+
+        console.log(chalk.cyan(`[DB CACHE] Đang quét MongoDB tìm báo cáo cũ của ${symbol} cho user: ${user}...`));
+
+        const masterRecord = await Stock.findOne({ symbol: symbol.toUpperCase() });
+        
+        if (!masterRecord || !masterRecord.reports || masterRecord.reports.length === 0) {
+            console.log(chalk.yellow(`[DB CACHE] Mã ${symbol} chưa có báo cáo nào trong Database.`));
+            return res.json({ success: false, message: 'Chưa có báo cáo cũ' });
+        }
+
+        const userReports = masterRecord.reports.filter(r => r.user === user);
+        
+        if (userReports.length === 0) {
+            console.log(chalk.yellow(`[DB CACHE] Mã ${symbol} có báo cáo, nhưng KHÔNG PHẢI của user ${user}.`));
+            return res.json({ success: false, message: 'Chưa có báo cáo cũ của user này' });
+        }
+
+        const latestReport = userReports[userReports.length - 1];
+        console.log(chalk.green(`[DB CACHE] Đã tìm thấy báo cáo của ${symbol} (Tạo lúc: ${latestReport.timestamp}). Đang gửi về Frontend...`));
+
+        return res.json({ 
+            success: true, 
+            data: {
+                aiReport: latestReport.content,
+                actionData: latestReport.actionData || { action: latestReport.action },
+                timestamp: latestReport.timestamp
+            } 
+        });
+    } catch (error) {
+        console.error(chalk.red(`[DB LỖI] Không thể đọc báo cáo cũ:`), error.message);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -464,6 +502,7 @@ export const getActionPanel = async (req, res) => {
 
         if (actionData && masterRecord && masterRecord.reports && masterRecord.reports.length > 0) {
             masterRecord.reports[masterRecord.reports.length - 1].action = actionData.action;
+            masterRecord.reports[masterRecord.reports.length - 1].actionData = actionData;  
             await masterRecord.save();
         }
         return res.json({ success: true, data: actionData });
