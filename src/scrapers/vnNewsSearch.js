@@ -290,7 +290,7 @@ const resolveGoogleLinksParallel = async (items, concurrency = 5) => {
 
     const timeout = new Promise((resolve) =>
         setTimeout(() => {
-            console.warn('[vnNewsSearch] ⚠ Puppeteer global timeout — trả kết quả một phần.');
+            console.warn('[vnNewsSearch] Puppeteer global timeout — trả kết quả một phần.');
             resolve([]);
         }, PUPPETEER_GLOBAL_TIMEOUT)
     );
