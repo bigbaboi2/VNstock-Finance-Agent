@@ -197,11 +197,18 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
 export const analyzeDerivatives = async (req, res) => {
     try {
         const payload = req.body;
-        const report = await analyzeDerivativesWithGemini(payload);
-        res.json({ success: true, data: report });
+        
+         const aiResult = await analyzeDerivativesWithGemini(payload);
+
+         return res.json({
+            success: true,
+            data: aiResult.aiReport,            
+            actionPanelData: aiResult.actionPanelData 
+        });
+
     } catch (error) {
-        console.error('[LỖI] Lỗi AI Phái sinh:', error);
-        res.status(500).json({ success: false, message: 'Không thể kết nối AI Phái sinh' });
+        console.error("Lỗi AI Service:", error.message);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -225,43 +232,59 @@ export const analyzeStock = async (req, res) => {
         }
         fullData.previousAnalysis = previousAnalysis;
 
-        try {
+        const pdfMode = fullData.pdfMode || 'turbo';
+
+        // ── Chạy song song  ─────────────────────────
+        const fetchMarketContext = async () => {
             const marketScraped = await scrapeCafefMarketOverview();
             const to = Math.floor(Date.now() / 1000);
             const from = to - (15 * 24 * 60 * 60);
             const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
-            
             if (vnRes.data && vnRes.data.t && marketScraped.success) {
                 const d = vnRes.data;
                 const rawVnIndex = d.t.map((timestamp, index) => ({ close: Number(d.c[index]), volume: Number(d.v[index]) || 0 }));
                 const symbolsDb = await Stock.find({});
                 const marketIntelligence = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
-                if (marketIntelligence.success) fullData.marketContext = marketIntelligence.intelligence;
+                return marketIntelligence.success ? marketIntelligence.intelligence : null;
             }
-        } catch (quantError) {
-            fullData.marketContext = "Không có dữ liệu bối cảnh thị trường lúc này.";
-        }
+            return null;
+        };
 
-        const markdownData = await getMarkdownFromTcbsPdf(ticker);
-        if (markdownData) fullData.tcbsMarkdownData = markdownData; 
-
-         try {
+        const fetchMacroNews = async () => {
             const macroNews = await DerivNews.find()
                 .sort({ timestamp: -1 })
                 .limit(20)
                 .lean();
-            if (macroNews.length > 0) {
-                fullData.macroNews = macroNews.map(n => ({
-                    title:     n.title,
-                    source:    n.source,
-                    sentiment: n.sentiment,
-                    timestamp: n.timestamp,
-                    content:   n.content || n.title,
-                }));
-            }
-        } catch (macroErr) {
-            console.log(chalk.red('[AI] Không lấy được macroNews:', macroErr.message));
-        }
+            return macroNews.map(n => ({
+                title:     n.title,
+                source:    n.source,
+                sentiment: n.sentiment,
+                timestamp: n.timestamp,
+                content:   n.content || n.title,
+            }));
+        };
+
+        console.log(chalk.cyan(`[AI CORE] Khởi chạy song song: MarketContext + PDF (${pdfMode.toUpperCase()}) + MacroNews...`));
+
+        const [marketContext, markdownData, macroNews] = await Promise.all([
+            fetchMarketContext().catch(err => {
+                console.log(chalk.red('[AI] fetchMarketContext lỗi:', err.message));
+                return null;
+            }),
+            getMarkdownFromTcbsPdf(ticker, pdfMode).catch(err => {
+                console.log(chalk.red('[AI] getMarkdownFromTcbsPdf lỗi:', err.message));
+                return null;
+            }),
+            fetchMacroNews().catch(err => {
+                console.log(chalk.red('[AI] fetchMacroNews lỗi:', err.message));
+                return [];
+            }),
+        ]);
+
+        if (marketContext)         fullData.marketContext     = marketContext;
+        else                       fullData.marketContext     = "Không có dữ liệu bối cảnh thị trường lúc này.";
+        if (markdownData)          fullData.tcbsMarkdownData  = markdownData;
+        if (macroNews?.length > 0) fullData.macroNews         = macroNews;
 
         const aiReport = await analyzeWithGemini(ticker, fullData);
         const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import './App.css'
 import axios from 'axios'
 import { X, FileText} from 'lucide-react'
-//// import components
+////import components
 import AppHeader from './components/AppHeader';
 import CryptoTab from './components/CryptoTab';
 import PaperTradingTab from './components/PaperTradingTab';
@@ -18,12 +18,12 @@ axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
 function App() {
-  // CONFIG: USER STATE & AUTH MANAGEMENT
+  //CONFIG: USER STATE & AUTH MANAGEMENT
   const [currentUser, setCurrentUser] = useState(localStorage.getItem('omni_user') || null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [authForm, setAuthForm] = useState({ username: '', password: '', isRegister: false });
 
-// CONFIG: THEME ENGINE
+//CONFIG: THEME ENGINE
 const [theme, setTheme] = useState(() => {
   const savedTheme = localStorage.getItem(`omni_theme_${currentUser}`);
   return savedTheme || 'dark';
@@ -37,7 +37,7 @@ const handleToggleTheme = () => {
         localStorage.setItem(`omni_theme_${currentUser}`, newTheme);
     }
   };
-  // LOGIC: AUTHENTICATION HANDLERS
+  //LOGIC: AUTHENTICATION HANDLERS
   const [authError, setAuthError] = useState('');
 
   const handleLogout = () => {
@@ -87,7 +87,7 @@ const handleToggleTheme = () => {
     }
   };
 
-  // LOGIC: INTERACTION INTERFACES
+  //LOGIC: INTERACTION INTERFACES
   const [isManualTwitch, setIsManualTwitch] = useState(false);
   const handleCatClick = () => {
     setIsManualTwitch(true);
@@ -133,11 +133,12 @@ useEffect(() => {
   const [showExtraStats, setShowExtraStats] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState('');
+  const [pdfMode, setPdfMode] = useState('turbo'); //turbo | fast | balanced | full
   
   const eventSourceRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
-  // [FIX] Ref to close VnStocks chat when switching tab /home
+  //[FIX] Ref to close VnStocks chat when switching tab /home
   const vnStocksCloseChatRef = useRef(null);
   
   const [showLogs, setShowLogs] = useState(false);
@@ -162,7 +163,7 @@ useEffect(() => {
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [lastAiVnTime, setLastAiVnTime] = useState(null);
   const [lastAiVnSnapshot, setLastAiVnSnapshot] = useState(null);
-  // STATE AI PHÁI SINH VN
+  //STATE AI DERIVATIVES VN
   const [aiDerivReport, setAiDerivReport] = useState(null);
   const [analyzingDeriv, setAnalyzingDeriv] = useState(false);
   const [derivNews, setDerivNews] = useState([]);
@@ -173,10 +174,10 @@ useEffect(() => {
    
   const [lastAiDerivTime, setLastAiDerivTime]       = useState(null);  
   const [lastAiDerivSnapshot, setLastAiDerivSnapshot] = useState(null);
-
-// =========================================================
-  // STATE & LOGIC: ĐẦU TƯ GIẢ LẬP (PAPER TRADING)
-  // =========================================================
+  const [derivActionData, setDerivActionData] = useState(null);
+//=======================================================================
+  //STATE & LOGIC: SIMULATED INVESTMENT (PAPER TRADING)
+  //=======================================================================
   const [portfolio, setPortfolio] = useState(null);
   const [paperMarket, setPaperMarket] = useState('VN_STOCKS'); 
   const [paperSymbol, setPaperSymbol] = useState('');  
@@ -191,7 +192,7 @@ useEffect(() => {
   const [showPaperSuggestions, setShowPaperSuggestions] = useState(false);
   const [showPaperHelp, setShowPaperHelp] = useState(false);
  
-  // GỌI API LẤY TIN TỨC PHÁI SINH TAB ON
+  //CALL API TO GET DERIVATIVES NEWS TAB ON
   useEffect(() => {
       if (activeMode === 'VN_DERIVATIVES') {
           addLog('[HỆ THỐNG] Đang kết nối Database tin tức Vĩ mô Phái sinh...');
@@ -209,7 +210,7 @@ useEffect(() => {
               });
       }
   }, [activeMode]);
-    // GỌI LẤY TIN TỨC NGAY
+    //CALL TO GET NEWS NOW
   const handleRefreshDerivNews = async () => {
       setRefreshingNews(true);
       addLog('[HỆ THỐNG] Đang khởi chạy tiến trình quét dữ liệu vĩ mô...');
@@ -226,7 +227,7 @@ useEffect(() => {
           setRefreshingNews(false);
       }
   };
-// LGOCI GỌI AI PHÁI SINH VN
+//LGOCI CALLS WHO DEVIATES VN
 const handleAiDerivAnalysis = async (forceRefresh = false) => {
     if (!derivRadar || !derivChartData) return addLog('[CẢNH BÁO] Trống dữ liệu phái sinh VN. AI từ chối phân tích.');
  
@@ -252,8 +253,15 @@ const handleAiDerivAnalysis = async (forceRefresh = false) => {
  
 if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed) {
         const remainSec = Math.round((MIN_INTERVAL_MS - timeSinceLast) / 1000);
-        addLog(`[AI CACHE] Sử dụng báo cáo Phái sinh đã lưu. Thử lại sau ${remainSec}s.`);
-        return;
+        addLog(`[AI CACHE] Đang truy xuất lại báo cáo Phái sinh lưu trữ tạm...`);
+        
+         setAnalyzingDeriv(true); 
+        setTimeout(() => {
+            setAnalyzingDeriv(false);  
+            addLog(`[AI CACHE] Đã nạp xong báo cáo phân tích AI. Vui lòng chờ ${remainSec}s để phân tích luồng dữ liệu mới tối ưu cho ai.`);
+        }, 1000);
+        
+        return;  
     }
     setAnalyzingDeriv(true);
     addLog('[HỆ THỐNG] Đang đóng gói dữ liệu Phái sinh đa chiều cho AI...');
@@ -284,7 +292,10 @@ if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed
  
         const res = await axios.post('/api/analyze-derivatives', payload);
         if (res.data.success) {
-            setAiDerivReport(res.data.data);       
+            setAiDerivReport(res.data.data);   
+            if (res.data.actionPanelData) {
+                setDerivActionData(res.data.actionPanelData);
+            }    
             setLastAiDerivTime(now);                
             setLastAiDerivSnapshot(currentSnapshot);  
         }
@@ -445,9 +456,9 @@ const handleCancelOrder = async (orderId) => {
           setTimeout(() => setErrorAlert(''), 3000);
       }
   };
-  // ================================================
-// VOLUME PROFILE  
-// ================================================
+  //================================================
+//VOLUME PROFILE  
+//================================================
 const volumeProfile = React.useMemo(() => {
     if (!derivChartData || derivChartData.length === 0) return null;
     
@@ -483,9 +494,9 @@ const volumeProfile = React.useMemo(() => {
 
     return { bins: bins.reverse(), maxVol, pocPrice };
 }, [derivChartData]);
-  // ================================================
-// DERIVATIVES ANALYSIS ENGINE  
-// ================================================
+  //================================================
+//DERIVATIVES ANALYSIS ENGINE  
+//================================================
 const derivAnalysis = React.useMemo(() => {
     if (!derivChartData || derivChartData.length < 10 || !derivRadar) {
         return {
@@ -523,7 +534,7 @@ const derivAnalysis = React.useMemo(() => {
     const oiUp = derivRadar.oiTrend?.includes("TĂNG") || false;
     const fNet = derivRadar.foreignNet || 0;
 
-    // === SHORT TERM TREND - EMA 3 vs EMA 8 ===
+    //=== SHORT TERM TREND -EMA 3 vs EMA 8 ===
     const closes = derivChartData.slice(-12).map(c => c.close);
     const ema = (data, period) => {
         let result = data[0];
@@ -537,7 +548,7 @@ const derivAnalysis = React.useMemo(() => {
     const ema8 = ema(closes, 8);
     const shortTermTrend = ema3 > ema8 ? 1 : ema3 < ema8 ? -1 : 0;
 
-    // === ATR ===
+    //=== ATR ===
     const atr = derivChartData.slice(-5).reduce((sum, c, i, arr) => {
         if (i === 0) return sum;
         const tr = Math.max(
@@ -547,7 +558,7 @@ const derivAnalysis = React.useMemo(() => {
         );
         return sum + tr;
     }, 0) / 5 || 3.5;
-    // VWAP
+    //VWAP
     const vwap = derivChartData.reduce((acc, c) => {
         const tp = (c.high + c.low + c.close) / 3;
         acc.tpv += tp * (c.volume || 1);
@@ -556,11 +567,11 @@ const derivAnalysis = React.useMemo(() => {
     }, { tpv: 0, vol: 0 });
     const vwapPrice = vwap.vol > 0 ? (vwap.tpv / vwap.vol).toFixed(1) : currentF1M;
 
-    // Session High / Low
+    //Session High /Low
     const sessionHigh = Math.max(...derivChartData.map(c => c.high));
     const sessionLow = Math.min(...derivChartData.map(c => c.low));
 
-    // CVD (Cumulative Volume Delta)
+    //CVD (Cumulative Volume Delta)
     const cvd = derivChartData.reduce((sum, c) => {
         const delta = c.close >= c.open 
             ? (c.volume || 0) 
@@ -568,13 +579,13 @@ const derivAnalysis = React.useMemo(() => {
         return sum + delta;
     }, 0);
 
-    // ROC (Rate of Change 5 nến)
+    //ROC (Rate of Change 5 nến)
     const roc5 = derivChartData.length >= 6
         ? ((derivChartData.at(-1).close - derivChartData.at(-6).close) 
           / derivChartData.at(-6).close * 100).toFixed(2)
         : 0;
 
-    // OI Interpretation
+    //OI Interpretation
     const oiInterpretation = (() => {
         const priceUp = derivRadar?.change > 0;
         if (oiUp && priceUp)  return { label: 'LONG MỚI VÀO', color: 'text-emerald-500' };
@@ -583,7 +594,7 @@ const derivAnalysis = React.useMemo(() => {
         return { label: 'LONG ĐANG ĐÓNG', color: 'text-red-300' };
     })();
 
-    // === CONFLUENCE SCORE 0-100 ===
+    //=== CONFLUENCE SCORE 0-100 ===
     let score = 50;
     score += Math.min(Math.max(speed * 8, -25), 25);           
     score += Math.min(Math.max(totalImpact * 7, -20), 20);     
@@ -592,7 +603,7 @@ const derivAnalysis = React.useMemo(() => {
     score += currentF1M > poc ? 10 : -10;                      
     score = Math.round(Math.min(Math.max(score, 0), 100));
 
-    // === MECHANICAL ACTION ===
+    //=== MECHANICAL ACTION ===
     let mechTrend = "SIDEWAY";
     let mechAction = "QUAN SÁT";
     let mechColor = "text-yellow-500";
@@ -620,7 +631,7 @@ const derivAnalysis = React.useMemo(() => {
         bgColor = "bg-red-500/10 border-red-500/30";
     }
 
-    // === SL / TP / RR ===
+    //=== SL /TP /RR ===
     const sl = shortTermTrend === 1 
         ? currentF1M - atr * 1.5 
         : currentF1M + atr * 1.5;
@@ -633,7 +644,7 @@ const derivAnalysis = React.useMemo(() => {
     const rrRatio = (Math.abs(tp1 - currentF1M) / Math.abs(sl - currentF1M) || 1).toFixed(1);
     
     const mechReasonParts = [];
-     // Basis
+     //Basis
     if (Math.abs(speed) > 0.5) {
         mechReasonParts.push(
             speed > 0
@@ -641,10 +652,10 @@ const derivAnalysis = React.useMemo(() => {
                 : `Basis đang thu hẹp nhanh (${speed} đ/nhịp), F1M kéo về Index`
         );
     }
-     // EMA cross
+     //EMA cross
     if (shortTermTrend === 1)  mechReasonParts.push(`EMA3 (${ema3.toFixed(1)}) cắt lên trên EMA8 (${ema8.toFixed(1)}) — xu hướng ngắn hạn tăng`);
     if (shortTermTrend === -1) mechReasonParts.push(`EMA3 (${ema3.toFixed(1)}) cắt xuống dưới EMA8 (${ema8.toFixed(1)}) — xu hướng ngắn hạn giảm`);
-     // Lực trụ
+     //Cylindrical force
     if (Math.abs(totalImpact) > 0.5) {
         mechReasonParts.push(
             totalImpact > 0
@@ -652,12 +663,12 @@ const derivAnalysis = React.useMemo(() => {
                 : `10 trụ dẫn dắt tổng lực ${totalImpact} điểm (áp lực bên bán)`
         );
     }
-    // OI
+    //HEY
     mechReasonParts.push(oiUp
         ? `OI tăng → dòng tiền mới đang vào thị trường`
         : `OI giảm → đang có làn sóng đóng vị thế`
     );
-    // Khối ngoại
+    //Foreign sector
     if (Math.abs(fNet) > 100) {
         mechReasonParts.push(
             fNet > 0
@@ -665,7 +676,7 @@ const derivAnalysis = React.useMemo(() => {
                 : `Khối ngoại bán ròng ${fNet} HĐ (áp lực Short)`
         );
     }
-    // Giá vs POC
+    //Price vs POC
     const pocVal = parseFloat(poc) || currentF1M;
     const pocDist = ((currentF1M - pocVal) / pocVal * 100); 
     mechReasonParts.push(
@@ -673,7 +684,7 @@ const derivAnalysis = React.useMemo(() => {
             ? `Giá trên POC (${pocVal}) khoảng ${pocDist}% — vùng kẹt lệnh đang làm hỗ trợ`
             : `Giá dưới POC (${pocVal}) khoảng ${Math.abs(pocDist)}% — đang bị kháng cự từ vùng kẹt lệnh`
     );
-    // Confluence score
+    //Confluence score
     mechReasonParts.push(`Confluence Score tổng hợp: ${score}/100`);
  
     const mechReason = mechReasonParts.join('. ') + '.';
@@ -779,7 +790,7 @@ const derivAnalysis = React.useMemo(() => {
         addLog('[HỆ THỐNG] Đồng bộ biểu đồ chỉ số (VN-INDEX / HNX / VN30).');
       }).catch(() => {});
 
-      // ── Luồng 2: QuantEngine — chạy độc lập, không block luồng 1 ──────────
+      //── Thread 2: QuantEngine — runs independently, does not block thread 1 ──────────
       axios.get('/api/market-radar').then(intelRes => {
         if (intelRes?.data?.success) setMarketIntel(intelRes.data.data);
         if (intelRes?.data?.isLive) {
@@ -812,7 +823,7 @@ const derivAnalysis = React.useMemo(() => {
     
   }, [marketOpen, activeMode]);
 
-// LOGIC: TỰ ĐỘNG NẠP ĐỒ THỊ PHÁI SINH
+//LOGIC: AUTOMATICALLY LOAD DERIVATIVE GRAPH
   useEffect(() => {
     if (activeMode === 'VN_DERIVATIVES') {
         const fetchDerivData = async () => {
@@ -877,7 +888,7 @@ const derivAnalysis = React.useMemo(() => {
     loadSymbols()
   }, [])
 
-  // LOGIC: (SMART SEARCH)
+  //LOGIC: (SMART SEARCH)
   useEffect(() => {
     if (!input.trim() || loadingMarket) {
       setSuggestions([]);
@@ -922,7 +933,7 @@ const derivAnalysis = React.useMemo(() => {
       if (!symbol) return;
       const exists = allStocks.some(s => s.symbol === symbol);
       
-      // TÌM kiểm mã chứng khoán  
+      //FIND and check stock codes
       if (!exists && !symbol.startsWith('VN30')) {
           addLog(`[CẢNH BÁO] Mã cổ phiếu [${symbol}] không hợp lệ hoặc đã hủy niêm yết.`);
           setErrorAlert(`MÃ CỔ PHIẾU "${symbol}" KHÔNG TỒN TẠI HOẶC ĐÃ HỦY NIÊM YẾT!`);
@@ -979,7 +990,7 @@ const derivAnalysis = React.useMemo(() => {
         }
       });
 
-      // ── Preload tin vĩ mô từ DerivNews DB  ──
+      //── Preload macro news from DerivNews DB ──
  
       axios.get('/api/deriv-news')
         .then(res => {
@@ -1071,7 +1082,7 @@ const derivAnalysis = React.useMemo(() => {
     eventSourceRef.current = null;
   }
 };
-// Logic ai button
+//Logic ai button
 const handleAiAnalysis = async (forceRefresh = false) => {
     if (!marketData || !chartData) {
        addLog(`[CẢNH BÁO] Trống dữ liệu biểu đồ. AI từ chối phân tích.`);
@@ -1141,10 +1152,11 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         marketContext: vnIndexData.slice(-5),
         news: optimizedNews,
         user: currentUser,
+        pdfMode: pdfMode,
         timestamp: new Date().toISOString()
     };
 
-    // ── DEBUG: In toàn bộ data feed ra console ──
+    //── DEBUG: Print the entire data feed to the console ──
     console.group(`🦆 OMNI DUCK — AI Data Feed [${marketData.stockInfo.symbol}]`);
     console.log('📊 stockInfo:', aiPayload.stockInfo);
     console.log('🏢 companyProfile:', aiPayload.companyProfile);
@@ -1251,7 +1263,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     }
   };
 
-  // LOGIC: ACTION PANEL MONITORING LOOP
+  //LOGIC: ACTION PANEL MONITORING LOOP
   useEffect(() => {
     let actionTimer;
     if (aiReport && marketData && marketData.stockInfo) {
@@ -1306,7 +1318,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                     lastNewsCountRef.current = currentNewsCount;
                 }
             } catch (e) {
-                // Silent catch
+                //Silent catch
             } finally {
                 setIsUpdatingAction(false);
             }
@@ -1318,7 +1330,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     return () => clearInterval(actionTimer);
   }, [aiReport, marketData?.stockInfo?.currentPrice, marketData?.deepNewsData?.length]);
 
-  // LOGIC: REALTIME SYNC LOOP
+  //LOGIC: REALTIME SYNC LOOP
   useEffect(() => {
     let timer;
     if (marketData && marketData.stockInfo && marketData.stockInfo.symbol) {
@@ -1346,7 +1358,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                     }));
                     setChartData(hData);
                 }
-            } catch (error) { /* Silent catch */ }
+            } catch (error) { /*Silent catch */ }
         }, 5000); 
     }
     return () => clearInterval(timer);
@@ -1355,7 +1367,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
   return (
     <div className={`w-full h-screen flex flex-col overflow-hidden font-sans antialiased transition-colors duration-300 ${UI.main}`}>
       
-      {/* AUTH SCREEN CONTAINER */}
+      {/*AUTH SCREEN CONTAINER */}
         {!currentUser && (
         <AuthScreen
             authForm={authForm} setAuthForm={setAuthForm}
@@ -1363,7 +1375,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         />
         )}
 
-      {/* TERMINAL MAIN CONTAINER */}
+      {/*TERMINAL MAIN CONTAINER */}
       <div className={`w-full h-full flex flex-col transition-opacity duration-500 ${!currentUser ? 'opacity-0 pointer-events-none blur-md' : 'opacity-100'}`}>
         <AppHeader
         isDark={isDark} UI={UI} theme={isDark ? 'dark' : 'light'}
@@ -1385,12 +1397,12 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
 
-      {/* GRID CONTAINER: 3 COLUMNS SYSTEM */}
+      {/*GRID CONTAINER: 3 COLUMNS SYSTEM */}
       <div className="flex-1 overflow-hidden flex relative w-full">
 
-        {/* ========================================================= */}
-        {/* CHẾ ĐỘ 1: CHỨNG KHOÁN VIỆT NAM (CƠ SỞ)                    */}
-        {/* ========================================================= */}
+        {/*========================================================= */}
+        {/*MODE 1: VIETNAM SECURITIES (BASE) */}
+        {/*========================================================= */}
         {activeMode === 'VN_STOCKS' && (
         <VnStocksTab
             isDark={isDark} UI={UI}
@@ -1416,6 +1428,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             handleIntervalChange={handleIntervalChange}
             fetchAiNews={fetchAiNews}
             stopNewsStream={stopNewsStream}
+            pdfMode={pdfMode}
+            setPdfMode={setPdfMode}
 
             fetchUserHistory={fetchUserHistory}
             userHistory={userHistory}
@@ -1430,9 +1444,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
         />
         )}
-        {/* ========================================================= */}
-        {/* CHẾ ĐỘ 2: PHÁI SINH VIỆT NAM (VN30F1M)                    */}
-        {/* ========================================================= */}
+        {/*========================================================= */}
+        {/*MODE 2: VIETNAM DERIVATIVES (VN30F1M) */}
+        {/*========================================================= */}
         {activeMode === 'VN_DERIVATIVES' && (
           <DerivativesTab
             lastNewsSave={lastNewsSave}
@@ -1458,11 +1472,12 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             exportingDeriv={exportingDeriv}
             lastAiDerivTime={lastAiDerivTime}
             macroContext={macroContext}
+            derivActionData={derivActionData}
         />
         )}
-        {/* ========================================================= */}
-        {/* CHẾ ĐỘ 3: CRYPTO TERMINAL - HỖ TRỢ LIGHT/DARK MODE      */}
-        {/* ========================================================= */}
+        {/*========================================================= */}
+        {/*MODE 3: CRYPTO TERMINAL -SUPPORT LIGHT/DARK MODE */}
+        {/*========================================================= */}
         {activeMode === 'CRYPTO' && (
             <CryptoTab
                 isDark={isDark}
@@ -1470,9 +1485,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 addLog={addLog}
             />
         )}
-        {/* ========================================================= */}
-        {/* CHẾ ĐỘ 5: GIẢ LẬP ĐẦU TƯ (PAPER TRADING)          */}
-        {/* ========================================================= */}
+        {/*========================================================= */}
+        {/*MODE 5: INVESTMENT SIMULATION (PAPER TRADING) */}
+        {/*========================================================= */}
         {activeMode === 'PAPER_TRADING' && (
         <PaperTradingTab
             isDark={isDark} UI={UI}
@@ -1499,7 +1514,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         )}
     </div>
 </div>
-    {/* Hiển thị log*/}
+    {/*Display log*/}
       {showLogs && (
         <DraggableLog 
           isDark={isDark} 
@@ -1507,7 +1522,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
           onClose={() => setShowLogs(false)} 
         />
       )}
-     {/* COMPONENT: FULL PDF MODAL VIEWER */}
+     {/*COMPONENT: FULL PDF MODAL VIEWER */}
       {showPdfModal && (
         <div 
             className="fixed inset-0 flex items-center justify-center p-6 lg:p-12 pt-24" 

@@ -17,40 +17,40 @@ except ImportError:
 
 app = FastAPI()
 
-# =========================================================
-# CẤU HÌNH PIPELINE
-# =========================================================
-# TURBO  : Tắt OCR + Tắt Table ML hoàn toàn → ~3-8s  ← MẶC ĐỊNH
-# FAST   : Tắt OCR + Table ML nhẹ (FAST mode) → ~20-40s
-# BALANCED: Tắt OCR + Table ML đầy đủ → ~60-90s
-# FULL   : Bật mọi thứ (cho PDF scan) → ~150-200s
-# =========================================================
+# =======================================================================
+# PIPELINE CONFIGURATION
+# =======================================================================
+# TURBO : Turn off OCR + Turn off Table ML completely → ~3-8s ← DEFAULT
+# FAST : Turn off OCR + Light Table ML (FAST mode) → ~20-40s
+# BALANCED: Turn off full OCR + Table ML → ~60-90s
+# FULL : Enable everything (for PDF scan) → ~150-200s
+# =======================================================================
 
 def build_converter(mode: str) -> DocumentConverter:
     pipeline_options = PdfPipelineOptions()
 
     if mode == "turbo":
-        # Tắt hoàn toàn OCR và Table Structure ML
-        # Docling chỉ dùng pdfminer/pypdf để extract text thuần
-        # Đủ dùng cho 99% báo cáo tài chính text-based (TCBS, SSI, VPS...)
+        # Completely turn off OCR and Table Structure ML
+        # Docling only uses pdfminer/pypdf to extract plain text
+        # Sufficient for 99% of text-based financial reports (TCBS, SSI, VPS...)
         pipeline_options.do_ocr = False
         pipeline_options.do_table_structure = False
 
     elif mode == "fast":
-        # Tắt OCR, Table ML nhẹ hơn
+        # Turn off OCR, Light Table ML (FAST mode)
         pipeline_options.do_ocr = False
         pipeline_options.do_table_structure = True
         pipeline_options.table_structure_options.mode = TableFormerMode.FAST
         pipeline_options.table_structure_options.do_cell_matching = False
 
     elif mode == "balanced":
-        # Tắt OCR, Table ML đầy đủ
+        # Turn off OCR, Full Table ML
         pipeline_options.do_ocr = False
         pipeline_options.do_table_structure = True
         pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
         pipeline_options.table_structure_options.do_cell_matching = True
 
-    else:  # "full" - PDF scan/ảnh
+    else:  # "full" -PDF scan/image
         pipeline_options.do_ocr = True
         pipeline_options.do_table_structure = True
         pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
@@ -61,15 +61,15 @@ def build_converter(mode: str) -> DocumentConverter:
         }
     )
 
-# =========================================================
-# KHỞI ĐỘNG - Chỉ tải converter cần thiết lúc start
-# =========================================================
+# =======================================================================
+# STARTUP 
+# =======================================================================
 print(f"{Fore.CYAN}[SYSTEM]{Fore.YELLOW} Đang khởi tạo Docling converter (TURBO mode)...")
 
 converter_turbo = build_converter("turbo")
 print(f"{Fore.GREEN}[SYSTEM] ✔ Converter TURBO sẵn sàng (không có Table ML → khởi động nhanh)")
 
-# FAST và BALANCED được tạo lazy khi có request để không delay startup
+# FAST and BALANCED
 _converters = {
     "turbo": converter_turbo,
     "fast": None,
@@ -90,7 +90,6 @@ async def parse_pdf(
     start_time = time.time()
     filename = file.filename
 
-    # Lấy hoặc tạo converter theo mode (lazy init)
     if mode not in _converters:
         mode = "turbo"
 
