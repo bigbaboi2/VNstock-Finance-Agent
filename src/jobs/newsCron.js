@@ -1,3 +1,5 @@
+ 
+
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import cron from 'node-cron';
@@ -8,27 +10,39 @@ import { getBrowser } from '../utils/browserManager.js';
 
 export let lastNewsSyncTime = new Date();
 
-// ─── Sentiment ───────────────────────────────────────────────────────────────
+//─── Sentiment ───────────────────────────────────────────────────────────────
+
 const analyzeSentiment = (title) => {
     const text = title.toLowerCase();
-    if ((text.includes('nhnn') || text.includes('ngân hàng nhà nước')) &&
+
+     if ((text.includes('nhnn') || text.includes('ngân hàng nhà nước')) &&
         (text.includes('tuýt còi') || text.includes('yêu cầu xử lý') ||
          text.includes('giữ lãi suất') || text.includes('ổn định lãi suất'))) return 'positive';
+
     if (text.includes('giảm lãi suất') || text.includes('hạ lãi suất') ||
         text.includes('nới lỏng tiền tệ') || text.includes('hút ròng giảm')) return 'positive';
+
     if (text.includes('tăng lãi suất') && !text.includes('nhnn') &&
         !text.includes('ngân hàng nhà nước')) return 'negative';
     if (text.includes('hút ròng mạnh')) return 'negative';
 
-    const positiveWords = ['bơm ròng', 'phục hồi', 'bình ổn', 'vượt đỉnh', 'kỷ lục', 'tích cực', 'nới lỏng', 'phát triển', 'hạ nhiệt', 'tăng trưởng', 'giải ngân', 'hỗ trợ', 'tăng trưởng gdp', 'xuất siêu'];
-    const negativeWords = ['gây áp lực', 'bán tháo', 'rút ròng', 'hút ròng', 'căng thẳng', 'phá giá', 'tiêu cực', 'thủng', 'bắt bớ', 'lạm phát', 'nhập siêu', 'thâm hụt', 'suy thoái', 'khủng hoảng'];
+    const positiveWords = [
+        'bơm ròng', 'phục hồi', 'bình ổn', 'vượt đỉnh', 'kỷ lục', 'tích cực',
+        'nới lỏng', 'phát triển', 'hạ nhiệt', 'tăng trưởng', 'giải ngân',
+        'hỗ trợ', 'tăng trưởng gdp', 'xuất siêu',
+    ];
+    const negativeWords = [
+        'gây áp lực', 'bán tháo', 'rút ròng', 'hút ròng', 'căng thẳng',
+        'phá giá', 'tiêu cực', 'thủng', 'bắt bớ', 'lạm phát', 'nhập siêu',
+        'thâm hụt', 'suy thoái', 'khủng hoảng',
+    ];
 
     if (negativeWords.some(w => text.includes(w))) return 'negative';
     if (positiveWords.some(w => text.includes(w))) return 'positive';
     return 'neutral';
 };
 
-// ─── RSS queries vĩ mô ────────────────────────────────────────
+ 
 const MACRO_RSS_QUERIES = [
     `https://news.google.com/rss/search?q=NHNN+OR+ngân+hàng+nhà+nước+lãi+suất+OR+tỷ+giá&hl=vi&gl=VN&ceid=VN:vi`,
     `https://news.google.com/rss/search?q=VN30+OR+VNINDEX+thị+trường+chứng+khoán&hl=vi&gl=VN&ceid=VN:vi`,
@@ -37,14 +51,67 @@ const MACRO_RSS_QUERIES = [
     `https://news.google.com/rss/search?q=tỷ+giá+USD+VND+OR+FDI+OR+dự+trữ+ngoại+hối&hl=vi&gl=VN&ceid=VN:vi`,
     `https://news.google.com/rss/search?q=trái+phiếu+chính+phủ+OR+ngân+sách+nhà+nước&hl=vi&gl=VN&ceid=VN:vi`,
 ];
+ 
+const DB_CAP = 300;
+ 
+const CIRCUIT_THRESHOLD = 2;    
+const CIRCUIT_RESET_MS  = 5 * 60 * 1000; 
 
-// ─── TÍCH HỢP HÀM BÓC LINK GOOGLE TẠI CHỖ ──────────────────────────────
+const circuitState = new Map();
+ 
+function getCircuit(domain) {
+    if (!circuitState.has(domain)) {
+        circuitState.set(domain, { failures: 0, openUntil: null });
+    }
+    return circuitState.get(domain);
+}
+
+function isCircuitOpen(domain) {
+    const c = getCircuit(domain);
+    if (c.openUntil && Date.now() < c.openUntil) return true;
+     if (c.openUntil && Date.now() >= c.openUntil) {
+        c.openUntil = null;
+        console.log(chalk.blue(`[CIRCUIT] ${domain} → half-open, sẽ thử lại.`));
+    }
+    return false;
+}
+
+function recordCircuitSuccess(domain) {
+    const c = getCircuit(domain);
+    c.failures = 0;
+    c.openUntil = null;
+}
+
+function recordCircuitFailure(domain) {
+    const c = getCircuit(domain);
+    c.failures += 1;
+    if (c.failures >= CIRCUIT_THRESHOLD) {
+        c.openUntil = Date.now() + CIRCUIT_RESET_MS;
+        console.log(chalk.red(
+            `[CIRCUIT] ${domain} tripped sau ${c.failures} lần timeout → open ${CIRCUIT_RESET_MS / 60000}p.`
+        ));
+    }
+}
+
+function extractDomain(url) {
+    try { return new URL(url).hostname.replace('www.', ''); }
+    catch { return 'unknown'; }
+}
+
+//─── Google News URL helpers ──────────────────────────────────────────────────
+
 const resolveGoogleLink = async (googleUrl) => {
     if (!googleUrl || !googleUrl.includes('google.com')) return googleUrl;
-    
+
     try {
-        const res = await axios.get(googleUrl, { maxRedirects: 0, validateStatus: s => s >= 200 && s < 400, timeout: 4000 });
-        if (res.headers.location && !res.headers.location.includes('google.com')) return res.headers.location;
+        const res = await axios.get(googleUrl, {
+            maxRedirects: 0,
+            validateStatus: s => s >= 200 && s < 400,
+            timeout: 4000,
+        });
+        if (res.headers.location && !res.headers.location.includes('google.com')) {
+            return res.headers.location;
+        }
     } catch (err) {
         if (err.response?.headers?.location && !err.response.headers.location.includes('google.com')) {
             return err.response.headers.location;
@@ -61,8 +128,11 @@ const resolveGoogleLink = async (googleUrl) => {
             const timer = setTimeout(() => resolve(null), 12000);
             page.on('request', (req) => {
                 const url = req.url();
-                if (['image','stylesheet','font','media'].includes(req.resourceType())) { req.abort(); return; }
-                if (req.isNavigationRequest() && req.frame() === page.mainFrame() && !url.includes('news.google.com') && !url.includes('about:blank')) {
+                if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+                    req.abort(); return;
+                }
+                if (req.isNavigationRequest() && req.frame() === page.mainFrame() &&
+                    !url.includes('news.google.com') && !url.includes('about:blank')) {
                     clearTimeout(timer); req.abort('aborted'); resolve(url); return;
                 }
                 req.continue();
@@ -70,33 +140,41 @@ const resolveGoogleLink = async (googleUrl) => {
             page.goto(googleUrl).catch(() => {});
         });
         return finalUrl;
-    } catch { return null; } 
-    finally { if (page) await page.close().catch(()=>{}); }
+    } catch { return null; }
+    finally { if (page) await page.close().catch(() => {}); }
 };
+
 const decodeGoogleNewsUrl = (url) => {
     try {
         const match = url.match(/(?:articles|read)\/([a-zA-Z0-9-_]+)/);
         if (match) {
             const base64Str = match[1].replace(/-/g, '+').replace(/_/g, '/');
-            const decoded = Buffer.from(base64Str, 'base64').toString('utf-8');
-            const urlMatch = decoded.match(/https?:\/\/[^\x00-\x1F\s"']+/i);
+            const decoded   = Buffer.from(base64Str, 'base64').toString('utf-8');
+            const urlMatch  = decoded.match(/https?:\/\/[^\x00-\x1F\s"']+/i);
             if (urlMatch) return urlMatch[0];
         }
-    } catch (e) {}
+    } catch {}
     return null;
 };
-//─── Cào với Concurrent Limit (Tối ưu RAM) ───────────────────
+
+//─── [FIX-10] scrapeWithConcurrencyLimit — circuit breaker ───────────────────
+
+const SCRAPE_TIMEOUT_MS = 35000;
+
 const scrapeWithConcurrencyLimit = async (articles, limit = 3) => {
     const results = [];
+
     for (let i = 0; i < articles.length; i += limit) {
         const batch = articles.slice(i, i + limit);
+
         const batchResults = await Promise.all(
             batch.map(async (article) => {
+                //Social sources: no need to scrape
                 if (article.source === 'Reddit F1M' || article.source === 'Facebook Group') {
                     return { ...article, content: article.title };
                 }
 
-                // Giải mã link Google
+                //Decode the Google link
                 let realLink = article.link;
                 if (realLink && realLink.includes('google.com')) {
                     const decoded = decodeGoogleNewsUrl(realLink);
@@ -108,33 +186,53 @@ const scrapeWithConcurrencyLimit = async (articles, limit = 3) => {
                     }
                 }
 
-                const isCleanLink = realLink && !realLink.includes('google.com') && !realLink.includes('googleusercontent.com');
-                
+                const isCleanLink = realLink &&
+                    !realLink.includes('google.com') &&
+                    !realLink.includes('googleusercontent.com');
+
                 if (!isCleanLink) {
                     return { ...article, link: realLink, content: article.title };
                 }
 
+                //[FIX-10] Check circuit breaker before scraping
+                const domain = extractDomain(realLink);
+                if (isCircuitOpen(domain)) {
+                    console.log(chalk.yellow(`[CIRCUIT] Bỏ qua ${domain} (circuit open).`));
+                    return { ...article, link: realLink, content: article.title };
+                }
+
                 try {
-                    // [TĂNG TIMEOUT] Lên 35s để Cào content thoải mái
                     const content = await Promise.race([
                         scrapeArticleContent(realLink),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 35000))
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('timeout')), SCRAPE_TIMEOUT_MS)
+                        ),
                     ]);
-                    
-                    return { 
-                        ...article, 
-                        link: realLink, 
-                        content: (content && content.length > 80) ? content : article.title 
+
+                    recordCircuitSuccess(domain);
+
+                    return {
+                        ...article,
+                        link: realLink,
+                        content: (content && content.length > 80) ? content : article.title,
                     };
-                } catch {
+                } catch (err) {
+                    if (err.message === 'timeout') {
+                        recordCircuitFailure(domain);
+                        console.log(chalk.yellow(`[CIRCUIT] ${domain} timeout #${getCircuit(domain).failures}`));
+                    }
                     return { ...article, link: realLink, content: article.title };
                 }
             })
         );
+
         results.push(...batchResults);
     }
+
     return results;
 };
+
+//─── Fetch RSS ────────────────────────────────────────────────────────────────
 
 const extractRealLink = (descriptionHtml) => {
     if (!descriptionHtml) return null;
@@ -143,27 +241,34 @@ const extractRealLink = (descriptionHtml) => {
     return null;
 };
 
-// ─── Fetch RSS ─────────────────────────────
 const fetchMacroRSS = async (url, maxItems = 10) => {
     try {
-        const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 });
+        const { data } = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 10000,
+        });
         const $ = cheerio.load(data, { xmlMode: true });
         const results = [];
+
         $('item').each((i, el) => {
             if (i >= maxItems) return false;
             const title       = $(el).find('title').text().replace(/ - .*$/, '').trim();
             const googleLink  = $(el).find('link').text().trim() || $(el).find('guid').text().trim();
             const description = $(el).find('description').text().trim();
             const source      = $(el).find('source').text() || 'Báo Tài Chính';
-            const realLink = extractRealLink(description) || googleLink;
+            const realLink    = extractRealLink(description) || googleLink;
 
             if (title && title.length > 20 && realLink) {
                 results.push({
-                    title, link: realLink, source, sentiment: analyzeSentiment(title),
+                    title,
+                    link: realLink,
+                    source,
+                    sentiment: analyzeSentiment(title),
                     timestamp: new Date($(el).find('pubDate').text() || Date.now()),
                 });
             }
         });
+
         return results;
     } catch (err) {
         console.log(chalk.red(`[LỖI] RSS fetch failed: ${err.message}`));
@@ -171,16 +276,25 @@ const fetchMacroRSS = async (url, maxItems = 10) => {
     }
 };
 
-// ─── Main fetch ──────────────────────────────────────────────────────────────
+//─── Main fetch ───────────────────────────────────────────────────────────────
+
 export const fetchAndSaveNews = async () => {
     console.log(chalk.gray('[HỆ THỐNG] Đang cào tin tức Vĩ mô...'));
+
     try {
-        const allFetched = await Promise.all(MACRO_RSS_QUERIES.map(url => fetchMacroRSS(url, 10)));
-        const seenLinks = new Set();
-        const newArticles = [];
+        const allFetched = await Promise.all(
+            MACRO_RSS_QUERIES.map(url => fetchMacroRSS(url, 10))
+        );
+
+        const seenLinks    = new Set();
+        const newArticles  = [];
+
         for (const batch of allFetched) {
             for (const article of batch) {
-                if (!seenLinks.has(article.link)) { seenLinks.add(article.link); newArticles.push(article); }
+                if (!seenLinks.has(article.link)) {
+                    seenLinks.add(article.link);
+                    newArticles.push(article);
+                }
             }
         }
 
@@ -189,10 +303,13 @@ export const fetchAndSaveNews = async () => {
             return;
         }
 
-        console.log(chalk.cyan(`[CRON] Đã lấy ${newArticles.length} bài từ tất cả RSS queries.`));
-        const existingLinks = new Set((await DerivNews.find({}, { link: 1 }).lean()).map(d => d.link));
+        console.log(chalk.greenBright(`[CRON] Đã lấy ${newArticles.length} bài từ tất cả RSS queries.`));
+
+        const existingLinks    = new Set(
+            (await DerivNews.find({}, { link: 1 }).lean()).map(d => d.link)
+        );
         const brandNewArticles = newArticles.filter(a => !existingLinks.has(a.link));
-        const alreadyHave = newArticles.length - brandNewArticles.length;
+        const alreadyHave      = newArticles.length - brandNewArticles.length;
 
         console.log(chalk.gray(`[CRON] Đã có: ${alreadyHave} | Mới: ${brandNewArticles.length}`));
 
@@ -201,30 +318,49 @@ export const fetchAndSaveNews = async () => {
         } else {
             const articlesWithContent = await scrapeWithConcurrencyLimit(brandNewArticles, 3);
             let addedCount = 0;
+
             for (const article of articlesWithContent) {
                 try {
                     await DerivNews.create(article);
                     addedCount++;
                 } catch (err) {
-                    if (err.code !== 11000) console.log(chalk.yellow(`[CRON] Lỗi insert "${article.title}": ${err.message}`));
+                    if (err.code !== 11000) {
+                        console.log(chalk.yellow(`[CRON] Lỗi insert "${article.title}": ${err.message}`));
+                    }
                 }
             }
-            console.log(chalk.green(`[CRON] Đã lưu thành công ${addedCount} tin tức kèm content bài báo vào DB.`));
+
+            console.log(chalk.green(
+                `[CRON] Đã lưu thành công ${addedCount} tin tức kèm content bài báo vào DB.`
+            ));
         }
 
-        const count = await DerivNews.countDocuments();
-        if (count > 60) {
-            const top60 = await DerivNews.find().sort({ timestamp: -1 }).limit(60).select('_id').lean();
-            const top60Ids = top60.map(d => d._id);
-            const deleted = await DerivNews.deleteMany({ _id: { $nin: top60Ids } });
-            if (deleted.deletedCount > 0) console.log(chalk.gray(`[CRON] Đã dọn ${deleted.deletedCount} tin cũ.`));
+         const count = await DerivNews.countDocuments();
+        if (count > DB_CAP) {
+            const topN    = await DerivNews.find()
+                .sort({ timestamp: -1 })
+                .limit(DB_CAP)
+                .select('_id')
+                .lean();
+            const topNIds = topN.map(d => d._id);
+            const deleted = await DerivNews.deleteMany({ _id: { $nin: topNIds } });
+            if (deleted.deletedCount > 0) {
+                console.log(chalk.gray(`[CRON] Đã dọn ${deleted.deletedCount} tin cũ (cap=${DB_CAP}).`));
+            }
         }
+
         lastNewsSyncTime = new Date();
-    } catch (error) { console.error('[CRON-LỖI]', error.message); }
+    } catch (error) {
+        console.error('[CRON-LỖI]', error.message);
+    }
 };
 
+//─── Start ────────────────────────────────────────────────────────────────────
+
 export const startCronJobs = () => {
-    fetchAndSaveNews().catch(err => console.error(chalk.red('[CRON] Lỗi fetch lần đầu boot:'), err.message));
+    fetchAndSaveNews().catch(err =>
+        console.error(chalk.red('[CRON] Lỗi fetch lần đầu boot:'), err.message)
+    );
     cron.schedule('0 */3 * * *', fetchAndSaveNews);
     console.log(chalk.gray('[CRON] Đã lên lịch lấy dữ liệu tin vĩ mô mỗi 3h.'));
 };

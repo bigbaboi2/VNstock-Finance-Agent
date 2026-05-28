@@ -67,21 +67,57 @@ export const getLiveNews = async (req, res) => {
             res.write(`data: ${JSON.stringify(rescored)}\n\n`);
         }
 
-        console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`));
+console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`));
 
-         const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
-        const seenLinks    = new Set(cachedNews.map(n => n.link));
-        
-         const uniqueNew    = fetchedLinks.filter(item => {
-            const isNew = !seenLinks.has(item.link);
-            const isClean = item.link && !item.link.includes('google.com');
-            return isNew && isClean;
-        });
+        //---START LOOP FLIP PAGE FIND NEW NEWS ---
+        const seenLinks = new Set(cachedNews.map(n => n.link));
+        let uniqueNew = [];
+        let currentPage = 1;
+        const MAX_PAGES = 4;  
+        const TARGET_NEW_NEWS = 5; //Try to find at least 5 new news
+
+        while (uniqueNew.length < TARGET_NEW_NEWS && currentPage <= MAX_PAGES) {
+            if (isClientDisconnected) break; //Exit the loop if Frontend disconnects
+            
+            //Each page scans 15 messages
+            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, currentPage);
+            
+             if (currentBatch.length === 0) {
+                console.log(chalk.gray(`[HỆ THỐNG] Đã cạn kiệt tài nguyên tin tức mạng ở Trang ${currentPage}.`));
+                break; 
+            }
+
+            //Filter out news that has never been in the Database and must be a clean link
+            const newItems = currentBatch.filter(item => {
+                const isNew = !seenLinks.has(item.link);
+                const isClean = item.link && !item.link.includes('google.com');
+                return isNew && isClean;
+            });
+
+            if (newItems.length > 0) {
+                //Insert new information into the total array and update seenLinks to avoid duplicate filtering in the following loop
+                uniqueNew = [...uniqueNew, ...newItems];
+                newItems.forEach(n => seenLinks.add(n.link));
+                console.log(chalk.green(`[HỆ THỐNG] ↳ Trang ${currentPage}: Vớt được ${newItems.length} tin mới toanh!`));
+            } else {
+                console.log(chalk.yellow(`[HỆ THỐNG] ↳ Trang ${currentPage}: Toàn tin cũ đã có trong DB. Đang tự động lật sang Trang ${currentPage + 1}...`));
+            }
+
+            currentPage++;
+        }
+
+        if (uniqueNew.length === 0) {
+            console.log(chalk.yellow(`[HỆ THỐNG] Dừng tìm kiếm. Không có bài báo nào mới trên mạng lưới về mã ${ticker}.`));
+        } else {
+            console.log(chalk.green.bold(`[HỆ THỐNG] TỔNG KẾT: Thu hoạch được ${uniqueNew.length} tin mới. Đang ném vào Scraper cào chữ...`));
+        }
 
         if (uniqueNew.length > 0 && !isClientDisconnected) {
-            const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
+             const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
             
-             const SAFE_BATCH_SIZE = 3; 
+            //---END OF LOOP ---
+            
+            const SAFE_BATCH_SIZE = 3;
             for (let i = 0; i < toScrape.length; i += SAFE_BATCH_SIZE) {
                 if (isClientDisconnected) break;
                 const batch   = toScrape.slice(i, i + SAFE_BATCH_SIZE);
