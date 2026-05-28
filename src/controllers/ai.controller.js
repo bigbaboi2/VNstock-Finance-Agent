@@ -24,7 +24,6 @@ const BATCH_SIZE  = 5;
 
 export const getLiveNews = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
-    // mode: 'official' | 'balanced' | 'negative' | 'rumor' — default balanced
     const mode = ['official', 'balanced', 'negative', 'rumor'].includes(req.query.mode)
                  ? req.query.mode : 'balanced';
 
@@ -46,13 +45,20 @@ export const getLiveNews = async (req, res) => {
         let cachedNews = masterRecord.deepNewsData || [];
         let newDeepNewsData = [];
 
-        const isStaleGoogleLink = (n) => n.link && n.link.includes('news.google.com/rss/articles');
-        const staleCount = cachedNews.filter(isStaleGoogleLink).length;
+        const isBadNews = (n) => {
+            if (!n) return true;
+            if (!n.link || n.link === 'null' || n.link.trim() === '') return true; 
+            if (!n.title || n.title === 'null' || n.title.trim() === '') return true; 
+            if (n.link.includes('google.com') || n.link.includes('googleusercontent')) return true; 
+            return false;
+        };
+
+        const staleCount = cachedNews.filter(isBadNews).length;
         if (staleCount > 0) {
-            cachedNews = cachedNews.filter(n => !isStaleGoogleLink(n));
+            cachedNews = cachedNews.filter(n => !isBadNews(n));
             masterRecord.deepNewsData = cachedNews;
             await masterRecord.save();
-            console.log(`[FIX] Đã dọn ${staleCount} link Google redirect cũ cho ${ticker}`);
+            console.log(chalk.red.italic(`[FIX-DB] Đã xóa ${staleCount} bản ghi RÁC (null/google) của mã ${ticker} khỏi Database.`));
         }
 
         for (const news of cachedNews) {
@@ -61,20 +67,30 @@ export const getLiveNews = async (req, res) => {
             res.write(`data: ${JSON.stringify(rescored)}\n\n`);
         }
 
-        const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
+        console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`));
+
+         const fetchedLinks = await searchVnNewsDirectly(ticker, mode, 40);
         const seenLinks    = new Set(cachedNews.map(n => n.link));
-        const uniqueNew    = fetchedLinks.filter(item => !seenLinks.has(item.link));
+        
+         const uniqueNew    = fetchedLinks.filter(item => {
+            const isNew = !seenLinks.has(item.link);
+            const isClean = item.link && !item.link.includes('google.com');
+            return isNew && isClean;
+        });
 
         if (uniqueNew.length > 0 && !isClientDisconnected) {
             const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
-            for (let i = 0; i < toScrape.length; i += BATCH_SIZE) {
+            
+             const SAFE_BATCH_SIZE = 3; 
+            for (let i = 0; i < toScrape.length; i += SAFE_BATCH_SIZE) {
                 if (isClientDisconnected) break;
-                const batch   = toScrape.slice(i, i + BATCH_SIZE);
+                const batch   = toScrape.slice(i, i + SAFE_BATCH_SIZE);
+                
                 const scraped = await Promise.all(batch.map(async (news) => {
                     try {
                         const content = await Promise.race([
                             scrapeArticleContent(news.link),
-                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000))
+                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 35000))
                         ]);
                         const raw = {
                             title:       news.title,
@@ -100,6 +116,7 @@ export const getLiveNews = async (req, res) => {
                         };
                     }
                 }));
+
                 for (const item of scraped) {
                     if (isClientDisconnected) break;
                     newDeepNewsData.push(item);
@@ -112,15 +129,21 @@ export const getLiveNews = async (req, res) => {
             masterRecord = await Stock.findOne({ symbol: ticker });
             const combined = [...newDeepNewsData, ...(masterRecord.deepNewsData || [])];
             const seen = new Set();
+            
+            const isBadNews = (n) => !n || !n.link || n.link === 'null' || n.link.includes('google.com');
+
             masterRecord.deepNewsData = combined
                 .filter(n => {
+                    if (isBadNews(n)) return false; 
                     if (seen.has(n.link)) return false;
                     seen.add(n.link);
                     return true;
                 })
                 .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0))
                 .slice(0, MAX_NEWS_DB);
+            
             await masterRecord.save();
+            console.log(chalk.green(`[DB] Đã cập nhật thành công ${newDeepNewsData.length} tin tức SẠCH cho mã ${ticker}.`));
         }
 
         if (!isClientDisconnected) {
@@ -201,7 +224,7 @@ export const analyzeStock = async (req, res) => {
                 }));
             }
         } catch (macroErr) {
-            console.log('[AI] Không lấy được macroNews:', macroErr.message);
+            console.log(chalk.red('[AI] Không lấy được macroNews:', macroErr.message));
         }
 
         const aiReport = await analyzeWithGemini(ticker, fullData);
@@ -271,7 +294,7 @@ export const debugFeed = async (req, res) => {
                 }));
             }
         } catch (macroErr) {
-            console.log('[DEBUG] Không lấy được macroNews:', macroErr.message);
+            console.log(chalk.redBright(`[DEBUG] Không lấy được macroNews: ${macroErr.message}`));
         }
 
         const jsonStr = JSON.stringify(fullData, null, 2);
