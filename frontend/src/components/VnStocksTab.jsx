@@ -107,6 +107,7 @@ export default function VnStocksTab({
   aiAnalysisDuration,
   pdfMode = 'turbo',
   setPdfMode,
+  vnReportTimestamp, 
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
@@ -114,7 +115,15 @@ export default function VnStocksTab({
   const [isExporting, setIsExporting]   = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const aiError = aiReportError;
+  // === LOGIC: THU KÉO CHIỀU CAO CHART ===
+  const [chartHeight, setChartHeight] = useState(600);
+  const [isDraggingChart, setIsDraggingChart] = useState(false);
 
+// Dùng Ref để neo giữ vị trí gốc, giúp kéo mượt không bị giật lag
+  const dragStartY = useRef(0);
+  const startHeight = useRef(600);
+
+  // ======================================
   useEffect(() => {
     if (onRequestCloseChat) {
       onRequestCloseChat(() => setIsChatOpen(false));
@@ -697,18 +706,49 @@ export default function VnStocksTab({
         <div className={`flex-1 overflow-y-auto p-8 lg:p-12 relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
             
           {marketData && chartData && (
-            <div className={`mb-8 border rounded-[40px] p-8 shadow-xl transition-colors duration-300 flex flex-col h-[600px] ${UI.card}`}>
-              <div className={`flex items-center gap-3 mb-6 pb-4 border-b shrink-0 ${UI.border}`}>
+            <div 
+              className={`mb-8 border rounded-[40px] px-8 pt-8 pb-8 shadow-xl transition-colors duration-300 flex flex-col relative overflow-hidden ${UI.card} ${isDraggingChart ? 'select-none' : ''}`}
+              style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px` }}
+            >
+              
+              {/* LỚP PHỦ TÀNG HÌNH BẮT CHUỘT (Chỉ bật khi đang kéo) */}
+              {isDraggingChart && (
+                  <div 
+                      className="fixed inset-0 z-[99999] cursor-row-resize"
+                      onMouseMove={(e) => {
+                          const deltaY = e.clientY - dragStartY.current;
+                           setChartHeight(Math.min(1200, Math.max(400, startHeight.current + deltaY)));
+                      }}
+                      onMouseUp={() => setIsDraggingChart(false)}
+                      onMouseLeave={() => setIsDraggingChart(false)}
+                  />
+              )}
+
+              <div className={`flex items-center gap-3 mb-6 pb-4 border-b shrink-0 relative z-10 ${UI.border}`}>
                 <BarChart3 className="text-yellow-500" size={24} />
                 <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Biểu đồ Kỹ thuật ({marketData.stockInfo.symbol})</h3>
               </div>
-              <div className="flex-1 w-full min-h-0 relative rounded-xl overflow-hidden">
+              
+              <div className="flex-1 w-full min-h-0 relative rounded-xl overflow-hidden mb-2 z-10">
                   <TradingChart 
                       data={chartData}       
                       theme={isDark ? 'dark' : 'light'}
                       onIntervalChange={handleIntervalChange} 
                       currentInterval={activeInterval}
                   />              
+              </div>
+              
+               <div 
+                  className="absolute bottom-0 left-0 w-full h-3 flex items-center justify-center cursor-row-resize z-[50] hover:bg-yellow-400/20 transition-all bg-gradient-to-t from-black/10 to-transparent"
+                  onMouseDown={(e) => { 
+                      e.preventDefault(); 
+                      setIsDraggingChart(true); 
+                       dragStartY.current = e.clientY;
+                      startHeight.current = chartHeight;
+                  }}
+                  title="Kéo để thay đổi kích thước biểu đồ"
+              >
+                  <div className={`w-16 h-1.5 rounded-full ${isDark ? 'bg-slate-500 shadow-[0_0_5px_rgba(0,0,0,0.8)]' : 'bg-slate-400 shadow-sm'}`}></div>
               </div>
             </div>
           )}
@@ -1345,10 +1385,17 @@ export default function VnStocksTab({
                         <div className="flex flex-wrap items-center gap-3 mt-2">
                             <p className="text-yellow-500 uppercase tracking-[0.3em] text-[10px] font-black">Omni Duck AI Framework</p>
                             
-                            {/* BỘ ĐẾM THỜI GIAN AI */}
+                            {/* BỘ ĐẾM THỜI GIAN AI  */}
                             {aiAnalysisDuration && (
                                 <div className={`flex items-center gap-3 px-3 py-1 rounded-full border text-[12px] font-black uppercase tracking-widest ${isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-300 text-emerald-600'}`}>
                                     <Clock size={13} /> Hoàn tất trong {aiAnalysisDuration} giây
+                                </div>
+                            )}
+
+                            {/* HIỂN THỊ THỜI GIAN BÁO CÁO CŨ */}
+                            {vnReportTimestamp && !aiAnalysisDuration && (
+                                <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-black tracking-widest ${isDark ? 'bg-slate-800/80 border-slate-600 text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-500'}`}>
+                                    <Database size={12} /> Báo cáo Database đã tạo lúc: {vnReportTimestamp}
                                 </div>
                             )}
                         </div>

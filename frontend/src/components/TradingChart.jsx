@@ -261,6 +261,81 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
   const handleScrollLeft  = () => chartInstance.current?.scrollByDistance(chartInstance.current.getBarSpace());
   const handleScrollRight = () => chartInstance.current?.scrollByDistance(-chartInstance.current.getBarSpace());
   const handleResetChart  = () => { chartInstance.current?.setBarSpace(6); chartInstance.current?.scrollToRealTime(); };
+  /* ══════════════════════════════════════════════════════
+     EFFECT: FIX CHART  
+  ══════════════════════════════════════════════════════ */
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+
+    let isDragging   = false;
+    let activeCanvas = null;  
+
+     const suppressMouseLeave = (e) => {
+      if (isDragging) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    };
+
+     const handleMouseDown = (e) => {
+      if (e.target && e.target.tagName === 'CANVAS') {
+        isDragging   = true;
+        activeCanvas = e.target;  
+      }
+    };
+
+    const handleMouseUp = () => {
+      isDragging   = false;
+      activeCanvas = null;
+    };
+
+    // ── C: Forward clamped event vào document.documentElement ─
+ 
+    const handleDocMouseMove = (e) => {
+      if (!isDragging || !activeCanvas) return;
+      if (container.contains(e.target)) return; 
+
+      const box = container.getBoundingClientRect();
+      const clampedX = Math.max(box.left + 1, Math.min(e.clientX, box.right  - 1));
+      const clampedY = Math.max(box.top  + 1, Math.min(e.clientY, box.bottom - 1));
+
+      const synth = new MouseEvent('mousemove', {
+        bubbles:    true,
+        cancelable: true,
+        view:       window,
+        clientX:    clampedX,
+        clientY:    clampedY,
+        screenX:    e.screenX,
+        screenY:    e.screenY,
+        movementX:  e.movementX,
+        movementY:  e.movementY,
+        buttons:    1,  
+        button:     0,
+        ctrlKey:    e.ctrlKey,
+        shiftKey:   e.shiftKey,
+        altKey:     e.altKey,
+        metaKey:    e.metaKey,
+      });
+
+       activeCanvas.ownerDocument.documentElement.dispatchEvent(synth);
+    };
+
+    container.addEventListener('mouseleave', suppressMouseLeave, true);
+    container.addEventListener('mousedown',  handleMouseDown,    true);
+    document.addEventListener('mousemove',   handleDocMouseMove, true);
+    document.addEventListener('mouseup',     handleMouseUp,      true);
+
+    return () => {
+      container.removeEventListener('mouseleave', suppressMouseLeave, true);
+      container.removeEventListener('mousedown',  handleMouseDown,    true);
+      document.removeEventListener('mousemove',   handleDocMouseMove, true);
+      document.removeEventListener('mouseup',     handleMouseUp,      true);
+    };
+  }, []);
+
+
+
 
 
   /* ── activate a drawing tool ─────────────────────── */
@@ -452,12 +527,20 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
   }, [theme, isDark, chartType]);
 
   /* ══════════════════════════════════════════════════════
-     EFFECT: resize + cleanup
+     EFFECT: resize + cleanup (debounced để tránh lag)
   ══════════════════════════════════════════════════════ */
   useEffect(() => {
-    const ro = new ResizeObserver(() => { if (chartInstance.current) chartInstance.current.resize(); });
+    let rafId = null;
+    const ro = new ResizeObserver(() => {
+      // Dùng requestAnimationFrame để batch resize, tránh gọi liên tục gây lag
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (chartInstance.current) chartInstance.current.resize();
+      });
+    });
     if (chartContainerRef.current) ro.observe(chartContainerRef.current);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       ro.disconnect();
       if (chartInstance.current && chartContainerRef.current) {
         dispose(chartContainerRef.current);
@@ -465,6 +548,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
       }
     };
   }, []);
+
 
   /* ══════════════════════════════════════════════════════
      EFFECT: load data
@@ -813,9 +897,8 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
         </div>
 
         {/* KLINECHARTS CONTAINER */}
-        <div className="flex-1 relative w-full h-full overflow-hidden">
-          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0}}/>
-
+        <div className="flex-1 relative w-full h-full overflow-hidden" style={{touchAction:'none'}}>
+          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', willChange: 'transform'}}/>
 
           {/* SELECTED OVERLAY BAR */}
           {activeOverlay && (
