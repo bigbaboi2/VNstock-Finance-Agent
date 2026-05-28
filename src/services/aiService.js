@@ -131,12 +131,16 @@ const PdfCacheModel = mongoose.models.TcbsPdfCache || mongoose.model('TcbsPdfCac
 const _tcbsPdfCache = new Map(); 
 const TCBS_PDF_TTL = 4 * 60 * 60 * 1000; 
 
-export async function getMarkdownFromTcbsPdf(ticker) {
+export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo') {
     const tickerUpper = ticker.toUpperCase();
+    const validModes = ['turbo', 'fast', 'balanced', 'full'];
+    const safeMode = validModes.includes(pdfMode) ? pdfMode : 'turbo';
 
-    const cached = _tcbsPdfCache.get(tickerUpper);
+    // Cache key includes mode so switching mode forces re-extract
+    const cacheKey = `${tickerUpper}__${safeMode}`;
+    const cached = _tcbsPdfCache.get(cacheKey);
     if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL) {
-        console.log(chalk.green(`[HỆ THỐNG] Dùng cache TCBS PDF cho ${tickerUpper} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
+        console.log(chalk.green(`[HỆ THỐNG] Dùng cache TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
         return cached.markdown;
     }
 
@@ -156,7 +160,8 @@ export async function getMarkdownFromTcbsPdf(ticker) {
             contentType: 'application/pdf' 
         });
 
-const doclingResponse = await axios.post('http://localhost:8000/parse-pdf?mode=turbo', formData, {
+        console.log(chalk.cyan(`[HỆ THỐNG] Gọi Docling với mode=${safeMode.toUpperCase()}...`));
+        const doclingResponse = await axios.post(`http://localhost:8000/parse-pdf?mode=${safeMode}`, formData, {
 
             headers: formData.getHeaders(),
             timeout: 300000 
@@ -190,7 +195,7 @@ const doclingResponse = await axios.post('http://localhost:8000/parse-pdf?mode=t
             
             cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
 
-            _tcbsPdfCache.set(tickerUpper, { markdown: cleanMarkdown, ts: Date.now() });
+            _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: Date.now() });
             console.log(chalk.green(`[THÀNH CÔNG] Docling xử lý xong! Dữ liệu TCBS đã được lưu cache.`));
             return cleanMarkdown; 
         } else {
@@ -256,7 +261,7 @@ QUY TẮC TÔ MÀU (KỶ LUẬT THÉP - TIẾT CHẾ TỐI ĐA):
 - Tiêu cực: bọc trong <span className="text-red-500 font-black uppercase">từ khóa</span>
  
 ## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
-Dựa trên mục tiêu lợi nhuận, đây là kịch bản chuẩn xác:
+Dựa trên mục tiêu lợi nhuận, ( giả định cả đang nắm giữ cho mục tiêu bán) đây là kịch bản chuẩn xác:
 - <span className="text-yellow-500 font-black text-lg">RATING: [MUA / NẮM GIỮ / BÁN]</span>
 - **Vùng Mua (Entry):** [Mức giá]
 - **Cắt Lỗ (Stoploss):** [Mức giá]
@@ -338,7 +343,7 @@ Trả về JSON array, không có text thừa:
 }
 
 // =========================================================
-// 5. HÀM ACTION PANEL (Bản nâng cấp khung thời gian)
+// 5. HÀM ACTION PANEL 
 // =========================================================
 export async function getQuickActionWithGemini(ticker, liveData, strategicContext = "") {
     const prompt = `Bạn là Giám đốc Giao dịch HFT chuyên nghiệp.
@@ -379,10 +384,10 @@ export async function getQuickActionWithGemini(ticker, liveData, strategicContex
 // 5B. AI PHÂN TÍCH PHÁI SINH CHUYÊN SÂU (QUANT MCP LOGIC)
 // =========================================================
 export async function analyzeDerivativesWithGemini(derivData) {
-    console.log(chalk.magenta(`[AI CORE] Đang chạy thuật toán Quant MCP cho VN30F1M...`));
+    console.log(chalk.yellow(`[AI CORE] Đang chạy thuật toán Quant MCP cho VN30F1M...`));
 
     const prompt = `
-Bạn là OMNI DUCK - Hệ thống Giao dịch Định lượng (Quant Hedge Fund AI).
+Bạn là OMNI DUCK - Giám đốc Hệ thống Giao dịch Định lượng (Quant Hedge Fund AI).
 Bạn đang phân tích dữ liệu Phái sinh VN30F1M (Thị trường Việt Nam) dựa trên thuật toán đọc Chart tự động.
 
 [DỮ LIỆU ĐẦU VÀO REALTIME]
@@ -405,9 +410,20 @@ Bạn PHẢI phân tích theo đúng trình tự 4 bước sau trước khi đư
 3. ĐÁNH GIÁ SỨC MẠNH TRỤ (Influencers): Lực của 10 mã vốn hóa lớn nhất đang thuận hay nghịch với Basis?
 4. ĐỐI CHIẾU MICRO-STRUCTURE: Tốc độ xé Basis và EMA3/EMA8 có ủng hộ điểm đảo chiều ngắn hạn (Scalp/Day Trade) không?
 
-[YÊU CẦU ĐẦU RA - CHỈ XUẤT MARKDOWN]
-Viết báo cáo chuyên nghiệp, ngắn gọn, sắc bén theo đúng format sau. KHÔNG dùng những từ ngữ sáo rỗng. Tô đậm các con số quan trọng.
+[YÊU CẦU ĐẦU RA]
+QUAN TRỌNG: Bạn BẮT BUỘC phải trả về kết quả dưới dạng JSON thuần túy (không bọc trong markdown \`\`\`json) với cấu trúc chính xác như sau:
+{
+  "aiReport": "Bài phân tích chi tiết định dạng Markdown của bạn...",
+  "actionPanelData": {
+    "action": "LONG" | "SHORT" | "QUAN SÁT",
+    "entry": "Mức giá khuyến nghị vào lệnh (ví dụ: 1990.5) hoặc '---' nếu quan sát",
+    "sl": "Mức giá cắt lỗ (ví dụ: 1985.0) hoặc '---'",
+    "tp": "Mức giá chốt lời mục tiêu (ví dụ: 2005.0) hoặc '---'",
+    "reason": "Giải thích NGẮN GỌN 2-3 câu lý do đưa ra lệnh này dựa trên Vĩ mô và Kỹ thuật."
+  }
+}
 
+Trong đó, phần "aiReport" phải tuân thủ nghiêm ngặt định dạng Markdown sau:
 ## 📡 1. GIẢI MÃ DÒNG TIỀN (ORDERFLOW & BASIS)
 - [Bóc tách Basis, OI và Khối ngoại. Chỉ ra phe Long hay Short đang nắm quyền kiểm soát hoặc đang bị sập bẫy]
 
@@ -423,15 +439,24 @@ Viết báo cáo chuyên nghiệp, ngắn gọn, sắc bén theo đúng format s
 - **Lưu ý nguy hiểm:** [Cảnh báo rủi ro bẻ kèo (Ví dụ: "Hủy lệnh nếu Trụ VIC, VHM bị bán tháo")]
 `;
 
-    try {
-        const result = await generateWithAutoSwitch([prompt]);
-        return result.response.text();
+try {
+         const result = await generateWithAutoSwitch([prompt], {
+            generationConfig: { responseMimeType: "application/json" }
+        });
+        
+        let text = result.response.text();
+
+        const cleanJsonString = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+        const parsedData = JSON.parse(cleanJsonString);
+
+        return parsedData;  
+
     } catch (error) {
         console.error(chalk.red("[LỖI] AI Phái sinh thất bại: "), error.message);
         throw error;
     }
 }
-
 // =========================================================
 // 6. AI PHÂN TÍCH TÍN HIỆU CRYPTO & PHÁI SINH CRYPTO
 // =========================================================
