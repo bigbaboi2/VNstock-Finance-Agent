@@ -148,6 +148,7 @@ useEffect(() => {
   const [loadingAiNews, setLoadingAiNews] = useState(false);
   const [marketData, setMarketData] = useState(null);
   const [aiReport, setAiReport] = useState(null);
+  const [aiAnalysisDuration, setAiAnalysisDuration] = useState(null);
   const [logs, setLogs] = useState([]);
   const [chartData, setChartData] = useState(null);
   const [vnIndexData, setVnIndexData] = useState([]);
@@ -584,11 +585,11 @@ const derivAnalysis = React.useMemo(() => {
 
     // === CONFLUENCE SCORE 0-100 ===
     let score = 50;
-    score += Math.min(Math.max(speed * 8, -25), 25);           // Basis Speed
-    score += Math.min(Math.max(totalImpact * 7, -20), 20);     // Total Impact
-    score += oiUp ? 12 : -8;                                    // OI
-    score += Math.min(Math.max(fNet / 80, -18), 18);           // Foreign Net
-    score += currentF1M > poc ? 10 : -10;                      // Price vs POC
+    score += Math.min(Math.max(speed * 8, -25), 25);           
+    score += Math.min(Math.max(totalImpact * 7, -20), 20);     
+    score += oiUp ? 12 : -8;                                    
+    score += Math.min(Math.max(fNet / 80, -18), 18);            
+    score += currentF1M > poc ? 10 : -10;                      
     score = Math.round(Math.min(Math.max(score, 0), 100));
 
     // === MECHANICAL ACTION ===
@@ -978,6 +979,27 @@ const derivAnalysis = React.useMemo(() => {
         }
       });
 
+      // ── Preload tin vĩ mô từ DerivNews DB  ──
+ 
+      axios.get('/api/deriv-news')
+        .then(res => {
+          const macroNews = res.data?.data || [];
+          if (macroNews.length > 0) {
+            setMarketData(prev => {
+              if (!prev) return prev;
+              const existingLinks = new Set((prev.deepNewsData || []).map(n => n.link));
+              const fresh = macroNews
+                .filter(n => !existingLinks.has(n.link))
+                .map(n => ({ ...n, source: n.source || 'Vĩ mô', isMacro: true, fetchedAt: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) }));
+
+              if (fresh.length === 0) return prev;
+              addLog(`[DB] Nạp ${fresh.length} tin vĩ mô từ Database.`);
+              return { ...prev, deepNewsData: [...(prev.deepNewsData || []), ...fresh] };
+            });
+          }
+        })
+        .catch(() => {});
+
       await new Promise((resolve) => {
   const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}`;
   const controller = new AbortController();
@@ -1012,6 +1034,7 @@ const derivAnalysis = React.useMemo(() => {
           try {
             const data = JSON.parse(line.slice(6));
             if (data?.type === 'done') { closeAll(); return; }
+            data.fetchedAt = new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit', second: '2-digit'}); 
             setMarketData(prev => {
               if (!prev) return prev;
               const currentNews = prev.deepNewsData || [];
@@ -1078,6 +1101,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     }
 
     setAnalyzing(true);
+    setAiAnalysisDuration(null);
+    const startTime = performance.now();
     setAnalysisStep('🔍 Khởi tạo engine phân tích...');
     addLog(`[AI CORE] Khởi chạy thuật toán cho mã ${marketData.stockInfo.symbol}...`);
 
@@ -1131,6 +1156,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
     try {
         const response = await axios.post(`/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
+        const endTime = performance.now(); 
+        setAiAnalysisDuration(((endTime - startTime) / 1000).toFixed(1)); 
+
         setAiReport(response.data.aiReport);
         setLastAiVnTime(now);
         setLastAiVnSnapshot(currentSnapshot);
@@ -1181,7 +1209,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 const existingLinks = new Set(currentNews.map(n => n.link));
                 const brandNewAiArticles = aiArticles
                     .filter(n => !existingLinks.has(n.link))
-                    .map(n => ({ ...n, isAiGenerated: true }));
+                    .map(n => ({ ...n, isAiGenerated: true,
+                    fetchedAt: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})  
+                }));
 
                 addLog(`[THÀNH CÔNG] Mạng lưới AI lọc được ${brandNewAiArticles.length} tin tức độc quyền.`);     
 
@@ -1348,9 +1378,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         loadingMarket={loadingMarket}
         currentUser={currentUser}
         setActiveMode={(mode) => {
-          // [FIX] Đóng chat khi chuyển sang tab khác
-          vnStocksCloseChatRef.current?.();
-          setActiveMode(mode);
+        vnStocksCloseChatRef.current?.();
+        setActiveMode(mode);
         }} handleLogout={handleLogout}
         handleGoHome={handleGoHome} handleToggleTheme={handleToggleTheme}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
@@ -1397,6 +1426,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             lastAiVnTime={lastAiVnTime}
             currentUser={currentUser}
             onRequestCloseChat={(fn) => { vnStocksCloseChatRef.current = fn; }}
+            aiAnalysisDuration={aiAnalysisDuration}
 
         />
         )}

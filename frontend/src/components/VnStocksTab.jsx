@@ -3,7 +3,7 @@ import {
   BarChart3, ChevronDown, ChevronUp, HelpCircle,
   ArrowLeft, MessageSquare, FileJson, ExternalLink,
   TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
-  Loader2, CheckCircle2, XCircle
+  Loader2, CheckCircle2, XCircle, Globe, Clock,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -104,6 +104,7 @@ export default function VnStocksTab({
   lastAiVnTime,
   currentUser,
   onRequestCloseChat,  
+  aiAnalysisDuration,
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
@@ -562,6 +563,7 @@ export default function VnStocksTab({
 
                     // Helpers
                     const getSentimentBadge = (news) => {
+                      if (news.isMacro)       return { label: 'Vĩ mô', icon: <Activity size={9}/>, cls: isDark ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40' : 'bg-sky-50 text-sky-700 border border-sky-300' };
                       if (news.isAiGenerated) return { label: 'AI', icon: <Bot size={9}/>, cls: 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' };
                       const s = news.sentiment;
                       const m = news.mode;
@@ -574,6 +576,7 @@ export default function VnStocksTab({
                     };
 
                     const getCardStyle = (news) => {
+                      if (news.isMacro)                  return isDark ? 'bg-[#080e18] border-sky-500/30' : 'bg-sky-50/60 border-sky-200';
                       if (news.isAiGenerated)           return isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
                       if (news.sentiment === 'negative') return isDark ? 'bg-[#130c0c] border-red-900/40'                                            : 'bg-red-50/50 border-red-200';
                       if (news.sentiment === 'positive') return isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
@@ -600,13 +603,12 @@ export default function VnStocksTab({
                         <a key={index} href={news.link} target="_blank" rel="noopener noreferrer"
                           className={`block rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${getCardStyle(news)}`}>
                           
-                          {/* Header row: badge + counter */}
-                          <div className="flex items-center justify-between gap-2 mb-2">
+                           <div className="flex items-center justify-between gap-2 mb-2">
                             <span className={`inline-flex items-center gap-1 shrink-0 text-[9px] px-2 py-[3px] rounded-full font-black uppercase tracking-widest ${badge.cls}`}>
                               {badge.icon}{badge.label}
                             </span>
-                            <span className={`text-[9px] font-mono font-bold tabular-nums ${UI.textMuted} opacity-50`}>
-                              {index + 1}/{total}
+                            <span className={`text-[10px] font-bold tabular-nums whitespace-nowrap ${dateColor}`}>
+                              {news.date || 'Tin tức mới'}
                             </span>
                           </div>
 
@@ -615,19 +617,25 @@ export default function VnStocksTab({
                             {news.title}
                           </h3>
 
-                          {/* Footer: date + source + external link icon */}
-                          <div className="mt-3 flex justify-between items-center gap-3">
-                            <span className={`text-[10px] font-medium truncate ${UI.textMuted}`}>
-                              {news.date && (
-                                <span className={`${dateColor} font-bold mr-1`}>
-                                  {news.date}
-                                </span>
+                           <div className={`mt-3 pt-2 flex justify-between items-center gap-3 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                            <span className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 truncate ${news.isAiGenerated ? 'text-purple-400' : UI.textBold}`}>
+                              {news.source ? (
+                                <><Globe size={10} className="shrink-0" /> <span className="truncate">{news.source}</span></>
+                              ) : (
+                                <><Globe size={10} className="shrink-0" /> <span className="truncate">Internet</span></>
                               )}
-                              <span className="opacity-60 italic">• {news.source || news.link || 'Internet'}</span>
                             </span>
-                            <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
+                            
+                            <div className="flex items-center gap-0 shrink-0">
+                              <span className={`text-[11px] flex items-center gap-1 font-mono font-bold ${UI.textMuted}`}>
+                                <Clock size={12} /> 
+                                Ngày lấy tin: {news.fetchedAt || 'Đang đồng bộ'}
+                              </span>
+                              <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
+                            </div>
                           </div>
-                        </a>
+
+                          </a>
                       );
                     });
                   })()}
@@ -1287,17 +1295,25 @@ export default function VnStocksTab({
               </div>
               
             )}
-            
-
-              <div className={`flex items-center gap-5 mb-10 pb-8 border-b ${UI.border}`}>
-                <div className="w-16 h-16 rounded-3xl bg-yellow-400 text-black flex items-center justify-center shadow-xl shadow-yellow-400/20 shrink-0"><Zap size={28} /></div>
-                <div>
-                  <h2 className={`text-3xl lg:text-4xl font-black tracking-tight uppercase ${UI.textBold}`}>Strategic Intelligence</h2>
-                  <p className="text-yellow-500 uppercase tracking-[0.3em] text-[10px] font-black mt-2">Omni Duck AI Framework</p>
-                </div>
-              </div>
-              
-              <div className={`prose max-w-none prose-headings:text-yellow-500 prose-headings:font-black prose-headings:italic prose-headings:uppercase prose-p:leading-loose prose-p:text-[16px] prose-strong:text-emerald-500 prose-strong:font-black prose-ul:list-disc prose-ul:pl-5 prose-li:mb-2 ${isDark ? 'prose-invert prose-p:text-slate-300 prose-li:text-slate-300' : 'prose-p:text-slate-700 prose-li:text-slate-700'}`}>
+                    <div className={`flex flex-col lg:flex-row lg:items-center gap-5 mb-10 pb-8 border-b ${UI.border}`}>
+                      <div className="w-16 h-16 rounded-3xl bg-yellow-400 text-black flex items-center justify-center shadow-xl shadow-yellow-400/20 shrink-0">
+                        <Zap size={28} />
+                      </div>
+                      <div className="flex-1">
+                        <h2 className={`text-3xl lg:text-4xl font-black tracking-tight uppercase ${UI.textBold}`}>Strategic Intelligence</h2>
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                            <p className="text-yellow-500 uppercase tracking-[0.3em] text-[10px] font-black">Omni Duck AI Framework</p>
+                            
+                            {/* BỘ ĐẾM THỜI GIAN AI */}
+                            {aiAnalysisDuration && (
+                                <div className={`flex items-center gap-3 px-3 py-1 rounded-full border text-[12px] font-black uppercase tracking-widest ${isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-300 text-emerald-600'}`}>
+                                    <Clock size={13} /> Hoàn tất trong {aiAnalysisDuration} giây
+                                </div>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+                  <div className={`prose max-w-none prose-headings:text-yellow-500 prose-headings:font-black prose-headings:italic prose-headings:uppercase prose-p:leading-loose prose-p:text-[16px] prose-strong:text-emerald-500 prose-strong:font-black prose-ul:list-disc prose-ul:pl-5 prose-li:mb-2 ${isDark ? 'prose-invert prose-p:text-slate-300 prose-li:text-slate-300' : 'prose-p:text-slate-700 prose-li:text-slate-700'}`}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{aiReport}</ReactMarkdown>
               </div>
             </div>
