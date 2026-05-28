@@ -134,10 +134,12 @@ useEffect(() => {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState('');
   const [pdfMode, setPdfMode] = useState('turbo'); //turbo | fast | balanced | full
-  
+
+
   const eventSourceRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
+  
   //[FIX] Ref to close VnStocks chat when switching tab /home
   const vnStocksCloseChatRef = useRef(null);
   
@@ -149,6 +151,7 @@ useEffect(() => {
   const [loadingAiNews, setLoadingAiNews] = useState(false);
   const [marketData, setMarketData] = useState(null);
   const [aiReport, setAiReport] = useState(null);
+  const [vnReportTimestamp, setVnReportTimestamp] = useState(null);
   const [aiAnalysisDuration, setAiAnalysisDuration] = useState(null);
   const [logs, setLogs] = useState([]);
   const [chartData, setChartData] = useState(null);
@@ -944,6 +947,12 @@ const derivAnalysis = React.useMemo(() => {
           setErrorAlert(`MÃ CỔ PHIẾU "${symbol}" KHÔNG TỒN TẠI HOẶC ĐÃ HỦY NIÊM YẾT!`);
           setSuggestions([]);
           setShowSuggestions(false);
+
+           setAiReport(null);
+          setVnReportTimestamp(null);
+          
+           lastActionPriceRef.current = null;
+          lastNewsCountRef.current = 0;
           setTimeout(() => setErrorAlert(''), 4000); 
           return; 
       }
@@ -952,7 +961,29 @@ const derivAnalysis = React.useMemo(() => {
 
       setSuggestions([]);
       setShowSuggestions(false);
+      
       setAiReport(null);
+      setVnReportTimestamp(null);
+      
+      if (currentUser) {
+          axios.get(`/api/ai/analyze/latest/${symbol}?user=${currentUser}`)
+              .then(res => {
+                  if (res.data.success && res.data.data) {
+                      const dbReport = res.data.data;
+                      setAiReport(dbReport.aiReport || dbReport.reportContent);  
+                      if (dbReport.actionData) setActionData(dbReport.actionData);
+                      
+                      const timeStr = new Date(dbReport.createdAt || dbReport.timestamp).toLocaleString('vi-VN');
+                      setVnReportTimestamp(timeStr);
+                      
+                      addLog(`[DB CACHE] Đã khôi phục báo cáo AI từ MongoDB cho mã ${symbol}.`);
+                  }
+              })
+              .catch(err => {
+                  console.error("[LỖI] Lỗi lấy báo cáo MongoDB:", err);
+              });
+      }
+
       setChartData(null);
       setLoadingMarket(true);
       setFetchProgress(20);
@@ -1179,6 +1210,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         setAiReport(response.data.aiReport);
         setLastAiVnTime(now);
         setLastAiVnSnapshot(currentSnapshot);
+        const timeStr = new Date().toLocaleString('vi-VN');
+        setVnReportTimestamp(timeStr);
+
         addLog(`[THÀNH CÔNG] AI hoàn tất chiến lược và đã lưu vào Database.`);
         setShowLogs(false);
         if (response.data.actionPanelData) setActionData(response.data.actionPanelData);
@@ -1446,7 +1480,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             currentUser={currentUser}
             onRequestCloseChat={(fn) => { vnStocksCloseChatRef.current = fn; }}
             aiAnalysisDuration={aiAnalysisDuration}
-
+            vnReportTimestamp={vnReportTimestamp}
         />
         )}
         {/*========================================================= */}

@@ -2,11 +2,13 @@ import express from 'express';
 import { 
     getLiveNews, analyzeDerivatives, analyzeStock, 
     debugFeed, stockChat, getAiNews, 
-    getActionPanel, getUserHistory 
+    getActionPanel, getUserHistory,
+    getLatestVnStockReport 
 } from '../controllers/ai.controller.js';
 
-const router = express.Router();
+const router = express.Router();  
 
+router.get('/analyze/latest/:symbol', getLatestVnStockReport);
 router.get('/news/:ticker', getLiveNews);
 router.post('/analyze-derivatives', analyzeDerivatives);
 router.post('/analyze/:ticker', analyzeStock);
