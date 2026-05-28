@@ -384,8 +384,11 @@ export async function getQuickActionWithGemini(ticker, liveData, strategicContex
 // 5B. AI PHÂN TÍCH PHÁI SINH CHUYÊN SÂU (QUANT MCP LOGIC)
 // =========================================================
 export async function analyzeDerivativesWithGemini(derivData) {
+    const { previousAiReport, ...otherData } = req.body;
     console.log(chalk.yellow(`[AI CORE] Đang chạy thuật toán Quant MCP cho VN30F1M...`));
-
+    const previousReportContext = previousAiReport 
+    ? `\n--- BÁO CÁO PHÂN TÍCH CỦA BẠN Ở LẦN GẦN NHẤT ---\n${previousAiReport}\n--------------------------------------------\n` 
+    : "\n--- CHƯA CÓ BÁO CÁO TRƯỚC ĐÓ ---\n";
     const prompt = `
 Bạn là OMNI DUCK - Giám đốc Hệ thống Giao dịch Định lượng (Quant Hedge Fund AI).
 Bạn đang phân tích dữ liệu Phái sinh VN30F1M (Thị trường Việt Nam) dựa trên thuật toán đọc Chart tự động.
@@ -401,6 +404,8 @@ Bạn đang phân tích dữ liệu Phái sinh VN30F1M (Thị trường Việt N
 - Điểm hợp lưu hệ thống (Confluence Score): ${derivData.score}/100
 - Đề xuất Máy móc: ${derivData.mechTrend} -> ${derivData.mechAction}
 - Thông số Risk/Reward (R:R) hệ thống đề xuất: 1:${derivData.rrRatio} (SL: ${derivData.sl}, TP1: ${derivData.tp1}, TP2: ${derivData.tp2})
+- Báo cáo phân tích trước đó của bạn: ${previousReportContext}
+
 ${derivData.newsHeadlines ? `\n[TIN TỨC VĨ MÔ GẦN NHẤT]\n${derivData.newsHeadlines}` : ''}
 
 [QUY TẮC TƯ DUY RÀNG BUỘC - CHAIN OF THOUGHT]

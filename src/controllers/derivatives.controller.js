@@ -437,6 +437,7 @@ try {
                 globalDataFetchedAt: globalMarket.fetchedAt,
                 globalDataStatus:    globalMarket.fetchStatus,
             },
+            previousAiStrategy: previousAiReport || "Chưa có báo cáo AI nào được tạo trước đó ở phiên làm việc này."
         };
  
         const exportPath = path.join(__dirname, 'deriv_full_export.json');

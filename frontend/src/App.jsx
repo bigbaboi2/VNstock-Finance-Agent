@@ -227,7 +227,7 @@ useEffect(() => {
           setRefreshingNews(false);
       }
   };
-//LGOCI CALLS WHO DEVIATES VN
+//LGOCI CALLS AI DEVIATES VN
 const handleAiDerivAnalysis = async (forceRefresh = false) => {
     if (!derivRadar || !derivChartData) return addLog('[CẢNH BÁO] Trống dữ liệu phái sinh VN. AI từ chối phân tích.');
  
@@ -237,6 +237,9 @@ const handleAiDerivAnalysis = async (forceRefresh = false) => {
     const currentSnapshot = {
         score:       derivAnalysis.score,
         basis:       derivRadar.basisSpeed,
+
+
+
         totalImpact: (derivRadar.influencers||[]).reduce((s,x)=>s+(parseFloat(x.realImpact)||0),0).toFixed(2),
         oiTrend:     derivRadar.oiTrend,
     };
@@ -288,8 +291,9 @@ if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed
             tp1:         derivAnalysis.tp1,
             tp2:         derivAnalysis.tp2,
             newsHeadlines: (derivNews || []).slice(0, 5).map(n => `[${n.sentiment}] ${n.title}`).join('\n'),
+            previousAiReport: aiDerivReport
         };
- 
+
         const res = await axios.post('/api/analyze-derivatives', payload);
         if (res.data.success) {
             setAiDerivReport(res.data.data);   
@@ -317,6 +321,7 @@ const handleExportDeriv = async () => {
             volumeProfile,
             derivChartData,
             derivInterval,
+            previousAiReport: aiDerivReport
         });
  
         if (res.data.success) {
