@@ -1,252 +1,248 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { XMLParser } from 'fast-xml-parser';
+import { getBrowser } from '../utils/browserManager.js';
 
-//─── Query builders theo mode ─────────────────────────────────────────────────
-const buildQueries = (ticker, mode) => {
+const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+const cacheMap = new Map();
+const CACHE_TTL = 3 * 60 * 1000; 
+
+const buildGoogleNewsQueries = (ticker, mode) => {
     const t = encodeURIComponent(ticker);
-
+    const base = `hl=vi&gl=VN&ceid=VN:vi`;
     switch (mode) {
-        case 'official':
-            return [
-                `https://news.google.com/rss/search?q=${t}+chứng+khoán+site:cafef.vn+OR+site:vietstock.vn+OR+site:baodautu.vn+OR+site:vneconomy.vn&hl=vi&gl=VN&ceid=VN:vi`,
-                `https://news.google.com/rss/search?q=${t}+cổ+phiếu+site:tinnhanhchungkhoan.vn+OR+site:ndh.vn+OR+site:dantri.com.vn&hl=vi&gl=VN&ceid=VN:vi`,
-            ];
-
-        case 'negative':
-            return [
-                `https://news.google.com/rss/search?q=${t}+bán+tháo+OR+ngoại+bán+ròng+OR+nợ+xấu+OR+điều+tra+OR+vi+phạm&hl=vi&gl=VN&ceid=VN:vi`,
-                `https://news.google.com/rss/search?q=${t}+margin+call+OR+cắt+lỗ+OR+thanh+khoản+kém+OR+thua+lỗ+OR+bị+xử+phạt&hl=vi&gl=VN&ceid=VN:vi`,
-                `https://news.google.com/rss/search?q=${t}+siết+tín+dụng+OR+kiểm+toán+OR+đình+chỉ+OR+rủi+ro&hl=vi&gl=VN&ceid=VN:vi`,
-            ];
-
-        case 'rumor':
-            return [
-                `https://news.google.com/rss/search?q=${t}+chứng+khoán+site:cafef.vn+OR+site:webtretho.com+OR+site:reddit.com&hl=vi&gl=VN&ceid=VN:vi`,
-                `https://news.google.com/rss/search?q=${t}+tin+đồn+OR+nội+bộ+OR+dòng+tiền+lớn+OR+tay+to+gom+hàng&hl=vi&gl=VN&ceid=VN:vi`,
-                `https://news.google.com/rss/search?q=${t}+chứng+khoán+OR+cổ+phiếu+site:vietstock.vn&hl=vi&gl=VN&ceid=VN:vi`,
-            ];
-
+        case 'official': return [`https://news.google.com/rss/search?q=${t}+site:cafef.vn+OR+site:vietstock.vn+OR+site:baodautu.vn+OR+site:vneconomy.vn&${base}`, `https://news.google.com/rss/search?q=${t}+site:tinnhanhchungkhoan.vn+OR+site:dantri.com.vn&${base}`];
+        case 'negative': return [`https://news.google.com/rss/search?q=${t}+bán+tháo+OR+ngoại+bán+ròng+OR+nợ+xấu+OR+điều+tra+OR+vi+phạm&${base}`, `https://news.google.com/rss/search?q=${t}+margin+call+OR+cắt+lỗ+OR+thua+lỗ+OR+bị+xử+phạt+OR+rủi+ro&${base}`];
+        case 'rumor': return [`https://news.google.com/rss/search?q=${t}+tin+đồn+OR+nội+bộ+OR+dòng+tiền+lớn+OR+tay+to+OR+thâu+tóm&${base}`, `https://news.google.com/rss/search?q=${t}+cổ+phiếu+chứng+khoán&${base}`];
         case 'balanced':
-        default:
-            return [
-                //General official news
-                `https://news.google.com/rss/search?q=${t}+site:cafef.vn+OR+site:vietstock.vn+OR+site:baodautu.vn&hl=vi&gl=VN&ceid=VN:vi`,
-                //Positive news /opportunity
-                `https://news.google.com/rss/search?q=${t}+tăng+trưởng+OR+phục+hồi+OR+mua+ròng+OR+lợi+nhuận+OR+kỷ+lục&hl=vi&gl=VN&ceid=VN:vi`,
-                //Risky /negative news
-                `https://news.google.com/rss/search?q=${t}+rủi+ro+OR+giảm+OR+áp+lực+OR+bán+ròng+OR+nợ&hl=vi&gl=VN&ceid=VN:vi`,
-                //Analytical news /broad comments
-                `https://news.google.com/rss/search?q=${t}+cổ+phiếu&hl=vi&gl=VN&ceid=VN:vi`,
-            ];
+        default: return [
+            `https://news.google.com/rss/search?q=${t}+cổ+phiếu+OR+chứng+khoán+OR+thị+trường&${base}`, 
+            `https://news.google.com/rss/search?q=${t}+tin+tức+OR+doanh+nghiệp+OR+đầu+tư&${base}`, 
+            `https://news.google.com/rss/search?q=${t}&${base}` 
+        ];
     }
 };
 
-//─── Sentiment scoring — use points instead of if/else ─────────────────────────
-const NEGATIVE_PHRASES = [
-    //Selling pressure
-    { p: 'bán tháo',         w: 3 },
-    { p: 'bán ròng',         w: 2 },
-    { p: 'ngoại bán ròng',   w: 2 },
-    { p: 'rút ròng',         w: 2 },
-    { p: 'cắt lỗ',           w: 2 },
-    { p: 'margin call',      w: 3 },
-    //Bad business results
-    { p: 'thua lỗ',          w: 3 },
-    { p: 'lợi nhuận giảm',   w: 2 },
-    { p: 'doanh thu giảm',   w: 2 },
-    { p: 'nợ xấu',           w: 3 },
-    { p: 'nợ tăng',          w: 2 },
-    //Legal /management
-    { p: 'vi phạm',          w: 3 },
-    { p: 'bị xử phạt',       w: 3 },
-    { p: 'điều tra',         w: 3 },
-    { p: 'đình chỉ',         w: 3 },
-    { p: 'kiểm toán',        w: 2 },
-    //Bad market
-    { p: 'chìm trong sắc đỏ',w: 2 },
-    { p: 'sắc đỏ',           w: 1 },
-    { p: 'lao dốc',          w: 2 },
-    { p: 'thủng hỗ trợ',     w: 2 },
-    { p: 'thanh khoản kém',  w: 2 },
-    { p: 'siết tín dụng',    w: 2 },
-    { p: 'căng thẳng',       w: 1 },
-    { p: 'áp lực',           w: 1 },
-    { p: 'rủi ro cao',       w: 2 },
-    { p: 'cảnh báo',         w: 1 },
-    { p: 'phá giá',          w: 2 },
-    { p: 'tiêu cực',         w: 1 },
-    { p: 'gây áp lực',       w: 1 },
-    //Negative number in title
+const DIRECT_RSS_SOURCES = [
+    { name: 'VietStock CK', url: 'https://vietstock.vn/rss/chung-khoan.rss', domain: 'vietstock.vn' },
+    { name: 'CafeF CK', url: 'https://cafef.vn/thi-truong-chung-khoan.rss', domain: 'cafef.vn' },
+    { name: 'VnEconomy CK', url: 'https://vneconomy.vn/chung-khoan.rss', domain: 'vneconomy.vn' },
+    { name: 'BaoDauTu CK', url: 'https://baodautu.vn/chung-khoan.rss', domain: 'baodautu.vn' },
 ];
 
-const POSITIVE_PHRASES = [
-    //Positive cash flow
-    { p: 'mua ròng',         w: 2 },
-    { p: 'ngoại mua ròng',   w: 2 },
-    { p: 'bơm ròng',         w: 2 },
-    //Good business results
-    { p: 'lợi nhuận tăng',   w: 3 },
-    { p: 'doanh thu tăng',   w: 2 },
-    { p: 'tăng trưởng',      w: 2 },
-    { p: 'kỷ lục',           w: 2 },
-    { p: 'vượt đỉnh',        w: 2 },
-    { p: 'đột phá',          w: 2 },
-    //Market recovery
-    { p: 'phục hồi mạnh',    w: 2 },
-    { p: 'hồi phục',         w: 1 },
-    { p: 'khởi sắc',         w: 2 },
-    { p: 'bứt phá',          w: 2 },
-    { p: 'sắc xanh',         w: 1 },
-    { p: 'tăng điểm',        w: 1 },
-    //Support policy
-    { p: 'nới lỏng',         w: 2 },
-    { p: 'hỗ trợ',           w: 1 },
-    { p: 'bình ổn',          w: 1 },
-    { p: 'tích cực',         w: 1 },
-    { p: 'phát triển',       w: 1 },
+const SEARCH_SOURCES = [
+    { name: 'CafeF', domain: 'cafef.vn', buildUrl: (t) => `https://cafef.vn/tim-kiem.chn?keywords=${encodeURIComponent(t)}`, itemSelector: '.knc-name a, .tlitem h3 a, .list-content .news-item a' },
+    { name: 'VietStock', domain: 'vietstock.vn', buildUrl: (t) => `https://vietstock.vn/search/?q=${encodeURIComponent(t)}`, itemSelector: '.news-list .item a[href*="/"], .search-result a[href*="/"]' },
 ];
 
-/**
-*Detect sentiment from text (title or title + snippet content).
- *Use a weighted points system instead of single match.
- * @param {string} title
- * @param {string} [content='']  
- * @returns {'positive'|'negative'|'neutral'}
- */
+const NEG_MAP = new Map([['bán tháo',3],['bán ròng',2],['cắt lỗ',2],['margin call',3],['thua lỗ',3],['nợ xấu',3],['vi phạm',3],['bị xử phạt',3],['điều tra',3],['rủi ro cao',2]]);
+const POS_MAP = new Map([['mua ròng',2],['lợi nhuận tăng',3],['doanh thu tăng',2],['tăng trưởng',2],['vượt đỉnh',2],['đột phá',2],['khởi sắc',2],['bứt phá',2]]);
+const REGEX_NEG = new RegExp(Array.from(NEG_MAP.keys()).join('|'), 'gi');
+const REGEX_POS = new RegExp(Array.from(POS_MAP.keys()).join('|'), 'gi');
+
+const countScore = (text, regex, map, weight) => (text.match(regex) || []).reduce((sum, match) => sum + (map.get(match.toLowerCase()) || 0) * weight, 0);
+
 export const detectSentiment = (title, content = '') => {
-    const titleText   = title.toLowerCase();
-    const contentText = content.toLowerCase();
-
-    const hasNegPercent = /-\d+([.,]\d+)?%/.test(titleText);
-
-    let negScore = NEGATIVE_PHRASES.reduce((acc, { p, w }) => {
-        const inTitle   = titleText.includes(p)   ? w * 2 : 0;
-        const inContent = contentText.includes(p) ? w     : 0;
-        return acc + inTitle + inContent;
-    }, hasNegPercent ? 2 : 0);
-
-    let posScore = POSITIVE_PHRASES.reduce((acc, { p, w }) => {
-        const inTitle   = titleText.includes(p)   ? w * 2 : 0;
-        const inContent = contentText.includes(p) ? w     : 0;
-        return acc + inTitle + inContent;
-    }, 0);
-
-    if (negScore >= 3 && negScore > posScore) return 'negative';
-    if (posScore >= 3 && posScore > negScore) return 'positive';
-    if (negScore >= 2 && negScore > posScore) return 'negative'; // tiêu đề rõ negative
-    if (posScore >= 2 && posScore > negScore) return 'positive';
+    const t = title.toLowerCase(), c = content.toLowerCase();
+    let neg = (/-\d+([.,]\d+)?%/.test(t) ? 2 : 0) + countScore(t, REGEX_NEG, NEG_MAP, 2) + countScore(c, REGEX_NEG, NEG_MAP, 1);
+    let pos = countScore(t, REGEX_POS, POS_MAP, 2) + countScore(c, REGEX_POS, POS_MAP, 1);
+    if (neg >= 3 && neg > pos) return 'negative';
+    if (pos >= 3 && pos > neg) return 'positive';
+    if (neg >= 2 && neg > pos) return 'negative';
+    if (pos >= 2 && pos > neg) return 'positive';
     return 'neutral';
 };
 
-//─── Helpers date ──────────────────────────────────────────────────────────────
+const parsePubDate = (s) => {
+    const d = new Date(s);
+    return (!s || isNaN(d.getTime())) ? { publishedAt: new Date(), date: new Date().toLocaleDateString('vi-VN') } : { publishedAt: d, date: d.toLocaleDateString('vi-VN') };
+};
+const extractDomain = (url) => { try { return new URL(url).hostname.replace('www.',''); } catch { return 'Internet'; } };
+const isValidArticleLink = (url) => url && typeof url === 'string' && url.startsWith('http') && !url.includes('google.com') && !url.includes('googleusercontent.com');
 
-const parsePubDate = (pubStr) => {
-    if (!pubStr) return { publishedAt: new Date(), date: new Date().toLocaleDateString('vi-VN') };
-    const d = new Date(pubStr);
-    if (isNaN(d.getTime())) return { publishedAt: new Date(), date: new Date().toLocaleDateString('vi-VN') };
-    return {
-        publishedAt: d,
-        date: d.toLocaleDateString('vi-VN'),  
-    };
+const fetchGoogleNewsRSS = async (url, maxItems = 25) => {  
+    try {
+        const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 });
+        const itemsList = [].concat(xmlParser.parse(data)?.rss?.channel?.item || []);
+        return itemsList.slice(0, maxItems).map(el => {
+            const title = (el?.title || '').toString().replace(/ - [^-]+$/, '').trim();
+            const rawLink = el?.link || el?.guid?.['#text'] || el?.guid || '';
+            if (title.length < 10 || !rawLink) return null;
+            return { ...parsePubDate(el.pubDate), title, rawLink, sourceName: typeof el.source === 'string' ? el.source : (el.source?.['#text'] || 'Google News'), description: el.description || '' };
+        }).filter(Boolean);
+    } catch { return []; }
 };
 
-//─── Fetch RSS ─────────────────────────────────────────────────────────────────
+const preflightCheck = async (url) => {
+    try {
+        const res = await axios.get(url, { maxRedirects: 0, validateStatus: s => s >= 200 && s < 400, timeout: 4000 });
+        return res.headers.location || url;
+    } catch (err) { return err.response?.headers?.location || url; }
+};
 
-const extractRealLinkFromDescription = (descriptionHtml) => {
-    if (!descriptionHtml) return null;
-    const match = descriptionHtml.match(/href="([^"]+)"/);
-    if (match && match[1] && !match[1].includes('google.com')) {
-        return match[1];
-    }
+const decodeGoogleNewsUrl = (url) => {
+    try {
+        const match = url.match(/(?:articles|read)\/([a-zA-Z0-9-_]+)/);
+        if (match) {
+            const base64Str = match[1].replace(/-/g, '+').replace(/_/g, '/');
+            const decoded = Buffer.from(base64Str, 'base64').toString('utf-8');
+            const urlMatch = decoded.match(/https?:\/\/[^\x00-\x1F\s"']+/i);
+            if (urlMatch) return urlMatch[0];
+        }
+    } catch (e) {}
     return null;
 };
 
-const fetchRSS = async (url, maxItems = 20) => {
+const resolveOneGoogleLink = async (browser, googleUrl) => {
+    if (!googleUrl) return null;
+    if (isValidArticleLink(googleUrl)) return googleUrl;
+    if (!googleUrl.includes('google.com')) return null;
+
+    const decoded = decodeGoogleNewsUrl(googleUrl);
+    if (decoded && isValidArticleLink(decoded)) return decoded;
+
+    const preflightUrl = await preflightCheck(googleUrl);
+    if (isValidArticleLink(preflightUrl) && !preflightUrl.includes('google.com')) return preflightUrl; 
+
+    let page;
     try {
-        const { data } = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 10000
+        page = await browser.newPage();
+        await page.setRequestInterception(true);
+        const finalUrl = await new Promise((resolve) => {
+            const timer = setTimeout(() => resolve(null), 15000);
+            page.on('request', (req) => {
+                const url = req.url();
+                if (['image','stylesheet','font','media'].includes(req.resourceType())) { req.abort(); return; }
+                if (url.includes('consent.google.com')) {
+                    clearTimeout(timer); req.abort('aborted'); resolve(null); return; 
+                }
+                if (req.isNavigationRequest() && req.frame() === page.mainFrame() && !url.includes('news.google.com') && !url.includes('about:blank')) {
+                    clearTimeout(timer); req.abort('aborted'); resolve(url); return;
+                }
+                req.continue();
+            });
+            page.goto(googleUrl).catch(() => {});
         });
-        const $ = cheerio.load(data, { xmlMode: true });
+        return (finalUrl && isValidArticleLink(finalUrl)) ? finalUrl : null;
+    } catch { return null; } finally { if(page) await page.close().catch(() => {}); }
+};
+
+const resolveGoogleLinksParallel = async (items, concurrency = 5) => { 
+    const browser = await getBrowser();
+    if (!browser) return [];
+    const results = [];
+    for (let i = 0; i < items.length; i += concurrency) {
+        const resolved = await Promise.all(items.slice(i, i + concurrency).map(async (item) => {
+            const realLink = await resolveOneGoogleLink(browser, item.rawLink);
+            if (!realLink) return null;
+            return { title: item.title, link: realLink, source: item.sourceName, domain: extractDomain(realLink), sentiment: detectSentiment(item.title, item.description), publishedAt: item.publishedAt, date: item.date, fromGoogle: true };
+        }));
+        results.push(...resolved.filter(Boolean));
+    }
+    return results;
+};
+
+const fetchDirectRSS = async (source, ticker, maxItems = 50) => {
+    try { 
+        const { data } = await axios.get(source.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 });
+        const itemsRaw = [].concat(xmlParser.parse(data)?.rss?.channel?.item || []);
+        const tickerPattern = new RegExp(`(^|\\s|\\(|\\[|:)${ticker.toUpperCase()}(\\s|\\)|\\]|:|$|,|\\.)`);
+        
+        return itemsRaw.slice(0, maxItems).map(el => {
+            const title = (el?.title || '').toString();
+            const rawLink = el?.link || el?.guid?.['#text'] || el?.guid || '';
+            const titleUpper = title.toUpperCase();
+            if (!isValidArticleLink(rawLink) || title.length < 15 || (!tickerPattern.test(titleUpper) && !titleUpper.includes(` ${ticker.toUpperCase()} `))) return null;
+            return { ...parsePubDate(el.pubDate), title, link: rawLink, source: source.name, domain: source.domain || extractDomain(rawLink), sentiment: detectSentiment(title, el.description), fromGoogle: false };
+        }).filter(Boolean);
+    } catch { return []; }
+};
+
+const searchOnSite = async (source, ticker, maxItems = 10) => {
+    try {
+        const { data } = await axios.get(source.buildUrl(ticker), {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': `https://${source.domain}/` },
+            timeout: 12000,
+        });
+        const $ = cheerio.load(data);
         const results = [];
-        $('item').each((i, el) => {
+        const tickerUpper = ticker.toUpperCase();
+
+        $(source.itemSelector).each((i, el) => {
             if (i >= maxItems) return false;
-            const title       = $(el).find('title').text().replace(/ - .*$/, '').trim();
-            const googleLink  = $(el).find('link').text().trim();
-            const pubRaw      = $(el).find('pubDate').text();
-            const src         = $(el).find('source').text() || extractDomain(googleLink);
-            const description = $(el).find('description').text().trim();
-            const { publishedAt, date } = parsePubDate(pubRaw);
+            const $el = $(el);
+            const href = $el.attr('href');
+            const title = ($el.text().trim() || $el.attr('title') || '').replace(/\s+/g,' ').trim();
 
-            const realLink = extractRealLinkFromDescription(description) || googleLink;
+            if (!title || title.length < 15 || !href || !title.toUpperCase().includes(tickerUpper)) return;
+            let link = href.startsWith('/') ? `https://${source.domain}${href}` : href;
+            if (!isValidArticleLink(link) || !link.includes(source.domain)) return;
 
-            if (title && title.length > 15 && realLink) {
-                results.push({
-                    title,
-                    link:        realLink,
-                    source:      src,
-                    sentiment:   detectSentiment(title, description),
-                    publishedAt,
-                    date,     
-                });
-            }
+            results.push({
+                title, link, source: source.name, domain: source.domain, sentiment: detectSentiment(title),
+                publishedAt: new Date(), date: new Date().toLocaleDateString('vi-VN'), fromGoogle: false, fromSearch: true
+            });
         });
         return results;
-    } catch {
-        return [];
-    }
+    } catch { return []; }
 };
 
-const extractDomain = (url) => {
-    try { return new URL(url).hostname.replace('www.', ''); } catch { return 'Internet'; }
-};
+export const rescoreSentiment = (item) => ({ ...item, sentiment: detectSentiment(item.title, item.content || '') });
 
 const dedupByLink = (articles) => {
     const seen = new Set();
     return articles.filter(a => {
-        if (seen.has(a.link)) return false;
-        seen.add(a.link);
-        return true;
+        const key = a.link.split('?')[0].replace(/\/$/,'').toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
     });
 };
 
-//─── Re-score sau khi scrape nội dung đầy đủ ────────────────────────────────
-export const rescoreSentiment = (newsItem) => {
-    const refined = detectSentiment(newsItem.title, newsItem.content || '');
-    return { ...newsItem, sentiment: refined };
+const filterByMode = (articles, mode) => {
+    switch(mode) {
+        case 'negative': return articles.filter(a => a.sentiment==='negative' || /bán tháo|lao dốc|thua lỗ|vi phạm|điều tra/i.test(a.title));
+        case 'official': return articles.filter(a => ['cafef.vn','vietstock.vn','baodautu.vn','tinnhanhchungkhoan.vn','vneconomy.vn'].includes(a.domain));
+        case 'rumor': return articles.filter(a => /tin đồn|nội bộ|thâu tóm/i.test(a.title) || ['dantri.com.vn','vnexpress.net'].includes(a.domain));
+        default: return articles;
+    }
 };
 
-//─── Phân phối sentiment đều (true balance) ─────────────────────────────────
 const distributeSentiment = (articles, mode) => {
-    if (mode === 'negative') return articles;
-    if (mode === 'official') return articles;
-
-    const negatives = articles.filter(a => a.sentiment === 'negative');
-    const positives = articles.filter(a => a.sentiment === 'positive');
-    const neutrals  = articles.filter(a => a.sentiment === 'neutral');
-
-
+    if (mode === 'negative' || mode === 'official') return articles;
+    const neg = articles.filter(a=>a.sentiment==='negative'), pos = articles.filter(a=>a.sentiment==='positive'), neu = articles.filter(a=>a.sentiment==='neutral');
     const result = [];
-    const maxLen = Math.max(negatives.length, positives.length, neutrals.length);
-    for (let i = 0; i < maxLen; i++) {
-        if (i < negatives.length) result.push(negatives[i]);
-        if (i < neutrals.length)  result.push(neutrals[i]);
-        if (i < positives.length) result.push(positives[i]);
+    for (let i=0; i<Math.max(neg.length, pos.length, neu.length); i++) {
+        if (i<neg.length) result.push(neg[i]);
+        if (i<neu.length) result.push(neu[i]);
+        if (i<pos.length) result.push(pos[i]);
     }
     return result;
 };
 
-//─── Export  ─────────────────────────────────────────────────────────────────
+// MAIN EXPORT
 export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30) {
-    const cleanTicker = ticker.toUpperCase();
-    const urls = buildQueries(cleanTicker, mode);
+    const clean = ticker.toUpperCase();
+    const cacheKey = `${clean}_${mode}_${limit}`;
+    const cachedData = cacheMap.get(cacheKey);
+    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) return cachedData.data;
 
-    const allResults = await Promise.all(urls.map(url => fetchRSS(url, 20)));
+    const [googleRawItems, rssResults, searchResults] = await Promise.all([
+        Promise.all(buildGoogleNewsQueries(clean, mode).map(q => fetchGoogleNewsRSS(q, 25))).then(r => r.flat()),
+        Promise.allSettled(DIRECT_RSS_SOURCES.map(s => fetchDirectRSS(s, clean, 50))).then(r => r.filter(x=>x.status==='fulfilled').flatMap(x=>x.value)),
+        Promise.allSettled(SEARCH_SOURCES.map(s => searchOnSite(s, clean, 10))).then(r => r.filter(x=>x.status==='fulfilled').flatMap(x=>x.value)),
+    ]);
 
+     const googleItemsToResolve = googleRawItems.slice(0, 60); 
+    const googleResolved = await resolveGoogleLinksParallel(googleItemsToResolve, 5);
+    
+    const merged = dedupByLink([...googleResolved, ...rssResults, ...searchResults]).sort((a, b) => b.publishedAt - a.publishedAt);
+    
+    let filtered = filterByMode(merged, mode);
+     if (filtered.length < 15) filtered = merged;  
+    
+    const out = distributeSentiment(filtered, mode).slice(0, limit);
 
-    const merged = dedupByLink(allResults.flat())
-        .sort((a, b) => (b.publishedAt - a.publishedAt));
-
-    const distributed = distributeSentiment(merged, mode);
-    return distributed.slice(0, limit);
+    cacheMap.set(cacheKey, { timestamp: Date.now(), data: out });
+    console.log(`[vnNewsSearch] ${clean} | Tìm thấy: ${out.length} tin chuẩn.`);
+    return out;
 }
