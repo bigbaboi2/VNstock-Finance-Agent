@@ -37,7 +37,7 @@ export async function saveToCache(ticker, data) {
                 data: data,
                 timestamp: Date.now() 
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
     } catch (error) {
         console.error("[LỖI] Lỗi lưu Cache lên MongoDB:", error.message);

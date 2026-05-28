@@ -56,7 +56,7 @@ export const tradeOrder = async (req, res) => {
                 const updatedPortfolio = await Portfolio.findOneAndUpdate(
                         { username, balance: { $gte: totalValue } },
                         { $inc: { balance: -totalValue } },
-                        { new: true }
+                        { returnDocument: 'after' }
                 );
                 if (!updatedPortfolio) {
                     return res.status(400).json({ success: false, message: 'Số dư không đủ để đặt lệnh chờ!' });                
@@ -113,7 +113,7 @@ export const tradeOrder = async (req, res) => {
                         $inc: { balance: -totalValue, "holdings.$.volume": volume },
                         $set: { "holdings.$.avgPrice": newAvg }
                     },
-                    { new: true }
+                    { returnDocument: 'after' }
                 );
 
                 if (!updatedPortfolio) {
@@ -132,7 +132,7 @@ export const tradeOrder = async (req, res) => {
                             holdings: { assetType, symbol, volume, avgPrice: price }
                         }
                     },
-                    { new: true }
+                    { returnDocument: 'after' }
                 );
 
                 if (!updatedPortfolio) {
@@ -156,7 +156,7 @@ export const tradeOrder = async (req, res) => {
                 {
                     $inc: { "holdings.$.volume": -volume, balance: totalValue }
                 },
-                { new: true }
+                { returnDocument: 'after' }
             );
 
             if (!updatedPortfolio) {
