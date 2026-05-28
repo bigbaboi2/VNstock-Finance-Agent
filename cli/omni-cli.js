@@ -140,17 +140,18 @@ const handleStockAnalysis = async () => {
     console.log();
 
     try {
-        const [historyRes, infoRes] = await Promise.all([
-            ui.spinner(`Đồng bộ lịch sử giá [${symbol}]...`, () =>
-                apiClient.get(`/history/${symbol}`)
-            ),
-            ui.spinner(`Tải thông tin thị trường [${symbol}]...`, () =>
-                apiClient.get(`/info/${symbol}`)
-            ),
+        const [historyRes, infoRes, actionRes] = await Promise.all([
+            ui.spinner(`Đồng bộ lịch sử giá [${symbol}]...`, () => apiClient.get(`/history/${symbol}`)),
+            ui.spinner(`Tải thông tin thị trường [${symbol}]...`, () => apiClient.get(`/info/${symbol}`)),
+             apiClient.post(`/action-panel/${symbol}`, {
+                currentPrice: 0, 
+                triggerReason: "CLI Request"
+            }).catch(() => ({ data: { data: null } })) 
         ]);
 
         const chartData = historyRes.data?.data || [];
         const marketData = infoRes.data?.data;
+        const actionData = actionRes.data?.data;  
 
         if (!marketData || !marketData.stockInfo) {
             console.log('\n' + chalk.bgRed.white(' KHÔNG TÌM THẤY ') + chalk.red(` Mã ${symbol} không tồn tại hoặc mất kết nối dữ liệu.`));
@@ -158,15 +159,14 @@ const handleStockAnalysis = async () => {
             return;
         }
 
-        // Show system logs if any
         const logs = infoRes.data?.logs || [];
         if (logs.length > 0) {
             console.log(chalk.dim('\n  System Log:'));
             logs.forEach(l => console.log(chalk.dim('  · ' + l)));
         }
 
-        renderStockDetail(marketData, chartData);
-
+        // Truyền actionData vào để view vẽ bảng
+        renderStockDetail(marketData, chartData, actionData);
         const { useAi } = await inquirer.prompt([{
             type: 'confirm',
             name: 'useAi',
@@ -207,13 +207,41 @@ const handleDerivatives = async () => {
     showBreadcrumb('⚡ Phái Sinh VN30F1M');
 
     try {
-        const [radarRes] = await Promise.all([
-            ui.spinner('Tải dữ liệu Phái sinh VN30F1M Realtime...', () =>
-                apiClient.get('/deriv-radar')
-            ),
+        const [radarRes, chartRes] = await Promise.all([
+            ui.spinner('Tải dữ liệu Phái sinh VN30F1M Realtime...', () => apiClient.get('/deriv-radar')),
+            apiClient.get(`/history/VN30F1M?interval=5 phút`).catch(() => ({ data: { data: [] } }))
         ]);
 
         const derivRadar = radarRes.data?.data;
+        const derivChart = chartRes.data?.data || [];
+
+        // --- TÍNH TOÁN VOLUME PROFILE NHANH TRÊN CLI ---
+        let volumeProfile = null;
+        if (derivChart.length > 0) {
+            const binsCount = 12;
+            let minPrice = Math.min(...derivChart.map(d => d.low));
+            let maxPrice = Math.max(...derivChart.map(d => d.high));
+            if (maxPrice === minPrice) { maxPrice += 1; minPrice -= 1; }
+            
+            const binSize = (maxPrice - minPrice) / binsCount;
+            const bins = Array.from({ length: binsCount }, (_, i) => ({
+                priceCenter: (minPrice + (i + 0.5) * binSize).toFixed(1), volume: 0
+            }));
+
+            let maxVol = 0; let pocPrice = 0;
+            derivChart.forEach(candle => {
+                const typicalPrice = (candle.high + candle.low + candle.close) / 3;
+                const binIndex = Math.min(Math.floor((typicalPrice - minPrice) / binSize), binsCount - 1);
+                if (binIndex >= 0 && binIndex < binsCount) {
+                    bins[binIndex].volume += candle.volume;
+                    if (bins[binIndex].volume > maxVol) {
+                        maxVol = bins[binIndex].volume;
+                        pocPrice = bins[binIndex].priceCenter;
+                    }
+                }
+            });
+            volumeProfile = { bins: bins.reverse(), maxVol, pocPrice };
+        }
 
         if (!derivRadar) {
             console.log('\n' + chalk.yellow('⚠  Không có dữ liệu phái sinh. Server có thể đang cập nhật.'));
@@ -250,7 +278,7 @@ const handleDerivatives = async () => {
                 : `Basis âm ${basisNum.toFixed(2)} điểm → Áp lực bán chiếm ưu thế. Thận trọng vùng kháng cự kỹ thuật.`,
         };
 
-        renderDerivativesMatrix(derivRadar, derivAnalysis, null);
+        renderDerivativesMatrix(derivRadar, derivAnalysis, volumeProfile);
     } catch (error) {
         console.log('\n' + chalk.bgRed.white(' LỖI API ') + ' ' + chalk.red(`Không thể tải dữ liệu Phái sinh: ${error.message}`));
     }
