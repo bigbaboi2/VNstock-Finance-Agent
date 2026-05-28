@@ -3,8 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import DerivNews from '../../models/DerivNews.js';
-//
-import { globalDerivCache } from '../jobs/derivUpdater.js';
+import { fileURLToPath } from 'url';
+import { globalDerivCache } from '../jobs/derivUpdater.js'; 
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function getExpiryInfo() {
     const now = new Date();
@@ -116,17 +119,123 @@ async function fetchGlobalMarketContext() {
 }
 export const getDerivRadar = async (req, res) => {
     try {
-        let newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
-        
-        if (!newsList || newsList.length === 0) {
-            console.log(chalk.yellow(`[HỆ THỐNG] Kho dữ liệu tin trống. Đang tải tin tức mới nhất...`));
-            await fetchAndSaveNews();
-            newsList = await DerivNews.find().sort({ timestamp: -1 }).limit(20);
+        const to   = Math.floor(Date.now() / 1000);
+        const from = to - (2 * 24 * 60 * 60); //The last 2 days are enough to get the latest price
+
+        //── Parallel Fetch: VN30F1M price + VN30 Index price ────────────────
+
+        //VN30 basket: 10 largest leading codes (capitalization weight Q1/2025)
+        const VN30_WEIGHTS = {
+            VCB: 10.2, VHM: 8.1, BID: 7.4, VIC: 6.8, CTG: 5.9,
+            TCB: 5.3,  HPG: 4.8, MBB: 4.2, FPT: 3.9, GVR: 3.1,
+        };
+        const VN30_TOP10 = Object.keys(VN30_WEIGHTS);
+
+        const fetchInfluencers = async () => {
+             const todayFrom = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+            const prevDayEnd = todayFrom - 1;  
+            const dailyFrom = prevDayEnd - (5 * 24 * 60 * 60);  
+
+            const results = await Promise.all(
+                VN30_TOP10.map(async (sym) => {
+                    try {
+                         const [intraRes, dailyRes] = await Promise.all([
+                            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${todayFrom}&to=${to}&symbol=${sym}&resolution=1`, { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => null),
+                            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${dailyFrom}&to=${prevDayEnd}&symbol=${sym}&resolution=1D`, { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => null)
+                        ]);
+
+                        const cIntra = intraRes?.data?.c || [];
+                        const cDaily = dailyRes?.data?.c || [];
+
+                         if (cDaily.length === 0) {
+                            return { symbol: sym, change: null, momentum: null, weight: VN30_WEIGHTS[sym], realImpact: null };
+                        }
+
+                         const refPrice = cDaily[cDaily.length - 1]; 
+                         const lastPrice = cIntra.length > 0 ? cIntra[cIntra.length - 1] : refPrice;
+
+                         const change = parseFloat(((lastPrice - refPrice) / refPrice * 100).toFixed(2));
+                        const realImpact = parseFloat((change * VN30_WEIGHTS[sym] / 100 * 10).toFixed(2));
+
+                         let momentum = 0;
+                        if (cIntra.length >= 2) {
+                            const prevMinPrice = cIntra[cIntra.length - 2];
+                            momentum = parseFloat(((lastPrice - prevMinPrice) / prevMinPrice * 100).toFixed(2));
+                        }
+
+                        return { symbol: sym, change, momentum, weight: VN30_WEIGHTS[sym], realImpact };
+                    } catch {
+                        return { symbol: sym, change: null, momentum: null, weight: VN30_WEIGHTS[sym], realImpact: null };
+                    }
+                })
+            );
+            return results;
+        };
+
+        const [f1mRes, vn30Res, influencers] = await Promise.all([
+            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from=${from}&to=${to}&symbol=VN30F1M&resolution=1`, {
+                timeout: 6000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            }).catch(() => null),
+            axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VN30&resolution=1`, {
+                timeout: 6000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            }).catch(() => null),
+            fetchInfluencers().catch(err => {
+                console.log(chalk.yellow(`[RADAR] Không lấy được influencers: ${err.message}`));
+                return [];
+            }),
+        ]);
+
+        //── Get the final price ────────────────────── ──────────────────────
+        const f1mData  = f1mRes?.data;
+        const vn30Data = vn30Res?.data;
+
+        const lastF1M  = f1mData?.c?.[f1mData.c.length - 1]   || null;
+        const prevF1M  = f1mData?.c?.[f1mData.c.length - 2]   || lastF1M;
+        const lastVN30 = vn30Data?.c?.[vn30Data.c.length - 1] || null;
+        const lastVol  = f1mData?.v?.[f1mData.v.length - 1]   || null;
+
+        const change        = lastF1M && prevF1M ? parseFloat((lastF1M - prevF1M).toFixed(2)) : null;
+        const changePercent = lastF1M && prevF1M ? parseFloat(((lastF1M - prevF1M) / prevF1M * 100).toFixed(2)) : null;
+        const basis         = lastF1M && lastVN30 ? parseFloat((lastF1M - lastVN30).toFixed(2)) : null;
+
+        //── Calculate base Speed: current basis xo and 5 candles ago ───────────
+        let basisSpeed = null;
+        if (f1mData?.c?.length >= 6 && vn30Data?.c?.length >= 6) {
+            const prevBasis = f1mData.c[f1mData.c.length - 6] - vn30Data.c[vn30Data.c.length - 6];
+            basisSpeed = parseFloat((basis - prevBasis).toFixed(2));
         }
-        
-        res.json({ success: true, data: newsList });
+
+        //── OI trend compared to previous fetch ─────────────────────────
+        const currentOi  = globalDerivCache.oi        || null;
+        const foreignNet = globalDerivCache.foreignNet || null;
+        const oiTrend    = globalDerivCache.lastOi
+            ? currentOi > globalDerivCache.lastOi ? 'TĂNG' : currentOi < globalDerivCache.lastOi ? 'GIẢM' : 'ĐI NGANG'
+            : 'ĐI NGANG';
+
+        console.log(chalk.green(`[RADAR] VN30F1M=${lastF1M} | VN30=${lastVN30} | Basis=${basis} | OI=${currentOi} | fNet=${foreignNet} | Influencers=${influencers.length}`));
+
+        res.json({
+            success: true,
+            data: {
+                vn30f1m:        lastF1M,
+                vn30:           lastVN30,
+                basis,
+                basisSpeed,
+                change,
+                changePercent,
+                oi:             currentOi,
+                oiTrend,
+                foreignNet,
+                volume:         lastVol,
+                influencers,
+            }
+        });
+
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Lỗi lấy tin tức' });
+        console.log(chalk.red('[RADAR] Lỗi getDerivRadar:', error.message));
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
