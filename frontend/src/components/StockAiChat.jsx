@@ -9,16 +9,6 @@ const MAX_HISTORY_MESSAGES = 40;
 const MAX_TICKERS_STORED   = 15;   
 const STORAGE_PREFIX       = 'omni_chat_';
 
-// ─── QUICK SUGGESTION CHIPS ───────────────────────────────────────────────────
-const QUICK_PROMPTS = [
-  'Tóm tắt điểm mạnh và điểm yếu chính của doanh nghiệp?',
-  'Khuyến nghị nên MUA / BÁN / HOLD?',
-  'Rủi ro lớn nhất cần chú ý?',
-  'Mức giá hợp lý (fair value)?',
-  'So sánh với trung bình ngành?',
-  'Triển vọng ngắn hạn 1-3 tháng?',
-];
-
 // ─── STORAGE HELPERS ──────────────────────────────────────────────────────────
 function getChatKey(ticker) {
   return `${STORAGE_PREFIX}${ticker}`;
@@ -168,6 +158,25 @@ export default function StockAiChat({
   const [showWarning, setShowWarning]       = useState(true);
   const [hasRestoredHistory, setHasRestoredHistory] = useState(false);
 
+  // ─── DYNAMIC QUICK PROMPTS (TỰ ĐỘNG ĐỔI THEO MÃ) ────────
+  const suggestedQuestions = ticker?.startsWith('VN30F')
+    ? [
+        "Đánh giá xung lực (Momentum) ngắn hạn hiện tại?",
+        "Tốc độ xé Basis đang ủng hộ phe Long hay Short?",
+        "Vùng kẹt lệnh (POC) gần nhất nằm ở đâu?",
+        "OI (Vị thế mở) và Khối ngoại đang tác động thế nào?",
+        "Lực kéo/xả của 10 Trụ VN30 đang ra sao?",
+        "Khuyến nghị chiến lược Scalping 1-3 nhịp tới?"
+      ]
+    : [
+        "Tóm tắt điểm mạnh và điểm yếu chính của doanh nghiệp?",
+        "Khuyến nghị nên MUA / BÁN / HOLD?",
+        "Rủi ro lớn nhất cần chú ý?",
+        "Mức giá hợp lý (fair value)?",
+        "So sánh với trung bình ngành?",
+        "Triển vọng ngắn hạn 1-3 tháng?"
+      ];
+
   // ── RESIZE STATE ─────────────────────────────────────────
   const [size, setSize] = useState({ w: 420, h: 600 });
   const isResizing = useRef(false);
@@ -297,11 +306,8 @@ export default function StockAiChat({
         setShowQuickPrompts(true);
       }
     }
-  // Depend cả ticker để reset ngay khi đổi mã, dù chat vẫn đang mở
-  }, [isOpen, ticker]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── SEND MESSAGE ─────────────────────────────────────────
-  const handleSend = useCallback(async (textOverride) => {
+   }, [isOpen, ticker]); 
+   const handleSend = useCallback(async (textOverride) => {
     const text = (textOverride ?? input).trim();
     if (!text || loading) return;
 
@@ -579,7 +585,7 @@ export default function StockAiChat({
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_PROMPTS.map((prompt, i) => (
+            {suggestedQuestions.map((prompt, i) => (
               <button
                 key={i}
                 onClick={() => handleSend(prompt)}
@@ -639,7 +645,7 @@ export default function StockAiChat({
         </p>
       </div>
 
-      {/* ── RESIZE HANDLE (bottom-right corner) ── */}
+      {/* ── RESIZE HANDLE  ── */}
       <div
         onMouseDown={startResize}
         title="Kéo để thay đổi kích thước"
