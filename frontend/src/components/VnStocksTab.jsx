@@ -105,6 +105,8 @@ export default function VnStocksTab({
   currentUser,
   onRequestCloseChat,  
   aiAnalysisDuration,
+  pdfMode = 'turbo',
+  setPdfMode,
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
@@ -358,6 +360,46 @@ export default function VnStocksTab({
                   )}
 
                   <CompanyOverview profile={marketData.companyProfile} isDark={isDark} UI={UI} />
+
+                  {/* ── PDF MODE SELECTOR ─────────────────────────────── */}
+                  {setPdfMode && (
+                    <div className={`rounded-xl p-3 mb-2 border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-slate-100 border-slate-200'}`}>
+                      <p className={`text-[10px] font-black tracking-widest uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        ⚡ CHẾ ĐỘ ĐỌC PDF BÁO CÁO
+                      </p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { key: 'turbo',    label: 'TURBO',    icon: '⚡', desc: '3–8s · Nhanh nhất',     warn: 'Có thể lỗi bảng' },
+                          { key: 'fast',     label: 'FAST',     icon: '🚀', desc: '20–40s · Nhẹ',          warn: 'Bảng cơ bản' },
+                          { key: 'balanced', label: 'BALANCED', icon: '⚖️',  desc: '60–90s · Cân bằng',    warn: 'Bảng đầy đủ' },
+                          { key: 'full',     label: 'FULL',     icon: '🔬', desc: '150–200s · Chậm nhất',  warn: 'PDF scan/ảnh' },
+                        ].map(({ key, label, icon, desc, warn }) => {
+                          const isActive = pdfMode === key;
+                          const activeStyle = isDark
+                            ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400'
+                            : 'bg-yellow-100 border-yellow-500 text-yellow-700';
+                          const inactiveStyle = isDark
+                            ? 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                            : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400 hover:text-slate-700';
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => setPdfMode(key)}
+                              className={`rounded-lg border px-2 py-1.5 text-left transition-all active:scale-95 ${isActive ? activeStyle : inactiveStyle}`}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm">{icon}</span>
+                                <span className={`text-[10px] font-black tracking-wider ${isActive ? '' : ''}`}>{label}</span>
+                                {isActive && <span className="ml-auto text-[8px] font-black">✓</span>}
+                              </div>
+                              <p className="text-[9px] mt-0.5 opacity-70">{desc}</p>
+                              <p className={`text-[8px] mt-0.5 ${isActive ? 'opacity-60' : 'opacity-40'}`}>{warn}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <button
                       onClick={handleAiAnalysis}
@@ -1130,7 +1172,6 @@ export default function VnStocksTab({
           )} 
 
           {analyzing && (() => {
-            // Map analysisStep → progress % thực tế khớp với steps trong handleAiAnalysis
             const STEP_PROGRESS = {
               '🔍 Khởi tạo engine phân tích...':               5,
               '📄 Đang tải báo cáo tài chính PDF...':          12,
