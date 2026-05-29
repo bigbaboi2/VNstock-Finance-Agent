@@ -3,7 +3,7 @@ import {
     getLiveNews, analyzeDerivatives, analyzeStock, 
     debugFeed, stockChat, getAiNews, 
     getActionPanel, getUserHistory,
-    getLatestVnStockReport 
+    getLatestVnStockReport, analyzeStockStream 
 } from '../controllers/ai.controller.js';
 
 const router = express.Router();  
