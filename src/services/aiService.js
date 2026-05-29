@@ -14,15 +14,16 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../../.env'), override: true });
 
-const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+const apiKeyMain = process.env.GEMINI_API_KEY_MAIN || process.env.GEMINI_API_KEY || process.env.API_KEY;
+const apiKeyAction = process.env.GEMINI_API_KEY_ACTION || apiKeyMain;
 
-if (!apiKey) {    
-    console.log(chalk.bgRed.white.bold('[LỖI CHÍ MẠNG] Biến GEMINI_API_KEY đang trống rỗng!'));
-} 
-else {}
+if (!apiKeyMain) {    
+    console.log(chalk.bgRed.white.bold('[LỖI CHÍ MẠNG] Biến GEMINI_API_KEY_MAIN đang trống rỗng!'));
+}
 
-const genAI = new GoogleGenerativeAI(apiKey);
-const fileManager = new GoogleAIFileManager(apiKey);
+const genAI_Main = new GoogleGenerativeAI(apiKeyMain);
+const genAI_Action = new GoogleGenerativeAI(apiKeyAction);
+const fileManager = new GoogleAIFileManager(apiKeyMain);
 
 let ALL_MODELS_CACHE = []; 
 
@@ -31,7 +32,7 @@ async function getDynamicModels() {
 
     console.log(chalk.yellow('[HỆ THỐNG] Đang kết nối Google để đồng bộ danh sách Model...'));
     try {
-        const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const response = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKeyMain}`);
         
         const rawModelsCount = response.data.models?.length || 0;
         console.log(chalk.blue(`[HỆ THỐNG] Google trả về tổng cộng: ${rawModelsCount} model thô.`));
@@ -83,76 +84,73 @@ async function getDynamicModels() {
     }
 }
 
-const generateWithAutoSwitch = async (promptData, options = {}) => {
+const generateWithAutoSwitch = async (promptData, options = {}, useActionKey = false) => {
     const modelsToTry = await getDynamicModels();
+    const activeGenAI = useActionKey ? genAI_Action : genAI_Main;
 
     for (const modelName of modelsToTry) {
         try {
-            const model = genAI.getGenerativeModel({ model: modelName, ...options });
+            const model = activeGenAI.getGenerativeModel({ model: modelName, ...options });
             const result = await model.generateContent(promptData);
-            
-            console.log(chalk.greenBright(`[AI CORE] đã trả lời thành công với [${modelName}]`));
+            console.log(chalk.greenBright(`[AI CORE] đã trả lời thành công với [${modelName}] (Key: ${useActionKey ? 'ACTION' : 'MAIN'})`));
             return result; 
-            
         } catch (error) {
             const errStatus = error.status || 'LỖI';
             
+            // [FIX 429] Không sập nữa, cho ngủ 2s rồi đổi model khác!
             if (errStatus === 429) {
-                console.log(chalk.bgRed.white.bold(`[LỖI 429] Quá giới hạn request! Hệ thống cần nghỉ ngơi.`));
-                throw new Error("[Lỗi 429] Bị Google block do spam quá nhanh.");
+                console.log(chalk.yellow(`[LỖI 429] Model [${modelName}] kẹt đạn (Limit). Thở 2s rồi đổi súng...`));
+                await new Promise(r => setTimeout(r, 2000)); 
+                continue; 
             }
             
             if (errStatus === 503) {
                 console.log(chalk.yellow(`[LỖI 503] Máy chủ Google [${modelName}] đang quá tải. Đang chuyển mạch...`));
                 continue;  
             }
-
             console.log(chalk.yellow(`[CẢNH BÁO] Bỏ qua [${modelName}] (Mã lỗi: ${errStatus}). Đang đổi model...`));
             continue; 
         }
     }
-    
-    throw new Error("[LỖI] Các model khả dụng đều báo lỗi (400) hoặc bị gỡ bỏ (404).");
-};
-const generateStreamWithAutoSwitch = async (promptData, onChunk, options = {}) => {
+    throw new Error("[Lỗi 429] Google đã chặn toàn bộ Model do spam quá nhanh. Đợi 1 phút rồi thử lại.");
+};const generateStreamWithAutoSwitch = async (promptData, onChunk, options = {}, useActionKey = false) => {
     const modelsToTry = await getDynamicModels();
+    const activeGenAI = useActionKey ? genAI_Action : genAI_Main;
 
     for (const modelName of modelsToTry) {
         try {
-            const model = genAI.getGenerativeModel({ model: modelName, ...options });
+            const model = activeGenAI.getGenerativeModel({ model: modelName, ...options });
             const result = await model.generateContentStream(promptData);
             let fullText = '';
 
             for await (const chunk of result.stream) {
                 const chunkText = chunk.text();
                 if (!chunkText) continue;
-
                 fullText += chunkText;
                 if (typeof onChunk === 'function') onChunk(chunkText);
             }
 
-            console.log(chalk.greenBright(`[AI CORE] đã stream trả lời thành công với [${modelName}]`));
+            console.log(chalk.greenBright(`[AI CORE] đã stream trả lời thành công với [${modelName}] (Key: ${useActionKey ? 'ACTION' : 'MAIN'})`));
             return fullText;
-
         } catch (error) {
             const errStatus = error.status || 'LỖI';
-
+            
+            // [FIX 429 STREAM] Tương tự như trên
             if (errStatus === 429) {
-                console.log(chalk.bgRed.white.bold(`[LỖI 429] Quá giới hạn request! Hệ thống cần nghỉ ngơi.`));
-                throw new Error("[Lỗi 429] Bị Google block do spam quá nhanh.");
+                console.log(chalk.yellow(`[LỖI 429] Model [${modelName}] kẹt đạn (Limit). Thở 2s rồi đổi súng...`));
+                await new Promise(r => setTimeout(r, 2000));
+                continue;
             }
-
+            
             if (errStatus === 503) {
                 console.log(chalk.yellow(`[LỖI 503] Máy chủ Google [${modelName}] đang quá tải. Đang chuyển mạch...`));
                 continue;
             }
-
             console.log(chalk.yellow(`[CẢNH BÁO] Bỏ qua [${modelName}] (Mã lỗi: ${errStatus}). Đang đổi model...`));
             continue;
         }
     }
-
-    throw new Error("[LỖI] Các model khả dụng đều báo lỗi (400) hoặc bị gỡ bỏ (404).");
+    throw new Error("[Lỗi 429] Google đã chặn toàn bộ Model do spam quá nhanh. Đợi 1 phút rồi thử lại.");
 };
 
 
@@ -189,7 +187,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
     };
     const cached = _tcbsPdfCache.get(cacheKey);
     if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL) {
-        console.log(chalk.green(`[HỆ THỐNG] Dùng cache RAM TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
+        console.log(chalk.yellowBright(`[HỆ THỐNG] Dùng cache RAM TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
         emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache RAM', progress: 28 });
         return cached.markdown;
     }
@@ -205,7 +203,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
 
             if (isMongoCacheValid) {
                 _tcbsPdfCache.set(cacheKey, { markdown: mongoCached.markdown, ts: cachedTimestamp });
-                console.log(chalk.green(`[HỆ THỐNG] Dùng cache MongoDB TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cachedTimestamp)) / 60000)} phút)`));
+                console.log(chalk.yellow(`[HỆ THỐNG] Dùng cache MongoDB TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cachedTimestamp)) / 60000)} phút)`));
                 emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache MongoDB', progress: 28 });
                 return mongoCached.markdown;
             }
@@ -233,68 +231,91 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
 
         console.log(chalk.cyan(`[HỆ THỐNG] Gọi Docling với mode=${safeMode.toUpperCase()}...`));
         emitProgress({ step: 'DOCLING_PARSE', message: `Đang xử lý PDF bằng AI Docling (${safeMode.toUpperCase()})`, progress: 32 });
-        const doclingResponse = await axios.post(`http://localhost:8000/parse-pdf?mode=${safeMode}`, formData, {
+        
+        try {
+            const doclingResponse = await axios.post(`http://localhost:8000/parse-pdf?mode=${safeMode}`, formData, {
+                headers: formData.getHeaders(),
+                timeout: 300000 
+            });
 
-            headers: formData.getHeaders(),
-            timeout: 300000 
-        });
-
-        if (doclingResponse.data.success) {
-            let rawMarkdown = doclingResponse.data.markdown;
-
-            // ─── [FIX] Post-process Docling turbo markdown ──────────────────
-
-            let cleanMarkdown = rawMarkdown;
-            
-            cleanMarkdown = cleanMarkdown
-                .replace(/Techcom Securities/g, '')
-                .replace(/Hotline: 1800 588 826; cskh@tcbs\.com\.vn/g, '')
-                .replace(/Giải thích các chỉ tiêu tài chính/g, '')
-                .replace(/<!-- image -->\n*/g, '');
-
-            for (let i = 0; i < 6; i++) {
+            // --- 1. NẾU DOCLING THÀNH CÔNG ---
+            if (doclingResponse.data.success) {
+                let rawMarkdown = doclingResponse.data.markdown;
+                let cleanMarkdown = rawMarkdown;
+                
                 cleanMarkdown = cleanMarkdown
-                    .replace(/(\S)  ([À-ỹđĐ])  (\S)/g, '$1$2$3')
-                    .replace(/(\S)  ([À-ỹđĐ])  /g, '$1$2 ')
-                    .replace(/ ([À-ỹđĐ])  (\S)/g, ' $1$2');
-            }
+                    .replace(/Techcom Securities/g, '')
+                    .replace(/Hotline: 1800 588 826; cskh@tcbs\.com\.vn/g, '')
+                    .replace(/Giải thích các chỉ tiêu tài chính/g, '')
+                    .replace(/\n*/g, '');
 
-           
-            for (let i = 0; i < 8; i++) {
-                cleanMarkdown = cleanMarkdown
-                    .replace(/([À-ỹA-Za-z(]) ([À-ỹ]{1,3}) ([A-Za-zÀ-ỹ)])/g, '$1$2$3');
-            }
-            
-            cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
-
-              const cacheTimestamp = Date.now();
-            _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: cacheTimestamp });
-
-            if (mongoose.connection.readyState === 1) {
-                try {
-                    await TcbsMarkdownCacheModel.findOneAndUpdate(
-                        { ticker: tickerUpper, mode: safeMode },
-                        {
-                            $set: {
-                                ticker: tickerUpper,
-                                mode: safeMode,
-                                markdown: cleanMarkdown,
-                                timestamp: new Date(cacheTimestamp)
-                            }
-                        },
-                        { upsert: true, setDefaultsOnInsert: true }
-                    );
-                } catch (error) {
-                    console.log(chalk.yellow(`[CẢNH BÁO] Không ghi được cache MongoDB TCBS PDF: ${error.message}`));
+                for (let i = 0; i < 6; i++) {
+                    cleanMarkdown = cleanMarkdown
+                        .replace(/(\S)  ([À-ỹđĐ])  (\S)/g, '$1$2$3')
+                        .replace(/(\S)  ([À-ỹđĐ])  /g, '$1$2 ')
+                        .replace(/ ([À-ỹđĐ])  (\S)/g, ' $1$2');
                 }
+                for (let i = 0; i < 8; i++) {
+                    cleanMarkdown = cleanMarkdown
+                        .replace(/([À-ỹA-Za-z(]) ([À-ỹ]{1,3}) ([A-Za-zÀ-ỹ)])/g, '$1$2$3');
+                }
+                cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
+
+                const cacheTimestamp = Date.now();
+                _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: cacheTimestamp });
+
+                if (mongoose.connection.readyState === 1) {
+                    try {
+                        await TcbsMarkdownCacheModel.findOneAndUpdate(
+                            { ticker: tickerUpper, mode: safeMode },
+                            { $set: { ticker: tickerUpper, mode: safeMode, markdown: cleanMarkdown, timestamp: new Date(cacheTimestamp) } },
+                            { upsert: true, setDefaultsOnInsert: true }
+                        );
+                        console.log(chalk.yellow(`[CACHE SAVE] Đã lưu nội dung PDF bóc tách của ${tickerUpper} vào RAM và MongoDB!`));
+                    } catch (error) {
+                        console.log(chalk.yellow(`[CẢNH BÁO] Không ghi được cache MongoDB TCBS PDF: ${error.message}`));
+                    }
+                }
+                console.log(chalk.green(`[THÀNH CÔNG] Trạm Docling đã bóc tách PDF hoàn tất!`));
+                return cleanMarkdown;
+            } else {
+                throw new Error(doclingResponse.data.error || "Lỗi không xác định từ Docling");
             }
-            emitProgress({ step: 'DOCLING_DONE', message: 'Đã lấy phân tích xong với AI Docling', progress: 46 });
-            console.log(chalk.green(`[THÀNH CÔNG] Docling xử lý xong! Dữ liệu TCBS đã được lưu cache.`));
-            return cleanMarkdown; 
-        } else {
-            console.log(chalk.red(`[LỖI] Trạm Docling báo lỗi: ${doclingResponse.data.error}`));
-            emitProgress({ step: 'DOCLING_FAILED', message: 'Docling lỗi, tiếp tục phân tích bằng dữ liệu thị trường hiện có', progress: 46 });
-            return null;
+        } 
+        // --- 2. NẾU DOCLING  ---
+        catch (doclingError) {
+            console.log(chalk.yellow(`[CẢNH BÁO] Trạm Docling sập hoặc lỗi: ${doclingError.message}. Khởi động AI Fallback bóc PDF...`));
+            emitProgress({ step: 'DOCLING_FAILED', message: 'Docling lỗi, đang dùng Gemini AI Vision để đọc PDF thay thế...', progress: 38 });
+            
+            try {
+                const tempPdfPath = path.join(__dirname, `temp_${tickerUpper}_${Date.now()}.pdf`);
+                fs.writeFileSync(tempPdfPath, pdfBuffer);
+
+                const uploadResponse = await fileManager.uploadFile(tempPdfPath, {
+                    mimeType: "application/pdf",
+                    displayName: `BCTC_${tickerUpper}`
+                });
+                
+                fs.unlinkSync(tempPdfPath); 
+
+                const model = genAI_Main.getGenerativeModel({ model: "gemini-1.5-pro" });
+                const result = await model.generateContent([
+                    { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } },
+                    { text: "Hãy bóc tách toàn bộ các bảng số liệu tài chính trong file báo cáo này thành định dạng Markdown (table). Phải giữ sự chính xác tuyệt đối của các con số." }
+                ]);
+                
+                const aiMarkdown = result.response.text();
+                
+                _tcbsPdfCache.set(cacheKey, { markdown: aiMarkdown, ts: Date.now() });
+                console.log(chalk.green(`[THÀNH CÔNG] Gemini Vision đã bóc tách PDF thành công thay cho Docling!`));
+                
+                return aiMarkdown;
+            } 
+            catch (aiError) {
+                console.log(chalk.red(`[LỖI] Fallback Gemini Vision cũng báo lỗi: ${aiError.message}`));
+                emitProgress({ step: 'DOCLING_FAILED', message: 'Docling và Vision đều lỗi, tiếp tục phân tích bằng dữ liệu thị trường', progress: 46 });
+                return null;
+            }
         }
 
     } catch (error) {
@@ -497,9 +518,10 @@ export async function getQuickActionWithGemini(ticker, liveData, strategicContex
     }`;
 
     try {
-        const result = await generateWithAutoSwitch(prompt, {
+         const result = await generateWithAutoSwitch(prompt, {
             generationConfig: { responseMimeType: "application/json" }
-        });
+        }, true);
+        
         let text = result.response.text();
         return JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
     } catch (error) {
@@ -512,7 +534,7 @@ export async function getQuickActionWithGemini(ticker, liveData, strategicContex
 // 5B. AI PHÂN TÍCH PHÁI SINH CHUYÊN SÂU (QUANT MCP LOGIC)
 // =========================================================
 export async function analyzeDerivativesWithGemini(derivData) {
-    const { previousAiReport, ...otherData } = req.body;
+    const { previousAiReport, ...otherData } = derivData;
     console.log(chalk.yellow(`[AI CORE] Đang chạy thuật toán Quant MCP cho VN30F1M...`));
     const previousReportContext = previousAiReport 
     ? `\n--- BÁO CÁO PHÂN TÍCH CỦA BẠN Ở LẦN GẦN NHẤT ---\n${previousAiReport}\n--------------------------------------------\n` 
