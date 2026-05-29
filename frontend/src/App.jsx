@@ -166,10 +166,18 @@ useEffect(() => {
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
   const lastActionNewsKeysRef = useRef([]);
-  
-  //[FIX] Ref to close VnStocks chat when switching tab /home
-  const vnStocksCloseChatRef = useRef(null);
-  
+//[ANTI-SPAM FIX]  
+  useEffect(() => {
+      if (actionData && marketData?.stockInfo) {
+          lastActionPriceRef.current = parsePriceToNumber(marketData.stockInfo.currentPrice);
+          const currentNews = marketData.deepNewsData || [];
+          lastNewsCountRef.current = currentNews.length;
+          lastActionNewsKeysRef.current = currentNews.map(getNewsKey).filter(Boolean);
+      }
+  }, [actionData]);
+//=======================================================================
+  //STATE: VNSTOCKTAB
+  //=======================================================================
   const [showLogs, setShowLogs] = useState(false);
   const [showVolInfo, setShowVolInfo] = useState(false);
   const [showLeaderInfo, setShowLeaderInfo] = useState(false);
@@ -193,8 +201,9 @@ useEffect(() => {
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [lastAiVnTime, setLastAiVnTime] = useState(null);
   const [lastAiVnSnapshot, setLastAiVnSnapshot] = useState(null);
-  //STATE AI DERIVATIVES VN
-  const [aiDerivReport, setAiDerivReport] = useState(null);
+//=======================================================================
+  //STATE: AI DERIVATIVES TAB
+  //=======================================================================  const [aiDerivReport, setAiDerivReport] = useState(null);
   const [analyzingDeriv, setAnalyzingDeriv] = useState(false);
   const [derivNews, setDerivNews] = useState([]);
   const [lastNewsSave, setLastNewsSave] = useState('');
@@ -222,6 +231,8 @@ useEffect(() => {
   const [showPaperSuggestions, setShowPaperSuggestions] = useState(false);
   const [showPaperHelp, setShowPaperHelp] = useState(false);
  
+
+  // ======================================
   //CALL API TO GET DERIVATIVES NEWS TAB ON
   useEffect(() => {
       if (activeMode === 'VN_DERIVATIVES') {
@@ -980,9 +991,9 @@ const derivAnalysis = React.useMemo(() => {
           setVnReportTimestamp(null);
           setActionData(null);
           
-           lastActionPriceRef.current = null;
+          lastActionPriceRef.current = null;
           lastNewsCountRef.current = 0;
-          const lastActionNewsKeysRef = useRef([]);
+          lastActionNewsKeysRef.current = [];
   
           setTimeout(() => setErrorAlert(''), 4000); 
           return; 
@@ -1261,6 +1272,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
         let finalData = null;
+        let streamError = null;
 
         const handleStreamEvent = (rawEvent) => {
             const lines = rawEvent.split('\n');
@@ -1280,14 +1292,15 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                     setAiReport(prev => `${prev || ''}${payload.text}`);
                 }
             }
+            if (eventName === 'error') {
+                streamError = new Error(payload.message || 'Luồng phân tích AI thất bại.');
+                return; 
+            }
+
             if (eventName === 'done') {
                 finalData = payload;
                 setAnalysisProgress(100);
                 setAiAnalysisEta(0);
-            }
-
-            if (eventName === 'error') {
-                throw new Error(payload.message || 'Luồng phân tích AI thất bại.');
             }
         };
 
@@ -1296,10 +1309,17 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
             const events = buffer.split('\n\n');
             buffer = events.pop() || '';
+            
             events.filter(Boolean).forEach(handleStreamEvent);
+            if (streamError) throw streamError; 
+            
             if (done) break;
         }
-        if (buffer.trim()) handleStreamEvent(buffer);
+        
+        if (buffer.trim()) {
+            handleStreamEvent(buffer);
+            if (streamError) throw streamError;
+        }
 
         if (!finalData?.success) throw new Error('Server chưa trả kết quả phân tích AI.');
 
@@ -1428,9 +1448,11 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 // LOGIC: AUTOMATICALLY UPDATE ACTION PANEL
   useEffect(() => {
     let actionTimer;
-    if (aiReport && marketData && marketData.stockInfo) {
+     if (aiReport && marketData && marketData.stockInfo && activeMode === 'VN_STOCKS') {
         const fetchActionPanel = async () => {
-             const currentPriceNum = parsePriceToNumber(marketData.stockInfo.currentPrice);
+             if (loadingMarket) return; 
+
+            const currentPriceNum = parsePriceToNumber(marketData.stockInfo.currentPrice);
             const currentNews = marketData.deepNewsData || [];
             const currentNewsCount = currentNews.length;
             const currentNewsKeys = currentNews.map(getNewsKey).filter(Boolean);
@@ -1505,9 +1527,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
   //LOGIC: REALTIME SYNC LOOP
   useEffect(() => {
     let timer;
-    if (marketData && marketData.stockInfo && marketData.stockInfo.symbol) {
+    if (marketData && marketData.stockInfo && marketData.stockInfo.symbol && activeMode === 'VN_STOCKS') {
         timer = setInterval(async () => {
-            if (!marketOpen) return; 
+            if (!marketOpen) return;
 
             try {
                 const symbol = marketData.stockInfo.symbol;
