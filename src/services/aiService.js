@@ -114,22 +114,68 @@ const generateWithAutoSwitch = async (promptData, options = {}) => {
     
     throw new Error("[LỖI] Các model khả dụng đều báo lỗi (400) hoặc bị gỡ bỏ (404).");
 };
+const generateStreamWithAutoSwitch = async (promptData, onChunk, options = {}) => {
+    const modelsToTry = await getDynamicModels();
+
+    for (const modelName of modelsToTry) {
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName, ...options });
+            const result = await model.generateContentStream(promptData);
+            let fullText = '';
+
+            for await (const chunk of result.stream) {
+                const chunkText = chunk.text();
+                if (!chunkText) continue;
+
+                fullText += chunkText;
+                if (typeof onChunk === 'function') onChunk(chunkText);
+            }
+
+            console.log(chalk.greenBright(`[AI CORE] đã stream trả lời thành công với [${modelName}]`));
+            return fullText;
+
+        } catch (error) {
+            const errStatus = error.status || 'LỖI';
+
+            if (errStatus === 429) {
+                console.log(chalk.bgRed.white.bold(`[LỖI 429] Quá giới hạn request! Hệ thống cần nghỉ ngơi.`));
+                throw new Error("[Lỗi 429] Bị Google block do spam quá nhanh.");
+            }
+
+            if (errStatus === 503) {
+                console.log(chalk.yellow(`[LỖI 503] Máy chủ Google [${modelName}] đang quá tải. Đang chuyển mạch...`));
+                continue;
+            }
+
+            console.log(chalk.yellow(`[CẢNH BÁO] Bỏ qua [${modelName}] (Mã lỗi: ${errStatus}). Đang đổi model...`));
+            continue;
+        }
+    }
+
+    throw new Error("[LỖI] Các model khả dụng đều báo lỗi (400) hoặc bị gỡ bỏ (404).");
+};
+
 
 // =========================================================
 // KHUNG LƯU TRỮ PDF TRÊN MONGODB
 // =========================================================
-const PdfCacheSchema = new mongoose.Schema({
-    ticker: { type: String, required: true, unique: true },
-    pdfBuffer: { type: Buffer, required: true }, 
-    timestamp: { type: Date, default: Date.now, expires: 86400 }  
-});
-const PdfCacheModel = mongoose.models.TcbsPdfCache || mongoose.model('TcbsPdfCache', PdfCacheSchema);
+const TCBS_PDF_TTL = 4 * 60 * 60 * 1000;
+const TCBS_PDF_TTL_SECONDS = Math.floor(TCBS_PDF_TTL / 1000);
 
+const TcbsMarkdownCacheSchema = new mongoose.Schema({
+    ticker: { type: String, required: true, uppercase: true, trim: true },
+    mode: { type: String, required: true, trim: true, default: 'turbo' },
+    markdown: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now, expires: TCBS_PDF_TTL_SECONDS }
+});
+
+TcbsMarkdownCacheSchema.index({ ticker: 1, mode: 1 }, { unique: true });
+
+const TcbsMarkdownCacheModel = mongoose.models.TcbsMarkdownCache || mongoose.model('TcbsMarkdownCache', TcbsMarkdownCacheSchema);
 // =========================================================
 // 2. HÀM TẢI VÀ DỊCH BÁO CÁO TCBS  
 // =========================================================
-const _tcbsPdfCache = new Map(); 
-const TCBS_PDF_TTL = 4 * 60 * 60 * 1000; 
+const _tcbsPdfCache = new Map();
 
 export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgress = null) {
     const tickerUpper = ticker.toUpperCase();
@@ -138,16 +184,35 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
 
     // Cache key includes mode so switching mode forces re-extract
     const cacheKey = `${tickerUpper}__${safeMode}`;
-     const emitProgress = (payload) => {
-        if (typeof onProgress === 'function') onProgress(payload);
+    const emitProgress = (payload) => {
+    if (typeof onProgress === 'function') onProgress(payload);
     };
     const cached = _tcbsPdfCache.get(cacheKey);
     if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL) {
-        console.log(chalk.green(`[HỆ THỐNG] Dùng cache TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
-        emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache', progress: 28 });
+        console.log(chalk.green(`[HỆ THỐNG] Dùng cache RAM TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
+        emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache RAM', progress: 28 });
         return cached.markdown;
     }
+     if (mongoose.connection.readyState === 1) {
+        try {
+            const mongoCached = await TcbsMarkdownCacheModel.findOne({ ticker: tickerUpper, mode: safeMode }).lean();
+            const cachedTimestamp = mongoCached?.timestamp ? new Date(mongoCached.timestamp).getTime() : 0;
+            const isMongoCacheValid = Boolean(
+                mongoCached?.markdown
+                && cachedTimestamp
+                && (Date.now() - cachedTimestamp) < TCBS_PDF_TTL
+            );
 
+            if (isMongoCacheValid) {
+                _tcbsPdfCache.set(cacheKey, { markdown: mongoCached.markdown, ts: cachedTimestamp });
+                console.log(chalk.green(`[HỆ THỐNG] Dùng cache MongoDB TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cachedTimestamp)) / 60000)} phút)`));
+                emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache MongoDB', progress: 28 });
+                return mongoCached.markdown;
+            }
+        } catch (error) {
+            console.log(chalk.yellow(`[CẢNH BÁO] Không đọc được cache MongoDB TCBS PDF: ${error.message}`));
+        }
+    }
     const pdfUrl = `https://static.tcbs.com.vn/oneclick/${tickerUpper}.pdf`;
     
     try {
@@ -202,7 +267,27 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
             
             cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
 
-            _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: Date.now() });
+              const cacheTimestamp = Date.now();
+            _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: cacheTimestamp });
+
+            if (mongoose.connection.readyState === 1) {
+                try {
+                    await TcbsMarkdownCacheModel.findOneAndUpdate(
+                        { ticker: tickerUpper, mode: safeMode },
+                        {
+                            $set: {
+                                ticker: tickerUpper,
+                                mode: safeMode,
+                                markdown: cleanMarkdown,
+                                timestamp: new Date(cacheTimestamp)
+                            }
+                        },
+                        { upsert: true, setDefaultsOnInsert: true }
+                    );
+                } catch (error) {
+                    console.log(chalk.yellow(`[CẢNH BÁO] Không ghi được cache MongoDB TCBS PDF: ${error.message}`));
+                }
+            }
             emitProgress({ step: 'DOCLING_DONE', message: 'Đã lấy phân tích xong với AI Docling', progress: 46 });
             console.log(chalk.green(`[THÀNH CÔNG] Docling xử lý xong! Dữ liệu TCBS đã được lưu cache.`));
             return cleanMarkdown; 
@@ -222,13 +307,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
 // =========================================================
 // 3. HÀM PHÂN TÍCH LÕI CỦA OMNI DUCK
 // =========================================================
-export async function analyzeWithGemini(ticker, data, onProgress = null) {
-    const emitProgress = (payload) => {
-        if (typeof onProgress === 'function') onProgress(payload);
-    };
-    console.log(chalk.whiteBright(`[AI CORE] Bắt đầu đọc dữ liệu đa chiều cho ${ticker.toUpperCase()}...`));
-    emitProgress({ step: 'AI_CONTEXT_READING', message: 'Đang đọc dữ liệu BCTC, lịch sử giá, tin tức và bối cảnh thị trường', progress: 62 });
-    
+const buildAnalyzePromptParts = (ticker, data) => {
     const companyName = data?.companyProfile?.companyName || ticker;
     const overview = data?.companyProfile?.overview || "Chưa có thông tin tổng quan";
     const currentPrice = data?.stockInfo?.currentPrice || "Đang cập nhật";
@@ -303,17 +382,50 @@ ${newsSummary || 'Không có tin tức nổi bật.'}`;
             text: `\n\n--- DỮ LIỆU TỪ BÁO CÁO TÀI CHÍNH TCBS (Trích xuất bởi Docling) ---\n${data.tcbsMarkdownData}\n-------------------`
         });
     }
+    
+    return promptParts;
+};
+
+export async function analyzeWithGemini(ticker, data, onProgress = null) {
+    const emitProgress = (payload) => {
+        if (typeof onProgress === 'function') onProgress(payload);
+    };
+    console.log(chalk.whiteBright(`[AI CORE] Bắt đầu đọc dữ liệu đa chiều cho ${ticker.toUpperCase()}...`));
+    emitProgress({ step: 'AI_CONTEXT_READING', message: 'Đang đọc dữ liệu BCTC, lịch sử giá, tin tức và bối cảnh thị trường', progress: 62 });
+
+    const promptParts = buildAnalyzePromptParts(ticker, data);
 
     try {
         emitProgress({ step: 'AI_GENERATING', message: 'Đang gửi dữ liệu BCTC sang AI và sinh báo cáo chiến lược', progress: 76 });
         const result = await generateWithAutoSwitch(promptParts);
-        emitProgress({ step: 'AI_REPORT_DONE', message: 'AI đã hoàn tất báo cáo chiến lược', progress: 88 }); 
+        emitProgress({ step: 'AI_REPORT_DONE', message: 'AI đã hoàn tất báo cáo chiến lược', progress: 88 });
         const aiReport = result.response.text();
         return aiReport;
 
     } catch (error) {
         console.error(chalk.bgRed.white("[LỖI] Gọi Gemini AI thất bại: "), error.message);
-        throw error; 
+        throw error;
+    }
+}
+
+export async function analyzeWithGeminiStream(ticker, data, onProgress = null, onChunk = null) {
+    const emitProgress = (payload) => {
+        if (typeof onProgress === 'function') onProgress(payload);
+    };
+    console.log(chalk.whiteBright(`[AI CORE] Bắt đầu stream dữ liệu đa chiều cho ${ticker.toUpperCase()}...`));
+    emitProgress({ step: 'AI_CONTEXT_READING', message: 'Đang đọc dữ liệu BCTC, lịch sử giá, tin tức và bối cảnh thị trường', progress: 62 });
+
+    const promptParts = buildAnalyzePromptParts(ticker, data);
+
+    try {
+        emitProgress({ step: 'AI_GENERATING', message: 'Đang stream dữ liệu BCTC sang AI và sinh báo cáo chiến lược', progress: 76 });
+        const aiReport = await generateStreamWithAutoSwitch(promptParts, onChunk);
+        emitProgress({ step: 'AI_REPORT_DONE', message: 'AI đã hoàn tất báo cáo chiến lược', progress: 88 });
+        return aiReport;
+
+    } catch (error) {
+        console.error(chalk.bgRed.white("[LỖI] Stream Gemini AI thất bại: "), error.message);
+        throw error;
     }
 }
 
