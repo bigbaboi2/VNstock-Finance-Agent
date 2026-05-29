@@ -12,11 +12,35 @@ import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
-
 axios.defaults.baseURL = API_BASE_URL;
-
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
+const getNumericConfig = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const AI_PRICE_SIGNIFICANT_THRESHOLD = getNumericConfig(import.meta.env.VITE_AI_PRICE_SIGNIFICANT_THRESHOLD, 0.015);
+const AI_NEWS_SIGNIFICANT_COUNT_THRESHOLD = getNumericConfig(import.meta.env.VITE_AI_NEWS_SIGNIFICANT_COUNT_THRESHOLD, 3);
+const AI_STRONG_NEWS_SENTIMENTS = new Set(['positive', 'negative']);
+
+const parsePriceToNumber = (price) => {
+  if (typeof price === 'number') return Number.isFinite(price) ? price : 0;
+  if (typeof price !== 'string') return 0;
+
+  const normalized = price.trim().replace(/[^\d,.-]/g, '');
+  if (!normalized || normalized === '...') return 0;
+
+  const viNumber = normalized.includes(',')
+    ? normalized.replace(/\./g, '').replace(',', '.')
+    : normalized.replace(/\./g, '');
+
+  const parsed = Number(viNumber);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getNewsKey = (news) => news?.link || `${news?.title || ''}-${news?.date || ''}`;
+const hasStrongNewsSentiment = (news) => AI_STRONG_NEWS_SENTIMENTS.has(String(news?.sentiment || '').toLowerCase());
 function App() {
   //CONFIG: USER STATE & AUTH MANAGEMENT
   const [currentUser, setCurrentUser] = useState(localStorage.getItem('omni_user') || null);
@@ -141,6 +165,7 @@ useEffect(() => {
   const eventSourceRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
+  const lastActionNewsKeysRef = useRef([]);
   
   //[FIX] Ref to close VnStocks chat when switching tab /home
   const vnStocksCloseChatRef = useRef(null);
@@ -957,6 +982,8 @@ const derivAnalysis = React.useMemo(() => {
           
            lastActionPriceRef.current = null;
           lastNewsCountRef.current = 0;
+          const lastActionNewsKeysRef = useRef([]);
+  
           setTimeout(() => setErrorAlert(''), 4000); 
           return; 
       }
@@ -965,7 +992,9 @@ const derivAnalysis = React.useMemo(() => {
 
       setSuggestions([]);
       setShowSuggestions(false);
-      
+      lastActionPriceRef.current = null;
+      lastNewsCountRef.current = 0;
+      lastActionNewsKeysRef.current = [];
       setAiReport(null);
       setVnReportTimestamp(null);
       
@@ -1131,15 +1160,30 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
     const now = Date.now();
     const MIN_INTERVAL_MS = 5 * 60 * 1000;
-
+    const currentPrice = marketData.stockInfo.currentPrice;
+    const priceNum = parsePriceToNumber(currentPrice);
+    const currentNews = marketData.deepNewsData || [];
+    const currentNewsKeys = currentNews.map(getNewsKey).filter(Boolean);
+    
     const currentSnapshot = {
-        price: marketData.stockInfo.currentPrice,
-        newsCount: marketData.deepNewsData?.length || 0,
+        price: currentPrice,
+        priceNum,
+        newsCount: currentNews.length,
+        newsKeys: currentNewsKeys,
     };
+    const lastPriceNum = lastAiVnSnapshot?.priceNum ?? parsePriceToNumber(lastAiVnSnapshot?.price);
+    const priceDiffPercent = lastPriceNum > 0 && priceNum > 0
+        ? Math.abs(priceNum - lastPriceNum) / lastPriceNum
+        : 0;
+    const previousNewsKeys = new Set(lastAiVnSnapshot?.newsKeys || []);
+    const newNewsItems = currentNews.filter(news => !previousNewsKeys.has(getNewsKey(news)));
+    const newNewsCount = Math.max(currentSnapshot.newsCount - (lastAiVnSnapshot?.newsCount || 0), newNewsItems.length);
+    const hasStrongNewSentiment = newNewsItems.some(hasStrongNewsSentiment);
 
     const isSignificantChange = lastAiVnSnapshot && (
-        currentSnapshot.price !== lastAiVnSnapshot.price ||
-        currentSnapshot.newsCount > lastAiVnSnapshot.newsCount + 2
+        priceDiffPercent >= AI_PRICE_SIGNIFICANT_THRESHOLD ||
+        newNewsCount >= AI_NEWS_SIGNIFICANT_COUNT_THRESHOLD ||
+        hasStrongNewSentiment
     );
 
     const timeSinceLast = lastAiVnTime ? now - lastAiVnTime : Infinity;
@@ -1152,6 +1196,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     }
 
     setAnalyzing(true);
+    setAiReport('');
     setAiAnalysisDuration(null);
     const startTime = performance.now();
     setAnalysisStep('Khởi tạo engine phân tích và kiểm tra dữ liệu đầu vào');
@@ -1230,7 +1275,11 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 if (typeof payload.etaSeconds === 'number') setAiAnalysisEta(payload.etaSeconds);
                 addLog(`[AI PROGRESS ${payload.progress}%] ${payload.message}`);
             }
-
+            if (eventName === 'report_chunk') {
+                if (payload.text) {
+                    setAiReport(prev => `${prev || ''}${payload.text}`);
+                }
+            }
             if (eventName === 'done') {
                 finalData = payload;
                 setAnalysisProgress(100);
@@ -1256,7 +1305,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
         const endTime = performance.now(); 
         setAiAnalysisDuration((finalData.elapsedSeconds || ((endTime - startTime) / 1000)).toFixed(1)); 
-        setAiReport(finalData.aiReport);
+        
         setLastAiVnTime(now);
         setLastAiVnSnapshot(currentSnapshot);
         const timeStr = new Date().toLocaleString('vi-VN');
@@ -1381,9 +1430,14 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     let actionTimer;
     if (aiReport && marketData && marketData.stockInfo) {
         const fetchActionPanel = async () => {
-            const currentPriceStr = marketData.stockInfo.currentPrice || '0';
-            const currentPriceNum = parseInt(currentPriceStr.replace(/\./g, ''), 10);
-            const currentNewsCount = marketData.deepNewsData?.length || 0;
+             const currentPriceNum = parsePriceToNumber(marketData.stockInfo.currentPrice);
+            const currentNews = marketData.deepNewsData || [];
+            const currentNewsCount = currentNews.length;
+            const currentNewsKeys = currentNews.map(getNewsKey).filter(Boolean);
+            const previousActionNewsKeys = new Set(lastActionNewsKeysRef.current);
+            const newActionNewsItems = currentNews.filter(news => !previousActionNewsKeys.has(getNewsKey(news)));
+            const newActionNewsCount = Math.max(currentNewsCount - lastNewsCountRef.current, newActionNewsItems.length);
+            const hasStrongActionNewsSentiment = newActionNewsItems.some(hasStrongNewsSentiment);
 
             let shouldUpdate = false;
             let triggerReason = "";
@@ -1397,12 +1451,15 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             }
 
              const priceDiffPercent = Math.abs(currentPriceNum - lastActionPriceRef.current) / lastActionPriceRef.current;
-            if (priceDiffPercent >= 0.015) { 
+            if (priceDiffPercent >= AI_PRICE_SIGNIFICANT_THRESHOLD) { 
                 shouldUpdate = true;
                 triggerReason = `Giá biến động mạnh (${(priceDiffPercent * 100).toFixed(2)}%)`;
-            } else if (currentNewsCount > lastNewsCountRef.current) { 
+            } else if (newActionNewsCount >= AI_NEWS_SIGNIFICANT_COUNT_THRESHOLD) { 
                 shouldUpdate = true;
-                triggerReason = `Có tin tức/sự kiện mới xuất hiện`;
+                triggerReason = `Có ${newActionNewsCount} tin tức/sự kiện mới xuất hiện`;
+            } else if (hasStrongActionNewsSentiment) {
+                shouldUpdate = true;
+                triggerReason = `Có tin tức sentiment mạnh mới xuất hiện`;
             }
 
              if (!shouldUpdate) return; 
@@ -1432,6 +1489,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                     setActionData(res.data.data);
                     lastActionPriceRef.current = currentPriceNum;
                     lastNewsCountRef.current = currentNewsCount;
+                    lastActionNewsKeysRef.current = currentNewsKeys;
                 }
             } catch (e) {
                 //Silent catch

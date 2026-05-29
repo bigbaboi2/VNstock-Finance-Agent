@@ -2,8 +2,10 @@ import axios from 'axios';
 import chalk from 'chalk';
 import Stock from '../../models/Stock.js';
 import DerivNews from '../../models/DerivNews.js';
+import crypto from 'crypto';
 import { 
     analyzeWithGemini, 
+    analyzeWithGeminiStream, 
     getMarkdownFromTcbsPdf, 
     searchNewsWithAI, 
     getQuickActionWithGemini, 
@@ -21,7 +23,71 @@ const MAX_NEWS_DB = 80;
 const MAX_SCRAPE  = 20;
 //Number of parallel scrapes per batch
 const BATCH_SIZE  = 5;
+const AI_REPORT_CACHE_TTL_MS = Number(process.env.AI_REPORT_CACHE_TTL_MS) || 15 * 60 * 1000;
 
+const stableNormalize = (value) => {
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value)) return value.map(stableNormalize);
+    if (value && typeof value === 'object') {
+        return Object.keys(value)
+            .sort()
+            .reduce((acc, key) => {
+                const normalized = stableNormalize(value[key]);
+                if (normalized !== undefined) acc[key] = normalized;
+                return acc;
+            }, {});
+    }
+    return value;
+};
+
+const getLatestNewsTitle = (news = []) => {
+    if (!Array.isArray(news) || news.length === 0) return null;
+    const withTitle = news.find(item => item?.title);
+    return withTitle?.title || null;
+};
+
+const buildStockAnalysisFingerprint = (ticker, fullData, user) => {
+    const technicalData = Array.isArray(fullData?.technicalData) ? fullData.technicalData : [];
+    const news = Array.isArray(fullData?.news) ? fullData.news : (Array.isArray(fullData?.newsList) ? fullData.newsList : []);
+    const importantPayload = {
+        ticker,
+        user,
+        currentPrice: fullData?.stockInfo?.currentPrice ?? null,
+        changePercent: fullData?.stockInfo?.changePercent ?? null,
+        lastCandle: technicalData.length > 0 ? technicalData[technicalData.length - 1] : null,
+        newsCount: news.length,
+        latestNewsTitle: getLatestNewsTitle(news),
+        pdfMode: fullData?.pdfMode || 'turbo',
+    };
+
+    return crypto
+        .createHash('sha256')
+        .update(JSON.stringify(stableNormalize(importantPayload)))
+        .digest('hex');
+};
+
+const getLatestUserReport = (masterRecord, user) => {
+    const reports = masterRecord?.reports || [];
+    return reports
+        .filter(report => report.user === user)
+        .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))[0] || null;
+};
+
+const getCachedStockAnalysis = async (ticker, user, inputHash) => {
+    const masterRecord = await Stock.findOne({ symbol: ticker });
+    const latestReport = getLatestUserReport(masterRecord, user);
+    if (!latestReport || latestReport.inputHash !== inputHash) return null;
+
+    const reportTime = new Date(latestReport.timestamp).getTime();
+    if (!Number.isFinite(reportTime) || Date.now() - reportTime > AI_REPORT_CACHE_TTL_MS) return null;
+
+    return {
+        aiReport: latestReport.content,
+        actionPanelData: latestReport.actionData || { action: latestReport.action },
+        timestamp: latestReport.timestamp,
+        inputHash: latestReport.inputHash,
+    };
+};
 export const getLiveNews = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const mode = ['official', 'balanced', 'negative', 'rumor'].includes(req.query.mode)
@@ -212,7 +278,7 @@ export const analyzeDerivatives = async (req, res) => {
     }
 };
 
-const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}) => {
+const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null) => {
     if (!fullData || !fullData.stockInfo) {
         const err = new Error('Thiếu dữ liệu.');
         err.statusCode = 400;
@@ -226,9 +292,9 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {})
 
         let previousAnalysis = null;
     if (masterRecord.reports && masterRecord.reports.length > 0) {
-        const userReports = masterRecord.reports.filter(r => r.user === user);
-        if (userReports.length > 0) {
-            previousAnalysis = userReports[userReports.length - 1].content;
+        const latestUserReport = getLatestUserReport(masterRecord, user);
+        if (latestUserReport) {
+            previousAnalysis = latestUserReport.content;
         }
     }
     fullData.previousAnalysis = previousAnalysis;
@@ -295,7 +361,9 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {})
     if (markdownData)          fullData.tcbsMarkdownData  = markdownData;
     if (macroNews?.length > 0) fullData.macroNews         = macroNews;
 
-    const aiReport = await analyzeWithGemini(ticker, fullData, emitProgress);
+    const aiReport = typeof onChunk === 'function'
+        ? await analyzeWithGeminiStream(ticker, fullData, emitProgress, onChunk)
+        : await analyzeWithGemini(ticker, fullData, emitProgress);
     emitProgress({ step: 'ACTION_PANEL', message: 'Đang viết khuyến nghị đầu tư và action panel', progress: 92 });
     const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);
     let finalAction = actionPanelData?.action || 'QUAN SÁT';
@@ -305,7 +373,8 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {})
     masterRecord.reports.push({
         user: user, timestamp: fullData.timestamp || new Date().toISOString(),
         content: aiReport, action: finalAction, actionData: actionPanelData, price: fullData.stockInfo.currentPrice,
-        changePercent: parseFloat(fullData.stockInfo.changePercent) || 0
+        changePercent: parseFloat(fullData.stockInfo.changePercent) || 0,
+        inputHash
     });
 
     if (fullData.stockInfo.companyName) masterRecord.companyName = fullData.stockInfo.companyName;
@@ -322,8 +391,15 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {})
     const user = fullData.user || 'Unknown';
 
          try {
-        const { aiReport, actionPanelData } = await runStockAnalysis(ticker, fullData, user);
-        return res.json({ success: true, aiReport, actionPanelData });
+        const inputHash = buildStockAnalysisFingerprint(ticker, fullData, user);
+        const cachedResult = await getCachedStockAnalysis(ticker, user, inputHash);
+        if (cachedResult) {
+            console.log(chalk.green(`[AI CACHE] Hit cho ${ticker}/${user}, bỏ qua Gemini.`));
+            return res.json({ success: true, ...cachedResult, cached: true });
+        }
+
+        const { aiReport, actionPanelData } = await runStockAnalysis(ticker, fullData, user, undefined, inputHash);
+        return res.json({ success: true, aiReport, actionPanelData, cached: false });
     } catch (error) {
         return res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
@@ -365,8 +441,21 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {})
     };
 
         try {
-        const result = await runStockAnalysis(ticker, fullData, user, emitProgress);
-        writeEvent('done', { success: true, ...result, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
+        const onChunk = (chunkText) => {
+            if (!chunkText) return;
+            writeEvent('report_chunk', { text: chunkText });
+        };
+        const inputHash = buildStockAnalysisFingerprint(ticker, fullData, user);
+        const cachedResult = await getCachedStockAnalysis(ticker, user, inputHash);
+        if (cachedResult) {
+            emitProgress({ step: 'CACHE_HIT', message: 'Dữ liệu đầu vào không đổi, dùng lại báo cáo AI trong cache', progress: 100 });
+            writeEvent('done', { success: true, ...cachedResult, cached: true, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
+            res.end();
+            return;
+        }
+
+        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash);
+        writeEvent('done', { success: true, ...result, cached: false, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
         res.end();
     } catch (error) {
         writeEvent('error', { success: false, message: error.message });
