@@ -88,7 +88,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
 
         //─── FIX 1: Always calculate top stocks first, regardless of whether there are sectors or not ───────
         const { topGainers, topLosers, topVolume } = calcTopStocks(activeVolumeStocks);
-        console.log(chalk.magenta(`[QUANT] ↑${topGainers.map(s => `${s.symbol}(+${s.changePct}%)`).join(' ')||'N/A'} | ↓${topLosers.map(s=>`${s.symbol}(${s.changePct}%)`).join(' ')||'N/A'} | Vol: ${topVolume.map(s=>s.symbol).join(' ')||'N/A'}`));
+        console.log(chalk.gray(`[QUANT] ↑${topGainers.map(s => `${s.symbol}(+${s.changePct}%)`).join(' ')||'N/A'} | ↓${topLosers.map(s=>`${s.symbol}(${s.changePct}%)`).join(' ')||'N/A'} | Vol: ${topVolume.map(s=>s.symbol).join(' ')||'N/A'}`));
 
         //----------------------------------------
         //1. MARKET BREADTH
@@ -232,7 +232,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         }
 
         sectorScores.sort((a, b) => b.sps - a.sps);
-        console.log(chalk.cyan(`[QUANT] Breadth=${breadthRatio.toFixed(1)}% (↑${marketBreadth.up} ↓${marketBreadth.down}, ${breadthSource}) | SPS thr=${spsThreshold.toFixed(2)} | Ngành=${sectorScores.length}`));
+        console.log(chalk.gray(`[QUANT] Breadth=${breadthRatio.toFixed(1)}% (↑${marketBreadth.up} ↓${marketBreadth.down}, ${breadthSource}) | SPS thr=${spsThreshold.toFixed(2)} | Ngành=${sectorScores.length}`));
 
         //------------------------------------------
         //6. STRONG /WEAK sectors — dynamic threshold
@@ -262,7 +262,7 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                 .map(s => ({ name: s.name, tickers: s.topLosers, sps: +s.sps.toFixed(2) }));
         }
 
-        console.log(chalk.green(`[QUANT] Strong: ${strongSectors.map(s=>s.name).join(', ')||'—'}`) + chalk.red(` | Weak: ${weakSectors.map(s=>s.name).join(', ')||'—'}`));
+        console.log(chalk.bgBlack.gray(`[QUANT] Strong: ${strongSectors.map(s=>s.name).join(', ')||'—'}`) + chalk.gray(` | Weak: ${weakSectors.map(s=>s.name).join(', ')||'—'}`));
 
         //----------------------------------------
         //7. MARKET SCENARIO
