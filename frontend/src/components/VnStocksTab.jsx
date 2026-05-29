@@ -3,7 +3,7 @@ import {
   BarChart3, ChevronDown, ChevronUp, HelpCircle,
   ArrowLeft, MessageSquare, FileJson, ExternalLink,
   TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
-  Loader2, CheckCircle2, XCircle, Globe, Clock,
+  Loader2, CheckCircle2, XCircle, Globe, Clock,RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -111,6 +111,7 @@ export default function VnStocksTab({
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
+  const [historySortMode, setHistorySortMode] = useState('time_desc');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isExporting, setIsExporting]   = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
@@ -755,28 +756,54 @@ export default function VnStocksTab({
 
         {!marketData && !analyzing && !aiReport && (
           <div className="flex flex-col gap-6 animate-in fade-in duration-700">
-            {/* HEADER */}
             <div className="flex items-center justify-between border-b pb-4 mb-2">
               <div>
                 <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
                 <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-yellow-500 mt-1">Personal Intelligence Feed</p>
               </div>
-              <button onClick={fetchUserHistory} className={`p-2 rounded-lg border ${UI.btnLog}`}><Activity size={16}/></button>
+              <div className="flex items-center gap-2">
+                  {/* BỘ LỌC TÙY CHỌN SẮP XẾP */}
+                  <select 
+                      value={historySortMode} 
+                      onChange={(e) => setHistorySortMode(e.target.value)}
+                      className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}
+                  >
+                      <option value="time_desc">⏱ Mới nhất</option>
+                      <option value="time_asc">⏳ Cũ nhất</option>
+                      <option value="action">⚡ Ưu tiên Mua/Bán</option>
+                  </select>
+                  <button onClick={fetchUserHistory} title="Làm mới lịch sử" className={`p-2 rounded-lg border ${UI.btnLog}`}><RefreshCw size={14}/></button>
+              </div>
             </div>
 
             {/* USER HISTORY LIST */}
             <div className="grid grid-cols-1 gap-4">
-              {userHistory.slice(0, historyLimit).map((item, idx) => {
-                const changePercent = parseFloat(item.changePercent) || 0;
-                const isUp = changePercent > 0;
-                const isDown = changePercent < 0;
-                const formattedPercent = Math.abs(changePercent).toFixed(2);
-                return (
-                  <div key={idx}
-                    onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
-                    className={`group relative flex flex-row items-center justify-between p-4 rounded-xl border transition-all cursor-pointer w-full min-h-[75px]
-                      ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/5' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
-                  >
+              {[...userHistory]
+                .sort((a, b) => {
+                   if (historySortMode === 'time_desc') return new Date(b.timestamp) - new Date(a.timestamp);
+                  if (historySortMode === 'time_asc') return new Date(a.timestamp) - new Date(b.timestamp);
+                  if (historySortMode === 'action') {
+                    const isAActive = a.lastAction === 'MUA' || a.lastAction === 'BÁN';
+                    const isBActive = b.lastAction === 'MUA' || b.lastAction === 'BÁN';
+                    if (isAActive && !isBActive) return -1;
+                    if (!isAActive && isBActive) return 1;
+                    return new Date(b.timestamp) - new Date(a.timestamp);
+                  }
+                  return 0;
+                })
+                .slice(0, historyLimit)
+                .map((item, idx) => {
+                  const changePercent = parseFloat(item.changePercent) || 0;
+                  const isUp = changePercent > 0;
+                  const isDown = changePercent < 0;
+                  const formattedPercent = Math.abs(changePercent).toFixed(2);
+                  
+                  return (
+                    <div key={idx}
+                      onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
+                      className={`group relative flex flex-row items-center justify-between p-4 rounded-xl border transition-all cursor-pointer w-full min-h-[75px]
+                        ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/5' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
+                    >
                     <div className={`absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-full ${
                       item.lastAction?.includes('MUA') ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' :
                       item.lastAction?.includes('BÁN') ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500'
