@@ -843,7 +843,7 @@ export default function VnStocksTab({
             {userHistory.length > historyLimit && (
               <button onClick={() => setHistoryLimit(prev => prev + 3)}
                 className={`w-full py-4 rounded-2xl border-2 border-dashed font-black text-[10px] tracking-[0.3em] uppercase transition-all ${UI.btnLog}`}>
-                Tải thêm dữ liệu (+3)
+                Tải thêm (+3)
               </button>
             )}
 
