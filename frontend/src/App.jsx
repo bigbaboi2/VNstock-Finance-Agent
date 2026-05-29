@@ -953,6 +953,7 @@ const derivAnalysis = React.useMemo(() => {
 
            setAiReport(null);
           setVnReportTimestamp(null);
+          setActionData(null);
           
            lastActionPriceRef.current = null;
           lastNewsCountRef.current = 0;
@@ -1194,7 +1195,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     console.groupEnd();
 
     try {
-        const response = await fetch(`/api/analyze/${marketData.stockInfo.symbol}/stream`, {
+        const baseUrl = API_BASE_URL || "http://localhost:3001";
+        const streamUrl = `${baseUrl}/api/ai/analyze/${marketData.stockInfo.symbol}/stream`.replace(/([^:]\/)\/+/g, "$1");
+
+        const response = await fetch(streamUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1260,13 +1264,38 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
         addLog(`[THÀNH CÔNG] AI hoàn tất chiến lược và đã lưu vào Database.`);
         setShowLogs(false);
-        if (finalData.actionPanelData) setActionData(finalData.actionPanelData);
+        
+         const newActionData = finalData.actionPanelData || finalData.actionData;
+        if (newActionData && newActionData.action) {
+            setActionData(newActionData);
+        } else {
+             addLog(`[HỆ THỐNG] Mạng lưới AI cần làm mát. Action Panel sẽ xuất hiện sau 12 giây...`);
+            
+            setTimeout(() => {
+                axios.post(`/api/action-panel/${marketData.stockInfo.symbol}`, {
+                    currentPrice: marketData.stockInfo.currentPrice,
+                    changePercent: marketData.stockInfo.changePercent,
+                    totalVolume: marketData.stockInfo.totalVolume,
+                    buyVolume: marketData.stockInfo.buyVolume,
+                    sellVolume: marketData.stockInfo.sellVolume,
+                    triggerReason: "Sync sau phân tích (Delay 12s)"
+                }).then(res => {
+                    if (res.data && res.data.data && res.data.data.action) {
+                        setActionData(res.data.data);
+                        addLog(`[THÀNH CÔNG] Đã lấy được tín hiệu Action Panel chuẩn!`);
+                    }
+                }).catch(() => {
+                    addLog(`[LỖI] Google vẫn khóa API sau khi chờ. Hãy thử lại sau.`);
+                });
+            }, 5000);  
+        }
+        // ------------------------------------------------
+
         if (currentUser) fetchUserHistory();
     } catch (err) {
         addLog('[LỖI] Xử lý AI thất bại: Tràn bộ nhớ hoặc mất kết nối API.');
         console.error(err);
     } finally {
-        stepTimers.forEach(t => clearTimeout(t));
         setAnalyzing(false);
         setAnalysisStep('');
         setAiAnalysisEta(null);
@@ -1499,7 +1528,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             analysisStep={analysisStep}
             analysisProgress={analysisProgress}
             aiAnalysisEta={aiAnalysisEta}
-            
+
             loadingMarket={loadingMarket}
             loadingAiNews={loadingAiNews}
             activeInterval={activeInterval}

@@ -4,10 +4,11 @@ import {
     debugFeed, stockChat, getAiNews, 
     getActionPanel, getUserHistory,
     getLatestVnStockReport, analyzeStockStream 
+    
 } from '../controllers/ai.controller.js';
 
 const router = express.Router();  
-
+router.post('/analyze/:ticker/stream', analyzeStockStream);
 router.get('/analyze/latest/:symbol', getLatestVnStockReport);
 router.get('/news/:ticker', getLiveNews);
 router.post('/analyze-derivatives', analyzeDerivatives);
