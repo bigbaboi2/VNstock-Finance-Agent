@@ -1345,7 +1345,7 @@ export default function VnStocksTab({
 
           {aiReport && (
             <div className={`w-full border rounded-[40px] p-10 shadow-2xl transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#10151C] border-yellow-400/20' : 'bg-white border-yellow-400/40'}`}>
-            {actionData && (
+            {actionData && actionData.action && (
               <div className={`mb-10 p-6 rounded-2xl border-2 shadow-lg relative overflow-hidden ${
                   actionData.action.includes('MUA') ? 'border-emerald-500 bg-emerald-500/10' : 
                   actionData.action.includes('BÁN') ? 'border-red-500 bg-red-500/10' : 'border-yellow-500 bg-yellow-500/10'
