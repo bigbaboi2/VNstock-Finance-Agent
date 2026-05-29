@@ -15,7 +15,9 @@ const ReportSchema = new mongoose.Schema({
     user: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
     content: { type: String, required: true }, 
-    action: { type: String, default: 'QUAN SÁT' }, 
+    action: { type: String, default: 'QUAN SÁT' },
+    actionData: { type: mongoose.Schema.Types.Mixed, default: null },
+    inputHash: { type: String, default: null }, 
     price: { type: String, default: '0' },
     changePercent: { type: Number, default: 0 }
 });
