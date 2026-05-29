@@ -212,98 +212,165 @@ export const analyzeDerivatives = async (req, res) => {
     }
 };
 
-export const analyzeStock = async (req, res) => {
-    const ticker = req.params.ticker.toUpperCase();
-    const fullData = req.body;
-    const user = fullData.user || 'Unknown';
+const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}) => {
+    if (!fullData || !fullData.stockInfo) {
+        const err = new Error('Thiếu dữ liệu.');
+        err.statusCode = 400;
+        throw err;
+    }
 
-    try {
-        if (!fullData || !fullData.stockInfo) return res.status(400).json({ success: false, message: 'Thiếu dữ liệu.' });
+    emitProgress({ step: 'INIT', message: 'Khởi tạo engine phân tích và kiểm tra dữ liệu đầu vào', progress: 5 });
 
         let masterRecord = await Stock.findOne({ symbol: ticker });
         if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
 
         let previousAnalysis = null;
-        if (masterRecord.reports && masterRecord.reports.length > 0) {
-            const userReports = masterRecord.reports.filter(r => r.user === user);
-            if (userReports.length > 0) {
-                previousAnalysis = userReports[userReports.length - 1].content;
-            }
+    if (masterRecord.reports && masterRecord.reports.length > 0) {
+        const userReports = masterRecord.reports.filter(r => r.user === user);
+        if (userReports.length > 0) {
+            previousAnalysis = userReports[userReports.length - 1].content;
         }
-        fullData.previousAnalysis = previousAnalysis;
+    }
+    fullData.previousAnalysis = previousAnalysis;
 
-        const pdfMode = fullData.pdfMode || 'turbo';
+    const pdfMode = fullData.pdfMode || 'turbo';
 
-        // ── Chạy song song  ─────────────────────────
-        const fetchMarketContext = async () => {
-            const marketScraped = await scrapeCafefMarketOverview();
-            const to = Math.floor(Date.now() / 1000);
-            const from = to - (15 * 24 * 60 * 60);
-            const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
-            if (vnRes.data && vnRes.data.t && marketScraped.success) {
-                const d = vnRes.data;
-                const rawVnIndex = d.t.map((timestamp, index) => ({ close: Number(d.c[index]), volume: Number(d.v[index]) || 0 }));
-                const symbolsDb = await Stock.find({});
-                const marketIntelligence = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
-                return marketIntelligence.success ? marketIntelligence.intelligence : null;
-            }
+    const fetchMarketContext = async () => {
+        emitProgress({ step: 'MARKET_CONTEXT', message: 'Đang lấy dữ liệu thị trường VN-Index và độ rộng thị trường', progress: 14 });
+        const marketScraped = await scrapeCafefMarketOverview();
+        const to = Math.floor(Date.now() / 1000);
+        const from = to - (15 * 24 * 60 * 60);
+        const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
+        if (vnRes.data && vnRes.data.t && marketScraped.success) {
+            const d = vnRes.data;
+            const rawVnIndex = d.t.map((timestamp, index) => ({ close: Number(d.c[index]), volume: Number(d.v[index]) || 0 }));
+            const symbolsDb = await Stock.find({});
+            const marketIntelligence = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
+            emitProgress({ step: 'MARKET_CONTEXT_DONE', message: 'Đã xử lý xong bối cảnh thị trường và dữ liệu VN-Index', progress: 42 });
+            return marketIntelligence.success ? marketIntelligence.intelligence : null;
+        }
+        return null;
+    };
+
+    const fetchMacroNews = async () => {
+        emitProgress({ step: 'MACRO_NEWS', message: 'Đang đọc dữ liệu tin vĩ mô và sentiment thị trường', progress: 20 });
+        const macroNews = await DerivNews.find()
+            .sort({ timestamp: -1 })
+            .limit(20)
+            .lean();
+        emitProgress({ step: 'MACRO_NEWS_DONE', message: 'Đã lấy xong tin vĩ mô và sentiment thị trường', progress: 40 });
+        return macroNews.map(n => ({
+            title:     n.title,
+            source:    n.source,
+            sentiment: n.sentiment,
+            timestamp: n.timestamp,
+            content:   n.content || n.title,
+        }));
+    };
+
+    console.log(chalk.cyan(`[AI CORE] Khởi chạy song song: MarketContext + PDF (${pdfMode.toUpperCase()}) + MacroNews...`));
+    emitProgress({ step: 'PARALLEL_FETCH', message: `Đang tải song song BCTC PDF, VN-Index và tin vĩ mô (${pdfMode.toUpperCase()})`, progress: 12 });
+
+    const [marketContext, markdownData, macroNews] = await Promise.all([
+        fetchMarketContext().catch(err => {
+            console.log(chalk.red('[AI] fetchMarketContext lỗi:', err.message));
+            emitProgress({ step: 'MARKET_CONTEXT_FAILED', message: 'Không lấy được bối cảnh thị trường, tiếp tục với dữ liệu đang có', progress: 42 });
             return null;
-        };
+        }),
+        getMarkdownFromTcbsPdf(ticker, pdfMode, emitProgress).catch(err => {
+            console.log(chalk.red('[AI] getMarkdownFromTcbsPdf lỗi:', err.message));
+            emitProgress({ step: 'TCBS_PDF_FAILED', message: 'Không bóc tách được BCTC PDF, tiếp tục với dữ liệu đang có', progress: 46 });
+            return null;
+        }),
+        fetchMacroNews().catch(err => {
+            console.log(chalk.red('[AI] fetchMacroNews lỗi:', err.message));
+            emitProgress({ step: 'MACRO_NEWS_FAILED', message: 'Không lấy được tin vĩ mô, tiếp tục với dữ liệu đang có', progress: 40 });
+            return [];
+        }),
+    ]);
 
-        const fetchMacroNews = async () => {
-            const macroNews = await DerivNews.find()
-                .sort({ timestamp: -1 })
-                .limit(20)
-                .lean();
-            return macroNews.map(n => ({
-                title:     n.title,
-                source:    n.source,
-                sentiment: n.sentiment,
-                timestamp: n.timestamp,
-                content:   n.content || n.title,
-            }));
-        };
+    emitProgress({ step: 'DATA_MERGE', message: 'Đang hợp nhất dữ liệu BCTC, lịch sử giá, tin tức và market context', progress: 54 });
+    if (marketContext)         fullData.marketContext     = marketContext;
+    else                       fullData.marketContext     = "Không có dữ liệu bối cảnh thị trường lúc này.";
+    if (markdownData)          fullData.tcbsMarkdownData  = markdownData;
+    if (macroNews?.length > 0) fullData.macroNews         = macroNews;
 
-        console.log(chalk.cyan(`[AI CORE] Khởi chạy song song: MarketContext + PDF (${pdfMode.toUpperCase()}) + MacroNews...`));
+    const aiReport = await analyzeWithGemini(ticker, fullData, emitProgress);
+    emitProgress({ step: 'ACTION_PANEL', message: 'Đang viết khuyến nghị đầu tư và action panel', progress: 92 });
+    const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);
+    let finalAction = actionPanelData?.action || 'QUAN SÁT';
 
-        const [marketContext, markdownData, macroNews] = await Promise.all([
-            fetchMarketContext().catch(err => {
-                console.log(chalk.red('[AI] fetchMarketContext lỗi:', err.message));
-                return null;
-            }),
-            getMarkdownFromTcbsPdf(ticker, pdfMode).catch(err => {
-                console.log(chalk.red('[AI] getMarkdownFromTcbsPdf lỗi:', err.message));
-                return null;
-            }),
-            fetchMacroNews().catch(err => {
-                console.log(chalk.red('[AI] fetchMacroNews lỗi:', err.message));
-                return [];
-            }),
-        ]);
+    emitProgress({ step: 'SAVE_REPORT', message: 'Đang lưu báo cáo AI vào Database', progress: 96 });
+    if (!masterRecord.reports) masterRecord.reports = [];
+    masterRecord.reports.push({
+        user: user, timestamp: fullData.timestamp || new Date().toISOString(),
+        content: aiReport, action: finalAction, actionData: actionPanelData, price: fullData.stockInfo.currentPrice,
+        changePercent: parseFloat(fullData.stockInfo.changePercent) || 0
+    });
 
-        if (marketContext)         fullData.marketContext     = marketContext;
-        else                       fullData.marketContext     = "Không có dữ liệu bối cảnh thị trường lúc này.";
-        if (markdownData)          fullData.tcbsMarkdownData  = markdownData;
-        if (macroNews?.length > 0) fullData.macroNews         = macroNews;
+    if (fullData.stockInfo.companyName) masterRecord.companyName = fullData.stockInfo.companyName;
+    if (fullData.stockInfo.exchange) masterRecord.exchange = fullData.stockInfo.exchange;
+    await masterRecord.save();
+    emitProgress({ step: 'DONE', message: 'Hoàn tất phân tích AI và lưu dữ liệu', progress: 100 });
 
-        const aiReport = await analyzeWithGemini(ticker, fullData);
-        const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);
-        let finalAction = actionPanelData?.action || 'QUAN SÁT';
+    return { aiReport, actionPanelData };
+};
 
-        if (!masterRecord.reports) masterRecord.reports = [];
-        masterRecord.reports.push({
-            user: user, timestamp: fullData.timestamp || new Date().toISOString(),
-            content: aiReport, action: finalAction, actionData: actionPanelData, price: fullData.stockInfo.currentPrice,
-            changePercent: parseFloat(fullData.stockInfo.changePercent) || 0
-        });
+        export const analyzeStock = async (req, res) => {
+    const ticker = req.params.ticker.toUpperCase();
+    const fullData = req.body;
+    const user = fullData.user || 'Unknown';
 
-        if (fullData.stockInfo.companyName) masterRecord.companyName = fullData.stockInfo.companyName;
-        if (fullData.stockInfo.exchange) masterRecord.exchange = fullData.stockInfo.exchange;
-        await masterRecord.save();
-
-        return res.json({ success: true, aiReport, actionPanelData: actionPanelData });
+         try {
+        const { aiReport, actionPanelData } = await runStockAnalysis(ticker, fullData, user);
+        return res.json({ success: true, aiReport, actionPanelData });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+};
+
+        export const analyzeStockStream = async (req, res) => {
+    const ticker = req.params.ticker.toUpperCase();
+    const fullData = req.body;
+    const user = fullData.user || 'Unknown';
+    const startedAt = Date.now();
+    let lastProgress = 1;
+
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    const writeEvent = (event, payload) => {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    const emitProgress = (payload) => {
+        const progress = Math.max(lastProgress, Math.min(100, Number(payload.progress) || lastProgress));
+        lastProgress = progress;
+        const elapsedMs = Date.now() - startedAt;
+        const estimatedTotalMs = progress > 0 ? Math.round(elapsedMs / (progress / 100)) : null;
+        const etaSeconds = estimatedTotalMs ? Math.max(0, Math.ceil((estimatedTotalMs - elapsedMs) / 1000)) : null;
+        writeEvent('progress', {
+            ...payload,
+            progress,
+            elapsedSeconds: Number((elapsedMs / 1000).toFixed(1)),
+            etaSeconds,
+
+        });
+    };
+
+        try {
+        const result = await runStockAnalysis(ticker, fullData, user, emitProgress);
+        writeEvent('done', { success: true, ...result, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
+        res.end();
+    } catch (error) {
+        writeEvent('error', { success: false, message: error.message });
+        res.end();
     }
 };
 

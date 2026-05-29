@@ -133,6 +133,8 @@ useEffect(() => {
   const [showExtraStats, setShowExtraStats] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState('');
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [aiAnalysisEta, setAiAnalysisEta] = useState(null);
   const [pdfMode, setPdfMode] = useState('turbo'); //turbo | fast | balanced | full
 
 
@@ -1151,22 +1153,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     setAnalyzing(true);
     setAiAnalysisDuration(null);
     const startTime = performance.now();
-    setAnalysisStep('🔍 Khởi tạo engine phân tích...');
+    setAnalysisStep('Khởi tạo engine phân tích và kiểm tra dữ liệu đầu vào');
+    setAnalysisProgress(3);
+    setAiAnalysisEta(null);
     addLog(`[AI CORE] Khởi chạy thuật toán cho mã ${marketData.stockInfo.symbol}...`);
-
-    const steps = [
-      { delay: 800,  msg: '📄 Đang tải báo cáo tài chính PDF...' },
-      { delay: 2500, msg: '📊 Phân tích bảng cân đối kế toán...' },
-      { delay: 4500, msg: '💰 Phân tích kết quả kinh doanh (P&L)...' },
-      { delay: 6500, msg: '🔄 Phân tích lưu chuyển tiền tệ...' },
-      { delay: 8500, msg: '📈 Tính toán chỉ số tài chính (ROE, P/E, EPS...)' },
-      { delay: 10500, msg: '📰 Phân tích tin tức & sentiment thị trường...' },
-      { delay: 13000, msg: '🕯️ Phân tích kỹ thuật (MACD, RSI, Bollinger)...' },
-      { delay: 15500, msg: '🏭 So sánh với trung bình ngành...' },
-      { delay: 18000, msg: '🧠 AI tổng hợp & sinh báo cáo chiến lược...' },
-      { delay: 21000, msg: '✍️ Đang viết khuyến nghị đầu tư...' },
-    ];
-    const stepTimers = steps.map(s => setTimeout(() => setAnalysisStep(s.msg), s.delay));
 
     addLog(`[AI CORE] Đang gửi bóc tách dữ liệu BCTC cho mã ${marketData.stockInfo.symbol}...`);
     const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
@@ -1204,11 +1194,65 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     console.groupEnd();
 
     try {
-        const response = await axios.post(`/api/analyze/${marketData.stockInfo.symbol}`, aiPayload);
-        const endTime = performance.now(); 
-        setAiAnalysisDuration(((endTime - startTime) / 1000).toFixed(1)); 
+        const response = await fetch(`/api/analyze/${marketData.stockInfo.symbol}/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'text/event-stream',
+            },
+            body: JSON.stringify(aiPayload),
+        });
 
-        setAiReport(response.data.aiReport);
+        if (!response.ok || !response.body) {
+            const text = await response.text();
+            throw new Error(`Server lỗi ${response.status}: ${text.slice(0, 300)}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let finalData = null;
+
+        const handleStreamEvent = (rawEvent) => {
+            const lines = rawEvent.split('\n');
+            const eventName = lines.find(line => line.startsWith('event:'))?.replace('event:', '').trim() || 'message';
+            const dataLine = lines.find(line => line.startsWith('data:'));
+            if (!dataLine) return;
+            const payload = JSON.parse(dataLine.replace('data:', '').trim());
+
+            if (eventName === 'progress') {
+                if (payload.message) setAnalysisStep(payload.message);
+                if (typeof payload.progress === 'number') setAnalysisProgress(payload.progress);
+                if (typeof payload.etaSeconds === 'number') setAiAnalysisEta(payload.etaSeconds);
+                addLog(`[AI PROGRESS ${payload.progress}%] ${payload.message}`);
+            }
+
+            if (eventName === 'done') {
+                finalData = payload;
+                setAnalysisProgress(100);
+                setAiAnalysisEta(0);
+            }
+
+            if (eventName === 'error') {
+                throw new Error(payload.message || 'Luồng phân tích AI thất bại.');
+            }
+        };
+
+        while (true) {
+            const { value, done } = await reader.read();
+            buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+            const events = buffer.split('\n\n');
+            buffer = events.pop() || '';
+            events.filter(Boolean).forEach(handleStreamEvent);
+            if (done) break;
+        }
+        if (buffer.trim()) handleStreamEvent(buffer);
+
+        if (!finalData?.success) throw new Error('Server chưa trả kết quả phân tích AI.');
+
+        const endTime = performance.now(); 
+        setAiAnalysisDuration((finalData.elapsedSeconds || ((endTime - startTime) / 1000)).toFixed(1)); 
+        setAiReport(finalData.aiReport);
         setLastAiVnTime(now);
         setLastAiVnSnapshot(currentSnapshot);
         const timeStr = new Date().toLocaleString('vi-VN');
@@ -1216,7 +1260,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
         addLog(`[THÀNH CÔNG] AI hoàn tất chiến lược và đã lưu vào Database.`);
         setShowLogs(false);
-        if (response.data.actionPanelData) setActionData(response.data.actionPanelData);
+        if (finalData.actionPanelData) setActionData(finalData.actionPanelData);
         if (currentUser) fetchUserHistory();
     } catch (err) {
         addLog('[LỖI] Xử lý AI thất bại: Tràn bộ nhớ hoặc mất kết nối API.');
@@ -1225,6 +1269,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         stepTimers.forEach(t => clearTimeout(t));
         setAnalyzing(false);
         setAnalysisStep('');
+        setAiAnalysisEta(null);
     }
 };
   useEffect(() => {
@@ -1452,6 +1497,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             aiReport={aiReport}
             analyzing={analyzing}
             analysisStep={analysisStep}
+            analysisProgress={analysisProgress}
+            aiAnalysisEta={aiAnalysisEta}
+            
             loadingMarket={loadingMarket}
             loadingAiNews={loadingAiNews}
             activeInterval={activeInterval}
