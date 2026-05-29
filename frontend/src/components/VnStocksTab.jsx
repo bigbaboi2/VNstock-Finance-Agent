@@ -78,6 +78,8 @@ export default function VnStocksTab({
   aiReport,
   analyzing,
   analysisStep = '',
+  analysisProgress = 0,
+  aiAnalysisEta = null,
   loadingMarket,
   aiReportError,
   loadingAiNews,
@@ -1239,20 +1241,10 @@ export default function VnStocksTab({
           )} 
 
           {analyzing && (() => {
-            const STEP_PROGRESS = {
-              '🔍 Khởi tạo engine phân tích...':               5,
-              '📄 Đang tải báo cáo tài chính PDF...':          12,
-              '📊 Phân tích bảng cân đối kế toán...':          25,
-              '💰 Phân tích kết quả kinh doanh (P&L)...':      38,
-              '🔄 Phân tích lưu chuyển tiền tệ...':            50,
-              '📈 Tính toán chỉ số tài chính (ROE, P/E, EPS...)': 62,
-              '📰 Phân tích tin tức & sentiment thị trường...': 72,
-              '🕯️ Phân tích kỹ thuật (MACD, RSI, Bollinger)...': 80,
-              '🏭 So sánh với trung bình ngành...':             88,
-              '🧠 AI tổng hợp & sinh báo cáo chiến lược...':   93,
-              '✍️ Đang viết khuyến nghị đầu tư...':            97,
-            };
-            const syncedProgress = STEP_PROGRESS[analysisStep] ?? 3;
+            const syncedProgress = Math.max(3, Math.min(100, Number(analysisProgress) || 3));
+            const etaLabel = typeof aiAnalysisEta === 'number'
+              ? (aiAnalysisEta <= 0 ? 'sắp hoàn tất' : `ước tính còn ${aiAnalysisEta}s`)
+              : 'đang tính ETA...';
 
             return (
               <div className={`h-full rounded-[40px] border shadow-xl overflow-y-auto flex flex-col items-center px-8 pt-14 pb-12 ${UI.card}`}>
@@ -1312,6 +1304,16 @@ export default function VnStocksTab({
 
                 {/* Divider */}
                 <div className={`w-full h-px ${isDark ? 'bg-white/5' : 'bg-slate-200'}`} />
+                 <div className={`w-full rounded-2xl border px-4 py-3 ${isDark ? 'bg-black/20 border-yellow-400/20' : 'bg-white border-yellow-300/50'}`}>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>Tiến độ thực tế</span>
+                    <span className={`text-[10px] font-black ${isDark ? 'text-emerald-300' : 'text-emerald-600'}`}>{Math.round(syncedProgress)}%</span>
+                  </div>
+                  <p className={`text-[11px] font-bold leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'}</p>
+                  <div className={`mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <Clock size={12} /> {etaLabel}
+                  </div>
+                </div>
 
                 {/* AtomLoader */}
                 <AtomLoader
