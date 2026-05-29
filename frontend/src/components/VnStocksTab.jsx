@@ -118,15 +118,26 @@ export default function VnStocksTab({
   const [isExporting, setIsExporting]   = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const aiError = aiReportError;
-  // === LOGIC: THU KÉO CHIỀU CAO CHART ===
+    // === TOTAL TIME CLOCK ===
+  const [elapsedTime, setElapsedTime] = useState(0);
+  useEffect(() => {
+      let timer;
+      if (analyzing) {
+          setElapsedTime(0);
+          timer = setInterval(() => {
+              setElapsedTime(prev => prev + 1);
+          }, 1000);
+      } else {
+          setElapsedTime(0);
+      }
+      return () => clearInterval(timer);
+  }, [analyzing]);
+//=== LOGIC: SCROLL CHART HEIGHT === 
   const [chartHeight, setChartHeight] = useState(600);
   const [isDraggingChart, setIsDraggingChart] = useState(false);
-
-// Dùng Ref để neo giữ vị trí gốc, giúp kéo mượt không bị giật lag
   const dragStartY = useRef(0);
   const startHeight = useRef(600);
-
-  // ======================================
+// ======================================
   useEffect(() => {
     if (onRequestCloseChat) {
       onRequestCloseChat(() => setIsChatOpen(false));
@@ -1306,12 +1317,18 @@ export default function VnStocksTab({
                 <div className={`w-full h-px ${isDark ? 'bg-white/5' : 'bg-slate-200'}`} />
                  <div className={`w-full rounded-2xl border px-4 py-3 ${isDark ? 'bg-black/20 border-yellow-400/20' : 'bg-white border-yellow-300/50'}`}>
                   <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>Tiến độ thực tế</span>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>Tiến trình</span>
                     <span className={`text-[10px] font-black ${isDark ? 'text-emerald-300' : 'text-emerald-600'}`}>{Math.round(syncedProgress)}%</span>
                   </div>
                   <p className={`text-[11px] font-bold leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'}</p>
-                  <div className={`mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                    <Clock size={12} /> {etaLabel}
+                  
+                  <div className={`mt-3 pt-2 border-t flex flex-row items-center justify-between ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                    <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      <Clock size={12} /> {etaLabel}
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-sky-400' : 'text-sky-600'}`}>
+                      ⏱ TỔNG THỜI GIAN: {elapsedTime}S
+                    </div>
                   </div>
                 </div>
 
