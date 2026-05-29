@@ -2,7 +2,20 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
 export const corsOptions = {
-    origin: ['https://your-frontend.example.com', 'http://localhost:5173'],
+     origin: function (origin, callback) {
+         if (!origin) return callback(null, true);
+
+         const allowedOrigins = [
+            'https://your-frontend.example.com',
+            'http://localhost:5173'
+        ];
+
+         if (allowedOrigins.includes(origin) || origin.includes('ngrok-free.app') || origin.includes('ngrok.app') || origin.includes('ngrok.io')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Bị chặn bởi CORS policy: Domain không hợp lệ.'));
+        }
+    },
     optionsSuccessStatus: 200,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],

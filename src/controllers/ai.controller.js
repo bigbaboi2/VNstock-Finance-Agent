@@ -278,7 +278,7 @@ export const analyzeDerivatives = async (req, res) => {
     }
 };
 
-const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null) => {
+const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null, onChunk = null) => {
     if (!fullData || !fullData.stockInfo) {
         const err = new Error('Thiếu dữ liệu.');
         err.statusCode = 400;
@@ -430,13 +430,20 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         lastProgress = progress;
         const elapsedMs = Date.now() - startedAt;
         const estimatedTotalMs = progress > 0 ? Math.round(elapsedMs / (progress / 100)) : null;
-        const etaSeconds = estimatedTotalMs ? Math.max(0, Math.ceil((estimatedTotalMs - elapsedMs) / 1000)) : null;
+        let etaSeconds = estimatedTotalMs ? Math.max(0, Math.ceil((estimatedTotalMs - elapsedMs) / 1000)) : null;
+
+       //[FIX] Realistic buffer injection (Less optimistic)
+        if (etaSeconds !== null) {
+            if (progress < 30) etaSeconds += 25;      
+            else if (progress < 60) etaSeconds += 15; 
+            else if (progress < 85) etaSeconds += 8;  
+        }
+
         writeEvent('progress', {
             ...payload,
             progress,
             elapsedSeconds: Number((elapsedMs / 1000).toFixed(1)),
             etaSeconds,
-
         });
     };
 
@@ -454,7 +461,7 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
             return;
         }
 
-        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash);
+        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash, onChunk);
         writeEvent('done', { success: true, ...result, cached: false, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
         res.end();
     } catch (error) {
