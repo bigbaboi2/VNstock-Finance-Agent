@@ -51,7 +51,7 @@ export default function MarketOverview({ isDark, UI, marketIntel, vnIndexData })
                 <p className={`text-[13px] font-black uppercase mt-1 ${UI.textBold}`}>{marketIntel?.breadthRatio}% Mã Tăng</p>
             </div>
         </div>
-        
+          
         {/*AI */}
         <p className={`text-[11px] italic font-medium mb-3 line-clamp-1 ${UI.textMuted}`}>
            <Zap size={10} className="inline mr-1 text-yellow-500"/> {marketIntel?.diagnosticDesc || 'Đang chờ đánh giá chuyên sâu từ hệ thống...'}
