@@ -430,11 +430,11 @@ export const scrapeCafefMarketOverview = async () => {
             ? `entrade +${liquidityExtras.length} mã`
             : `fallback core | top: ${_topVolSummary || '—'}`;
         console.log(
-            chalk.cyan(`[SCRAPER] `) +
-            chalk.white(`${allStocks.length} mã | `) +
-            chalk.cyan(`Breadth ${_breadthLabel}: ↑${marketBreadth.up} ↓${marketBreadth.down} | `) +
-            chalk.cyan(`Foreign: ${_foreignLabel} | `) +
-            chalk.magenta(`Liq: ${_liqLabel}`)
+            chalk.gray(`[SCRAPER] `) +
+            chalk.green(`${allStocks.length} mã | `) +
+            chalk.gray(`Breadth ${_breadthLabel}: ↑${marketBreadth.up} ↓${marketBreadth.down} | `) +
+            chalk.gray(`Foreign: ${_foreignLabel} | `) +
+            chalk.green(`Liq: ${_liqLabel}`)
         );
         // ────────────────────────────────────────────────────────────────
 

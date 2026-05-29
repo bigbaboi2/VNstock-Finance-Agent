@@ -935,6 +935,7 @@ const derivAnalysis = React.useMemo(() => {
       
     setSuggestions(filtered);
   }, [input, allStocks, loadingMarket]);
+
     const fetchMarketData = async (forceSymbol) => {
       setActiveInterval('1 ngày');
       const symbol = forceSymbol ? forceSymbol.toUpperCase() : input.toUpperCase();
@@ -1301,8 +1302,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
       addLog(`[CẢNH BÁO] Lỗi tải biểu đồ khung ${newInterval}`);
     }
   };
-
-  //LOGIC: ACTION PANEL MONITORING LOOP
+// LOGIC: AUTOMATICALLY UPDATE ACTION PANEL
   useEffect(() => {
     let actionTimer;
     if (aiReport && marketData && marketData.stockInfo) {
@@ -1314,21 +1314,24 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             let shouldUpdate = false;
             let triggerReason = "";
 
-            if (!lastActionPriceRef.current) {
-                shouldUpdate = true;
-                triggerReason = "Khởi tạo lệnh lần đầu";
-            } else {
-                const priceDiffPercent = Math.abs(currentPriceNum - lastActionPriceRef.current) / lastActionPriceRef.current;
-                if (priceDiffPercent >= 0.015) { 
-                    shouldUpdate = true;
-                    triggerReason = `Giá biến động mạnh (${(priceDiffPercent * 100).toFixed(2)}%)`;
-                } else if (currentNewsCount > lastNewsCountRef.current) { 
-                    shouldUpdate = true;
-                    triggerReason = `Có tin tức/sự kiện mới xuất hiện`;
+            if (!lastActionPriceRef.current || isNaN(lastActionPriceRef.current)) {
+                if (currentPriceNum > 0) {
+                    lastActionPriceRef.current = currentPriceNum;
+                    lastNewsCountRef.current = currentNewsCount;
                 }
+                return;  
             }
 
-            if (!shouldUpdate) return; 
+             const priceDiffPercent = Math.abs(currentPriceNum - lastActionPriceRef.current) / lastActionPriceRef.current;
+            if (priceDiffPercent >= 0.015) { 
+                shouldUpdate = true;
+                triggerReason = `Giá biến động mạnh (${(priceDiffPercent * 100).toFixed(2)}%)`;
+            } else if (currentNewsCount > lastNewsCountRef.current) { 
+                shouldUpdate = true;
+                triggerReason = `Có tin tức/sự kiện mới xuất hiện`;
+            }
+
+             if (!shouldUpdate) return; 
 
             setIsUpdatingAction(true);
             addLog(`[CẢNH BÁO] Đã kích hoạt Action Panel khẩn cấp. Lý do: ${triggerReason}`);
@@ -1362,9 +1365,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 setIsUpdatingAction(false);
             }
         };
-
         actionTimer = setInterval(fetchActionPanel, 15000); 
-        fetchActionPanel(); 
     }
     return () => clearInterval(actionTimer);
   }, [aiReport, marketData?.stockInfo?.currentPrice, marketData?.deepNewsData?.length]);

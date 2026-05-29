@@ -107,9 +107,9 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
         }
 
         if (uniqueNew.length === 0) {
-            console.log(chalk.yellow(`[HỆ THỐNG] Dừng tìm kiếm. Không có bài báo nào mới trên mạng lưới về mã ${ticker}.`));
+            console.log(chalk.gray(`[HỆ THỐNG] Dừng tìm kiếm. Không có bài báo nào mới trên mạng lưới về mã ${ticker}.`));
         } else {
-            console.log(chalk.green.bold(`[HỆ THỐNG] TỔNG KẾT: Thu hoạch được ${uniqueNew.length} tin mới. Đang ném vào Scraper cào chữ...`));
+            console.log(chalk.gray.bold(`[HỆ THỐNG] TỔNG KẾT: Thu hoạch được ${uniqueNew.length} tin mới. Đang ném vào Scraper cào chữ...`));
         }
 
         if (uniqueNew.length > 0 && !isClientDisconnected) {
@@ -179,7 +179,7 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
                 .slice(0, MAX_NEWS_DB);
             
             await masterRecord.save();
-            console.log(chalk.green(`[DB] Đã cập nhật thành công ${newDeepNewsData.length} tin tức SẠCH cho mã ${ticker}.`));
+            console.log(chalk.gray(`[DB] Đã cập nhật thành công ${newDeepNewsData.length} tin tức SẠCH cho mã ${ticker}.`));
         }
 
         if (!isClientDisconnected) {
