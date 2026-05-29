@@ -131,16 +131,20 @@ const PdfCacheModel = mongoose.models.TcbsPdfCache || mongoose.model('TcbsPdfCac
 const _tcbsPdfCache = new Map(); 
 const TCBS_PDF_TTL = 4 * 60 * 60 * 1000; 
 
-export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo') {
+export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgress = null) {
     const tickerUpper = ticker.toUpperCase();
     const validModes = ['turbo', 'fast', 'balanced', 'full'];
     const safeMode = validModes.includes(pdfMode) ? pdfMode : 'turbo';
 
     // Cache key includes mode so switching mode forces re-extract
     const cacheKey = `${tickerUpper}__${safeMode}`;
+     const emitProgress = (payload) => {
+        if (typeof onProgress === 'function') onProgress(payload);
+    };
     const cached = _tcbsPdfCache.get(cacheKey);
     if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL) {
         console.log(chalk.green(`[HỆ THỐNG] Dùng cache TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
+        emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache', progress: 28 });
         return cached.markdown;
     }
 
@@ -148,9 +152,11 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo') {
     
     try {
         console.log(chalk.cyan(`[HỆ THỐNG] Đang tải PDF ${tickerUpper} từ TCBS...`));
+        emitProgress({ step: 'TCBS_PDF_DOWNLOAD', message: 'Đang tải dữ liệu PDF từ TCBS', progress: 18 });
         
         const response = await axios.get(pdfUrl, { responseType: 'arraybuffer', timeout: 15000 });
         const pdfBuffer = Buffer.from(response.data);
+        emitProgress({ step: 'TCBS_PDF_DOWNLOADED', message: 'Đã tải PDF, đang bóc tách dữ liệu BCTC', progress: 24 });
 
         console.log(chalk.yellow(`[HỆ THỐNG] Đang chuyển tệp sang Trạm Python Docling để làm sạch...`));
         
@@ -161,6 +167,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo') {
         });
 
         console.log(chalk.cyan(`[HỆ THỐNG] Gọi Docling với mode=${safeMode.toUpperCase()}...`));
+        emitProgress({ step: 'DOCLING_PARSE', message: `Đang xử lý PDF bằng AI Docling (${safeMode.toUpperCase()})`, progress: 32 });
         const doclingResponse = await axios.post(`http://localhost:8000/parse-pdf?mode=${safeMode}`, formData, {
 
             headers: formData.getHeaders(),
@@ -196,15 +203,18 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo') {
             cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
 
             _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: Date.now() });
+            emitProgress({ step: 'DOCLING_DONE', message: 'Đã lấy phân tích xong với AI Docling', progress: 46 });
             console.log(chalk.green(`[THÀNH CÔNG] Docling xử lý xong! Dữ liệu TCBS đã được lưu cache.`));
             return cleanMarkdown; 
         } else {
             console.log(chalk.red(`[LỖI] Trạm Docling báo lỗi: ${doclingResponse.data.error}`));
+            emitProgress({ step: 'DOCLING_FAILED', message: 'Docling lỗi, tiếp tục phân tích bằng dữ liệu thị trường hiện có', progress: 46 });
             return null;
         }
 
     } catch (error) {
         console.log(chalk.red(`[LỖI] Luồng TCBS PDF thất bại: ${error.message}`));
+        emitProgress({ step: 'TCBS_PDF_FAILED', message: 'Không tải được BCTC PDF, tiếp tục với dữ liệu còn lại', progress: 46 });
         return null;
     }
 }
@@ -212,8 +222,12 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo') {
 // =========================================================
 // 3. HÀM PHÂN TÍCH LÕI CỦA OMNI DUCK
 // =========================================================
-export async function analyzeWithGemini(ticker, data) {
+export async function analyzeWithGemini(ticker, data, onProgress = null) {
+    const emitProgress = (payload) => {
+        if (typeof onProgress === 'function') onProgress(payload);
+    };
     console.log(chalk.whiteBright(`[AI CORE] Bắt đầu đọc dữ liệu đa chiều cho ${ticker.toUpperCase()}...`));
+    emitProgress({ step: 'AI_CONTEXT_READING', message: 'Đang đọc dữ liệu BCTC, lịch sử giá, tin tức và bối cảnh thị trường', progress: 62 });
     
     const companyName = data?.companyProfile?.companyName || ticker;
     const overview = data?.companyProfile?.overview || "Chưa có thông tin tổng quan";
@@ -291,7 +305,9 @@ ${newsSummary || 'Không có tin tức nổi bật.'}`;
     }
 
     try {
-        const result = await generateWithAutoSwitch(promptParts); 
+        emitProgress({ step: 'AI_GENERATING', message: 'Đang gửi dữ liệu BCTC sang AI và sinh báo cáo chiến lược', progress: 76 });
+        const result = await generateWithAutoSwitch(promptParts);
+        emitProgress({ step: 'AI_REPORT_DONE', message: 'AI đã hoàn tất báo cáo chiến lược', progress: 88 }); 
         const aiReport = result.response.text();
         return aiReport;
 
