@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import iconv from 'iconv-lite';
-import { getBrowser } from '../utils/browserManager.js';
+import chalk from 'chalk';
+import { getBrowser, respawnBrowser } from '../utils/browserManager.js';
 
 //─── Selectors ────────────────────────────────────────────────────────────────
 
@@ -164,19 +165,24 @@ async function scrapeWithAxios(url, maxChars = 4000) {
     } catch { return null; }
 }
 
-//─── [FIX-6] scrapeWithPuppeteer — domain rate limited ───────────────────────
+//─── [FIX-6] scrapeWithPuppeteer — domain rate limited + crash recovery ───────
 async function scrapeWithPuppeteer(url, maxChars = 4000) {
-    const browser = await getBrowser();
+    let browser = await getBrowser();
     if (!browser) return null;
 
     const domain = (new URL(url)).hostname.replace('www.', '');
-
-    //Enforce rate limit before opening the page
     await enforceDomainRateLimit(domain);
 
     let page;
     try {
-        page = await browser.newPage();
+        try {
+            page = await browser.newPage();
+        } catch (pageErr) {
+            console.log(chalk.yellow(`[Scraper] newPage() thất bại (${pageErr.message}), đang respawn browser...`));
+            browser = await respawnBrowser();
+            if (!browser) return null;
+            page = await browser.newPage();
+        }
         await page.setRequestInterception(true);
 
         page.on('request', (req) => {
