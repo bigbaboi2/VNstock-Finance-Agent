@@ -6,6 +6,7 @@ const NewsSchema = new mongoose.Schema({
     source:        { type: String },
     content:       { type: String },
     date:          { type: String },
+    publishedAt:   { type: Date, default: Date.now },  
     sentiment:     { type: String, enum: ['positive', 'negative', 'neutral'], default: 'neutral' },
     mode:          { type: String, enum: ['official', 'balanced', 'negative', 'rumor'], default: 'balanced' },
     isAiGenerated: { type: Boolean, default: false }

@@ -22,7 +22,8 @@ function getActiveCacheTTL() {
 
 
 //[FIX] Import from shared util — avoid duplicates with newsCron.js
-export { decodeGoogleNewsUrl } from './googleNewsDecoder.js';
+import { decodeGoogleNewsUrl } from '../utils/googleNewsDecoder.js';
+export { decodeGoogleNewsUrl };
 
 
 const buildGoogleNewsQueries = (ticker, mode) => {
@@ -694,14 +695,12 @@ export async function searchVnNewsDirectly(
     offset = 0
 ) {
     const clean    = ticker.toUpperCase();
-    const cacheKey = `${clean}_${mode}_${limit}_${offset}`;
-
-    
-    const ttl = getActiveCacheTTL();
+    const ttl      = getActiveCacheTTL();          
+    const cacheKey = `${clean}_${mode}`;      
     const cached = cacheMap.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < ttl)) {
         console.log(`[vnNewsSearch] Cache hit — ${clean} offset=${offset}`);
-        return cached.data.slice(offset, offset + limit);  
+        return cached.data.slice(offset, offset + limit);
     }
     
     const [googleRawItems, rssResults, searchResults] = await Promise.all([
@@ -724,20 +723,20 @@ export async function searchVnNewsDirectly(
     const filtered = filterByMode(merged, mode);
 
     const allResults = distributeSentiment(filtered, mode); // bỏ .slice(0, limit)
-    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults });
-
+    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults }); // lưu toàn bộ
+    // Log tổng quan về kết quả trước khi cắt theo offset/limit
     const sentimentSummary = {
-    positive: allResults.filter(a => a.sentiment === 'positive').length,
-    negative: allResults.filter(a => a.sentiment === 'negative').length,
-    neutral:  allResults.filter(a => a.sentiment === 'neutral').length,
-    };
-    console.log(
-    `[vnNewsSearch] ${clean} | mode=${mode} | ${allResults.length} tin`
-    + ` | +${sentimentSummary.positive}`
-    + ` -${sentimentSummary.negative}`
-    + ` ~${sentimentSummary.neutral}`
-    + ` | TTL=${ttl / 1000}s`
-);
+        positive: allResults.filter(a => a.sentiment === 'positive').length,
+        negative: allResults.filter(a => a.sentiment === 'negative').length,
+        neutral:  allResults.filter(a => a.sentiment === 'neutral').length,
+        };
+        console.log(
+        `[vnNewsSearch] ${clean} | mode=${mode} | ${allResults.length} tin`
+        + ` | +${sentimentSummary.positive}`
+        + ` -${sentimentSummary.negative}`
+        + ` ~${sentimentSummary.neutral}`
+        + ` | TTL=${ttl / 1000}s`
+    );
 
-    return allResults.slice(offset, offset + limit);;
+    return allResults.slice(offset, offset + limit);
 }
