@@ -16,7 +16,7 @@ import {
     getRateLimitStatus,
     resetProviderBlock,
 } from '../services/aiService.js';
-import { searchVnNewsDirectly, rescoreSentiment } from '../scrapers/vnNewsSearch.js';
+import { searchVnNewsDirectly, rescoreSentiment, fetchFireAntSocial, fetchRedditMacro } from '../scrapers/vnNewsSearch.js';
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
@@ -258,6 +258,9 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
             res.end();
         }
     } catch (error) {
+        console.error(chalk.red(`[HỆ THỐNG LỖI STREAM] Lỗi khi lấy tin tức: ${error.message}`));
+        console.error(error.stack);  
+        
         if (!isClientDisconnected) {
             res.write(`event: error\ndata: {}\n\n`);
             res.end();
@@ -558,6 +561,22 @@ export const debugFeed = async (req, res) => {
 
         const markdownData = await getMarkdownFromTcbsPdf(ticker);
         if (markdownData) fullData.tcbsMarkdownData = markdownData;
+        // Export FireAnt & Reddit sentiment
+        try {
+            console.log(chalk.cyan(`[DEBUG EXPORT] Đang cào dữ liệu FireAnt & Reddit cho mã ${ticker}...`));
+            const [fireAntReport, redditReport] = await Promise.all([
+                fetchFireAntSocial(ticker).catch(e => `[LỖI FIREANT] ${e.message}`),
+                fetchRedditMacro(ticker).catch(e => `[LỖI REDDIT] ${e.message}`)
+            ]);
+            
+            fullData.socialSentiment = {
+                fireAnt: fireAntReport,
+                reddit: redditReport
+            };
+            console.log(chalk.green(`[DEBUG EXPORT] Đã nạp thành công FireAnt & Reddit vào file JSON.`));
+        } catch (err) {
+            console.log(chalk.red(`[DEBUG EXPORT] Lỗi khi lấy Social: ${err.message}`));
+        }
 
          try {
             const macroNews = await DerivNews.find()
@@ -583,6 +602,7 @@ export const debugFeed = async (req, res) => {
         return res.json({
             success: true,
             _debugMeta: {
+                hasSocialData: !!fullData.socialSentiment,
                 ticker, exportedAt: new Date().toISOString(), totalSizeKB: sizeKB,
                 fields: Object.keys(fullData), hasPreviousAnalysis: !!fullData.previousAnalysis,
                 hasMarketContext: !!fullData.marketContext, hasTcbsData: !!fullData.tcbsMarkdownData,
