@@ -69,7 +69,182 @@ function CompanyOverview({ profile, isDark, UI }) {
     </div>
   );
 }
+{/*LIVE DEBATE PREVIEW AREA*/}
+const LiveDebatePreview = ({ liveDebate, isDark }) => {
+    const steps = [
+        { key: 'tech', icon: '📐', label: 'Kỹ thuật' },
+        { key: 'fund', icon: '🏦', label: 'Cơ bản' },
+        { key: 'news', icon: '📰', label: 'Tâm lý & Vĩ mô' },
+        { key: 'bull', icon: '🟢', label: 'Phe Bò' },
+        { key: 'bear', icon: '🔴', label: 'Phe Gấu' },
+        { key: 'def',  icon: '⚡', label: 'Phản công Bò' },
+        { key: 'pm',   icon: '🏛️', label: 'PM Decision' },
+    ];
+    const [activeKey, setActiveKey] = useState('tech');
+    const available = steps.filter(s => liveDebate[s.key]);
+    useEffect(() => {
+        const latest = steps.filter(s => liveDebate[s.key]).pop();
+        if (latest) setActiveKey(latest.key);
+    }, [Object.keys(liveDebate).length]);
 
+    if (available.length === 0) return null;
+
+    return (
+        <div className={`w-full rounded-2xl border mt-4 overflow-hidden ${
+            isDark ? 'bg-[#0d1219] border-yellow-400/20' : 'bg-slate-50 border-yellow-400/30'
+        }`}>
+            {/* Header */}
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-white/5">
+                <span className="animate-pulse text-yellow-400 text-xs">⚡</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500">
+                    Hội đồng đang tranh luận realtime
+                </span>
+                <span className={`ml-auto text-[10px] font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {available.length}/7 hoàn tất
+                </span>
+            </div>
+
+             <div className="flex gap-1 p-2 overflow-x-auto">
+                {steps.map(s => (
+                    liveDebate[s.key] ? (
+                        <button
+                            key={s.key}
+                            onClick={() => setActiveKey(s.key)}
+                            className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                                activeKey === s.key
+                                    ? s.key === 'bear'
+                                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                        : s.key === 'bull' || s.key === 'def'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                        : 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
+                                    : isDark
+                                    ? 'text-slate-500 border border-transparent'
+                                    : 'text-slate-400 border border-transparent'
+                            }`}
+                        >
+                            {s.icon} {s.label}
+                        </button>
+                    ) : (
+                        <div key={s.key} className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide opacity-20 ${
+                            isDark ? 'text-slate-600' : 'text-slate-300'
+                        }`}>
+                            {s.icon} {s.label}
+                        </div>
+                    )
+                ))}
+            </div>
+
+             <div className="h-[140px] 2xl:h-[180px] overflow-y-auto px-4 pb-4 custom-scrollbar">
+                <div className={`prose prose-sm max-w-none ${
+                    isDark ? 'prose-invert prose-p:text-slate-300 prose-headings:text-yellow-400' : ''
+                } ${activeKey === 'bear' ? 'prose-headings:text-red-400' : ''}
+                  ${activeKey === 'bull' || activeKey === 'def' ? 'prose-headings:text-emerald-400' : ''}`}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {liveDebate[activeKey] || ''}
+                    </ReactMarkdown>
+
+                </div>
+            </div>
+        </div>
+    );
+};
+// DEBATE PANEL , DISPLAY IN REPORT TAB
+const DebatePanel = ({ debateResult, isDark, UI }) => {
+    const [open, setOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('pm');
+
+    if (!debateResult) return null;
+
+    const tabs = [
+        { id: 'pm',   label: '🏛️ PM Decision',  content: debateResult.pmDecision },
+        { id: 'bull', label: '🟢 Phe Bò',        content: debateResult.bullCase },
+        { id: 'bear', label: '🔴 Phe Gấu',       content: debateResult.bearCase },
+        { id: 'def',  label: '⚡ Phản công',      content: debateResult.bullDefense },
+        { id: 'tech', label: '📐 Kỹ thuật',       content: debateResult.techAnalysis },
+        { id: 'fund', label: '🏦 Cơ bản',         content: debateResult.fundAnalysis },
+        { id: 'news', label: '📰 Tâm lý',         content: debateResult.newsAnalysis },
+    ];
+
+    const active = tabs.find(t => t.id === activeTab);
+
+    return (
+        <div className={`w-full rounded-2xl border mb-6 overflow-hidden transition-all duration-300 ${
+            isDark ? 'bg-[#0d1219] border-yellow-400/15' : 'bg-slate-50 border-yellow-400/30'
+        }`}>
+            {/* HEADER   */}
+            <button
+                onClick={() => setOpen(v => !v)}
+                className={`w-full flex items-center justify-between px-6 py-4 transition-colors ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                }`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-yellow-400/10 border border-yellow-400/30 flex items-center justify-center">
+                        <span className="text-sm">⚔️</span>
+                    </div>
+                    <div className="text-left">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-yellow-500">
+                            Hội đồng Tranh luận Độc lập
+                        </p>
+                        <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            7 chuyên gia AI · Bull vs Bear · PM Decision
+                        </p>
+                    </div>
+                </div>
+                <div className={`text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full border transition-colors ${
+                    open
+                        ? isDark ? 'bg-yellow-400/10 border-yellow-400/30 text-yellow-400' : 'bg-yellow-50 border-yellow-300 text-yellow-600'
+                        : isDark ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-400'
+                }`}>
+                    {open ? '▲ Thu gọn' : '▼ Xem tranh luận'}
+                </div>
+            </button>
+
+            {/* BODY */}
+            {open && (
+                <div className={`border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                    {/* TABS */}
+                    <div className={`flex gap-1 p-3 overflow-x-auto border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all ${
+                                    activeTab === tab.id
+                                        ? tab.id === 'bear'
+                                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                            : tab.id === 'bull' || tab.id === 'def'
+                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                            : 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30'
+                                        : isDark
+                                        ? 'text-slate-500 hover:text-slate-300 border border-transparent hover:border-white/10'
+                                        : 'text-slate-400 hover:text-slate-600 border border-transparent hover:border-slate-200'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* NỘI DUNG TAB   */}
+                    <div className="h-[340px] overflow-y-auto p-5">
+                        <div className={`prose prose-sm max-w-none prose-headings:font-black prose-headings:uppercase
+                            ${isDark
+                                ? 'prose-invert prose-p:text-slate-300 prose-headings:text-yellow-400 prose-li:text-slate-300 prose-strong:text-white'
+                                : 'prose-p:text-slate-700 prose-headings:text-yellow-600 prose-li:text-slate-700'
+                            }
+                            ${activeTab === 'bear' ? 'prose-headings:text-red-400' : ''}
+                            ${activeTab === 'bull' || activeTab === 'def' ? 'prose-headings:text-emerald-400' : ''}
+                        `}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{active?.content || ''}</ReactMarkdown>
+                        </div>
+                      </div>
+                </div>
+            )}
+        </div>
+    );
+};
+// PROP DRILLING FROM App.jsx
 export default function VnStocksTab({
   isDark, UI,
   allStocks,
@@ -110,6 +285,8 @@ export default function VnStocksTab({
   pdfMode = 'turbo',
   setPdfMode,
   vnReportTimestamp, 
+  debateResult,
+  liveDebate = {},
 }) 
 {
   const [historyLimit, setHistoryLimit] = useState(3);
@@ -134,10 +311,19 @@ export default function VnStocksTab({
   }, [analyzing]);
 //=== LOGIC: SCROLL CHART HEIGHT === 
   const [chartHeight, setChartHeight] = useState(600);
+  const scrollContainerRef = useRef(null);
   const [isDraggingChart, setIsDraggingChart] = useState(false);
   const dragStartY = useRef(0);
   const startHeight = useRef(600);
+  // animation frame for smooth resizing
+  useEffect(() => {
+      if (analyzing && aiReport && scrollContainerRef.current) {
+          const container = scrollContainerRef.current;
+           container.scrollTop = container.scrollHeight;
+      }
+  }, [aiReport, analyzing]);
 // ======================================
+
   useEffect(() => {
     if (onRequestCloseChat) {
       onRequestCloseChat(() => setIsChatOpen(false));
@@ -715,745 +901,378 @@ export default function VnStocksTab({
             vnIndexData={vnIndexData} 
           />
       </div>
-
-        {/* GRID COLUMN 2: ANALYTICAL VIEW & CHARTS */}
-        <div className={`flex-1 overflow-y-auto p-8 lg:p-12 relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
-            
-          {marketData && chartData && (
-            <div 
-              className={`mb-8 border rounded-[40px] px-8 pt-8 pb-8 shadow-xl transition-colors duration-300 flex flex-col relative overflow-hidden ${UI.card} ${isDraggingChart ? 'select-none' : ''}`}
-              style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px` }}
-            >
-              
-              {/* LỚP PHỦ TÀNG HÌNH BẮT CHUỘT (Chỉ bật khi đang kéo) */}
-              {isDraggingChart && (
+    {/* GRID COLUMN 2: ANALYTICAL VIEW & CHARTS */}      
+    <div className={`flex-1 h-full min-h-0 flex flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
+          
+          {/* ================================================== */}
+          {/* NGĂN 1: CHART (GHIM CỨNG BÊN TRÊN) */}
+          {/* ================================================== */}
+          <div className="shrink-0 px-8 lg:px-12 pt-8 lg:pt-12 z-20">
+              {marketData && chartData && (
                   <div 
-                      className="fixed inset-0 z-[99999] cursor-row-resize"
-                      onMouseMove={(e) => {
-                          const deltaY = e.clientY - dragStartY.current;
-                           setChartHeight(Math.min(1200, Math.max(400, startHeight.current + deltaY)));
-                      }}
-                      onMouseUp={() => setIsDraggingChart(false)}
-                      onMouseLeave={() => setIsDraggingChart(false)}
-                  />
-              )}
-
-              <div className={`flex items-center gap-3 mb-6 pb-4 border-b shrink-0 relative z-10 ${UI.border}`}>
-                <BarChart3 className="text-yellow-500" size={24} />
-                <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Biểu đồ Kỹ thuật ({marketData.stockInfo.symbol})</h3>
-              </div>
-              
-              <div className="flex-1 w-full min-h-0 relative rounded-xl overflow-hidden mb-2 z-10">
-                  <TradingChart 
-                      data={chartData}       
-                      theme={isDark ? 'dark' : 'light'}
-                      onIntervalChange={handleIntervalChange} 
-                      currentInterval={activeInterval}
-                  />              
-              </div>
-              
-               <div 
-                  className="absolute bottom-0 left-0 w-full h-3 flex items-center justify-center cursor-row-resize z-[50] hover:bg-yellow-400/20 transition-all bg-gradient-to-t from-black/10 to-transparent"
-                  onMouseDown={(e) => { 
-                      e.preventDefault(); 
-                      setIsDraggingChart(true); 
-                       dragStartY.current = e.clientY;
-                      startHeight.current = chartHeight;
-                  }}
-                  title="Kéo để thay đổi kích thước biểu đồ"
-              >
-                  <div className={`w-16 h-1.5 rounded-full ${isDark ? 'bg-slate-500 shadow-[0_0_5px_rgba(0,0,0,0.8)]' : 'bg-slate-400 shadow-sm'}`}></div>
-              </div>
-            </div>
-          )}
-
-        {!marketData && !analyzing && !aiReport && (
-          <div className="flex flex-col gap-6 animate-in fade-in duration-700">
-            <div className="flex items-center justify-between border-b pb-4 mb-2">
-              <div>
-                <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
-                <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-yellow-500 mt-1">Personal Intelligence Feed</p>
-              </div>
-              <div className="flex items-center gap-2">
-                  {/* BỘ LỌC TÙY CHỌN SẮP XẾP */}
-                  <select 
-                      value={historySortMode} 
-                      onChange={(e) => setHistorySortMode(e.target.value)}
-                      className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}
+                      className={`mb-4 border rounded-[40px] px-8 pt-8 pb-8 shadow-xl transition-colors duration-300 flex flex-col relative overflow-hidden ${UI.card} ${isDraggingChart ? 'select-none' : ''}`}
+                      style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px` }}
                   >
-                      <option value="time_desc">⏱ Mới nhất</option>
-                      <option value="time_asc">⏳ Cũ nhất</option>
-                      <option value="action">⚡ Ưu tiên Mua/Bán</option>
-                  </select>
-                  <button onClick={fetchUserHistory} title="Làm mới lịch sử" className={`p-2 rounded-lg border ${UI.btnLog}`}><RefreshCw size={14}/></button>
-              </div>
-            </div>
+                    {isDraggingChart && (
+                        <div 
+                            className="fixed inset-0 z-[99999] cursor-row-resize"
+                            onMouseMove={(e) => {
+                                const deltaY = e.clientY - dragStartY.current;
+                                setChartHeight(Math.min(1200, Math.max(400, startHeight.current + deltaY)));
+                            }}
+                            onMouseUp={() => setIsDraggingChart(false)}
+                            onMouseLeave={() => setIsDraggingChart(false)}
+                        />
+                    )}
 
-            {/* USER HISTORY LIST */}
-            <div className="grid grid-cols-1 gap-4">
-              {[...userHistory]
-                .sort((a, b) => {
-                   if (historySortMode === 'time_desc') return new Date(b.timestamp) - new Date(a.timestamp);
-                  if (historySortMode === 'time_asc') return new Date(a.timestamp) - new Date(b.timestamp);
-                  if (historySortMode === 'action') {
-                    const isAActive = a.lastAction === 'MUA' || a.lastAction === 'BÁN';
-                    const isBActive = b.lastAction === 'MUA' || b.lastAction === 'BÁN';
-                    if (isAActive && !isBActive) return -1;
-                    if (!isAActive && isBActive) return 1;
-                    return new Date(b.timestamp) - new Date(a.timestamp);
-                  }
-                  return 0;
-                })
-                .slice(0, historyLimit)
-                .map((item, idx) => {
-                  const changePercent = parseFloat(item.changePercent) || 0;
-                  const isUp = changePercent > 0;
-                  const isDown = changePercent < 0;
-                  const formattedPercent = Math.abs(changePercent).toFixed(2);
-                  
-                  return (
-                    <div key={idx}
-                      onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
-                      className={`group relative flex flex-row items-center justify-between p-4 rounded-xl border transition-all cursor-pointer w-full min-h-[75px]
-                        ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/5' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
-                    >
-                    <div className={`absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-full ${
-                      item.lastAction?.includes('MUA') ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' :
-                      item.lastAction?.includes('BÁN') ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500'
-                    }`} />
-                    <div className="flex flex-row items-center gap-6 min-w-0 flex-1 ml-2">
-                      <div className="flex-1 flex flex-col items-start gap-y-0.5 min-w-0 pr-4">
-                        <div className="flex items-center gap-1.5">
-                          <h3 className={`text-xl font-black tracking-tighter text-yellow-400 ${UI.textBold}`}>{item.symbol}</h3>
-                          <span className="text-[10px] font-bold text-slate-600 uppercase">/ {item.exchange}</span>
-                        </div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase whitespace-normal leading-tight">{item.companyName || 'N/A'}</p>
+                      <div className={`flex items-center gap-3 mb-6 pb-4 border-b shrink-0 relative z-10 ${UI.border}`}>
+                        <BarChart3 className="text-yellow-500" size={24} />
+                        <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Biểu đồ Kỹ thuật ({marketData.stockInfo.symbol})</h3>
                       </div>
-                      <div className="flex flex-col items-end gap-y-0.5 whitespace-nowrap">
-                        <p className={`text-lg font-black flex items-center gap-1.5 justify-end ${isUp ? 'text-emerald-500' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-                          {(item.price || 0).toLocaleString('vi-VN').replace(/,/g, '.')}
-                          <span className="text-[11px] font-bold flex items-center ml-0.5">
-                            {isUp && <ChevronUp size={14} className="mr-0.5" />}
-                            {isDown && <ChevronDown size={14} className="mr-0.5" />}
-                            ({formattedPercent}%)
-                          </span>
-                        </p>
-                        <p className="text-[9px] font-bold text-slate-500 italic">Cập nhật: {new Date(item.timestamp).toLocaleString('vi-VN')}</p>
+                      
+                      <div className="flex-1 w-full min-h-0 relative rounded-xl overflow-hidden mb-2 z-10">
+                          <TradingChart 
+                              data={chartData}       
+                              theme={isDark ? 'dark' : 'light'}
+                              onIntervalChange={handleIntervalChange} 
+                              currentInterval={activeInterval}
+                          />              
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-y-1.5 min-w-[110px] shrink-0 pl-4">
-                      <span className={`px-4 py-1.5 rounded-full font-black text-[10px] uppercase border tracking-tight ${
-                        item.lastAction?.includes('MUA') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                        item.lastAction?.includes('BÁN') ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                        'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                      }`}>{item.lastAction || 'QUAN SÁT'}</span>
-                    </div>
+                      
+                      <div 
+                          className="absolute bottom-0 left-0 w-full h-3 flex items-center justify-center cursor-row-resize z-[50] hover:bg-yellow-400/20 transition-all bg-gradient-to-t from-black/10 to-transparent"
+                          onMouseDown={(e) => { 
+                              e.preventDefault(); 
+                              setIsDraggingChart(true); 
+                              dragStartY.current = e.clientY;
+                              startHeight.current = chartHeight;
+                          }}
+                          title="Kéo để thay đổi kích thước biểu đồ"
+                      >
+                          <div className={`w-16 h-1.5 rounded-full ${isDark ? 'bg-slate-500 shadow-[0_0_5px_rgba(0,0,0,0.8)]' : 'bg-slate-400 shadow-sm'}`}></div>
+                      </div>
                   </div>
-                );
-              })}
-            </div>
+              )}
+          </div>
 
-            {userHistory.length > historyLimit && (
-              <button onClick={() => setHistoryLimit(prev => prev + 3)}
-                className={`w-full py-4 rounded-2xl border-2 border-dashed font-black text-[10px] tracking-[0.3em] uppercase transition-all ${UI.btnLog}`}>
-                Tải thêm (+3)
-              </button>
-            )}
-
-            {/* SECTOR HEATMAP & DRILL-DOWN */}
-            {(loadingHeatmap || heatmapData.length > 0) && (() => {
-              const getWeight = (stock) => {
-                try {
-                  if (hmMetric === 'value') {
-                    const v = (stock.price || 0) * (stock.volume || 0);
-                    return isFinite(v) && v > 0 ? v : 1;
-                  }
-                  if (hmMetric === 'marketcap') {
-                    const stockInfo = allStocks.find(s => s.symbol === stock.sym || s.symbol === stock.id);
-                    if (stockInfo?.marketCap) {
-                      const raw = String(stockInfo.marketCap).replace(/[^\d]/g, '');
-                      const capNumber = parseFloat(raw);
-                    return isFinite(capNumber) && capNumber > 0 ? capNumber : stock.volume || 1;
-                    }
-                    return stock.volume || 1; 
-                  }
-                  const vol = stock.volume || 1;
-                  return isFinite(vol) && vol > 0 ? vol : 1;
-                } catch { return 1; }
-              };
-
-              let hmData = [];
-              let hmTotal = 0;
-
-              if (heatmapView === 'sectors') {
-                  hmData = heatmapData.map(sec => {
-                      const weight = sec.stocks.reduce((sum, s) => sum + getWeight(s), 0);
-                      return { id: sec.name, name: sec.name, changePct: sec.avgChange, weight };
-                  });
-                  hmTotal = hmData.reduce((sum, d) => sum + d.weight, 0);
-              } else if (heatmapView === 'stocks' && heatmapSector) {
-                  const sec = heatmapData.find(s => s.name === heatmapSector);
-                  if (sec) {
-                      hmData = sec.stocks.map(s => {
-                          const info = allStocks.find(as => as.symbol === s.sym) || {};
-                          return {
-                              id: s.sym, name: s.sym, fullName: info.companyName || 'Đang cập nhật',
-                              exchange: info.exchange || 'VNX', price: s.price,
-                              changePct: s.changePct, weight: getWeight(s)
-                          };
-                      });
-                      hmTotal = hmData.reduce((sum, d) => sum + d.weight, 0);
-                  }
-              }
-              hmData.sort((a,b) => b.weight - a.weight);
+          {/* ================================================== */}
+          {/* NGĂN 1.5: TRẠNG THÁI PHÂN TÍCH (GHIM CỨNG - KHÔNG CUỘN) */}
+          {/* ================================================== */}
+          {analyzing && (() => {
+              const syncedProgress = Math.max(3, Math.min(100, Number(analysisProgress) || 3));
+              const etaLabel = typeof aiAnalysisEta === 'number'
+                  ? (aiAnalysisEta <= 0 ? 'sắp hoàn tất' : `ước tính còn ${aiAnalysisEta}s`)
+                  : 'đang tính ETA...';
 
               return (
-              <>
-              <div className="mt-8 border-t pt-6 border-white/10">
-                <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between mb-4 gap-3">
-                  <div className="flex items-center gap-3">
-                     {heatmapView === 'stocks' && (
-                         <button 
-                            onClick={() => { setHeatmapView('sectors'); setHeatmapSector(null); }} 
-                            className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded border transition-all ${isDark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'}`}
-                         >
-                            <ArrowLeft size={14}/> QUAY LẠI
-                         </button>
-                     )}
-                    <h2 className={`text-sm font-black tracking-widest uppercase ${UI.textBold}`}>
-                        {heatmapView === 'sectors' ? 'Bản đồ Nhiệt Ngành' : `NGÀNH: ${heatmapSector}`}
-                    </h2>
-                    {heatmapView === 'stocks' && (
-                      <span className={`text-[9px] font-bold px-2 py-1 rounded border border-dashed animate-pulse ${isDark ? 'text-yellow-400 border-yellow-400/30' : 'text-yellow-600 border-yellow-400'}`}>
-                        ✦ Double-click mã để phân tích
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
-                      <select
-                        value={hmMetric}
-                        onChange={e => setHmMetric(e.target.value)}
-                        className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}
-                      >
-                        <option value="volume">📊 Tỷ lệ: Khối lượng GD</option>
-                        <option value="value">💰 Tỷ lệ: Giá trị GD</option>
-                        <option value="marketcap">🏢 Tỷ lệ: Vốn hóa</option>
-                      </select>
-                     <select value={hmShape} onChange={e=>setHmShape(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
-                        <option value="rectangle">🟩 Dạng: Chữ nhật</option>
-                        <option value="polygon">⬟ Dạng: Đa giác</option>
-                        <option value="circle">⏺ Dạng: Hình tròn</option>
-                     </select>
-                     <select value={hmColor} onChange={e=>setHmColor(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
-                        <option value="redGreen">🔴 Màu Cơ bản (+/-)</option>
-                        <option value="monochrome">🔵 Đơn sắc (Vol)</option>
-                     </select>
-                  </div>
-                </div>
-
-                {loadingHeatmap ? (
-                  <div className="grid grid-cols-5 gap-1.5 mb-6">
-                    {Array(10).fill(0).map((_,i) => <div key={i} className={`rounded-lg h-[80px] animate-pulse ${isDark?'bg-white/5':'bg-slate-200'}`}/>)}
-                  </div>
-                ) : (() => {
-                   // ── helper: color ──
-                    const getBg = (changePct, rawPct) => {
-                      if (hmColor === 'redGreen') {
-                        if (changePct > 3)  return '#00c851';    
-                        if (changePct > 1.5) return '#00a040';  
-                        if (changePct > 0)  return '#28a745';  
-                        if (changePct > -1.5) return '#e53935'; 
-                        if (changePct > -3) return '#c62828';  
-                        return '#8b0000';                        
-                      }
-                      return rawPct > 15 ? '#2563eb' : rawPct > 5 ? '#1d4ed8' : '#1e3a8a';
-                    };
-                  //polygon layout
-                   if (hmShape === 'polygon') {
-                    const minWeight = Math.min(...hmData.map(d => d.weight));
-                    const maxWeight = Math.max(...hmData.map(d => d.weight));
-                    const scaleHex = (w) => {
-                      if (maxWeight === minWeight) return 130;
-                      return 80 + 120 * Math.sqrt((w - minWeight) / (maxWeight - minWeight));
-                    };
-                    const items = hmData.map(d => ({ ...d, size: scaleHex(d.weight) }));
-                    
-                    const CX = 500, CY = 300;
-                    const placed = [];
-                    const hexOverlaps = (nx, ny, ns) => placed.some(p => {
-                      const minDist = (p.size + ns) * 0.55;
-                      return Math.hypot(p.cx - nx, p.cy - ny) < minDist;
-                    });
-                    
-                    items.forEach((item, idx) => {
-                      if (idx === 0) { placed.push({ ...item, cx: CX, cy: CY }); return; }
-                      let angle = (idx % 2) * Math.PI, dist = (items[0].size + item.size) * 0.55 + 6;
-                      let found = false;
-                      while (!found && dist < 700) {
-                        const nx = CX + Math.cos(angle) * dist;
-                        const ny = CY + Math.sin(angle) * dist;
-                        if (!hexOverlaps(nx, ny, item.size)) {
-                          placed.push({ ...item, cx: nx, cy: ny });
-                          found = true;
-                        }
-                        angle += 0.18;
-                        if (angle > Math.PI * 6) { angle = 0; dist += item.size * 0.4 + 10; }
-                      }
-                      if (!found) placed.push({ ...item, cx: CX + 20 * idx, cy: CY + 20 * idx });
-                    });
-                    
-                    const xs = placed.map(p => p.cx - p.size * 0.6);
-                    const ys = placed.map(p => p.cy - p.size * 0.55);
-                    const xe = placed.map(p => p.cx + p.size * 0.6);
-                    const ye = placed.map(p => p.cy + p.size * 0.55);
-                    const minX = Math.min(...xs) - 10, minY = Math.min(...ys) - 10;
-                    const totalW = Math.max(...xe) - minX + 10, totalH = Math.max(...ye) - minY + 10;
-                    
-                    return (
-                      <div className="mb-8 flex justify-center overflow-x-auto">
-                        <div style={{ position: 'relative', width: totalW, height: totalH }}>
-                          {placed.map((item) => {
-                            const color = getBg(item.changePct, hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0);
-                            const w = item.size, h = item.size * 0.9;
-                            const fs = Math.max(9, Math.min(15, item.size * 0.1));
-                            return (
-                              <div key={item.id}
-                                onClick={() => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } else { setInput(item.name); fetchMarketData(item.name); }}}
-                                onMouseEnter={(e) => setHmHovered({ id: item.id, name: item.name, fullName: item.fullName || item.name, x: e.clientX, y: e.clientY })}
-                                onMouseLeave={() => setHmHovered(null)}
-                                onMouseMove={(e) => setHmHovered(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}
-                                style={{
-                                  position: 'absolute',
-                                  left: item.cx - w / 2 - minX, top: item.cy - h / 2 - minY,
-                                  width: w, height: h,
-                                  clipPath: 'polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%)',
-                                  background: color, cursor: 'pointer',
-                                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                  transition: 'filter 0.15s, transform 0.15s',
-                                }}
-                                className="hover:brightness-125 hover:scale-105 hover:z-10"
-                              >
-                                <span style={{ fontSize: fs, fontWeight: 900, color: '#fff', lineHeight: 1.2, padding: '0 10px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', textAlign: 'center' }}>{item.name}</span>
-                                <span style={{ fontSize: fs + 1, fontWeight: 900, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.6)', marginTop: 3 }}>{item.changePct >= 0 ? '+' : ''}{item.changePct}%</span>
+                  <div className="shrink-0 px-8 lg:px-12 pb-4 z-10 animate-in fade-in duration-500">
+                      <div className={`w-full rounded-[30px] border shadow-xl p-5 lg:p-6 mb-2 ${UI.card} flex flex-row gap-6 items-start relative`}>
+                          
+                          {/* CỘT TRÁI: LOADER & DEBATE */}
+                          <div className="flex-1 w-full flex flex-col items-center justify-center gap-6 min-w-0">
+                              <AtomLoader message={analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'} progress={syncedProgress} />
+                              <div className="w-full">
+                                  <LiveDebatePreview liveDebate={liveDebate} isDark={isDark} />
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-                  //circle layout
-                  if (hmShape === 'circle') {
-                    const minW = Math.min(...hmData.map(d => d.weight));
-                    const maxW = Math.max(...hmData.map(d => d.weight));
-                     const scaleR = (w) => {
-                      if (maxW === minW) return 70;
-                      return 30 + 90 * Math.sqrt((w - minW) / (maxW - minW)); 
-                    };
-                    const items = hmData.map(d => ({ ...d, r: scaleR(d.weight) }));
-                    
-                     const CX = 500, CY = 280;  
-                    const placed = [];
-                    const overlaps = (nx, ny, nr) => placed.some(p => Math.hypot(p.cx - nx, p.cy - ny) < p.r + nr + 4);
-                    
-                    items.forEach((item, idx) => {
-                      if (idx === 0) { placed.push({ ...item, cx: CX, cy: CY }); return; }
-                      let angle = 0, dist = items[0].r + item.r + 6;
-                      let found = false;
-                      while (!found && dist < 600) {
-                        const nx = CX + Math.cos(angle) * dist;
-                        const ny = CY + Math.sin(angle) * dist;
-                        if (!overlaps(nx, ny, item.r)) {
-                          placed.push({ ...item, cx: nx, cy: ny });
-                          found = true;
-                        }
-                        angle += 0.2;
-                        if (angle > Math.PI * 2) { angle = 0; dist += item.r * 0.5 + 8; }
-                      }
-                      if (!found) placed.push({ ...item, cx: CX + dist * Math.cos(idx), cy: CY + dist * Math.sin(idx) });
-                    });
-                    
-                    const xs = placed.map(p => p.cx - p.r), ys = placed.map(p => p.cy - p.r);
-                    const xe = placed.map(p => p.cx + p.r), ye = placed.map(p => p.cy + p.r);
-                    const minX = Math.min(...xs) - 10, minY = Math.min(...ys) - 10;
-                    const totalW = Math.max(...xe) - minX + 10, totalH = Math.max(...ye) - minY + 10;
-                    
-                    return (
-                      <div className="mb-8 flex justify-center overflow-x-auto">
-                        <div style={{ position: 'relative', width: totalW, height: totalH }}>
-                          {placed.map((item) => {
-                            const color = getBg(item.changePct, hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0);
-                            const d = item.r * 2;
-                            const fs = Math.max(9, Math.min(15, item.r * 0.24));
-                            return (
-                              <div key={item.id}
-                                onClick={() => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } else { setInput(item.name); fetchMarketData(item.name); }}}
-                                onMouseEnter={(e) => setHmHovered({ id: item.id, name: item.name, fullName: item.fullName || item.name, x: e.clientX, y: e.clientY })}
-                                onMouseLeave={() => setHmHovered(null)}
-                                onMouseMove={(e) => setHmHovered(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}
-                                style={{
-                                  position: 'absolute',
-                                  left: item.cx - item.r - minX, top: item.cy - item.r - minY,
-                                  width: d, height: d, borderRadius: '50%', background: color,
-                                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                  cursor: 'pointer', border: '2px solid rgba(255,255,255,0.15)',
-                                  boxShadow: `0 6px 30px ${color}66`, transition: 'filter 0.15s, transform 0.15s',
-                                }}
-                                className="hover:brightness-125 hover:scale-105 hover:z-10"
-                              >
-                                <span style={{ fontSize: fs, fontWeight: 900, color: '#fff', textAlign: 'center', padding: '0 8px', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{item.name}</span>
-                                <span style={{ fontSize: fs + 1, fontWeight: 900, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.7)', marginTop: 2 }}>{item.changePct >= 0 ? '+' : ''}{item.changePct}%</span>
-                                {item.r > 50 && <span style={{ fontSize: Math.max(8, fs - 3), color: 'rgba(255,255,255,0.65)' }}>{(item.price || 0).toLocaleString('vi-VN')}</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                   // ── RECTANGLE (treemap-style với proportional sizing) ──
-                   return (
-                     <div className="flex flex-wrap gap-1 mb-8 content-start" style={{ minHeight: '220px' }}>
-                       {hmData.map(item => {
-                         const rawPct = hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0;
-                          const pctWidth = Math.max(rawPct, 4);
-                         const color = getBg(item.changePct, rawPct);
-                          const minH = 60, maxH = 160;
-                         const minW = Math.min(...hmData.map(d => d.weight));
-                         const maxW = Math.max(...hmData.map(d => d.weight));
-                         const heightPx = maxW === minW ? 100 : minH + (maxH - minH) * ((item.weight - minW) / (maxW - minW));
-                         return (
-                           <div
-                             key={item.id}
-                              onMouseEnter={(e) => setHmHovered({ 
-                                id: item.id, 
-                                name: item.name, 
-                                fullName: item.fullName || item.name,
-                                x: e.clientX, y: e.clientY 
-                              })}
-                              onMouseLeave={() => setHmHovered(null)}
-                              onMouseMove={(e) => setHmHovered(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}  
-                              onClick={() => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } }}
-                             onDoubleClick={() => { if (heatmapView === 'stocks') { setInput(item.name); fetchMarketData(item.name); } }}
-                             style={{ width: `calc(${pctWidth}% - 4px)`, minHeight: heightPx, background: color, flexGrow: 1 }}
-                             className="text-white rounded-md p-2 flex flex-col justify-between cursor-pointer hover:brightness-125 transition-all border border-black/10 shadow-sm group animate-in fade-in zoom-in-95 overflow-hidden active:scale-95"
-                           >
-                             <div className="flex flex-col relative z-10">
-                               <span className="text-[11px] md:text-sm font-black uppercase leading-tight truncate drop-shadow-md">{item.name}</span>
-                               {heatmapView === 'stocks' && <span className="text-[8px] font-medium opacity-80 truncate hidden md:block leading-tight mt-0.5 max-w-full drop-shadow-md">{item.fullName}</span>}
-                             </div>
-                             <div className="flex flex-col mt-1 relative z-10">
-                               <span className="text-sm md:text-base font-black drop-shadow-md">{item.changePct >= 0 ? '+' : ''}{item.changePct}%</span>
-                               {heatmapView === 'stocks' && <span className="text-[9px] font-bold opacity-80 drop-shadow-md">{(item.price || 0).toLocaleString('vi-VN')}</span>}
-                             </div>
-                           </div>
-                         );
-                       })}
-                     </div>
-                   );
-                })()}
-
-                {heatmapView === 'sectors' && heatmapData.some(s => s.watchlist?.length > 0) && (
-                  <>
-                    <h2 className={`text-sm font-black tracking-widest uppercase mb-3 ${UI.textBold}`}>
-                      Mã Tiềm Năng (Dòng Tiền Đột Biến) <span className="text-yellow-500">⚡</span>
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-                      {heatmapData
-                        .flatMap(sec => (sec.watchlist || []).map(s => ({ ...s, sector: sec.name })))
-                        .sort((a,b) => b.changePct - a.changePct)
-                        .slice(0, 10)
-                        .map((s, i) => (
-                          <div key={i}
-                            onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
-                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]
-                              ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-yellow-400 font-black text-lg w-10">{s.sym}</span>
-                              <div className="flex flex-col">
-                                  <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>
-                                      {allStocks.find(stock => stock.symbol === s.sym)?.companyName || 'Đang cập nhật...'}
-                                  </span>
-                                  <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>
-                                      Ngành: {s.sector}
-                                  </span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-emerald-400 font-black text-sm">+{s.changePct}%</p>
-                              <p className={`text-[10px] font-bold ${UI.textMuted}`}>{(s.price).toLocaleString('vi-VN')}</p>
-                            </div>
                           </div>
-                        ))
-                      }
-                    </div>
-                  </>)}
-                   {/* MÃ GIẢM SÂU */}
-                {heatmapView === 'sectors' && heatmapData.some(s => s.droplist?.length > 0) && (
-                  <>
-                    <h2 className={`text-sm font-black tracking-widest uppercase mb-3 mt-6 ${UI.textBold}`}>
-                      Mã Giảm Sâu (Cảnh Báo Dòng Tiền) <span className="text-red-500">⚠️</span>
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-                      {heatmapData
-                        .flatMap(sec => (sec.droplist || []).map(s => ({ ...s, sector: sec.name })))
-                        .sort((a,b) => a.changePct - b.changePct)    
-                        .slice(0, 10)
-                        .map((s, i) => (
-                          <div key={i}
-                            onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
-                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]
-                              ${isDark ? 'bg-[#10151C] border-red-500/10 hover:bg-red-500/5' : 'bg-white border-red-200 hover:bg-red-50'}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-red-400 font-black text-lg w-10">{s.sym}</span>
-                              <div className="flex flex-col">
-                                <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>
-                                  {allStocks.find(stock => stock.symbol === s.sym)?.companyName || 'Đang cập nhật...'}
-                                </span>
-                                <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>
-                                  Ngành: {s.sector}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-red-400 font-black text-sm">{s.changePct}%</p>
-                              <p className={`text-[10px] font-bold ${UI.textMuted}`}>{(s.price).toLocaleString('vi-VN')}</p>
-                            </div>
-                          </div>
-                        ))
-                      }
-                    </div>
-                  </>
-                )}
-              </div>
 
-              {/* TOOLTIP OVERLAY */}
-                {hmHovered && (
-                  <div style={{
-                    position: 'fixed', left: hmHovered.x + 14, top: hmHovered.y - 10,
-                    zIndex: 9999, pointerEvents: 'none',
-                    background: isDark ? '#1a1f2e' : '#fff',
-                    border: '1px solid rgba(250,204,21,0.4)',
-                    borderRadius: 10, padding: '8px 14px',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-                    maxWidth: 240,
-                  }}>
-                    <p style={{ fontWeight: 900, fontSize: 13, color: '#facc15', marginBottom: 2 }}>{hmHovered.name}</p>
-                    <p style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.4 }}>{hmHovered.fullName}</p>
+                          {/* CỘT PHẢI: PROGRESS & FACT/QUIZ */}
+                          <div className="w-full xl:w-[320px] 2xl:w-[360px] flex flex-col gap-4 shrink-0">
+                              
+                              {/* Ước tính thời gian */}
+                              <div className={`w-full rounded-2xl border px-5 py-3 shadow-lg ${isDark ? 'bg-black/20 border-yellow-400/20' : 'bg-white border-yellow-300/50'}`}>
+                                  <div className="flex items-center justify-between gap-3 mb-3">
+                                      <span className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>Tiến trình phân tích</span>
+                                      <span className={`text-sm font-black ${isDark ? 'text-emerald-300' : 'text-emerald-600'}`}>{Math.round(syncedProgress)}%</span>
+                                  </div>
+                                  <p className={`text-[12px] font-bold leading-relaxed mb-5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                      {analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'}
+                                  </p>
+                                  
+                                  <div className={`pt-4 border-t flex flex-col gap-3 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                                      <div className={`flex items-center justify-between text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                          <span className="flex items-center gap-2"><Clock size={14} /> Ước tính</span>
+                                          <span>{etaLabel}</span>
+                                      </div>
+                                      <div className={`flex items-center justify-between text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-sky-400' : 'text-sky-600'}`}>
+                                          <span className="flex items-center gap-2"><Activity size={14} /> Tổng thời gian</span>
+                                          <span>{elapsedTime}s</span>
+                                      </div>
+                                  </div>
+                              </div>
+
+                              {/* Fact / Quiz Card */}
+                              <div className={`w-full rounded-2xl border shadow-lg transition-all duration-300 ${cardFlip ? 'opacity-0 scale-95' : 'opacity-100 scale-100'} ${isDark ? 'bg-white/5 border-green-500/20' : 'bg-slate-50 border-green-200'}`}>                          
+                                  {loadingCard.type === 'fact' ? (
+                                      <div className="p-6 flex flex-col gap-4">
+                                          <div className="flex items-center gap-2">
+                                              <span className="text-2xl">{loadingCard.icon}</span>
+                                              <span className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Bạn có biết?</span>
+                                          </div>
+                                          <p className={`text-[13px] leading-relaxed font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{loadingCard.text}</p>
+                                      </div>
+                                  ) : (
+                                      <div className="p-6 flex flex-col gap-4">
+                                          <div className="flex items-center gap-2">
+                                              <span className="text-2xl">{loadingCard.icon}</span>
+                                              <span className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-green-400' : 'text-green-600'}`}>Câu hỏi nhanh</span>
+                                          </div>
+                                          <p className={`text-[13px] font-bold leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{loadingCard.question}</p>
+                                          <div className="grid grid-cols-1 gap-2">
+                                              {loadingCard.options.map((opt, i) => {
+                                                  const isCorrect = i === loadingCard.answer;
+                                                  const isSelected = quizSelected === i;
+                                                  const revealed = quizSelected !== null;
+                                                  let cls = `text-[12px] font-bold px-4 py-2.5 rounded-xl border text-left transition-all cursor-pointer `;
+                                                  if (!revealed) cls += isDark ? 'border-white/10 text-slate-400 hover:border-yellow-400/50 hover:text-yellow-300' : 'border-slate-200 text-slate-500 hover:border-yellow-400 hover:text-yellow-700';
+                                                  else if (isCorrect) cls += 'border-emerald-500 bg-emerald-500/15 text-emerald-400';
+                                                  else if (isSelected) cls += 'border-red-500 bg-red-500/10 text-red-400';
+                                                  else cls += isDark ? 'border-white/5 text-slate-600' : 'border-slate-100 text-slate-400';
+                                                  return (
+                                                      <button key={i} className={cls} onClick={() => {
+                                                          setQuizSelected(i);
+                                                          setTimeout(() => advanceCard(pickUnseen(VN_QUIZ_ONLY, shownQuizIndicesRef.current)), 1800);
+                                                      }} disabled={revealed}>
+                                                          {revealed && isCorrect ? '✓ ' : revealed && isSelected ? '✗ ' : ''}{opt}
+                                                      </button>
+                                                  );
+                                              })}
+                                          </div>
+                                          {quizSelected !== null && (
+                                              <p className={`text-[12px] mt-1 font-bold ${quizSelected === loadingCard.answer ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                  {quizSelected === loadingCard.answer ? '🎉 Chính xác!' : `❌ Đáp án đúng: ${loadingCard.options[loadingCard.answer]}`}
+                                              </p>
+                                          )}
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      </div>
                   </div>
-              )}
-              </>
               );
-             })()}
-           </div>      
-          )} 
-
-          {analyzing && (() => {
-            const syncedProgress = Math.max(3, Math.min(100, Number(analysisProgress) || 3));
-            const etaLabel = typeof aiAnalysisEta === 'number'
-              ? (aiAnalysisEta <= 0 ? 'sắp hoàn tất' : `ước tính còn ${aiAnalysisEta}s`)
-              : 'đang tính ETA...';
-
-            return (
-              <div className={`h-full rounded-[40px] border shadow-xl overflow-y-auto flex flex-col items-center px-8 pt-14 pb-12 ${UI.card}`}>
-                <div className="flex flex-col items-center w-full max-w-sm gap-5">
-
-                {/* Fact / Quiz card */}
-                <div
-                  className={`w-full rounded-2xl border transition-all duration-300 ${cardFlip ? 'opacity-0 scale-95' : 'opacity-100 scale-100'} ${isDark ? 'bg-white/5 border-green-500/20' : 'bg-slate-50 border-green-200'}`}
-                >
-                  {loadingCard.type === 'fact' ? (
-                    <div className="p-5 flex flex-col gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{loadingCard.icon}</span>
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>Bạn có biết?</span>
-                      </div>
-                      <p className={`text-sm leading-relaxed font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{loadingCard.text}</p>
-                    </div>
-                  ) : (
-                    <div className="p-5 flex flex-col gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{loadingCard.icon}</span>
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-green-400' : 'text-green-600'}`}>Câu hỏi nhanh</span>
-                      </div>
-                      <p className={`text-sm font-bold leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{loadingCard.question}</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {loadingCard.options.map((opt, i) => {
-                          const isCorrect = i === loadingCard.answer;
-                          const isSelected = quizSelected === i;
-                          const revealed = quizSelected !== null;
-                          let cls = `text-[11px] font-bold px-3 py-2 rounded-xl border text-left transition-all cursor-pointer `;
-                          if (!revealed) cls += isDark ? 'border-white/10 text-slate-400 hover:border-yellow-400/50 hover:text-yellow-300' : 'border-slate-200 text-slate-500 hover:border-yellow-400 hover:text-yellow-700';
-                          else if (isCorrect) cls += 'border-emerald-500 bg-emerald-500/15 text-emerald-400';
-                          else if (isSelected) cls += 'border-red-500 bg-red-500/10 text-red-400';
-                          else cls += isDark ? 'border-white/5 text-slate-600' : 'border-slate-100 text-slate-400';
-                          return (
-                            <button key={i} className={cls} onClick={() => {
-                              setQuizSelected(i);
-                              setTimeout(() => advanceCard(pickUnseen(VN_QUIZ_ONLY, shownQuizIndicesRef.current)), 1800);
-                            }} disabled={revealed}>
-                              {revealed && isCorrect ? '✓ ' : revealed && isSelected ? '✗ ' : ''}{opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {quizSelected !== null && (
-                        <p className={`text-[11px] font-bold ${quizSelected === loadingCard.answer ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {quizSelected === loadingCard.answer ? '🎉 Chính xác!' : `❌ Đáp án đúng: ${loadingCard.options[loadingCard.answer]}`}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {/* Hint text */}
-                <p className={`text-[9px] font-medium tracking-widest  text-center ${isDark ? 'italic text-slate-600' : 'text-slate-400'}`}>
-                  {loadingCard.type === 'fact' ? 'Đang lấy dữ liệu phân tích ai' : 'Chọn đáp án để tiếp tục'}
-                </p>
-
-                {/* Divider */}
-                <div className={`w-full h-px ${isDark ? 'bg-white/5' : 'bg-slate-200'}`} />
-                 <div className={`w-full rounded-2xl border px-4 py-3 ${isDark ? 'bg-black/20 border-yellow-400/20' : 'bg-white border-yellow-300/50'}`}>
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>Tiến trình</span>
-                    <span className={`text-[10px] font-black ${isDark ? 'text-emerald-300' : 'text-emerald-600'}`}>{Math.round(syncedProgress)}%</span>
-                  </div>
-                  <p className={`text-[11px] font-bold leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'}</p>
-                  
-                  <div className={`mt-3 pt-2 border-t flex flex-row items-center justify-between ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                    <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      <Clock size={12} /> {etaLabel}
-                    </div>
-                    <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-sky-400' : 'text-sky-600'}`}>
-                      ⏱ TỔNG THỜI GIAN: {elapsedTime}S
-                    </div>
-                  </div>
-                </div>
-
-                {/* AtomLoader */}
-                <AtomLoader
-                  message={analysisStep || 'OMNI DUCK ĐANG TƯ DUY...'}
-                  progress={syncedProgress}
-                />
-
-                </div>{/* end inner cluster */}
-              </div>
-            );
           })()}
 
-          {/* AI ERROR STATE */}
-          {!analyzing && aiError && !aiReport && (
-            <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center px-10 shadow-xl ${UI.card}`}>
-              <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 ${isDark ? 'bg-red-500/15' : 'bg-red-50'}`}>
-                <span className="text-3xl">\u26a0\ufe0f</span>
-              </div>
-              <h2 className={`font-black text-sm tracking-[0.2em] uppercase mb-3 ${isDark ? 'text-red-400' : 'text-red-600'}`}>Ph\u00e2n t\u00edch th\u1ea5t b\u1ea1i</h2>
-              <p className={`text-center text-sm leading-relaxed mb-6 max-w-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{aiError}</p>
-              <button
-                onClick={() => { handleAiAnalysis(true); }}
-                className={`px-6 py-2.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all active:scale-95 border ${isDark ? 'border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-50'}`}
-              >
-                \u21bb Th\u1eed l\u1ea1i
-              </button>
-            </div>
-          )}
-
-          {aiReport && (
-            <div className={`w-full border rounded-[40px] p-10 shadow-2xl transition-colors duration-300 relative overflow-hidden ${isDark ? 'bg-[#10151C] border-yellow-400/20' : 'bg-white border-yellow-400/40'}`}>
-            {actionData && actionData.action && (
-              <div className={`mb-10 p-6 rounded-2xl border-2 shadow-lg relative overflow-hidden ${
-                  actionData.action.includes('MUA') ? 'border-emerald-500 bg-emerald-500/10' : 
-                  actionData.action.includes('BÁN') ? 'border-red-500 bg-red-500/10' : 'border-yellow-500 bg-yellow-500/10'
-              }`}>
-                  <div className="absolute top-0 right-0 p-3 opacity-50">
-                      {isUpdatingAction ? <div className="w-3 h-3 bg-yellow-400 rounded-full animate-ping"/> : <div className="w-3 h-3 bg-emerald-400 rounded-full"/>}
-                  </div>
-                  <div className="flex items-center gap-4 mb-4">
-                      <div className={`px-4 py-1.5 rounded-lg font-black tracking-widest text-lg text-white shadow-lg ${
-                          actionData.action.includes('MUA') ? 'bg-emerald-500 shadow-emerald-500/50' : 
-                          actionData.action.includes('BÁN') ? 'bg-red-500 shadow-red-500/50' : 'bg-yellow-500 shadow-yellow-500/50'
-                      }`}>
-                          {actionData.action}
-                      </div>
-                      <span className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Live Signal
-                      </span>
-                  </div>
-                  
-                  {/* KHUNG GIÁ NGẮN HẠN */}
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="bg-black/20 p-3 rounded-xl border border-white/5">
-                          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">ENTRY (Vào lệnh)</p>
-                          <p className={`font-black text-lg ${UI.textBold}`}>{actionData.entry}</p>
-                      </div>
-                      <div className="bg-black/20 p-3 rounded-xl border border-white/5">
-                          <p className="text-[10px] text-red-400 font-black uppercase tracking-widest mb-1">STOPLOSS (Cắt lỗ)</p>
-                          <p className={`font-black text-lg ${UI.textBold}`}>{actionData.stoploss}</p>
-                      </div>
-                      <div className="bg-black/20 p-3 rounded-xl border border-white/5">
-                          <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-1">TARGET (Chốt lời)</p>
-                          <p className={`font-black text-lg ${UI.textBold}`}>{actionData.target}</p>
-                          {/* HIỂN THỊ THỜI GIAN KỲ VỌNG  */}
-                          {actionData.shortTermHorizon && (
-                              <p className="text-[10px] text-slate-400 font-bold mt-1 italic">⏱ {actionData.shortTermHorizon}</p>
-                          )}
-                      </div>
-                  </div>
-
-                  {/* TIỂU PANEL DỰ PHÓNG DÀI HẠN */}
-                  {actionData.longTermTarget && actionData.longTermTarget !== 'N/A' && (
-                      <div className="mb-4 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex justify-between items-center">
-                          <div>
-                              <p className="text-[9px] text-yellow-500 font-black uppercase tracking-widest">Dự phóng Dài hạn (6-12 tháng)</p>
-                              <p className={`text-base font-black mt-0.5 ${UI.textBold}`}>Mục tiêu: {actionData.longTermTarget} VNĐ</p>
-                          </div>
-                          <div className="text-right">
-                              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Thời gian kỳ vọng</p>
-                              <p className="text-sm font-black text-slate-300 mt-0.5">📅 {actionData.longTermHorizon || 'N/A'}</p>
-                          </div>
-                      </div>
-                  )}
-
-                  <p className={`text-sm font-bold italic ${UI.textNormal}`}>
-                      Lý do: {actionData.reason}
-                  </p>
-              </div>
+          {/* ================================================== */}
+          {/* NGĂN 2: BÁO CÁO AI VÀ LỊCH SỬ ==================== */}
+          {/* ================================================== */}
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar px-8 lg:px-12 pb-12">
               
-            )}
-                    <div className={`flex flex-col lg:flex-row lg:items-center gap-5 mb-10 pb-8 border-b ${UI.border}`}>
-                      <div className="w-16 h-16 rounded-3xl bg-yellow-400 text-black flex items-center justify-center shadow-xl shadow-yellow-400/20 shrink-0">
-                        <Zap size={28} />
+              {!marketData && !analyzing && !aiReport && (
+                  <div className="flex flex-col gap-6 animate-in fade-in duration-700">
+                      <div>
+                          <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
+                          <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-yellow-500 mt-1">Personal Intelligence Feed</p>
                       </div>
-                      <div className="flex-1">
-                        <h2 className={`text-3xl lg:text-4xl font-black tracking-tight uppercase ${UI.textBold}`}>Strategic Intelligence</h2>
-                        <div className="flex flex-wrap items-center gap-3 mt-2">
-                            <p className="text-yellow-500 uppercase tracking-[0.3em] text-[10px] font-black">Omni Duck AI Framework</p>
-                            
-                            {/* BỘ ĐẾM THỜI GIAN AI  */}
-                            {aiAnalysisDuration && (
-                                <div className={`flex items-center gap-3 px-3 py-1 rounded-full border text-[12px] font-black uppercase tracking-widest ${isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-300 text-emerald-600'}`}>
-                                    <Clock size={13} /> Hoàn tất trong {aiAnalysisDuration} giây
-                                </div>
-                            )}
-
-                            {/* HIỂN THỊ THỜI GIAN BÁO CÁO CŨ */}
-                            {vnReportTimestamp && !aiAnalysisDuration && (
-                                <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-black tracking-widest ${isDark ? 'bg-slate-800/80 border-slate-600 text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-500'}`}>
-                                    <Database size={12} /> Báo cáo Database đã tạo lúc: {vnReportTimestamp}
-                                </div>
-                            )}
-                        </div>
+                      <div className="flex items-center gap-2">
+                          <select 
+                              value={historySortMode} 
+                              onChange={(e) => setHistorySortMode(e.target.value)}
+                              className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}
+                          >
+                              <option value="time_desc">⏱ Mới nhất</option>
+                              <option value="time_asc">⏳ Cũ nhất</option>
+                              <option value="action">⚡ Ưu tiên Mua/Bán</option>
+                          </select>
+                          <button onClick={fetchUserHistory} title="Làm mới lịch sử" className={`p-2 rounded-lg border ${UI.btnLog}`}><RefreshCw size={14}/></button>
                       </div>
-                    </div>
-                  <div className={`prose max-w-none prose-headings:text-yellow-500 prose-headings:font-black prose-headings:italic prose-headings:uppercase prose-p:leading-loose prose-p:text-[16px] prose-strong:text-emerald-500 prose-strong:font-black prose-ul:list-disc prose-ul:pl-5 prose-li:mb-2 ${isDark ? 'prose-invert prose-p:text-slate-300 prose-li:text-slate-300' : 'prose-p:text-slate-700 prose-li:text-slate-700'}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{aiReport}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-        </div>
 
+                      {/* USER HISTORY LIST */}
+                      <div className="grid grid-cols-1 gap-4">
+                          {[...userHistory]
+                            .sort((a, b) => {
+                              if (historySortMode === 'time_desc') return new Date(b.timestamp) - new Date(a.timestamp);
+                              if (historySortMode === 'time_asc') return new Date(a.timestamp) - new Date(b.timestamp);
+                              if (historySortMode === 'action') {
+                                const isAActive = a.lastAction === 'MUA' || a.lastAction === 'BÁN';
+                                const isBActive = b.lastAction === 'MUA' || b.lastAction === 'BÁN';
+                                if (isAActive && !isBActive) return -1;
+                                if (!isAActive && isBActive) return 1;
+                                return new Date(b.timestamp) - new Date(a.timestamp);
+                              }
+                              return 0;
+                            })
+                            .slice(0, historyLimit)
+                            .map((item, idx) => {
+                              const changePercent = parseFloat(item.changePercent) || 0;
+                              const isUp = changePercent > 0;
+                              const isDown = changePercent < 0;
+                              const formattedPercent = Math.abs(changePercent).toFixed(2);
+                              
+                              return (
+                                <div key={idx}
+                                  onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
+                                  className={`group relative flex flex-row items-center justify-between p-4 rounded-xl border transition-all cursor-pointer w-full min-h-[75px]
+                                    ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/5' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
+                                >
+                                <div className={`absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-full ${
+                                  item.lastAction?.includes('MUA') ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' :
+                                  item.lastAction?.includes('BÁN') ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500'
+                                }`} />
+                                <div className="flex flex-row items-center gap-6 min-w-0 flex-1 ml-2">
+                                  <div className="flex-1 flex flex-col items-start gap-y-0.5 min-w-0 pr-4">
+                                    <div className="flex items-center gap-1.5">
+                                      <h3 className={`text-xl font-black tracking-tighter text-yellow-400 ${UI.textBold}`}>{item.symbol}</h3>
+                                      <span className="text-[10px] font-bold text-slate-600 uppercase">/ {item.exchange}</span>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase whitespace-normal leading-tight">{item.companyName || 'N/A'}</p>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-y-0.5 whitespace-nowrap">
+                                    <p className={`text-lg font-black flex items-center gap-1.5 justify-end ${isUp ? 'text-emerald-500' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
+                                      {(item.price || 0).toLocaleString('vi-VN').replace(/,/g, '.')}
+                                      <span className="text-[11px] font-bold flex items-center ml-0.5">
+                                        {isUp && <ChevronUp size={14} className="mr-0.5" />}
+                                        {isDown && <ChevronDown size={14} className="mr-0.5" />}
+                                        ({formattedPercent}%)
+                                      </span>
+                                    </p>
+                                    <p className="text-[9px] font-bold text-slate-500 italic">Cập nhật: {new Date(item.timestamp).toLocaleString('vi-VN')}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-y-1.5 min-w-[110px] shrink-0 pl-4">
+                                  <span className={`px-4 py-1.5 rounded-full font-black text-[10px] uppercase border tracking-tight ${
+                                    item.lastAction?.includes('MUA') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                                    item.lastAction?.includes('BÁN') ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                    'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                  }`}>{item.lastAction || 'QUAN SÁT'}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+
+                      {userHistory.length > historyLimit && (
+                          <button onClick={() => setHistoryLimit(prev => prev + 3)}
+                              className={`w-full py-4 rounded-2xl border-2 border-dashed font-black text-[10px] tracking-[0.3em] uppercase transition-all ${UI.btnLog}`}>
+                              Tải thêm (+3)
+                          </button>
+                      )}
+                  </div>
+              )}
+
+              {!analyzing && aiError && !aiReport && (
+                  <div className={`h-full rounded-[40px] border flex flex-col items-center justify-center px-10 shadow-xl mt-4 ${UI.card}`}>
+                      <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mb-6 ${isDark ? 'bg-red-500/15' : 'bg-red-50'}`}>
+                          <span className="text-3xl">\u26a0\ufe0f</span>
+                      </div>
+                      <h2 className={`font-black text-sm tracking-[0.2em] uppercase mb-3 ${isDark ? 'text-red-400' : 'text-red-600'}`}>Ph\u00e2n t\u00edch th\u1ea5t b\u1ea1i</h2>
+                      <p className={`text-center text-sm leading-relaxed mb-6 max-w-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{aiError}</p>
+                      <button
+                          onClick={() => { handleAiAnalysis(true); }}
+                          className={`px-6 py-2.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all active:scale-95 border ${isDark ? 'border-yellow-400/40 text-yellow-400 hover:bg-yellow-400/10' : 'border-yellow-500 text-yellow-600 hover:bg-yellow-50'}`}
+                      >
+                          \u21bb Th\u1eed l\u1ea1i
+                      </button>
+                  </div>
+              )}
+
+              {/* BẢNG ACTION PANEL VÀ BÁO CÁO AI */}
+              {aiReport && (
+                  <div className={`w-full border rounded-[40px] p-10 shadow-2xl transition-colors duration-300 relative overflow-hidden mt-4 ${isDark ? 'bg-[#10151C] border-yellow-400/20' : 'bg-white border-yellow-400/40'}`}> 
+                      
+                      {actionData && actionData.action && (
+                          <div className={`mb-10 p-6 rounded-2xl border-2 shadow-lg relative overflow-hidden ${
+                              actionData.action.includes('MUA') ? 'border-emerald-500 bg-emerald-500/10' : 
+                              actionData.action.includes('BÁN') ? 'border-red-500 bg-red-500/10' : 'border-yellow-500 bg-yellow-500/10'
+                          }`}>
+                              <div className="absolute top-0 right-0 p-3 opacity-50">
+                                  {isUpdatingAction ? <div className="w-3 h-3 bg-yellow-400 rounded-full animate-ping"/> : <div className="w-3 h-3 bg-emerald-400 rounded-full"/>}
+                              </div>
+                              <div className="flex items-center gap-4 mb-4">
+                                  <div className={`px-4 py-1.5 rounded-lg font-black tracking-widest text-lg text-white shadow-lg ${
+                                      actionData.action.includes('MUA') ? 'bg-emerald-500 shadow-emerald-500/50' : 
+                                      actionData.action.includes('BÁN') ? 'bg-red-500 shadow-red-500/50' : 'bg-yellow-500 shadow-yellow-500/50'
+                                  }`}>
+                                      {actionData.action}
+                                  </div>
+                                  <span className={`font-black uppercase tracking-widest text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                      Live Signal
+                                  </span>
+                              </div>
+                              
+                              {/* KHUNG GIÁ NGẮN HẠN */}
+                              <div className="grid grid-cols-3 gap-4 mb-4">
+                                  <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">ENTRY</p>
+                                      <p className={`font-black text-lg ${UI.textBold}`}>{actionData.entry}</p>
+                                  </div>
+                                  <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                      <p className="text-[10px] text-red-400 font-black uppercase tracking-widest mb-1">STOPLOSS</p>
+                                      <p className={`font-black text-lg ${UI.textBold}`}>{actionData.stoploss}</p>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                      <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                                          <p className="text-[8px] text-emerald-400 font-black uppercase tracking-widest">T1</p>
+                                          <p className={`font-black text-xs ${UI.textBold}`}>{actionData.target1 || 'N/A'}</p>
+                                      </div>
+                                      <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                                          <p className="text-[8px] text-emerald-400 font-black uppercase tracking-widest">T2</p>
+                                          <p className={`font-black text-xs ${UI.textBold}`}>{actionData.target2 || 'N/A'}</p>
+                                      </div>
+                                  </div>
+                              </div>
+
+                              <div className="mb-4 flex items-center gap-2">
+                                  <p className="text-[10px] text-slate-500 font-black uppercase">Độ tin cậy:</p>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      actionData.conviction === 'Cao' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                      {actionData.conviction || 'Trung bình'}
+                                  </span>
+                              </div>
+
+                              {/* TIỂU PANEL DỰ PHÓNG DÀI HẠN */}
+                              {actionData.longTermTarget && actionData.longTermTarget !== 'N/A' && (
+                                  <div className="mb-4 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex justify-between items-center">
+                                      <div>
+                                          <p className="text-[9px] text-yellow-500 font-black uppercase tracking-widest">Dự phóng Dài hạn (6-12 tháng)</p>
+                                          <p className={`text-base font-black mt-0.5 ${UI.textBold}`}>Mục tiêu: {actionData.longTermTarget} VNĐ</p>
+                                      </div>
+                                      <div className="text-right">
+                                          <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Thời gian kỳ vọng</p>
+                                          <p className="text-sm font-black text-slate-300 mt-0.5">📅 {actionData.longTermHorizon || 'N/A'}</p>
+                                      </div>
+                                  </div>
+                              )}
+
+                              <p className={`text-sm font-bold italic ${UI.textNormal}`}>
+                                  Lý do: {actionData.reason}
+                              </p>
+                          </div>
+                      )}
+                      
+                      <div className={`flex flex-col lg:flex-row lg:items-center gap-5 mb-10 pb-8 border-b ${UI.border}`}>
+                          <div className="w-16 h-16 rounded-3xl bg-yellow-400 text-black flex items-center justify-center shadow-xl shadow-yellow-400/20 shrink-0">
+                              <Zap size={28} />
+                          </div>
+                          <div className="flex-1">
+                              <h2 className={`text-3xl lg:text-4xl font-black tracking-tight uppercase ${UI.textBold}`}>Strategic Intelligence</h2>
+                              <div className="flex flex-wrap items-center gap-3 mt-2">
+                                  <p className="text-yellow-500 uppercase tracking-[0.3em] text-[10px] font-black">Omni Duck AI Framework</p>
+                                  
+                                  {aiAnalysisDuration && (
+                                      <div className={`flex items-center gap-3 px-3 py-1 rounded-full border text-[12px] font-black uppercase tracking-widest ${isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-300 text-emerald-600'}`}>
+                                          <Clock size={13} /> Hoàn tất trong {aiAnalysisDuration} giây
+                                      </div>
+                                  )}
+
+                                  {vnReportTimestamp && !aiAnalysisDuration && (
+                                      <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-black tracking-widest ${isDark ? 'bg-slate-800/80 border-slate-600 text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-500'}`}>
+                                          <Database size={12} /> Báo cáo Database đã tạo lúc: {vnReportTimestamp}
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      </div>
+                      
+                      <DebatePanel debateResult={debateResult} isDark={isDark} UI={UI} />
+                      
+                      <div className={`prose max-w-none prose-headings:text-yellow-500 prose-headings:font-black prose-headings:italic prose-headings:uppercase prose-p:leading-loose prose-p:text-[16px] prose-strong:text-emerald-500 prose-strong:font-black prose-ul:list-disc prose-ul:pl-5 prose-li:mb-2 ${isDark ? 'prose-invert prose-p:text-slate-300 prose-li:text-slate-300' : 'prose-p:text-slate-700 prose-li:text-slate-700'}`}>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{aiReport}</ReactMarkdown>
+                      </div>
+                  </div>
+              )}
+          </div>
+      </div>
         {/* GRID COLUMN 3: EXCHANGES INDEX & RADAR PREVIEWS */}
         <div className={`w-[350px] lg:w-[450px] flex flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10`}> 
           <div className="h-1/2 flex flex-col border-b border-white/10">
