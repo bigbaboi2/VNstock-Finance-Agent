@@ -695,10 +695,9 @@ export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30
     const ttl = getActiveCacheTTL();
     const cached = cacheMap.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < ttl)) {
-        console.log(`[vnNewsSearch] Cache hit — ${clean} (TTL ${ttl / 1000}s)`);
-        return cached.data;
+        console.log(`[vnNewsSearch] Cache hit — ${clean} offset=${offset}`);
+        return cached.data.slice(offset, offset + limit);  
     }
-
     
     const [googleRawItems, rssResults, searchResults] = await Promise.all([
         Promise.all(buildGoogleNewsQueries(clean, mode).map(q => fetchGoogleNewsRSS(q, 25)))
@@ -719,9 +718,8 @@ export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30
     
     const filtered = filterByMode(merged, mode);
 
-    const out = distributeSentiment(filtered, mode).slice(0, limit);
-
-    cacheMap.set(cacheKey, { timestamp: Date.now(), data: out });
+    const allResults = distributeSentiment(filtered, mode); // bỏ .slice(0, limit)
+    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults });
 
     const sentimentSummary = {
         positive: out.filter(a => a.sentiment === 'positive').length,
@@ -734,5 +732,5 @@ export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30
         + ` | TTL=${ttl / 1000}s`
     );
 
-    return out;
+    return allResults.slice(offset, offset + limit);;
 }
