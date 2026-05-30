@@ -25,32 +25,55 @@ function getActiveCacheTTL() {
 import { decodeGoogleNewsUrl } from '../utils/googleNewsDecoder.js';
 export { decodeGoogleNewsUrl };
 
+const MODE_DATE_WINDOW = {
+    official: 90,
+    balanced: 60,
+    negative: 30,
+    rumor:    21,
+};
+
+/**
+ * Returns an ISO date string N days ago, formatted as YYYY-MM-DD,
+ * for use with Google News "after:" operator.
+ */
+function googleAfterDate(days) {
+    const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 10); // "2025-11-21"
+}
 
 const buildGoogleNewsQueries = (ticker, mode) => {
     const t    = encodeURIComponent(ticker);
     const base = 'hl=vi&gl=VN&ceid=VN:vi';
+    const days = MODE_DATE_WINDOW[mode] || 60;
+    const after = encodeURIComponent(`after:${googleAfterDate(days)}`);
+
     switch (mode) {
         case 'official':
             return [
-                `https://news.google.com/rss/search?q=${t}+site:cafef.vn+OR+site:vietstock.vn+OR+site:baodautu.vn+OR+site:vneconomy.vn&${base}`,
-                `https://news.google.com/rss/search?q=${t}+site:tinnhanhchungkhoan.vn+OR+site:dantri.com.vn&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+site:cafef.vn+OR+site:vietstock.vn+OR+site:baodautu.vn+OR+site:vneconomy.vn&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+site:tinnhanhchungkhoan.vn+OR+site:dantri.com.vn&${base}`,
+                // Fallback: no site filter but still date-bound, so we still get official-ish results
+                `https://news.google.com/rss/search?q=${t}+${after}+chứng+khoán+OR+cổ+phiếu&${base}`,
             ];
         case 'negative':
             return [
-                `https://news.google.com/rss/search?q=${t}+bán+tháo+OR+ngoại+bán+ròng+OR+nợ+xấu+OR+điều+tra+OR+vi+phạm&${base}`,
-                `https://news.google.com/rss/search?q=${t}+margin+call+OR+cắt+lỗ+OR+thua+lỗ+OR+bị+xử+phạt+OR+rủi+ro&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+bán+tháo+OR+ngoại+bán+ròng+OR+nợ+xấu+OR+điều+tra+OR+vi+phạm&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+margin+call+OR+cắt+lỗ+OR+thua+lỗ+OR+bị+xử+phạt+OR+rủi+ro&${base}`,
+                // Widen to last 60d if negative keywords return few hits
+                `https://news.google.com/rss/search?q=${t}+${encodeURIComponent(`after:${googleAfterDate(60)}`)}+giảm+mạnh+OR+sụt+giảm+OR+cảnh+báo&${base}`,
             ];
         case 'rumor':
             return [
-                `https://news.google.com/rss/search?q=${t}+tin+đồn+OR+nội+bộ+OR+dòng+tiền+lớn+OR+tay+to+OR+thâu+tóm&${base}`,
-                `https://news.google.com/rss/search?q=${t}+cổ+phiếu+chứng+khoán&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+tin+đồn+OR+nội+bộ+OR+dòng+tiền+lớn+OR+tay+to+OR+thâu+tóm&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+cổ+phiếu+chứng+khoán&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${encodeURIComponent(`after:${googleAfterDate(45)}`)}+mua+gom+OR+thâu+tóm+OR+đột+biến+khối+lượng&${base}`,
             ];
         case 'balanced':
         default:
             return [
-                `https://news.google.com/rss/search?q=${t}+cổ+phiếu+OR+chứng+khoán+OR+thị+trường&${base}`,
-                `https://news.google.com/rss/search?q=${t}+tin+tức+OR+doanh+nghiệp+OR+đầu+tư&${base}`,
-                `https://news.google.com/rss/search?q=${t}&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+cổ+phiếu+OR+chứng+khoán+OR+thị+trường&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}+tin+tức+OR+doanh+nghiệp+OR+đầu+tư&${base}`,
+                `https://news.google.com/rss/search?q=${t}+${after}&${base}`,
             ];
     }
 };
@@ -412,8 +435,7 @@ export async function fetchFireAntMarket({ maxShow = 8 } = {}) {
     return report;
 }
 
-//Main function to detect sentiment from title and content
-export const detectSentiment = (title = '', content = '') => {
+ export const detectSentiment = (title = '', content = '') => {
     const tLow = title.toLowerCase();
     const cLow = content.toLowerCase();
 
@@ -625,11 +647,10 @@ const searchOnSite = async (source, ticker, maxItems = 10) => {
     } catch { return []; }
 };
 
- export const rescoreSentiment = (item) => ({
+export const rescoreSentiment = (item) => ({
     ...item,
     sentiment: detectSentiment(item.title, item.content || ''),
 });
-
 
 const dedupByLink = (articles) => {
     const seen = new Set();
@@ -643,36 +664,73 @@ const dedupByLink = (articles) => {
  
 const OFFICIAL_DOMAINS = ['cafef.vn', 'vietstock.vn', 'baodautu.vn', 'tinnhanhchungkhoan.vn', 'vneconomy.vn'];
 
-const filterByMode = (articles, mode, minCount = 10) => {
+const MIN_COUNT_BY_MODE = {
+    official: 8,
+    balanced: 10,
+    negative: 6,
+    rumor:    5,
+};
+export { MIN_COUNT_BY_MODE };
+ 
+function hotScore(article, mode) {
+    const ageMs     = Date.now() - (article.publishedAt?.getTime?.() ?? Date.now());
+    const ageHours  = ageMs / 3_600_000;
+    // Recency: 100 → 0 over 7 days (168 h), floored at 0
+    const recency   = Math.max(0, 100 - (ageHours / 168) * 100);
+    const domain    = OFFICIAL_DOMAINS.includes(article.domain) ? 8 : 0;
+    const sentBonus = (mode === 'negative' && article.sentiment === 'negative') ? 5
+                    : (mode === 'rumor'    && /tin đồn|nội bộ|thâu tóm|tay to|dòng tiền lớn/i.test(article.title)) ? 5
+                    : 0;
+    return recency + domain + sentBonus;
+}
+
+const filterByMode = (articles, mode) => {
+    const minCount = MIN_COUNT_BY_MODE[mode] ?? 8;
+
+    // Helper: fill from secondary pool until we hit minCount (or exhaust pool)
+    const fillToMin = (primary, secondary) => {
+        if (primary.length >= minCount) return primary;
+        const primarySet = new Set(primary.map(a => a.link));
+        const extras = secondary
+            .filter(a => !primarySet.has(a.link))
+            .sort((a, b) => hotScore(b, mode) - hotScore(a, mode));
+        const combined = [...primary, ...extras];
+        console.log(
+            `[filterByMode][${mode}] primary=${primary.length} → filled to ${Math.min(combined.length, minCount)} ` +
+            `(extras=${extras.length}, min=${minCount})`
+        );
+        return combined.slice(0, Math.max(combined.length, minCount));
+    };
+
     switch (mode) {
         case 'negative': {
-            const primary   = articles.filter(a => a.sentiment === 'negative'
-                || /bán tháo|lao dốc|thua lỗ|vi phạm|điều tra|cắt lỗ|lao dốc|margin call/i.test(a.title));
-            if (primary.length >= minCount) return primary;
-             const neutral   = articles.filter(a => a.sentiment === 'neutral' && !primary.includes(a));
-            return [...primary, ...neutral].slice(0, Math.max(primary.length, minCount));
+            const primary = articles.filter(a =>
+                a.sentiment === 'negative' ||
+                /bán tháo|lao dốc|thua lỗ|vi phạm|điều tra|cắt lỗ|margin call/i.test(a.title)
+            );
+            const secondary = articles.filter(a => !primary.includes(a));
+            return fillToMin(primary, secondary);
         }
         case 'official': {
             const primary   = articles.filter(a => OFFICIAL_DOMAINS.includes(a.domain));
-            if (primary.length >= minCount) return primary;
-            const rest      = articles.filter(a => !primary.includes(a));
-            return [...primary, ...rest];
+            const secondary = articles.filter(a => !primary.includes(a));
+            return fillToMin(primary, secondary);
         }
         case 'rumor': {
-            const primary   = articles.filter(a =>
-                /tin đồn|nội bộ|thâu tóm|tay to|dòng tiền lớn/i.test(a.title)
-                || ['dantri.com.vn', 'vnexpress.net', 'cafebiz.vn'].includes(a.domain));
-            if (primary.length >= minCount) return primary;
-            const neutral   = articles.filter(a => a.sentiment === 'neutral' && !primary.includes(a));
-            return [...primary, ...neutral];
+            const primary = articles.filter(a =>
+                /tin đồn|nội bộ|thâu tóm|tay to|dòng tiền lớn|đột biến khối lượng|mua gom/i.test(a.title) ||
+                ['dantri.com.vn', 'vnexpress.net', 'cafebiz.vn'].includes(a.domain)
+            );
+            const secondary = articles.filter(a => !primary.includes(a));
+            return fillToMin(primary, secondary);
         }
-        default:
+        default: // balanced
             return articles;
     }
 };
 
 
-const distributeSentiment = (articles, mode) => {
+ const distributeSentiment = (articles, mode) => {
     if (mode === 'negative' || mode === 'official') return articles;
     const neg = articles.filter(a => a.sentiment === 'negative');
     const pos = articles.filter(a => a.sentiment === 'positive');
@@ -714,20 +772,21 @@ export async function searchVnNewsDirectly(
 
     
     const googleResolved = await resolveGoogleLinksParallel(googleRawItems.slice(0, 60), 5);
-    const MAX_NEWS_AGE_DAYS = 200; // Adjust to 15, 30, 180, 365, or 6969 depending on T+ or long-term strategy
-    const cutoffTime = Date.now() - (MAX_NEWS_AGE_DAYS * 24 * 60 * 60 * 1000);    
+
+    // ── Hard date cut-off (server-side, after fetch) ──────────────────────────
+    const FALLBACK_EXTRA_DAYS = 30;
+    const maxAgeDays = (MODE_DATE_WINDOW[mode] || 60) + FALLBACK_EXTRA_DAYS;
+    const cutoffTime = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+
     const merged = dedupByLink([...googleResolved, ...rssResults, ...searchResults])
-        .filter(item => {
-            return item.publishedAt && item.publishedAt >= cutoffTime;
-        })
+        .filter(item => item.publishedAt && item.publishedAt >= cutoffTime)
         .sort((a, b) => b.publishedAt - a.publishedAt);
 
     
     const filtered = filterByMode(merged, mode);
 
-    const allResults = distributeSentiment(filtered, mode); // bỏ .slice(0, limit)
-    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults }); // lưu toàn bộ
-    // Log tổng quan về kết quả trước khi cắt theo offset/limit
+    const allResults = distributeSentiment(filtered, mode);      
+    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults }); 
     const sentimentSummary = {
         positive: allResults.filter(a => a.sentiment === 'positive').length,
         negative: allResults.filter(a => a.sentiment === 'negative').length,
