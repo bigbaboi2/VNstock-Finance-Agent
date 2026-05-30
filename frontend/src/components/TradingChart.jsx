@@ -718,7 +718,8 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
      RENDER
   ════════════════════════════════════════════════════════════════════ */
 /*FIX 5: bg solid does not penetrate — use bg-[#0D1117] instead of opacity */  
-const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow-2xl py-2 overflow-y-auto max-h-[420px] z-[200] ${isDark?'bg-[#0D1117] border-white/10':'bg-white border-slate-200'}`;
+const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow-2xl py-2 overflow-y-auto max-h-[280px] z-[9999] ${isDark?'bg-[#0D1117] border-white/10':'bg-white border-slate-200'}`;
+  
   const rowBtn   = (active) => `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?'bg-yellow-500 text-black':(isDark?'text-slate-300 hover:bg-yellow-500/80 hover:text-black':'text-slate-700 hover:bg-yellow-500/80 hover:text-black')}`;
 
   return (
@@ -726,8 +727,7 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
 
       {/* ── TOP TOOLBAR ──────────────────────────────────────── */}
       <div
-        className={`flex items-center gap-2 pb-3 mb-1 border-b shrink-0 relative z-[99] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
-        style={{ isolation:'isolate' }}
+        className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[9999] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* INTERVAL */}
@@ -836,7 +836,7 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
             {/* FIX 5: bg solid without piercing chart — bg-[#0D1117] absolute */}
             {showStrokePanel && (
               <div
-                className={`absolute top-[calc(100%+8px)] right-0 w-52 p-3 rounded-2xl border z-[300] ${isDark?'bg-[#0D1117] border-white/15':'bg-white border-slate-200'}`}
+                className={`absolute top-[calc(100%+8px)] right-0 w-52 p-3 rounded-2xl border z-[9999] ${isDark?'bg-[#0D1117] border-white/15':'bg-white border-slate-200'}`}
                 style={{ boxShadow: isDark?'0 8px 32px rgba(0,0,0,0.8)':'0 8px 32px rgba(0,0,0,0.15)' }}
                 onClick={e=>e.stopPropagation()}
               >
