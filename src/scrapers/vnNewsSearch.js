@@ -714,9 +714,12 @@ export async function searchVnNewsDirectly(
 
     
     const googleResolved = await resolveGoogleLinksParallel(googleRawItems.slice(0, 60), 5);
-
-    
+    const MAX_NEWS_AGE_DAYS = 200; // Adjust to 15, 30, 180, 365, or 6969 depending on T+ or long-term strategy
+    const cutoffTime = Date.now() - (MAX_NEWS_AGE_DAYS * 24 * 60 * 60 * 1000);    
     const merged = dedupByLink([...googleResolved, ...rssResults, ...searchResults])
+        .filter(item => {
+            return item.publishedAt && item.publishedAt >= cutoffTime;
+        })
         .sort((a, b) => b.publishedAt - a.publishedAt);
 
     
