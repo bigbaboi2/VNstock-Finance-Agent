@@ -16,7 +16,7 @@ import {
     getRateLimitStatus,
     resetProviderBlock,
 } from '../services/aiService.js';
-import { searchVnNewsDirectly, rescoreSentiment, fetchFireAntSocial, fetchRedditMacro } from '../scrapers/vnNewsSearch.js';
+import { searchVnNewsDirectly, rescoreSentiment, fetchFireAntSocial, fetchRedditMacro, MIN_COUNT_BY_MODE } from '../scrapers/vnNewsSearch.js';
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
@@ -139,48 +139,76 @@ export const getLiveNews = async (req, res) => {
 
 console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`));
 
-        //---START LOOP FLIP PAGE FIND NEW NEWS ---
-        const seenLinks = new Set(cachedNews.map(n => n.link));
-        let uniqueNew = [];
-        let currentPage = 1;
-        const MAX_PAGES = 4;  
-        const TARGET_NEW_NEWS = 5; //Try to find at least 5 new news
+        //─── ENHANCED PAGING LOOP ─────────────────────────────────────────────────
+        // Keeps fetching pages until we satisfy the per-mode minimum OR exhaust
+        // MAX_PAGES. Each mode has its own TARGET derived from MIN_COUNT_BY_MODE.
+        //
+        // Stop condition (ANY of):
+        //  (a) uniqueNew.length >= TARGET_FOR_MODE — enough new articles found
+        //  (b) currentPage > MAX_PAGES            — page budget exhausted
+        //  (c) currentBatch is empty              — server has no more results
+        //  (d) isClientDisconnected               — frontend closed the stream
+        // ─────────────────────────────────────────────────────────────────────────
+        const seenLinks      = new Set(cachedNews.map(n => n.link));
+        let uniqueNew        = [];
+        let currentPage      = 1;
+        const MAX_PAGES      = 5;   // allow one extra page vs old 4 for thin tickers
+        const TARGET_FOR_MODE = MIN_COUNT_BY_MODE[mode] ?? 8;
+        let consecutiveEmptyPages = 0; // abort early if pages keep returning 0 new articles
 
-        while (uniqueNew.length < TARGET_NEW_NEWS && currentPage <= MAX_PAGES) {
-            if (isClientDisconnected) break; //Exit the loop if Frontend disconnects
-            
-            //Each page scans 15 messages
-            const offset = (currentPage - 1) * 15;
+        while (uniqueNew.length < TARGET_FOR_MODE && currentPage <= MAX_PAGES) {
+            if (isClientDisconnected) break;
+
+            const offset       = (currentPage - 1) * 15;
             const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset);
-            
-             if (currentBatch.length === 0) {
-                console.log(chalk.gray(`[HỆ THỐNG] Đã cạn kiệt tài nguyên tin tức mạng ở Trang ${currentPage}.`));
-                break; 
+
+            if (currentBatch.length === 0) {
+                console.log(chalk.gray(`[HỆ THỐNG] Trang ${currentPage}: Server không còn tin. Dừng.`));
+                break;
             }
 
-            //Filter out news that has never been in the Database and must be a clean link
+            // Keep only articles not yet in DB and with clean (non-Google) links
             const newItems = currentBatch.filter(item => {
-                const isNew = !seenLinks.has(item.link);
+                const isNew   = !seenLinks.has(item.link);
                 const isClean = item.link && !item.link.includes('google.com');
                 return isNew && isClean;
             });
 
             if (newItems.length > 0) {
-                //Insert new information into the total array and update seenLinks to avoid duplicate filtering in the following loop
                 uniqueNew = [...uniqueNew, ...newItems];
                 newItems.forEach(n => seenLinks.add(n.link));
-                console.log(chalk.green(`[HỆ THỐNG] ↳ Trang ${currentPage}: Vớt được ${newItems.length} tin mới toanh!`));
+                consecutiveEmptyPages = 0;
+                console.log(chalk.green(
+                    `[HỆ THỐNG] ↳ Trang ${currentPage} [${mode}]: +${newItems.length} tin mới` +
+                    ` (tổng ${uniqueNew.length}/${TARGET_FOR_MODE})`
+                ));
             } else {
-                console.log(chalk.yellow(`[HỆ THỐNG] ↳ Trang ${currentPage}: Toàn tin cũ đã có trong DB. Đang tự động lật sang Trang ${currentPage + 1}...`));
+                consecutiveEmptyPages++;
+                console.log(chalk.yellow(
+                    `[HỆ THỐNG] ↳ Trang ${currentPage} [${mode}]: Toàn tin cũ` +
+                    ` (${consecutiveEmptyPages} trang trắng liên tiếp)`
+                ));
+                 if (consecutiveEmptyPages >= 2) {
+                    console.log(chalk.yellow(`[HỆ THỐNG] 2 trang trắng liên tiếp → dừng sớm.`));
+                    break;
+                }
             }
 
             currentPage++;
         }
 
+        // Summary log
         if (uniqueNew.length === 0) {
-            console.log(chalk.gray(`[HỆ THỐNG] Dừng tìm kiếm. Không có bài báo nào mới trên mạng lưới về mã ${ticker}.`));
+            console.log(chalk.gray(
+                `[HỆ THỐNG] Dừng [${mode}]. Không có bài mới nào về mã ${ticker}.`
+            ));
         } else {
-            console.log(chalk.gray.bold(`[HỆ THỐNG] TỔNG KẾT: Thu hoạch được ${uniqueNew.length} tin mới. Đang ném vào Scraper cào chữ...`));
+            const metTarget = uniqueNew.length >= TARGET_FOR_MODE;
+            console.log(chalk.gray.bold(
+                `[HỆ THỐNG] TỔNG KẾT [${mode}]: ${uniqueNew.length} tin mới` +
+                ` ${metTarget ? '✅ (đủ quota)' : '⚠️ (chưa đủ quota, pool cạn)'}` +
+                ` — Đang cào nội dung...`
+            ));
         }
 
         if (uniqueNew.length > 0 && !isClientDisconnected) {

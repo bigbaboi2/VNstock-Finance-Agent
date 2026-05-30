@@ -177,7 +177,6 @@ async function getDynamicModels() {
                 !name.includes('vision') &&
                 !name.includes('embedding') &&
                 !name.includes('customtools')
-                // BỎ filter 'preview' và 'exp' ở đây
             );
 
              const stableModels  = dynamicModels.filter(n => !n.includes('preview') && !n.includes('exp'));

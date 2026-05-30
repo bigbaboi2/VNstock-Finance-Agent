@@ -239,7 +239,79 @@ const DebatePanel = ({ debateResult, isDark, UI }) => {
         </div>
     );
 };
+// =====================================================================
+// COMPONENT TERMINAL NEWS STREAM
+// =====================================================================
+const TerminalNewsStream = ({ newsList, loading, isDark }) => {
+    const [displayedLines, setDisplayedLines] = useState([]);
+    const [currentText, setCurrentText] = useState('');
+    const [newsIdx, setNewsIdx] = useState(0);
+    const [charIdx, setCharIdx] = useState(0);
 
+    useEffect(() => {
+        if (loading) {
+            setCurrentText('SYS_LOG: FETCHING_DEEP_WEB_DATA_STREAM...');
+            return;
+        }
+        if (!newsList || newsList.length === 0) {
+            setCurrentText('SYS_LOG: NO_SIGNAL_FOUND. WAITING...');
+            return;
+        }
+        const currentNews = newsList[newsIdx];
+        const prefix = currentNews.sentiment === 'positive' ? '[+🟢]' : currentNews.sentiment === 'negative' ? '[-🔴]' : '[*⚪]';
+        const targetText = `root@omni-duck:~$ ${prefix} [${currentNews.date || 'Live'}] ${currentNews.title}`;
+
+        if (charIdx < targetText.length) {
+            const timer = setTimeout(() => {
+                setCurrentText(prev => prev + targetText.charAt(charIdx));
+                setCharIdx(c => c + 1);
+            }, 8 + Math.random() * 15); 
+            return () => clearTimeout(timer);
+        } else {
+            const timer = setTimeout(() => {
+                 setDisplayedLines(prev => [...prev.slice(-15), targetText]); 
+                setCharIdx(0);
+                setCurrentText('');
+                setNewsIdx((prev) => (prev + 1) % newsList.length);
+            }, 2500);  
+            return () => clearTimeout(timer);
+        }
+    }, [newsIdx, charIdx, newsList, loading]);
+
+    return (
+        <div className={`flex-1 h-full w-full min-h-[300px] p-5 font-mono text-[11px] relative overflow-hidden flex flex-col justify-end transition-colors duration-300 ${
+            isDark 
+                ? 'bg-[#050505] text-emerald-400 shadow-[inset_0_0_40px_rgba(0,0,0,0.9)]' 
+                : 'bg-[#F1F5F9] text-slate-700 shadow-[inset_0_0_20px_rgba(0,0,0,0.05)] border-t border-slate-300'
+        }`}>
+             {isDark && <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20" />}
+            
+            <p className={`opacity-50 text-[9px] mb-3 border-b pb-1 uppercase tracking-widest ${
+                isDark ? 'border-emerald-900/30 text-emerald-600' : 'border-slate-300 text-slate-500'
+            }`}>
+                Omni Duck Intelligence Terminal v2.4.0 // Secure Connection
+            </p>
+
+            <div className={`flex flex-col gap-1.5 ${isDark ? 'opacity-60' : 'opacity-80'}`}>
+                {displayedLines.map((line, i) => (
+                    <p key={i} className="truncate">{line}</p>
+                ))}
+            </div>
+
+            <div className="flex items-start mt-1.5 relative z-10">
+                <span className="whitespace-pre-wrap leading-relaxed">{currentText}</span>
+                <span className={`w-1.5 h-3.5 animate-pulse ml-1 mt-0.5 inline-block ${
+                    isDark ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-500'
+                }`} />
+            </div>
+        </div>
+    );
+};
+{/* =====================================================================
+  COMPONENT CHÍNH: VN STOCKS TAB
+  - chart, báo cáo AI, tin tức, hội đồng tranh luận, v.v.
+  - Quản lý trạng thái phân tích, báo lỗi, và tương tác người dùng
+===================================================================== */}
 export default function VnStocksTab({
   isDark, UI,
   allStocks,
@@ -285,6 +357,7 @@ export default function VnStocksTab({
 }) 
 {
   // STATES & REFS
+  const [isNewsOpen, setIsNewsOpen] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(3);
   const [historySortMode, setHistorySortMode] = useState('time_desc');
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -293,16 +366,23 @@ export default function VnStocksTab({
   const aiError = aiReportError;
 
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [chartHeight, setChartHeight] = useState(600);
   const scrollContainerRef = useRef(null);
   const [isDraggingChart, setIsDraggingChart] = useState(false);
   const dragStartY = useRef(0);
   const startHeight = useRef(600);
+  const chartWrapperRef = useRef(null);
   const [isAutoScroll, setIsAutoScroll] = useState(true);
   const tooltipRef = useRef(null);
   const newsScrollRef = useRef(null);
   const [showNewsScroll, setShowNewsScroll] = useState(false);
-
+// HANDLE CHART DRAG TO RESIZE
+  const handleDragStart = (e) => {
+      setIsDraggingChart(true);
+      dragStartY.current = e.clientY;
+      startHeight.current = chartWrapperRef.current ? chartWrapperRef.current.offsetHeight : 600;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'row-resize';
+  };
 // HANDLE NEWS SCROLL TOGGLE
 const handleNewsScroll = (e) => {
       if (e.target.scrollTop > 300) {
@@ -343,6 +423,38 @@ useEffect(() => {
       onRequestCloseChat(() => setIsChatOpen(false));
     }
   }, [onRequestCloseChat]);
+// HANDLE GLOBAL MOUSE MOVE & UP FOR CHART RESIZING
+  useEffect(() => {
+      const handleGlobalMouseMove = (e) => {
+          if (!isDraggingChart) return;
+          
+          const delta = e.clientY - dragStartY.current;
+          const newHeight = Math.max(300, Math.min(1200, startHeight.current + delta)); // Min 300px, Max 1200px
+          
+          if (chartWrapperRef.current) {
+              chartWrapperRef.current.style.height = `${newHeight}px`;
+              chartWrapperRef.current.style.flexBasis = `${newHeight}px`;
+          }
+      };
+
+      const handleGlobalMouseUp = () => {
+          if (isDraggingChart) {
+              setIsDraggingChart(false);
+              document.body.style.userSelect = '';
+              document.body.style.cursor = '';
+          }
+      };
+
+      if (isDraggingChart) {
+          window.addEventListener('mousemove', handleGlobalMouseMove);
+          window.addEventListener('mouseup', handleGlobalMouseUp);
+      }
+
+      return () => {
+          window.removeEventListener('mousemove', handleGlobalMouseMove);
+          window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+  }, [isDraggingChart]);
 // MOUSE ROLL EVENT HANDLING FUNCTION
 const handleScroll = (e) => {
       if (!analyzing) return; 
@@ -492,13 +604,13 @@ const handleHeatmapMouseMove = (e) => {
               {/* ================================================================= */}
               {/* NGĂN 2: THÂN CUỘN CHỨA CÁC MODULE DROPDOWN VÀ TIN TỨC */}
               {/* ================================================================= */}
-              <div 
+               <div 
                   ref={newsScrollRef}
                   onScroll={handleNewsScroll}
-                  className={`flex-1 overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
+                  className={`flex-1 flex flex-col overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
               >
-                  {/* MODULE 1: CHỈ SỐ TÀI CHÍNH & DOANH NGHIỆP (Mặc định mở) */}
-                  <details className={`group border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`} open>
+                  {/* MODULE 1: CHỈ SỐ TÀI CHÍNH & DOANH NGHIỆP */}
+                  <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
                       <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0d1219]/90 hover:bg-white/5' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
                           <div className="flex items-center gap-2">
                               <BarChart3 size={16} className="text-emerald-400" />
@@ -508,7 +620,7 @@ const handleHeatmapMouseMove = (e) => {
                       </summary>
                       
                       <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className={`grid grid-cols-4 gap-3 text-center mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                           <div className={`grid grid-cols-4 gap-3 text-center mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                               <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
                                   <p className={`text-[9px] mb-1.5 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>VỐN HÓA</p>
                                   <p className="font-black text-sm leading-none whitespace-nowrap">{marketData.stockInfo.marketCap}</p>
@@ -560,104 +672,54 @@ const handleHeatmapMouseMove = (e) => {
                               </div>
                           )}
 
-                          {/* Component Tổng quan DN */}
                           <div className="-mb-5">
                             <CompanyOverview profile={marketData.companyProfile} isDark={isDark} UI={UI} />
                           </div>
                       </div>
                   </details>
 
-                  {/* MODULE 2: CÔNG CỤ TÙY CHỈNH & EXPORT (Mặc định gập) */}
-                  <details className={`group border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                      <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0d1219]/90 hover:bg-white/5' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
-                          <div className="flex items-center gap-2">
-                              <Database size={16} className="text-sky-400" />
-                              <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Công cụ & Cấu hình AI</span>
+                  {/* MODULE 2: CÔNG CỤ TÙY CHỈNH & EXPORT (ĐÃ NÂNG CẤP UI VÀNG NỔI BẬT) */}
+                  <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                      <summary className={`relative flex items-center justify-between p-4 cursor-pointer select-none transition-all sticky top-0 z-10 border-l-4 overflow-hidden ${
+                          isDark 
+                              ? 'bg-yellow-500 border-yellow-200 shadow-[0_0_25px_rgba(234,179,8,0.4)] hover:bg-yellow-400' 
+                              : 'bg-yellow-400 border-yellow-600 shadow-[0_0_20px_rgba(250,204,21,0.5)] hover:bg-yellow-300'
+                      }`}>
+                           <div className="absolute inset-0 bg-white/30 animate-[pulse_2s_ease-in-out_infinite] pointer-events-none" />
+
+                          <div className="flex items-center gap-2 relative z-10">
+                              <BrainCircuit size={16} className="text-black" />
+                              <span className="text-[11px] font-black uppercase tracking-widest text-black drop-shadow-sm">
+                                  PHÂN TÍCH AI & CẤU HÌNH
+                              </span>
                           </div>
-                          <ChevronDown size={16} className={`transition-transform duration-300 group-open:rotate-180 ${UI.textMuted}`} />
+                          <ChevronDown size={16} className="transition-transform duration-300 group-open:rotate-180 relative z-10 text-black" />
                       </summary>
                       
                       <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-300">
                           {setPdfMode && (
-                            <div className={`rounded-xl p-3 mb-3 border ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm'}`}>
-                              <p className={`text-[9px] font-black tracking-widest uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                ⚡ CHẾ ĐỘ PHÂN TÍCH BÁO CÁO PDF
-                              </p>
-                              
+                            <div className={`rounded-xl p-3 mb-3 border ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm mt-4'}`}>
+                              <p className={`text-[9px] font-black tracking-widest uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>⚡ CHẾ ĐỘ PHÂN TÍCH BÁO CÁO PDF</p>
                               <div className="grid grid-cols-2 gap-2">
                                 {[
-                                  { 
-                                      key: 'turbo',    
-                                      label: 'TURBO',    
-                                      icon: '⚡', 
-                                      desc: '3 - 8s (Siêu tốc)',
-                                      pros: 'Trả kết quả tức thì',
-                                      cons: 'Dễ bỏ sót bảng biểu, lỗi chữ'
-                                  },
-                                  { 
-                                      key: 'fast',     
-                                      label: 'FAST',     
-                                      icon: '🚀', 
-                                      desc: '20 - 40s (Nhanh)',
-                                      pros: 'Cân bằng thời gian tốt',
-                                      cons: 'Bảng phức tạp có thể lệch'
-                                  },
-                                  { 
-                                      key: 'balanced', 
-                                      label: 'BALANCED', 
-                                      icon: '⚖️',  
-                                      desc: '60 - 90s (Tiêu chuẩn)',
-                                      pros: 'Đọc dữ liệu tài chính tốt',
-                                      cons: 'Thời gian chờ hơi lâu'
-                                  },
-                                  { 
-                                      key: 'full',     
-                                      label: 'FULL',     
-                                      icon: '🔬', 
-                                      desc: '150 - 200s (Chuyên sâu)',
-                                      pros: 'Chính xác tối đa (OCR)',
-                                      cons: 'Rất chậm, ngốn tài nguyên'
-                                  },
+                                  { key: 'turbo',    label: 'TURBO',    icon: '⚡', desc: '3 - 8s (Siêu tốc)', pros: 'Trả kết quả tức thì', cons: 'Dễ bỏ sót bảng biểu, lỗi chữ' },
+                                  { key: 'fast',     label: 'FAST',     icon: '🚀', desc: '20 - 40s (Nhanh)', pros: 'Cân bằng thời gian tốt', cons: 'Bảng phức tạp có thể lệch' },
+                                  { key: 'balanced', label: 'BALANCED', icon: '⚖️',  desc: '60 - 90s (Tiêu chuẩn)', pros: 'Đọc dữ liệu tài chính tốt', cons: 'Thời gian chờ hơi lâu' },
+                                  { key: 'full',     label: 'FULL',     icon: '🔬', desc: '150 - 200s (Chuyên sâu)', pros: 'Chính xác tối đa (OCR)', cons: 'Rất chậm, ngốn tài nguyên' },
                                 ].map(({ key, label, icon, desc, pros, cons }) => {
                                   const isActive = pdfMode === key;
-                                  
                                   return (
-                                    <button 
-                                        key={key} 
-                                        onClick={() => setPdfMode(key)} 
-                                        className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${
-                                            isActive 
-                                                ? (isDark ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' : 'bg-yellow-100 border-yellow-500 text-yellow-700') 
-                                                : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100')
-                                        }`}
-                                    >
+                                    <button key={key} onClick={() => setPdfMode(key)} className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${isActive ? (isDark ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' : 'bg-yellow-100 border-yellow-500 text-yellow-700') : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100')}`}>
                                        <div className="flex items-center justify-between w-full">
                                         <div className="flex items-center gap-1.5">
-                                          <span className="text-sm">{icon}</span>
-                                          <span className="text-[10px] font-black tracking-wider">{label}</span>
+                                          <span className="text-sm">{icon}</span><span className="text-[10px] font-black tracking-wider">{label}</span>
                                         </div>
                                         {isActive && <span className="text-[10px] font-black">✓</span>}
                                       </div>
-                                      
-                                       <p className={`text-[10px] font-bold ${
-                                          isActive 
-                                            ? (isDark ? 'text-yellow-200' : 'text-yellow-900') 
-                                            : (isDark ? 'text-slate-300' : 'text-slate-700')
-                                      }`}>
-                                        ⏱ {desc}
-                                      </p>
-
+                                       <p className={`text-[10px] font-bold ${isActive ? (isDark ? 'text-yellow-200' : 'text-yellow-900') : (isDark ? 'text-slate-300' : 'text-slate-700')}`}>⏱ {desc}</p>
                                        <div className="flex flex-col gap-1 mt-0.5">
-                                          <span className={`text-[8px] font-medium leading-tight ${
-                                              isActive ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-emerald-400/80' : 'text-emerald-600')
-                                          }`}>
-                                              <span className="font-bold">✓</span> {pros}
-                                          </span>
-                                          <span className={`text-[8px] font-medium leading-tight ${
-                                              isActive ? (isDark ? 'text-red-300' : 'text-red-700') : (isDark ? 'text-red-400/80' : 'text-red-500')
-                                          }`}>
-                                              <span className="font-bold">⚠️</span> {cons}
-                                          </span>
+                                          <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-emerald-400/80' : 'text-emerald-600')}`}><span className="font-bold">✓</span> {pros}</span>
+                                          <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-red-300' : 'text-red-700') : (isDark ? 'text-red-400/80' : 'text-red-500')}`}><span className="font-bold">⚠️</span> {cons}</span>
                                       </div>
                                     </button>
                                   );
@@ -670,32 +732,21 @@ const handleHeatmapMouseMove = (e) => {
                             const handleExportData = async () => {
                               if (isExporting) return;
                               const sym = marketData.stockInfo?.symbol;
-                              setIsExporting(true);
-                              setExportStatus(null);
+                              setIsExporting(true); setExportStatus(null);
                               try {
                                 const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
                                   title: n.title, date: n.date, sentiment: n.sentiment || 'neutral', link: n.link || null,
                                   content: n.content && n.content !== n.title && n.content.length > 80 ? n.content.substring(0, 2000) : null,
                                 }));
-                                const payload = {
-                                  stockInfo: marketData.stockInfo,
-                                  companyProfile: { overview: marketData.companyProfile?.overview, companyName: marketData.companyProfile?.companyName },
-                                  technicalData: chartData.slice(-30),
-                                  marketContext: vnIndexData.slice(-5),
-                                  news: optimizedNews,
-                                  user: currentUser,
-                                  timestamp: new Date().toISOString(),
-                                };
-                                const res = await fetch(`/api/debug-feed/${sym}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), });
+                                const payload = { stockInfo: marketData.stockInfo, companyProfile: { overview: marketData.companyProfile?.overview, companyName: marketData.companyProfile?.companyName }, technicalData: chartData.slice(-30), marketContext: vnIndexData.slice(-5), news: optimizedNews, user: currentUser, timestamp: new Date().toISOString() };
+                                const res = await fetch(`/api/debug-feed/${sym}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                                 if (!res.ok) { const text = await res.text(); throw new Error(`Lỗi ${res.status}`); }
                                 const json = await res.json();
                                 const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a'); a.href = url; a.download = `ai-full-feed-${sym}.json`; a.click(); URL.revokeObjectURL(url);
                                 setExportStatus('success'); setTimeout(() => setExportStatus(null), 3000);
-                              } catch (err) {
-                                setExportStatus('error'); setTimeout(() => setExportStatus(null), 4000);
-                              } finally { setIsExporting(false); }
+                              } catch (err) { setExportStatus('error'); setTimeout(() => setExportStatus(null), 4000); } finally { setIsExporting(false); }
                             };
                             return (
                                 <button onClick={handleExportData} disabled={isExporting} className={`w-full h-9 mb-3 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border text-[10px] uppercase tracking-widest ${isExporting ? 'opacity-50 cursor-not-allowed' : exportStatus === 'success' ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' : 'bg-emerald-50 text-emerald-600 border-emerald-300') : exportStatus === 'error' ? (isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-500 border-red-200') : (isDark ? 'bg-white/5 text-slate-400 border-white/10 hover:text-emerald-400 hover:border-emerald-500/30' : 'bg-white text-slate-500 border-slate-200 hover:text-emerald-600 hover:border-emerald-300')}`}>
@@ -703,6 +754,7 @@ const handleHeatmapMouseMove = (e) => {
                                 </button>
                             );
                           })()}
+
                           {/* KHỐI NÚT PHÂN TÍCH AI & CHAT */}
                           {(() => {
                               const elapsed = lastAiVnTime ? Date.now() - lastAiVnTime : Infinity;
@@ -713,62 +765,20 @@ const handleHeatmapMouseMove = (e) => {
 
                               return (
                                   <div className={`flex flex-col gap-3 mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                                      
-                                      {/* 1. NÚT AI TO */}
-                                      <button
-                                          onClick={() => handleAiAnalysis(false)}
-                                          disabled={analyzing}
-                                          className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${
-                                              analyzing 
-                                                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' 
-                                                  : isDark 
-                                                      ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' 
-                                                      : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'
-                                          }`}
-                                      >
-                                          <BrainCircuit size={18} className={analyzing ? "animate-pulse" : ""} />
-                                          {analyzing ? 'OMNI DUCK ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
+                                      <button onClick={() => handleAiAnalysis(false)} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
+                                          <BrainCircuit size={18} className={analyzing ? "animate-pulse" : ""} /> {analyzing ? 'OMNI DUCK ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
                                       </button>
-
-                                      {/* 2. NÚT CHAT VỚI AI Nút phụ - Secondary CTA) */}
                                       {marketData && (
-                                        <button
-                                            onClick={() => setIsChatOpen(true)}
-                                            className={`w-full h-10 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 border active:scale-95 ${
-                                                isDark 
-                                                    ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-400/20' 
-                                                    : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'
-                                            }`}
-                                        >
-                                            <MessageSquare size={16} />
-                                            {aiReport ? 'CHAT VỀ BÁO CÁO NÀY' : 'HỎI ĐÁP VỚI AI'}
+                                        <button onClick={() => setIsChatOpen(true)} className={`w-full h-10 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 border active:scale-95 ${isDark ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-400/20' : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'}`}>
+                                            <MessageSquare size={16} /> {aiReport ? 'CHAT VỀ BÁO CÁO NÀY' : 'HỎI ĐÁP VỚI AI'}
                                         </button>
                                       )}
-
-                                      {/* 3. DÒNG TRẠNG THÁI VÀ NÚT QUÉT LẠI */}
                                       <div className="flex items-center justify-between px-1 mt-1">
                                           <span className={`text-[10px] font-medium tracking-wide flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                              {canCall ? (
-                                                  <span className="text-emerald-400 flex items-center gap-1 font-bold">
-                                                      <CheckCircle2 size={12} /> AI Sẵn sàng
-                                                  </span>
-                                              ) : (
-                                                  <span className="text-amber-500 flex items-center gap-1 font-bold">
-                                                      <Clock size={12} /> Tối ưu lại sau: {remainMin}:{remainSecStr}
-                                                  </span>
-                                              )}
+                                              {canCall ? <span className="text-emerald-400 flex items-center gap-1 font-bold"><CheckCircle2 size={12} /> AI Sẵn sàng</span> : <span className="text-amber-500 flex items-center gap-1 font-bold"><Clock size={12} /> Tối ưu lại sau: {remainMin}:{remainSecStr}</span>}
                                           </span>
-
-                                          {/* NÚT PHÂN TÍCH LẠI (LÀM MỜ OPACITY-30 ĐỂ TRÁNH BẤM NHẦM) */}
                                           {lastAiVnTime && (
-                                              <button
-                                                  onClick={() => handleAiAnalysis(true)}
-                                                  disabled={analyzing}
-                                                  className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${
-                                                      isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'
-                                                  }`}
-                                                  title="Bỏ qua thời gian làm mát và ép AI quét lại"
-                                              >
+                                              <button onClick={() => handleAiAnalysis(true)} disabled={analyzing} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'}`} title="Bỏ qua thời gian làm mát và ép AI quét lại">
                                                   ↻ Quét lại ngay
                                               </button>
                                           )}
@@ -779,81 +789,105 @@ const handleHeatmapMouseMove = (e) => {
                       </div>
                   </details>
 
-                  {/* KHU VỰC 3: LIVE NEWS STREAM (Luôn mở ở dưới cùng) */}
-                  <div className="p-4">
-                      <div className="flex items-center justify-between mb-3">
+                  {/* KHU VỰC 3: LIVE NEWS STREAM (ĐÃ TÍCH HỢP TERMINAL FAKE) */}
+                  <details 
+                      className={`group flex flex-col border-b ${isDark ? 'border-white/5' : 'border-slate-200'} ${isNewsOpen ? 'flex-1 min-h-0' : 'shrink-0'}`}
+                      onToggle={(e) => setIsNewsOpen(e.target.open)}
+                  >
+                      <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0d1219]/90 hover:bg-white/5' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
                           <div className="flex items-center gap-2">
                               <Newspaper size={16} className="text-purple-400" />
-                              <h3 className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Live News Stream</h3>
+                              <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Live News Stream</span>
+                               {(loadingMarket || loadingAiNews) && (
+                                  <Loader2 size={12} className="text-red-500 animate-spin ml-1" />
+                              )}
                           </div>
-                          {loadingMarket ? (
-                            <button onClick={stopNewsStream} className="flex items-center gap-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-2 py-1 rounded-full transition-all border border-red-500/30">
-                              <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                              <span className="text-[8px] font-black uppercase tracking-widest">Dừng</span>
-                            </button>
-                          ) : (
-                            marketData.deepNewsData?.length > 0 && (
-                              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full bg-emerald-500/10">
-                                {marketData.deepNewsData.length} tin
-                              </span>
-                            )
-                          )}
-                      </div>
-
-                      <button onClick={fetchAiNews} disabled={loadingAiNews} className={`w-full h-10 mb-4 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all flex items-center justify-center gap-2 border border-dashed ${loadingAiNews ? 'opacity-50 border-slate-500 text-slate-500 cursor-not-allowed' : (isDark ? 'border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500' : 'border-purple-400 text-purple-600 hover:bg-purple-50 hover:border-purple-500')}`}>
-                        <BrainCircuit size={14} className={loadingAiNews ? "animate-pulse" : ""} />
-                        {loadingAiNews ? 'ĐANG QUÉT MẠNG DEEP WEB...' : 'SĂN THÊM TIN BẰNG AI'}
-                      </button>
-
-                      <div className="space-y-3">
-                        {(() => {
-                          const newsList = marketData.deepNewsData || [];
-                          const getSentimentBadge = (news) => {
-                            if (news.isMacro)       return { label: 'Vĩ mô', icon: <Activity size={9}/>, cls: isDark ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40' : 'bg-sky-50 text-sky-700 border border-sky-300' };
-                            if (news.isAiGenerated) return { label: 'AI', icon: <Bot size={9}/>, cls: 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' };
-                            const s = news.sentiment; const m = news.mode;
-                            if (s === 'positive')  return { label: 'Tích cực', icon: <TrendingUp size={9}/>,   cls: isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border border-emerald-300' };
-                            if (s === 'negative')  return { label: 'Tiêu cực', icon: <TrendingDown size={9}/>, cls: isDark ? 'bg-red-500/20 text-red-400 border border-red-500/40'         : 'bg-red-50 text-red-700 border border-red-300' };
-                            if (m === 'official')  return { label: 'Chính thức', icon: <Newspaper size={9}/>,  cls: isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'     : 'bg-blue-50 text-blue-700 border border-blue-300' };
-                            if (m === 'rumor')     return { label: 'Tin đồn',   icon: <Radio size={9}/>,       cls: isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'   : 'bg-amber-50 text-amber-700 border border-amber-300' };
-                            if (m === 'negative')  return { label: 'Rủi ro',    icon: <ShieldAlert size={9}/>, cls: isDark ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40': 'bg-orange-50 text-orange-700 border border-orange-300' };
-                            return { label: 'Tổng hợp', icon: <Minus size={9}/>, cls: isDark ? 'bg-white/5 text-slate-400 border border-white/10' : 'bg-slate-100 text-slate-500 border border-slate-200' };
-                          };
-                          const getCardStyle = (news) => {
-                            if (news.isMacro)                  return isDark ? 'bg-[#080e18] border-sky-500/30' : 'bg-sky-50/60 border-sky-200';
-                            if (news.isAiGenerated)            return isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
-                            if (news.sentiment === 'negative') return isDark ? 'bg-[#130c0c] border-red-900/40'                                            : 'bg-red-50/50 border-red-200';
-                            if (news.sentiment === 'positive') return isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
-                            return isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-200 shadow-sm';
-                          };
-
-                          return newsList.map((news, index) => {
-                            const badge = getSentimentBadge(news);
-                            const titleColor = news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : news.sentiment === 'negative' ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}` : news.sentiment === 'positive' ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}` : `group-hover:text-yellow-500 ${UI.textNormal}`;
-                            const dateColor = news.isAiGenerated ? 'text-purple-300' : news.sentiment === 'positive' ? 'text-emerald-400' : 'text-yellow-500';
-
-                            return (
-                              <a key={index} href={news.link} target="_blank" rel="noopener noreferrer" className={`block rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${getCardStyle(news)}`}>
-                                 <div className="flex items-center justify-between gap-2 mb-2">
-                                  <span className={`inline-flex items-center gap-1 shrink-0 text-[9px] px-2 py-[3px] rounded-full font-black uppercase tracking-widest ${badge.cls}`}>{badge.icon}{badge.label}</span>
-                                  <span className={`text-[9px] font-bold tabular-nums whitespace-nowrap ${dateColor}`}>{news.date || 'Tin tức mới'}</span>
-                                </div>
-                                <h3 className={`font-bold text-sm leading-snug transition-colors ${titleColor}`}>{news.title}</h3>
-                                 <div className={`mt-3 pt-2 flex justify-between items-center gap-3 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                                  <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 truncate ${news.isAiGenerated ? 'text-purple-400' : UI.textBold}`}>
-                                    {news.source ? <><Globe size={10} className="shrink-0" /> <span className="truncate">{news.source}</span></> : <><Globe size={10} className="shrink-0" /> <span className="truncate">Internet</span></>}
+                          
+                          <div className="flex items-center gap-2">
+                               {marketData.deepNewsData?.length > 0 && (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full bg-emerald-500/10 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                                      {marketData.deepNewsData.length} TIN
                                   </span>
-                                  <div className="flex items-center gap-0 shrink-0">
-                                    <span className={`text-[10px] flex items-center gap-1 font-mono font-bold ${UI.textMuted}`}><Clock size={10} /> {news.fetchedAt || 'Đang đồng bộ'}</span>
-                                    <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1 ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
-                                  </div>
-                                </div>
-                              </a>
-                            );
-                          });
-                        })()}
+                              )}
+                              <ChevronDown size={16} className={`transition-transform duration-300 group-open:rotate-180 ${UI.textMuted}`} />
+                          </div>
+                      </summary>
+
+                      <div className="p-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300 overflow-y-auto custom-scrollbar">
+                           <div className="flex items-center justify-between mb-4">
+                              <button onClick={fetchAiNews} disabled={loadingAiNews} className={`h-9 flex-1 rounded-xl font-black text-[9px] tracking-widest uppercase transition-all flex items-center justify-center gap-2 border border-dashed ${loadingAiNews ? 'opacity-50 border-slate-500 text-slate-500 cursor-not-allowed' : (isDark ? 'border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500' : 'border-purple-400 text-purple-600 hover:bg-purple-50 hover:border-purple-500')}`}>
+                                  <BrainCircuit size={14} className={loadingAiNews ? "animate-pulse" : ""} />
+                                  {loadingAiNews ? 'ĐANG QUÉT MẠNG DEEP WEB...' : 'SĂN THÊM TIN BẰNG AI'}
+                              </button>
+                              
+                              {loadingMarket && (
+                                  <button onClick={stopNewsStream} className="flex items-center gap-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white h-9 px-3 ml-2 rounded-xl transition-all border border-red-500/30">
+                                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                      <span className="text-[9px] font-black uppercase tracking-widest">Dừng</span>
+                                  </button>
+                              )}
+                          </div>
+
+                          <div className="space-y-3">
+                              {/* RENDER LIST TIN NHƯ CŨ */}
+                              {(() => {
+                                  const newsList = marketData.deepNewsData || [];
+                                  const getSentimentBadge = (news) => {
+                                      if (news.isMacro)       return { label: 'Vĩ mô', icon: <Activity size={9}/>, cls: isDark ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40' : 'bg-sky-50 text-sky-700 border border-sky-300' };
+                                      if (news.isAiGenerated) return { label: 'AI', icon: <Bot size={9}/>, cls: 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' };
+                                      const s = news.sentiment; const m = news.mode;
+                                      if (s === 'positive')  return { label: 'Tích cực', icon: <TrendingUp size={9}/>,   cls: isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border border-emerald-300' };
+                                      if (s === 'negative')  return { label: 'Tiêu cực', icon: <TrendingDown size={9}/>, cls: isDark ? 'bg-red-500/20 text-red-400 border border-red-500/40'         : 'bg-red-50 text-red-700 border border-red-300' };
+                                      if (m === 'official')  return { label: 'Chính thức', icon: <Newspaper size={9}/>,  cls: isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'     : 'bg-blue-50 text-blue-700 border border-blue-300' };
+                                      if (m === 'rumor')     return { label: 'Tin đồn',   icon: <Radio size={9}/>,       cls: isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'   : 'bg-amber-50 text-amber-700 border border-amber-300' };
+                                      if (m === 'negative')  return { label: 'Rủi ro',    icon: <ShieldAlert size={9}/>, cls: isDark ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40': 'bg-orange-50 text-orange-700 border border-orange-300' };
+                                      return { label: 'Tổng hợp', icon: <Minus size={9}/>, cls: isDark ? 'bg-white/5 text-slate-400 border border-white/10' : 'bg-slate-100 text-slate-500 border border-slate-200' };
+                                  };
+                                  const getCardStyle = (news) => {
+                                      if (news.isMacro)                  return isDark ? 'bg-[#080e18] border-sky-500/30' : 'bg-sky-50/60 border-sky-200';
+                                      if (news.isAiGenerated)            return isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
+                                      if (news.sentiment === 'negative') return isDark ? 'bg-[#130c0c] border-red-900/40'                                            : 'bg-red-50/50 border-red-200';
+                                      if (news.sentiment === 'positive') return isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
+                                      return isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-200 shadow-sm';
+                                  };
+
+                                  return newsList.map((news, index) => {
+                                      const badge = getSentimentBadge(news);
+                                      const titleColor = news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : news.sentiment === 'negative' ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}` : news.sentiment === 'positive' ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}` : `group-hover:text-yellow-500 ${UI.textNormal}`;
+                                      const dateColor = news.isAiGenerated ? 'text-purple-300' : news.sentiment === 'positive' ? 'text-emerald-400' : 'text-yellow-500';
+
+                                      return (
+                                          <a key={index} href={news.link} target="_blank" rel="noopener noreferrer" className={`block rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${getCardStyle(news)}`}>
+                                              <div className="flex items-center justify-between gap-2 mb-2">
+                                                  <span className={`inline-flex items-center gap-1 shrink-0 text-[9px] px-2 py-[3px] rounded-full font-black uppercase tracking-widest ${badge.cls}`}>{badge.icon}{badge.label}</span>
+                                                  <span className={`text-[9px] font-bold tabular-nums whitespace-nowrap ${dateColor}`}>{news.date || 'Tin tức mới'}</span>
+                                              </div>
+                                              <h3 className={`font-bold text-sm leading-snug transition-colors ${titleColor}`}>{news.title}</h3>
+                                              <div className={`mt-3 pt-2 flex justify-between items-center gap-3 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                                                  <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 truncate ${news.isAiGenerated ? 'text-purple-400' : UI.textBold}`}>
+                                                      {news.source ? <><Globe size={10} className="shrink-0" /> <span className="truncate">{news.source}</span></> : <><Globe size={10} className="shrink-0" /> <span className="truncate">Internet</span></>}
+                                                  </span>
+                                                  <div className="flex items-center gap-0 shrink-0">
+                                                      <span className={`text-[10px] flex items-center gap-1 font-mono font-bold ${UI.textMuted}`}><Clock size={10} /> {news.fetchedAt || 'Đang đồng bộ'}</span>
+                                                      <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1 ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
+                                                  </div>
+                                              </div>
+                                          </a>
+                                      );
+                                  });
+                              })()}
+                          </div>
                       </div>
-                  </div>
+                  </details>
+
+                  {/* KHI TIN TỨC ĐÓNG -> HIỂN THỊ MÀN HÌNH TERMINAL HACKER */}
+                  {!isNewsOpen && marketData && (
+                      <TerminalNewsStream 
+                          newsList={marketData.deepNewsData} 
+                          loading={loadingMarket || loadingAiNews} 
+                          isDark={isDark}  
+                      />
+                  )}
               </div>
 
               {/* MŨI TÊN MỜ BÁO TIN MỚI */}
@@ -883,67 +917,59 @@ const handleHeatmapMouseMove = (e) => {
       {/* GRID COLUMN 2: ANALYTICAL VIEW & CHARTS */}
       {/* ========================================================= */}      
       <div className={`flex-1 h-full min-h-0 flex flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
-          
           {/* ================================================== */}
           {/* NGĂN 1: CHART (GHIM) */}
           {/* ================================================== */}
-          <div className="shrink-0 px-8 lg:px-12 pt-8 lg:pt-12 z-20">
-              {marketData && chartData && (
+            {marketData && (
+              <div className="px-2 pt-2 shrink-0"> 
+                  
+                  {/* KHUNG BỌC NGOÀI: Gộp Chart + Resizer  */}
                   <div 
-                      className={`mb-4 border rounded-[40px] px-8 pt-8 pb-8 shadow-xl transition-colors duration-300 flex flex-col relative overflow-hidden ${UI.card} ${isDraggingChart ? 'select-none' : ''}`}
-                      style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px` }}
+                      className={`w-full relative flex flex-col border rounded-2xl transition-all duration-300 ${
+                          isDark 
+                              ? 'border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]' // Dark: Viền vàng mỏng (40%), bóng XANH LÁ
+                              : 'border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+                      }`}
                   >
-                    {isDraggingChart && (
-                        <div 
-                            className="fixed inset-0 z-[99999] cursor-row-resize"
-                            onMouseMove={(e) => {
-                                const deltaY = e.clientY - dragStartY.current;
-                                setChartHeight(Math.min(1200, Math.max(400, startHeight.current + deltaY)));
-                            }}
-                            onMouseUp={() => setIsDraggingChart(false)}
-                            onMouseLeave={() => setIsDraggingChart(false)}
-                        />
-                    )}
-
-                      <div className={`flex items-center gap-3 mb-6 pb-4 border-b shrink-0 relative z-10 ${UI.border}`}>
-                        <BarChart3 className="text-yellow-500" size={24} />
-                        <h3 className={`font-black tracking-widest uppercase text-lg ${UI.textBold}`}>Biểu đồ Kỹ thuật ({marketData.stockInfo.symbol})</h3>
-                      </div>
                       
-                      <div className="flex-1 w-full min-h-0 relative rounded-xl overflow-hidden mb-2 z-10">
+                      {/* LÕI CHART */}
+                      <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent" style={{ height: '600px', flexBasis: '600px' }}>
                           <TradingChart 
-                              data={chartData}       
-                              theme={isDark ? 'dark' : 'light'}
-                              onIntervalChange={handleIntervalChange} 
+                              data={chartData} 
+                              theme={isDark ? 'dark' : 'light'} 
+                              onIntervalChange={handleIntervalChange}
                               currentInterval={activeInterval}
-                          />              
+                          />
                       </div>
-                      
+                          
+                      {/* THANH KÉO (RESIZER)  */}
                       <div 
-                          className="absolute bottom-0 left-0 w-full h-3 flex items-center justify-center cursor-row-resize z-[50] hover:bg-yellow-400/20 transition-all bg-gradient-to-t from-black/10 to-transparent"
-                          onMouseDown={(e) => { 
-                              e.preventDefault(); 
-                              setIsDraggingChart(true); 
-                              dragStartY.current = e.clientY;
-                              startHeight.current = chartHeight;
-                          }}
+                          onMouseDown={handleDragStart}
+                          className={`h-3.5 w-full cursor-row-resize flex items-center justify-center shrink-0 z-10 transition-colors border-t rounded-b-2xl ${
+                              isDraggingChart 
+                                  ? 'bg-yellow-400/20 border-yellow-400/50' 
+                                  : isDark 
+                                      ? 'bg-white/5 border-yellow-400/40 hover:bg-yellow-400/10' 
+                                      : 'bg-slate-50 border-blue-200 hover:bg-blue-100'  
+                          }`}
                           title="Kéo để thay đổi kích thước biểu đồ"
                       >
-                          <div className={`w-16 h-1.5 rounded-full ${isDark ? 'bg-slate-500 shadow-[0_0_5px_rgba(0,0,0,0.8)]' : 'bg-slate-400 shadow-sm'}`}></div>
+                          {/* Vạch kẻ ngang kéo */}
+                          <div className={`w-16 h-1 rounded-full ${isDraggingChart ? 'bg-yellow-400' : isDark ? 'bg-yellow-400/40' : 'bg-blue-300'}`} />
                       </div>
-                  </div>
-              )}
-          </div>
 
-          <div 
+                  </div>
+              </div>
+            )}
+          {/* ================================================== */}
+          {/* NGĂN 2: LUỒNG CUỘN CHÍNH */}
+          {/* ================================================== */}  
+          <div
           ref={scrollContainerRef} 
           onScroll={handleScroll} 
           className="flex-1 overflow-y-auto custom-scrollbar px-6 lg:px-10 pb-12 relative transition-all duration-300"
-      >
-          
-          
-          
-          
+          >
+
           {!analyzing && !aiReport && (
               <div className="flex flex-col gap-6 animate-in fade-in duration-700">
                   <div>
@@ -1289,9 +1315,6 @@ const handleHeatmapMouseMove = (e) => {
               </div>
           )}
 
-          
-          
-          
           {analyzing && (() => {
               const syncedProgress = Math.max(3, Math.min(100, Number(analysisProgress) || 3));
               const etaLabel = typeof aiAnalysisEta === 'number'
@@ -1385,9 +1408,6 @@ const handleHeatmapMouseMove = (e) => {
               );
           })()}
 
-          
-          
-          
           {aiReport && (
               <div className="w-full flex flex-col gap-6 mt-4">
                   
