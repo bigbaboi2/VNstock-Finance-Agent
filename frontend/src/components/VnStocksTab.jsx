@@ -3,7 +3,7 @@ import {
   BarChart3, ChevronDown, ChevronUp, HelpCircle,
   ArrowLeft, MessageSquare, FileJson, ExternalLink,
   TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
-  Loader2, CheckCircle2, XCircle, Globe, Clock,RefreshCw
+  Loader2, CheckCircle2, XCircle, Globe, Clock, RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -69,7 +69,7 @@ function CompanyOverview({ profile, isDark, UI }) {
     </div>
   );
 }
-{/*LIVE DEBATE PREVIEW AREA*/}
+
 const LiveDebatePreview = ({ liveDebate, isDark }) => {
     const steps = [
         { key: 'tech', icon: '📐', label: 'Kỹ thuật' },
@@ -82,6 +82,7 @@ const LiveDebatePreview = ({ liveDebate, isDark }) => {
     ];
     const [activeKey, setActiveKey] = useState('tech');
     const available = steps.filter(s => liveDebate[s.key]);
+    
     useEffect(() => {
         const latest = steps.filter(s => liveDebate[s.key]).pop();
         if (latest) setActiveKey(latest.key);
@@ -93,7 +94,6 @@ const LiveDebatePreview = ({ liveDebate, isDark }) => {
         <div className={`w-full rounded-2xl border mt-4 overflow-hidden ${
             isDark ? 'bg-[#0d1219] border-yellow-400/20' : 'bg-slate-50 border-yellow-400/30'
         }`}>
-            {/* Header */}
             <div className="px-4 py-3 flex items-center gap-2 border-b border-white/5">
                 <span className="animate-pulse text-yellow-400 text-xs">⚡</span>
                 <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500">
@@ -142,13 +142,12 @@ const LiveDebatePreview = ({ liveDebate, isDark }) => {
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {liveDebate[activeKey] || ''}
                     </ReactMarkdown>
-
                 </div>
             </div>
         </div>
     );
 };
-// DEBATE PANEL , DISPLAY IN REPORT TAB
+
 const DebatePanel = ({ debateResult, isDark, UI }) => {
     const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('pm');
@@ -171,7 +170,6 @@ const DebatePanel = ({ debateResult, isDark, UI }) => {
         <div className={`w-full rounded-2xl border mb-6 overflow-hidden transition-all duration-300 ${
             isDark ? 'bg-[#0d1219] border-yellow-400/15' : 'bg-slate-50 border-yellow-400/30'
         }`}>
-            {/* HEADER   */}
             <button
                 onClick={() => setOpen(v => !v)}
                 className={`w-full flex items-center justify-between px-6 py-4 transition-colors ${
@@ -200,10 +198,8 @@ const DebatePanel = ({ debateResult, isDark, UI }) => {
                 </div>
             </button>
 
-            {/* BODY */}
             {open && (
                 <div className={`border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                    {/* TABS */}
                     <div className={`flex gap-1 p-3 overflow-x-auto border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
                         {tabs.map(tab => (
                             <button
@@ -226,7 +222,6 @@ const DebatePanel = ({ debateResult, isDark, UI }) => {
                         ))}
                     </div>
 
-                    {/* NỘI DUNG TAB   */}
                     <div className="h-[340px] overflow-y-auto p-5">
                         <div className={`prose prose-sm max-w-none prose-headings:font-black prose-headings:uppercase
                             ${isDark
@@ -244,7 +239,7 @@ const DebatePanel = ({ debateResult, isDark, UI }) => {
         </div>
     );
 };
-// PROP DRILLING FROM App.jsx
+
 export default function VnStocksTab({
   isDark, UI,
   allStocks,
@@ -295,8 +290,15 @@ export default function VnStocksTab({
   const [isExporting, setIsExporting]   = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const aiError = aiReportError;
-    // === TOTAL TIME CLOCK ===
+
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [chartHeight, setChartHeight] = useState(600);
+  const scrollContainerRef = useRef(null);
+  const [isDraggingChart, setIsDraggingChart] = useState(false);
+  const dragStartY = useRef(0);
+  const startHeight = useRef(600);
+
+  // ĐỒNG HỒ & CUỘN TỰ ĐỘNG
   useEffect(() => {
       let timer;
       if (analyzing) {
@@ -309,20 +311,13 @@ export default function VnStocksTab({
       }
       return () => clearInterval(timer);
   }, [analyzing]);
-//=== LOGIC: SCROLL CHART HEIGHT === 
-  const [chartHeight, setChartHeight] = useState(600);
-  const scrollContainerRef = useRef(null);
-  const [isDraggingChart, setIsDraggingChart] = useState(false);
-  const dragStartY = useRef(0);
-  const startHeight = useRef(600);
-  // animation frame for smooth resizing
+
   useEffect(() => {
       if (analyzing && aiReport && scrollContainerRef.current) {
           const container = scrollContainerRef.current;
-           container.scrollTop = container.scrollHeight;
+          container.scrollTop = container.scrollHeight;
       }
   }, [aiReport, analyzing]);
-// ======================================
 
   useEffect(() => {
     if (onRequestCloseChat) {
@@ -330,78 +325,20 @@ export default function VnStocksTab({
     }
   }, [onRequestCloseChat]);
 
-  // ── LOADING ENTERTAINMENT ──
   const VN_STOCK_FACTS = [
-    { type: 'fact', icon: '📊', text: 'HOSE (Sở GDCK TP.HCM) khai trương ngày 28/7/2000 với phiên đầu tiên chỉ có 2 mã: REE và SAM. Khớp lệnh 2 lần/ngày.' },
-    { type: 'fact', icon: '🏛️', text: 'HNX (Sở GDCK Hà Nội) thành lập năm 2005, ban đầu là sàn OTC cho doanh nghiệp vừa và nhỏ, nay bao gồm cả thị trường trái phiếu chính phủ.' },
-    { type: 'fact', icon: '📈', text: 'Biên độ dao động giá trên HOSE là ±7%/phiên, HNX ±10%/phiên, UPCoM ±15%/phiên. Riêng cổ phiếu ngày IPO có thể dao động không giới hạn.' },
-    { type: 'fact', icon: '⏱️', text: 'Quy tắc T+2: Cổ phiếu mua ngày T sẽ được về tài khoản sau 2 ngày làm việc (T+2), và chỉ bán được sau đó.' },
-    { type: 'fact', icon: '🌏', text: 'FTSE Russell xếp Việt Nam vào nhóm Frontier Market từ 2018. Mục tiêu nâng hạng lên Secondary Emerging Market đang được cơ quan quản lý thúc đẩy.' },
-    { type: 'fact', icon: '💹', text: 'VN-Index được tính theo phương pháp vốn hóa thị trường (market-cap weighted), tương tự S&P 500 — cổ phiếu vốn hóa lớn ảnh hưởng chỉ số nhiều hơn.' },
-    { type: 'fact', icon: '🏦', text: 'Nhóm ngân hàng chiếm tỷ trọng lớn nhất VN-Index, thường dao động 30–40% tổng vốn hóa toàn thị trường.' },
-    { type: 'fact', icon: '💰', text: 'Thanh khoản HOSE những phiên sôi động có thể vượt 25.000 tỷ đồng (~1 tỷ USD), ngang ngửa các sàn lớn ở Đông Nam Á như SET (Thái Lan).' },
-    { type: 'fact', icon: '📉', text: 'VN-Index từng giảm hơn 70% trong giai đoạn khủng hoảng 2007–2009, từ đỉnh ~1.170 điểm xuống còn ~235 điểm — mức giảm mạnh nhất lịch sử.' },
-    { type: 'fact', icon: '🧾', text: 'Thuế TNCN khi bán cổ phiếu tại Việt Nam là 0,1% trên giá trị giao dịch (không phân biệt lãi hay lỗ), thu tại nguồn qua công ty chứng khoán.' },
-    { type: 'fact', icon: '🔒', text: 'Room ngoại (foreign ownership limit) tối đa thông thường là 49% cho công ty thường, 30% cho ngân hàng, trừ trường hợp được cấp phép đặc biệt.' },
-    { type: 'fact', icon: '📦', text: 'Lô tối thiểu khi đặt lệnh trên HOSE và HNX là 100 cổ phiếu. UPCoM cho phép đặt lẻ từ 1 cổ phiếu.' },
-    { type: 'fact', icon: '🦅', text: 'VinFast (VFS) niêm yết trên Nasdaq năm 2023, trở thành công ty Việt Nam đầu tiên IPO trên sàn chứng khoán Mỹ.' },
-    { type: 'fact', icon: '🏗️', text: 'Tập đoàn Vingroup là doanh nghiệp tư nhân có vốn hóa lớn nhất Việt Nam, hoạt động trải dài từ bất động sản, bán lẻ đến ô tô điện.' },
-    { type: 'fact', icon: '🌾', text: 'Việt Nam là quốc gia xuất khẩu gạo top 3 thế giới — các mã cổ phiếu nông nghiệp như LTG, NSC thường biến động theo giá gạo quốc tế.' },
-    { type: 'fact', icon: '⚡', text: 'Chỉ số HNX30 gồm 30 cổ phiếu vốn hóa lớn nhất sàn HNX, được cơ cấu lại 2 lần/năm vào tháng 1 và tháng 7.' },
-    { type: 'fact', icon: '🔋', text: 'Cổ phiếu penny tại Việt Nam thường là cổ phiếu có giá dưới 10.000 đồng — biên độ ±7% tương đương chỉ vài trăm đồng/cổ.' },
-    { type: 'fact', icon: '🎯', text: 'Lệnh ATO (At-the-Opening) và ATC (At-the-Closing) không có giá giới hạn — mục đích tạo thanh khoản tốt nhất lúc mở/đóng cửa.' },
-    { type: 'fact', icon: '🏙️', text: 'TP.HCM đóng góp hơn 50% thanh khoản toàn thị trường chứng khoán Việt Nam nhờ mật độ nhà đầu tư và doanh nghiệp tập trung.' },
-    { type: 'fact', icon: '💎', text: 'ROE (Return on Equity) trên 15% thường được coi là ngưỡng tốt tại Việt Nam — ngân hàng lớn thường đạt 18–22%.' },
-    { type: 'fact', icon: '📡', text: 'Hệ thống giao dịch KRX (Hàn Quốc) được triển khai tại HOSE từ năm 2021, thay thế hệ thống cũ, hỗ trợ giao dịch T+0 trong tương lai.' },
-    { type: 'fact', icon: '🌊', text: 'Sóng Elliott là lý thuyết phân tích kỹ thuật phổ biến tại Việt Nam — nhiều NĐT cá nhân dùng để dự đoán chu kỳ thị trường.' },
-    { type: 'fact', icon: '🐋', text: '"Cá mập" trong thị trường VN ám chỉ tổ chức, quỹ lớn — hành vi của họ thường được theo dõi qua khối lượng giao dịch bất thường.' },
-    { type: 'fact', icon: '📰', text: 'SSI Research, VNDirect và MBS là ba trung tâm phân tích được nhà đầu tư Việt Nam tham khảo nhiều nhất.' },
-    { type: 'fact', icon: '🔮', text: 'P/B (Price-to-Book) dưới 1 nghĩa là cổ phiếu giao dịch thấp hơn giá trị sổ sách — có thể là cơ hội hoặc bẫy giá trị.' },
-    { type: 'fact', icon: '🏆', text: 'Mã VCB (Vietcombank) thường được coi là "cổ phiếu chuẩn mực" nhờ thanh khoản cao, quản trị tốt và lợi nhuận ổn định.' },
-    { type: 'fact', icon: '🌐', text: 'Dragon Capital và VinaCapital là hai quỹ ngoại lớn nhất đang hoạt động tại thị trường chứng khoán Việt Nam.' },
-    { type: 'fact', icon: '📋', text: 'BCTC quý của doanh nghiệp niêm yết phải nộp trong 45 ngày sau khi kết thúc quý, BCTC năm trong 90 ngày.' },
-    { type: 'fact', icon: '🏠', text: 'Cổ phiếu bất động sản chiếm 15–20% vốn hóa VN-Index, nhạy cảm nhất với chính sách lãi suất và tín dụng của NHNN.' },
-    { type: 'fact', icon: '⚖️', text: 'Ủy ban Chứng khoán Nhà nước (SSC) là cơ quan quản lý thị trường vốn Việt Nam, trực thuộc Bộ Tài chính, thành lập năm 1996.' },
-    { type: 'fact', icon: '🎪', text: 'IPO lớn nhất lịch sử TTCK Việt Nam là VHM (Vinhomes) năm 2018, huy động gần 14.000 tỷ đồng trong ngày đầu niêm yết.' },
-    { type: 'fact', icon: '🔬', text: 'Phân tích cơ bản (FA) tập trung vào giá trị nội tại; phân tích kỹ thuật (TA) tập trung vào mẫu hình giá và khối lượng.' },
-    { type: 'fact', icon: '💡', text: 'Chiến lược "mua và nắm giữ" dài hạn tại VN-Index từ 2009–2022 mang lại lợi suất trung bình ~12–15%/năm.' },
-    { type: 'fact', icon: '🦁', text: 'Nhà đầu tư nước ngoài mua ròng kỷ lục trên HOSE thường xảy ra khi VND ổn định và lãi suất USD thấp.' },
-    { type: 'fact', icon: '🎲', text: 'Giao dịch margin tại Việt Nam cho phép vay tối đa 50% giá trị danh mục — tỷ lệ 1:1, thấp hơn nhiều thị trường phát triển.' },
-    { type: 'fact', icon: '🕰️', text: 'Phiên HOSE: Sáng 9:00–11:30, Chiều 13:00–14:30, ATC 14:30–14:45. HNX có thêm phiên thỏa thuận.' },
-    { type: 'fact', icon: '🌱', text: 'ESG (Môi trường, Xã hội, Quản trị) đang trở thành tiêu chí quan trọng cho nhà đầu tư nước ngoài khi chọn cổ phiếu Việt Nam.' },
-    { type: 'fact', icon: '🔥', text: '"Cháy tài khoản" xảy ra khi dùng margin quá mức — thị trường VN ghi nhận nhiều trường hợp trong giai đoạn 2021–2022.' },
-    { type: 'fact', icon: '🧲', text: 'Chứng quyền có bảo đảm (CW) được giới thiệu tại HOSE từ năm 2019, cho phép đầu tư đòn bẩy với rủi ro giới hạn.' },
-    { type: 'fact', icon: '🌍', text: 'GDP Việt Nam tăng trưởng bình quân 6–7%/năm trong 20 năm qua — một trong những nền kinh tế tăng trưởng nhanh nhất châu Á.' },
-    { type: 'fact', icon: '🏭', text: 'Ngành sản xuất xuất khẩu (dệt may, điện tử, thủy sản) đóng góp lớn vào GDP nhưng có ít mã niêm yết chất lượng cao trên sàn.' },
-    { type: 'fact', icon: '💳', text: 'Tài khoản chứng khoán tại VN cần xác thực eKYC — số lượng tài khoản mở mới kỷ lục trong 2020–2021 với hàng triệu NĐT mới.' },
-    { type: 'fact', icon: '🛡️', text: 'Quỹ bảo vệ nhà đầu tư (IDF) được quản lý bởi VSD, bảo vệ tối đa 50 triệu đồng/nhà đầu tư.' },
-    { type: 'fact', icon: '🚀', text: 'Cổ phiếu FPT tăng hơn 300% trong giai đoạn 2020–2023, nhờ tăng trưởng mảng công nghệ và AI toàn cầu.' },
-    { type: 'fact', icon: '🎯', text: 'Sharpe Ratio đo lường lợi nhuận vượt trội so với rủi ro — danh mục tốt có Sharpe > 1, xuất sắc khi > 2.' },
-    { type: 'fact', icon: '🔑', text: 'Đòn bẩy tài chính (D/E ratio) cao không nhất thiết xấu — ngân hàng VN thường có D/E 8–10x vì bản chất kinh doanh vốn.' },
-    { type: 'fact', icon: '🌺', text: 'Mùa BCTC VN tập trung vào tháng 1 (Q4 sơ bộ), tháng 4 (Q4 chính thức + Q1), tháng 7–8 (Q2) và tháng 10 (Q3).' },
-    { type: 'fact', icon: '🧩', text: 'VNMID theo dõi 70 cổ phiếu vốn hóa vừa, thường tăng trưởng tốt hơn VN-Index trong bull market do room tăng lớn hơn.' },
-    { type: 'fact', icon: '💻', text: 'Giao dịch thuật toán (algo trading) chiếm ngày càng lớn thanh khoản HOSE, đặc biệt qua SSI, VCSC, HSC.' },
-    { type: 'fact', icon: '🌙', text: '"January Effect" từng quan sát thấy trên TTCK VN: cổ phiếu vốn hóa nhỏ thường tăng mạnh vào đầu năm mới.' },
-    { type: 'fact', icon: '🏅', text: 'VN-Index đạt đỉnh lịch sử ~1.500 điểm vào tháng 4/2022, sau đó điều chỉnh sâu do ảnh hưởng từ thị trường trái phiếu.' },
-    { type: 'fact', icon: '📣', text: 'Insider trading bị phạt nặng tại VN — SSC tăng mức phạt lên đến 10 tỷ đồng và cấm hoạt động chứng khoán từ 2023.' },
+    { type: 'fact', icon: '📊', text: 'HOSE (Sở GDCK TP.HCM) khai trương ngày 28/7/2000 với phiên đầu tiên chỉ có 2 mã: REE và SAM.' },
+    { type: 'fact', icon: '🏛️', text: 'HNX (Sở GDCK Hà Nội) thành lập năm 2005, ban đầu là sàn OTC.' },
+    { type: 'fact', icon: '📈', text: 'Biên độ dao động giá trên HOSE là ±7%/phiên, HNX ±10%/phiên, UPCoM ±15%/phiên.' },
+    { type: 'fact', icon: '⏱️', text: 'Quy tắc T+2: Cổ phiếu mua ngày T sẽ được về tài khoản sau 2 ngày làm việc.' },
+    { type: 'fact', icon: '🐋', text: '"Cá mập" trong thị trường VN ám chỉ tổ chức, quỹ lớn — hành vi của họ thường được theo dõi qua khối lượng.' },
+    { type: 'fact', icon: '🏆', text: 'Mã VCB (Vietcombank) thường được coi là "cổ phiếu chuẩn mực" nhờ thanh khoản cao.' },
     { type: 'quiz', icon: '🧠', question: 'VN30 theo dõi bao nhiêu cổ phiếu?', options: ['20 mã', '30 mã', '50 mã', '100 mã'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'Lệnh ATO khớp vào thời điểm nào?', options: ['Cuối phiên chiều', 'Mở cửa phiên sáng', 'Giữa phiên liên tục', 'Bất kỳ lúc nào'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'P/E = 15 nghĩa là gì?', options: ['Lợi nhuận gấp 15 lần giá', 'Mất 15 năm hoàn vốn theo LN hiện tại', 'Giá trị sổ sách gấp 15 lần', 'Tăng trưởng 15%/năm'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'Margin call xảy ra khi nào?', options: ['Cổ phiếu tăng trần', 'Tài khoản lãi lớn', 'Tài sản ròng xuống dưới ngưỡng tối thiểu', 'Hết phiên giao dịch'], answer: 2 },
-    { type: 'quiz', icon: '🧠', question: 'RSI trên 70 thường báo hiệu điều gì?', options: ['Vùng quá bán', 'Vùng quá mua', 'Xu hướng tăng mạnh', 'Cổ phiếu đang giảm'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'MACD cắt Signal từ dưới lên là tín hiệu gì?', options: ['Bán ra', 'Mua vào (bullish)', 'Giữ nguyên', 'Không có ý nghĩa'], answer: 1 },
     { type: 'quiz', icon: '🧠', question: 'Biên độ dao động tối đa/phiên trên HOSE là?', options: ['±5%', '±7%', '±10%', '±15%'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'Sàn nào cho phép đặt lô lẻ từ 1 cổ phiếu?', options: ['HOSE', 'HNX', 'UPCoM', 'Cả ba'], answer: 2 },
-    { type: 'quiz', icon: '🧠', question: 'T+2 nghĩa là gì?', options: ['Mua 2 lần/ngày', 'Cổ phiếu về tài khoản sau 2 ngày', 'Lãi suất margin 2%', 'Khớp lệnh 2 lần'], answer: 1 },
-    { type: 'quiz', icon: '🧠', question: 'Chỉ số nào đo lường lợi nhuận trên vốn chủ sở hữu?', options: ['P/E', 'EPS', 'ROE', 'EBITDA'], answer: 2 },
-    { type: 'quiz', icon: '🧠', question: 'VN-Index được tính theo phương pháp nào?', options: ['Giá trung bình', 'Vốn hóa thị trường', 'Giá cao nhất/thấp nhất', 'Đồng đều các mã'], answer: 1 },
   ];
 
   const VN_FACTS_ONLY = VN_STOCK_FACTS.filter(c => c.type === 'fact');
   const VN_QUIZ_ONLY  = VN_STOCK_FACTS.filter(c => c.type === 'quiz');
-  const randFrom = arr => arr[Math.floor(Math.random() * arr.length)];
 
-//Keep track of displayed facts/quiz — don't show again
   const shownFactIndicesRef = useRef(new Set());
   const shownQuizIndicesRef = useRef(new Set());
 
@@ -446,7 +383,6 @@ export default function VnStocksTab({
     return () => clearTimeout(t);
   }, [analyzing, loadingCard]);
 
-  // STATE CỦA BẢN ĐỒ NHIỆT
   const [heatmapView, setHeatmapView] = useState('sectors'); 
   const [heatmapSector, setHeatmapSector] = useState(null);
   const [hmColor, setHmColor] = useState('redGreen');
@@ -456,8 +392,10 @@ export default function VnStocksTab({
 
   return (
     <>
-        {/* GRID COLUMN 1: MARKET DATA & RADAR SUMMARY */}
-        <div className={`w-[550px] border-r flex flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol}`}>
+      {/* ========================================================= */}
+      {/* GRID COLUMN 1: MARKET DATA & RADAR SUMMARY */}
+      {/* ========================================================= */}
+      <div className={`w-[550px] border-r flex flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol}`}>
           <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
             {loadingMarket && (
               <div 
@@ -570,7 +508,6 @@ export default function VnStocksTab({
 
                   <CompanyOverview profile={marketData.companyProfile} isDark={isDark} UI={UI} />
 
-                  {/* ── PDF MODE SELECTOR ─────────────────────────────── */}
                   {setPdfMode && (
                     <div className={`rounded-xl p-3 mb-2 border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-slate-100 border-slate-200'}`}>
                       <p className={`text-[10px] font-black tracking-widest uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -637,7 +574,6 @@ export default function VnStocksTab({
                       const sym = marketData.stockInfo?.symbol;
                       setIsExporting(true);
                       setExportStatus(null);
-                      console.log(`[HỆ THỐNG] Đang lấy full AI feed từ server cho ${sym}...`);
                       try {
                         const optimizedNews = (marketData.deepNewsData || []).slice(0, 20).map(n => ({
                           title:     n.title,
@@ -661,13 +597,6 @@ export default function VnStocksTab({
                         if (!res.ok) { const text = await res.text(); throw new Error(`Server lỗi ${res.status}: ${text.slice(0, 300)}`); }
                         const json = await res.json();
                         
-                        console.group(`🦆 FULL AI FEED [${sym}] — ${json._debugMeta?.totalSizeKB} KB`);
-                        console.table(json._debugMeta);
-                        console.log('📋 previousAnalysis:', json.data?.previousAnalysis ? json.data.previousAnalysis.slice(0, 300) + '...' : 'null');
-                        console.log('🌐 marketContext (server):', json.data?.marketContext);
-                        console.log('📄 tcbsMarkdownData:', json.data?.tcbsMarkdownData ? json.data.tcbsMarkdownData.slice(0, 300) + '...' : 'null');
-                        console.log('📦 Full data:', json.data);
-                        console.groupEnd();
                         const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -678,7 +607,6 @@ export default function VnStocksTab({
                         setExportStatus('success');
                         setTimeout(() => setExportStatus(null), 3000);
                       } catch (err) {
-                        console.error('Export lỗi:', err);
                         setExportStatus('error');
                         setTimeout(() => setExportStatus(null), 4000);
                       } finally {
@@ -690,7 +618,7 @@ export default function VnStocksTab({
                         <button
                           onClick={handleExportData}
                           disabled={isExporting}
-                          title="Xuất TOÀN BỘ data thực tế AI nhận (gồm previousAnalysis, marketContext từ server, TCBS PDF...)"
+                          title="Xuất TOÀN BỘ data thực tế AI nhận"
                           className={`w-full h-9 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border text-[11px] uppercase tracking-widest overflow-hidden relative
                             ${isExporting
                               ? isDark
@@ -709,26 +637,6 @@ export default function VnStocksTab({
                                     : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300'
                             }`}
                         >
-                          {/* Shimmer sweep khi đang export */}
-                          {isExporting && (
-                            <span
-                              className="absolute inset-0 pointer-events-none"
-                              style={{
-                                background: isDark
-                                  ? 'linear-gradient(90deg,transparent 0%,rgba(234,179,8,0.12) 50%,transparent 100%)'
-                                  : 'linear-gradient(90deg,transparent 0%,rgba(234,179,8,0.18) 50%,transparent 100%)',
-                                backgroundSize: '200% 100%',
-                                animation: 'exportSweep 1.4s linear infinite',
-                              }}
-                            />
-                          )}
-                          <style>{`
-                            @keyframes exportSweep {
-                              from { background-position: 200% 0; }
-                              to   { background-position: -200% 0; }
-                            }
-                          `}</style>
-
                           {isExporting ? (
                             <>
                               <Loader2 size={13} className="animate-spin shrink-0" />
@@ -810,7 +718,6 @@ export default function VnStocksTab({
 
                   {(() => {
                     const newsList = marketData.deepNewsData || [];
-                    const total = newsList.length;
 
                     // Helpers
                     const getSentimentBadge = (news) => {
@@ -863,7 +770,6 @@ export default function VnStocksTab({
                             </span>
                           </div>
 
-                          {/* Title */}
                           <h3 className={`font-bold text-sm leading-snug transition-colors ${titleColor}`}>
                             {news.title}
                           </h3>
@@ -880,13 +786,12 @@ export default function VnStocksTab({
                             <div className="flex items-center gap-0 shrink-0">
                               <span className={`text-[11px] flex items-center gap-1 font-mono font-bold ${UI.textMuted}`}>
                                 <Clock size={12} /> 
-                                Ngày lấy tin: {news.fetchedAt || 'Đang đồng bộ'}
+                                {news.fetchedAt || 'Đang đồng bộ'}
                               </span>
                               <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
                             </div>
                           </div>
-
-                          </a>
+                        </a>
                       );
                     });
                   })()}
@@ -895,14 +800,17 @@ export default function VnStocksTab({
             </div>
           )}
         </div>
-          <MarketOverview 
-            isDark={isDark} UI={UI} 
-            marketIntel={marketIntel} 
-            vnIndexData={vnIndexData} 
-          />
+        <MarketOverview 
+          isDark={isDark} UI={UI} 
+          marketIntel={marketIntel} 
+          vnIndexData={vnIndexData} 
+        />
       </div>
-    {/* GRID COLUMN 2: ANALYTICAL VIEW & CHARTS */}      
-    <div className={`flex-1 h-full min-h-0 flex flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
+
+      {/* ========================================================= */}
+      {/* GRID COLUMN 2: ANALYTICAL VIEW & CHARTS */}
+      {/* ========================================================= */}      
+      <div className={`flex-1 h-full min-h-0 flex flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
           
           {/* ================================================== */}
           {/* NGĂN 1: CHART (GHIM CỨNG BÊN TRÊN) */}
@@ -1053,11 +961,11 @@ export default function VnStocksTab({
           })()}
 
           {/* ================================================== */}
-          {/* NGĂN 2: BÁO CÁO AI VÀ LỊCH SỬ ==================== */}
+          {/* NGĂN 2: BÁO CÁO AI VÀ LỊCH SỬ (ĐƯỢC PHÉP CUỘN MƯỢT MÀ) */}
           {/* ================================================== */}
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar px-8 lg:px-12 pb-12">
               
-              {!marketData && !analyzing && !aiReport && (
+              {!analyzing && !aiReport && (
                   <div className="flex flex-col gap-6 animate-in fade-in duration-700">
                       <div>
                           <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
@@ -1146,6 +1054,253 @@ export default function VnStocksTab({
                               Tải thêm (+3)
                           </button>
                       )}
+
+                      {/* SECTOR HEATMAP */}
+                      {(loadingHeatmap || heatmapData.length > 0) && (() => {
+                        const getWeight = (stock) => {
+                          try {
+                            if (hmMetric === 'value') {
+                              const v = (stock.price || 0) * (stock.volume || 0);
+                              return isFinite(v) && v > 0 ? v : 1;
+                            }
+                            if (hmMetric === 'marketcap') {
+                              const stockInfo = allStocks.find(s => s.symbol === stock.sym || s.symbol === stock.id);
+                              if (stockInfo?.marketCap) {
+                                const raw = String(stockInfo.marketCap).replace(/[^\d]/g, '');
+                                const capNumber = parseFloat(raw);
+                              return isFinite(capNumber) && capNumber > 0 ? capNumber : stock.volume || 1;
+                              }
+                              return stock.volume || 1; 
+                            }
+                            const vol = stock.volume || 1;
+                            return isFinite(vol) && vol > 0 ? vol : 1;
+                          } catch { return 1; }
+                        };
+
+                        let hmData = [];
+                        let hmTotal = 0;
+
+                        if (heatmapView === 'sectors') {
+                            hmData = heatmapData.map(sec => {
+                                const weight = sec.stocks.reduce((sum, s) => sum + getWeight(s), 0);
+                                return { id: sec.name, name: sec.name, changePct: sec.avgChange, weight };
+                            });
+                            hmTotal = hmData.reduce((sum, d) => sum + d.weight, 0);
+                        } else if (heatmapView === 'stocks' && heatmapSector) {
+                            const sec = heatmapData.find(s => s.name === heatmapSector);
+                            if (sec) {
+                                hmData = sec.stocks.map(s => {
+                                    const info = allStocks.find(as => as.symbol === s.sym) || {};
+                                    return {
+                                        id: s.sym, name: s.sym, fullName: info.companyName || 'Đang cập nhật',
+                                        exchange: info.exchange || 'VNX', price: s.price,
+                                        changePct: s.changePct, weight: getWeight(s)
+                                    };
+                                });
+                                hmTotal = hmData.reduce((sum, d) => sum + d.weight, 0);
+                            }
+                        }
+                        hmData.sort((a,b) => b.weight - a.weight);
+
+                        return (
+                        <>
+                        <div className="mt-8 border-t pt-6 border-white/10">
+                          <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between mb-4 gap-3">
+                            <div className="flex items-center gap-3">
+                              {heatmapView === 'stocks' && (
+                                  <button 
+                                      onClick={() => { setHeatmapView('sectors'); setHeatmapSector(null); }} 
+                                      className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded border transition-all ${isDark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'}`}
+                                  >
+                                      <ArrowLeft size={14}/> QUAY LẠI
+                                  </button>
+                              )}
+                              <h2 className={`text-sm font-black tracking-widest uppercase ${UI.textBold}`}>
+                                  {heatmapView === 'sectors' ? 'Bản đồ Nhiệt Ngành' : `NGÀNH: ${heatmapSector}`}
+                              </h2>
+                              {heatmapView === 'stocks' && (
+                                <span className={`text-[9px] font-bold px-2 py-1 rounded border border-dashed animate-pulse ${isDark ? 'text-yellow-400 border-yellow-400/30' : 'text-yellow-600 border-yellow-400'}`}>
+                                  ✦ Double-click mã để phân tích
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+                                <select
+                                  value={hmMetric}
+                                  onChange={e => setHmMetric(e.target.value)}
+                                  className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}
+                                >
+                                  <option value="volume">📊 Tỷ lệ: Khối lượng GD</option>
+                                  <option value="value">💰 Tỷ lệ: Giá trị GD</option>
+                                  <option value="marketcap">🏢 Tỷ lệ: Vốn hóa</option>
+                                </select>
+                              <select value={hmShape} onChange={e=>setHmShape(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                                  <option value="rectangle">🟩 Dạng: Chữ nhật</option>
+                                  <option value="polygon">⬟ Dạng: Đa giác</option>
+                                  <option value="circle">⏺ Dạng: Hình tròn</option>
+                              </select>
+                              <select value={hmColor} onChange={e=>setHmColor(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                                  <option value="redGreen">🔴 Màu Cơ bản (+/-)</option>
+                                  <option value="monochrome">🔵 Đơn sắc (Vol)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {loadingHeatmap ? (
+                            <div className="grid grid-cols-5 gap-1.5 mb-6">
+                              {Array(10).fill(0).map((_,i) => <div key={i} className={`rounded-lg h-[80px] animate-pulse ${isDark?'bg-white/5':'bg-slate-200'}`}/>)}
+                            </div>
+                          ) : (() => {
+                            // ── helper: color ──
+                              const getBg = (changePct, rawPct) => {
+                                if (hmColor === 'redGreen') {
+                                  if (changePct > 3)  return '#00c851';    
+                                  if (changePct > 1.5) return '#00a040';  
+                                  if (changePct > 0)  return '#28a745';  
+                                  if (changePct > -1.5) return '#e53935'; 
+                                  if (changePct > -3) return '#c62828';  
+                                  return '#8b0000';                        
+                                }
+                                return rawPct > 15 ? '#2563eb' : rawPct > 5 ? '#1d4ed8' : '#1e3a8a';
+                              };
+                            
+                            // ── RECTANGLE (treemap-style) ──
+                            return (
+                              <div className="flex flex-wrap gap-1 mb-8 content-start" style={{ minHeight: '220px' }}>
+                                {hmData.map(item => {
+                                  const rawPct = hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0;
+                                    const pctWidth = Math.max(rawPct, 4);
+                                  const color = getBg(item.changePct, rawPct);
+                                    const minH = 60, maxH = 160;
+                                  const minW = Math.min(...hmData.map(d => d.weight));
+                                  const maxW = Math.max(...hmData.map(d => d.weight));
+                                  const heightPx = maxW === minW ? 100 : minH + (maxH - minH) * ((item.weight - minW) / (maxW - minW));
+                                  return (
+                                    <div
+                                      key={item.id}
+                                        onMouseEnter={(e) => setHmHovered({ 
+                                          id: item.id, 
+                                          name: item.name, 
+                                          fullName: item.fullName || item.name,
+                                          x: e.clientX, y: e.clientY 
+                                        })}
+                                        onMouseLeave={() => setHmHovered(null)}
+                                        onMouseMove={(e) => setHmHovered(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}  
+                                        onClick={() => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } }}
+                                      onDoubleClick={() => { if (heatmapView === 'stocks') { setInput(item.name); fetchMarketData(item.name); } }}
+                                      style={{ width: `calc(${pctWidth}% - 4px)`, minHeight: heightPx, background: color, flexGrow: 1 }}
+                                      className="text-white rounded-md p-2 flex flex-col justify-between cursor-pointer hover:brightness-125 transition-all border border-black/10 shadow-sm group animate-in fade-in zoom-in-95 overflow-hidden active:scale-95"
+                                    >
+                                      <div className="flex flex-col relative z-10">
+                                        <span className="text-[11px] md:text-sm font-black uppercase leading-tight truncate drop-shadow-md">{item.name}</span>
+                                        {heatmapView === 'stocks' && <span className="text-[8px] font-medium opacity-80 truncate hidden md:block leading-tight mt-0.5 max-w-full drop-shadow-md">{item.fullName}</span>}
+                                      </div>
+                                      <div className="flex flex-col mt-1 relative z-10">
+                                        <span className="text-sm md:text-base font-black drop-shadow-md">{item.changePct >= 0 ? '+' : ''}{item.changePct}%</span>
+                                        {heatmapView === 'stocks' && <span className="text-[9px] font-bold opacity-80 drop-shadow-md">{(item.price || 0).toLocaleString('vi-VN')}</span>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+
+                          {heatmapView === 'sectors' && heatmapData.some(s => s.watchlist?.length > 0) && (
+                            <>
+                              <h2 className={`text-sm font-black tracking-widest uppercase mb-3 ${UI.textBold}`}>
+                                Mã Tiềm Năng (Dòng Tiền Đột Biến) <span className="text-yellow-500">⚡</span>
+                              </h2>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+                                {heatmapData
+                                  .flatMap(sec => (sec.watchlist || []).map(s => ({ ...s, sector: sec.name })))
+                                  .sort((a,b) => b.changePct - a.changePct)
+                                  .slice(0, 10)
+                                  .map((s, i) => (
+                                    <div key={i}
+                                      onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
+                                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]
+                                        ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-yellow-400 font-black text-lg w-10">{s.sym}</span>
+                                        <div className="flex flex-col">
+                                            <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>
+                                                {allStocks.find(stock => stock.symbol === s.sym)?.companyName || 'Đang cập nhật...'}
+                                            </span>
+                                            <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>
+                                                Ngành: {s.sector}
+                                            </span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-emerald-400 font-black text-sm">+{s.changePct}%</p>
+                                        <p className={`text-[10px] font-bold ${UI.textMuted}`}>{(s.price).toLocaleString('vi-VN')}</p>
+                                      </div>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </>)}
+
+                          {/* MÃ GIẢM SÂU */}
+                          {heatmapView === 'sectors' && heatmapData.some(s => s.droplist?.length > 0) && (
+                            <>
+                              <h2 className={`text-sm font-black tracking-widest uppercase mb-3 mt-6 ${UI.textBold}`}>
+                                Mã Giảm Sâu (Cảnh Báo Dòng Tiền) <span className="text-red-500">⚠️</span>
+                              </h2>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+                                {heatmapData
+                                  .flatMap(sec => (sec.droplist || []).map(s => ({ ...s, sector: sec.name })))
+                                  .sort((a,b) => a.changePct - b.changePct)    
+                                  .slice(0, 10)
+                                  .map((s, i) => (
+                                    <div key={i}
+                                      onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
+                                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]
+                                        ${isDark ? 'bg-[#10151C] border-red-500/10 hover:bg-red-500/5' : 'bg-white border-red-200 hover:bg-red-50'}`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-red-400 font-black text-lg w-10">{s.sym}</span>
+                                        <div className="flex flex-col">
+                                          <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>
+                                            {allStocks.find(stock => stock.symbol === s.sym)?.companyName || 'Đang cập nhật...'}
+                                          </span>
+                                          <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>
+                                            Ngành: {s.sector}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-red-400 font-black text-sm">{s.changePct}%</p>
+                                        <p className={`text-[10px] font-bold ${UI.textMuted}`}>{(s.price).toLocaleString('vi-VN')}</p>
+                                      </div>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* TOOLTIP OVERLAY */}
+                          {hmHovered && (
+                            <div style={{
+                              position: 'fixed', left: hmHovered.x + 14, top: hmHovered.y - 10,
+                              zIndex: 9999, pointerEvents: 'none',
+                              background: isDark ? '#1a1f2e' : '#fff',
+                              border: '1px solid rgba(250,204,21,0.4)',
+                              borderRadius: 10, padding: '8px 14px',
+                              boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+                              maxWidth: 240,
+                            }}>
+                              <p style={{ fontWeight: 900, fontSize: 13, color: '#facc15', marginBottom: 2 }}>{hmHovered.name}</p>
+                              <p style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.4 }}>{hmHovered.fullName}</p>
+                            </div>
+                        )}
+                        </>
+                        );
+                      })()}
                   </div>
               )}
 
@@ -1273,59 +1428,62 @@ export default function VnStocksTab({
               )}
           </div>
       </div>
-        {/* GRID COLUMN 3: EXCHANGES INDEX & RADAR PREVIEWS */}
-        <div className={`w-[350px] lg:w-[450px] flex flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10`}> 
-          <div className="h-1/2 flex flex-col border-b border-white/10">
-            <div className="h-2/5 flex border-b border-white/10">
-              <div className="flex-1 border-r border-white/10 p-3 flex flex-col">
-                <span className="text-[9px] font-black text-yellow-500 mb-1">VN-INDEX</span>
-                <div className="flex-1 min-h-0"><MarketRadar data={vnIndexData} theme={isDark ? 'dark' : 'light'} color="#facc15" /></div>
-              </div>
-              <div className="flex-1 p-3 flex flex-col">
-                <span className="text-[9px] font-black text-sky-400 mb-1">HNX-INDEX</span>
-                <div className="flex-1 min-h-0"><MarketRadar data={hnxIndexData} theme={isDark ? 'dark' : 'light'} color="#38bdf8" /></div>
-              </div>
+
+      {/* ========================================================= */}
+      {/* GRID COLUMN 3: EXCHANGES INDEX & RADAR PREVIEWS */}
+      {/* ========================================================= */}
+      <div className={`w-[350px] lg:w-[450px] flex flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10`}> 
+        <div className="h-1/2 flex flex-col border-b border-white/10">
+          <div className="h-2/5 flex border-b border-white/10">
+            <div className="flex-1 border-r border-white/10 p-3 flex flex-col">
+              <span className="text-[9px] font-black text-yellow-500 mb-1">VN-INDEX</span>
+              <div className="flex-1 min-h-0"><MarketRadar data={vnIndexData} theme={isDark ? 'dark' : 'light'} color="#facc15" /></div>
             </div>
-            <div className="h-3/5 p-4 flex flex-col">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">VN30 Premium</span>
-                <Activity size={14} className="text-emerald-500" />
-              </div>
-              <div className="flex-1 min-h-0 rounded-xl bg-black/20 border border-white/5 overflow-hidden">
-                <MarketRadar data={vn30Data} theme={isDark ? 'dark' : 'light'} color="#10b981" />
-              </div>
+            <div className="flex-1 p-3 flex flex-col">
+              <span className="text-[9px] font-black text-sky-400 mb-1">HNX-INDEX</span>
+              <div className="flex-1 min-h-0"><MarketRadar data={hnxIndexData} theme={isDark ? 'dark' : 'light'} color="#38bdf8" /></div>
             </div>
           </div>
-
-          <div className="h-1/2 flex flex-col overflow-hidden">
-            <div className={`h-10 border-b flex items-center justify-between px-4 shrink-0 ${UI.header}`}>
-              <div className="flex items-center gap-2">
-                <FileText size={14} className="text-yellow-500" />
-                <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold}`}>TCBS Analysis</span>
-              </div>
-              {marketData?.reportPdf && (
-                <button 
-                   onClick={() => setShowPdfModal(true)}
-                   className="text-[10px] font-black tracking-widest bg-yellow-400 text-black px-4 py-1.5 rounded-full hover:bg-yellow-300 shadow-lg transition-all active:scale-95"
-                >
-                   OPEN PDF
-                </button>
-              )}
+          <div className="h-3/5 p-4 flex flex-col">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">VN30 Premium</span>
+              <Activity size={14} className="text-emerald-500" />
             </div>
-            
-            <div className={`flex-1 relative ${isDark ? 'bg-[#242424]' : 'bg-slate-100'}`}>
-              {marketData?.reportPdf ? (
-                <iframe src={`${marketData.reportPdf}#toolbar=1&navpanes=0&scrollbar=1`} className="w-full h-full border-none" title="TCBS Report Viewer" />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-20">
-                  <FileText size={32} className="mb-2" />
-                  <p className="text-[9px] font-black uppercase">Waiting for Data</p>
-                </div>
-              )}
+            <div className="flex-1 min-h-0 rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+              <MarketRadar data={vn30Data} theme={isDark ? 'dark' : 'light'} color="#10b981" />
             </div>
           </div>
         </div>
-        <StockAiChat
+
+        <div className="h-1/2 flex flex-col overflow-hidden">
+          <div className={`h-10 border-b flex items-center justify-between px-4 shrink-0 ${UI.header}`}>
+            <div className="flex items-center gap-2">
+              <FileText size={14} className="text-yellow-500" />
+              <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold}`}>TCBS Analysis</span>
+            </div>
+            {marketData?.reportPdf && (
+              <button 
+                 onClick={() => setShowPdfModal(true)}
+                 className="text-[10px] font-black tracking-widest bg-yellow-400 text-black px-4 py-1.5 rounded-full hover:bg-yellow-300 shadow-lg transition-all active:scale-95"
+              >
+                 OPEN PDF
+              </button>
+            )}
+          </div>
+          
+          <div className={`flex-1 relative ${isDark ? 'bg-[#242424]' : 'bg-slate-100'}`}>
+            {marketData?.reportPdf ? (
+              <iframe src={`${marketData.reportPdf}#toolbar=1&navpanes=0&scrollbar=1`} className="w-full h-full border-none" title="TCBS Report Viewer" />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center opacity-20">
+                <FileText size={32} className="mb-2" />
+                <p className="text-[9px] font-black uppercase">Waiting for Data</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <StockAiChat
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         ticker={marketData?.stockInfo?.symbol || ''}
@@ -1337,7 +1495,6 @@ export default function VnStocksTab({
         isDark={isDark}
         currentUser={currentUser}
       />
- 
     </>
   );
 }

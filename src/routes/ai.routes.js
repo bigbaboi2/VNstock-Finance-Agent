@@ -3,7 +3,9 @@ import {
     getLiveNews, analyzeDerivatives, analyzeStock, 
     debugFeed, stockChat, getAiNews, 
     getActionPanel, getUserHistory,
-    getLatestVnStockReport, analyzeStockStream 
+    getLatestVnStockReport, analyzeStockStream,
+    getProviderStatus,
+    resetProvider,
     
 } from '../controllers/ai.controller.js';
 
@@ -18,5 +20,7 @@ router.post('/stock-chat/:ticker', stockChat);
 router.get('/ai-news/:ticker', getAiNews);
 router.post('/action-panel/:ticker', getActionPanel);
 router.get('/user-history/:user', getUserHistory);
+router.get('/provider-status', getProviderStatus);
+router.post('/provider-reset/:provider', resetProvider);
 
 export default router;
