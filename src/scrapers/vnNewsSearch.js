@@ -687,9 +687,14 @@ const distributeSentiment = (articles, mode) => {
 };
 
 
-export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30) {
+export async function searchVnNewsDirectly(
+    ticker,
+    mode = 'balanced',
+    limit = 30,
+    offset = 0
+) {
     const clean    = ticker.toUpperCase();
-    const cacheKey = `${clean}_${mode}_${limit}`;
+    const cacheKey = `${clean}_${mode}_${limit}_${offset}`;
 
     
     const ttl = getActiveCacheTTL();
@@ -722,15 +727,17 @@ export async function searchVnNewsDirectly(ticker, mode = 'balanced', limit = 30
     cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults });
 
     const sentimentSummary = {
-        positive: out.filter(a => a.sentiment === 'positive').length,
-        negative: out.filter(a => a.sentiment === 'negative').length,
-        neutral:  out.filter(a => a.sentiment === 'neutral').length,
+    positive: allResults.filter(a => a.sentiment === 'positive').length,
+    negative: allResults.filter(a => a.sentiment === 'negative').length,
+    neutral:  allResults.filter(a => a.sentiment === 'neutral').length,
     };
     console.log(
-        `[vnNewsSearch] ${clean} | mode=${mode} | ${out.length} tin`
-        + ` | +${sentimentSummary.positive} -${sentimentSummary.negative} ~${sentimentSummary.neutral}`
-        + ` | TTL=${ttl / 1000}s`
-    );
+    `[vnNewsSearch] ${clean} | mode=${mode} | ${allResults.length} tin`
+    + ` | +${sentimentSummary.positive}`
+    + ` -${sentimentSummary.negative}`
+    + ` ~${sentimentSummary.neutral}`
+    + ` | TTL=${ttl / 1000}s`
+);
 
     return allResults.slice(offset, offset + limit);;
 }
