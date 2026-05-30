@@ -107,7 +107,8 @@ export const getStockInfo = async (req, res) => {
                 website:         cafefRes.profileData?.website || null,
                 description:     cafefRes.profileData?.description || null,
             },
-            reportPdf: tcbsRes.validPdfUrl || null
+            reportPdf: tcbsRes.validPdfUrl || null,
+            deepNewsData: masterRecord?.deepNewsData || [],
         };
 
         saveToCache(ticker, responseData);
