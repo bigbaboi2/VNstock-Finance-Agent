@@ -210,8 +210,7 @@ async function getDynamicModels() {
 
         } catch (error) {
             console.log(chalk.red(`[LỖI] Quét Model động thất bại (${error.message}). Dùng models dự phòng.`));
-            // Tên model thực tế đã được xác nhận tồn tại trên API
-            ALL_MODELS_CACHE = [
+             ALL_MODELS_CACHE = [
                 'gemini-2.5-flash',
                 'gemini-2.5-flash-lite',
                 'gemini-2.5-pro',
