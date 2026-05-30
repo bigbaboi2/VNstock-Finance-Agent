@@ -1063,33 +1063,37 @@ const derivAnalysis = React.useMemo(() => {
       axios.get(`/api/history/${symbol}`).then(res => {
         const hData = res.data?.data || [];
         if (hData.length > 0) {
-          setChartData(hData);
-          const latest = hData[hData.length - 1];
-          const prev = hData[hData.length - 2] || latest;
-          setMarketData(prevData => ({
+            setChartData(hData);
+            const latest = hData[hData.length - 1];
+            const prev2  = hData[hData.length - 2] || latest;  
+            setMarketData(prevData => ({
             ...prevData,
             stockInfo: {
-              ...prevData.stockInfo,
-              currentPrice: (latest.close * 1000).toLocaleString('vi-VN'),
-              change: (latest.close - prev.close) * 1000,
-              changePercent: prev.close ? ((latest.close - prev.close) / prev.close) * 100 : 0,
-              totalVolume: latest.value ? latest.value.toLocaleString('vi-VN') : '...'
-            }
-          }));
-          addLog(`[THÀNH CÔNG] Đồng bộ Giá & Biểu đồ kỹ thuật.`);
+                ...prevData?.stockInfo,
+                currentPrice: (latest.close * 1000).toLocaleString('vi-VN'),
+                change: (latest.close - prev2.close) * 1000,
+                changePercent: prev2.close ? ((latest.close - prev2.close) / prev2.close) * 100 : 0,
+                totalVolume: latest.value ? latest.value.toLocaleString('vi-VN') : '...',
+            },
+            }));
+            addLog(`[THÀNH CÔNG] Đồng bộ Giá & Biểu đồ kỹ thuật.`);
         }
-      });
+        });
 
-      await axios.get(`/api/info/${symbol}?user=${currentUser}`).then(res => {
+         await axios.get(`/api/info/${symbol}?user=${currentUser}`).then(res => {
         if (res.data?.success) {
-          setMarketData(prev => ({ ...prev, ...res.data.data }));
-          if (res.data.logs && res.data.logs.length > 0) {
-              res.data.logs.forEach(logMsg => addLog(logMsg));
-          } else {
+            setMarketData(prev => ({
+            ...prev,
+            ...res.data.data,
+            deepNewsData: prev?.deepNewsData || [],  
+            }));
+            if (res.data.logs && res.data.logs.length > 0) {
+            res.data.logs.forEach(logMsg => addLog(logMsg));
+            } else {
             addLog(`[THÀNH CÔNG] Đồng bộ Hồ sơ doanh nghiệp.`);
-          }
+            }
         }
-      });
+        });
 
       //── Preload macro news from DerivNews DB ──
  

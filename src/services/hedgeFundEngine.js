@@ -2,18 +2,18 @@ import chalk from 'chalk';
 import { generateWithRole } from './aiService.js';
 import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../scrapers/vnNewsSearch.js';
 
-// =========================================================
-// OMNI DUCK — DEBATE PIPELINE
-// =========================================================
+//=========================================================
+//OMNI DUCK — DEBATE PIPELINE
+//=========================================================
 
 export async function runDebatePipeline(ticker, data, emitProgress, onDebateChunk = () => {}) {
     const companyName = data?.companyProfile?.companyName || ticker;
 
     emitProgress({ step: 'DEBATE_INIT', message: 'Triệu tập Hội đồng Phân tích Độc lập...', progress: 60 });
 
-    // =========================================================
-    // CHUẨN BỊ DỮ LIỆU TIN TỨC
-    // =========================================================
+    //=======================================================================
+    //PREPARE NEWS DATA
+    //=======================================================================
     emitProgress({ step: 'DEBATE_NEWS_FETCH', message: 'Đang thu thập thêm tin tức khác, Reddit và social sentiment...', progress: 62 });
 
     const [rawNews, redditMacro, fireAntSocial] = await Promise.all([
@@ -28,12 +28,12 @@ export async function runDebatePipeline(ticker, data, emitProgress, onDebateChun
           ).join('\n')
         : 'Không tìm thấy tin tức liên quan.';
 
-    // =========================================================
-    // PHASE 1: BA CHUYÊN GIA PHÂN TÍCH ĐỘC LẬP (SONG SONG)
-    // =========================================================
+    //=======================================================================
+    //PHASE 1: THREE INDEPENDENT ANALYTICS (PARALLEL)
+    //=======================================================================
     emitProgress({ step: 'DEBATE_PHASE1', message: 'Hội đồng chuyên gia đang phân tích kỹ thuật, cơ bản và tâm lý...', progress: 64 });
 
-    // ==================== 1. KỸ THUẬT ====================
+    //==================== 1. TECHNICAL ====================
     const techPrompt = `
 Bạn là Chuyên gia Phân tích Kỹ thuật cấp cao với 15 năm kinh nghiệm trên thị trường chứng khoán Việt Nam.
 Cổ phiếu:
@@ -78,7 +78,7 @@ Yêu cầu:
 - Chỉ trả lời bằng tiếng Việt.
 `;
 
-    // ==================== 2. CƠ BẢN ====================
+    //====== 2. BASICS ====================
     const fundPrompt = `
 Bạn là Senior Fundamental Analyst + Credit Risk Analyst của một quỹ đầu tư tổ chức.
 Nhiệm vụ:
@@ -130,7 +130,7 @@ Bias: Bullish / Neutral / Bearish
 Giới hạn: 250 từ.
 `;
 
-    // ==================== 3. TÂM LÝ & TIN TỨC, VĨ MÔ ====================
+    //====== 3. PSYCHOLOGY & NEWS, MACRO ====================
     const newsPrompt = `
 Bạn là Chuyên gia Market Sentiment & Macro Strategy của một quỹ đầu tư.
 Cổ phiếu:
@@ -192,11 +192,11 @@ Giới hạn: 180 từ.
 `;
 
     const [techRes, fundRes, newsRes] = await Promise.all([
-        // Kỹ thuật — Groq nhanh + Cerebras fallback (context 128K đủ cho technical data)
+        //Technical — Fast Groq + Cerebras fallback (128K context is enough for technical data)
         generateWithRole('tech', [{ text: techPrompt }]),
-        // Cơ bản — Cerebras/SambaNova (context dài cho báo cáo tài chính)
+        //Basic — Cerebras/SambaNova (long context for financial reports)
         generateWithRole('fundamental', [{ text: fundPrompt }]),
-        // Tâm lý & vĩ mô — SambaNova + Groq fallback
+        //Sentiment & macro — SambaNova + Groq fallback
         generateWithRole('news', [{ text: newsPrompt }]),
     ]);
 
@@ -208,9 +208,9 @@ Giới hạn: 180 từ.
     onDebateChunk({ type: 'fund', content: fundAnalysis });
     onDebateChunk({ type: 'news', content: newsAnalysis });
 
-    // =========================================================
-    // PHASE 2: BULL vs BEAR DEBATE
-    // =========================================================
+    //=========================================================
+    //PHASE 2: BULL vs BEAR DEBATE
+    //=========================================================
     emitProgress({ step: 'DEBATE_PHASE2', message: 'Phe Bò và Phe Gấu đang tranh luận...', progress: 70 });
 
     const stockInfo   = data?.stockInfo || {};
@@ -240,7 +240,7 @@ Giới hạn: 180 từ.
     ${newsSummary}
     `;
 
-    // ==================== BULL OPENING ====================
+    //==================== BULL OPENING ====================
     const bullPrompt = `
     Bạn là Bull Analyst của một Hedge Fund lớn.
     ${stateContext}
@@ -274,12 +274,12 @@ Giới hạn: 180 từ.
     Mức độ tự tin: X/10
     Giới hạn 280 từ.
     `;
-    // Phe Bò — Groq (nhanh, lạc quan, tìm lý do mua)
+    //Bulls — Groq (fast, optimistic, looking for reasons to buy)
     const bullRes = await generateWithRole('bull', [{ text: bullPrompt }]);
     const bullCase = typeof bullRes === 'string' ? bullRes : bullRes.response?.text?.() || bullRes;
-    onDebateChunk({ type: 'bull', content: bullCase }); // ✅
+    onDebateChunk({ type: 'bull', content: bullCase }); //✅
 
-    // ==================== BEAR REBUTTAL ====================
+    //==================== BEAR REBUTTAL ====================
     emitProgress({ step: 'DEBATE_BEAR', message: 'Phe Gấu đang phản biện...', progress: 74 });
 
     const bearPrompt = `
@@ -320,12 +320,12 @@ Giới hạn: 180 từ.
     Mức độ tự tin: X/10
     Giới hạn 280 từ.
     `;
-    // Phe Gấu — Cerebras (reasoning tốt, tìm điểm yếu)
+    //Bears — Cerebras (good reasoning, finding weaknesses)
     const bearRes = await generateWithRole('bear', [{ text: bearPrompt }]);
     const bearCase = typeof bearRes === 'string' ? bearRes : bearRes.response?.text?.() || bearRes;
-    onDebateChunk({ type: 'bear', content: bearCase }); // Call
+    onDebateChunk({ type: 'bear', content: bearCase }); //Call
 
-    // ==================== BULL FINAL DEFENSE ====================
+    //==================== BULL FINAL DEFENSE ====================
     emitProgress({ step: 'DEBATE_BULL_DEFENSE', message: 'Phe Bò đang phản công lần cuối...', progress: 77 });
 
     const bullDefensePrompt = `
@@ -352,14 +352,14 @@ Tại sao vẫn nên MUA hoặc xem xét MUA.
 Mức độ tự tin: X/10
 Giới hạn 180 từ.
 `;
-    // Bull phản công — Groq/Cerebras (cần nhanh và logic)
+    //Bull counterattack — Groq/Cerebras (needs to be fast and logical)
     const bullDefenseRes = await generateWithRole('bull_defense', [{ text: bullDefensePrompt }]);
     const bullDefense = typeof bullDefenseRes === 'string' ? bullDefenseRes : bullDefenseRes.response?.text?.() || bullDefenseRes;
     onDebateChunk({ type: 'def', content: bullDefense });
 
-    // =========================================================
-    // PHASE 3: PORTFOLIO MANAGER DECISION (KHÔNG STREAM)
-    // =========================================================
+    //=========================================================
+    //PHASE 3: PORTFOLIO MANAGER DECISION (KHÔNG STREAM)
+    //=========================================================
     emitProgress({ step: 'DEBATE_PM', message: 'Portfolio Manager đang ra phán quyết cuối...', progress: 80 });
 
     const pmPrompt = `
@@ -431,14 +431,14 @@ Chỉ tô màu đỏ hoặc xanh tối đa 5 từ khóa quan trọng nhất.
 Tổng độ dài dưới 700 từ.
 `;
 
-     // Portfolio Manager — Groq (tổng hợp, quyết định cuối)
+     //Portfolio Manager — Groq (summary, final decision)
      const pmRes = await generateWithRole('pm', [{ text: pmPrompt }]);
     const pmDecision = typeof pmRes === 'string' ? pmRes : pmRes.response?.text?.() || pmRes;
     onDebateChunk({ type: 'pm', content: pmDecision });
 
-    // =========================================================
-    // ACTION PANEL — TRÍCH XUẤT JSON TỪ PM DECISION
-    // =========================================================
+    //=======================================================================
+    //ACTION PANEL — EXTRACT JSON FROM PM DECISION
+    //=======================================================================
     emitProgress({ step: 'DEBATE_ACTION_PANEL', message: 'Đang trích xuất tín hiệu giao dịch từ phán quyết PM...', progress: 83 });
 
     const actionPanelPrompt = `Dựa trên báo cáo PM bên dưới, hãy trích xuất chính xác theo JSON sau (chỉ trả về JSON thuần, không thêm chữ nào khác):
@@ -469,7 +469,7 @@ ${pmDecision}`;
     };
 
     try {
-        // Action panel JSON — Gemini Flash ổn định nhất cho JSON output, Groq fallback
+        //Action panel JSON — Gemini Flash most stable for JSON output, Groq fallback
         const jsonText = await generateWithRole('json', [
             { text: actionPanelPrompt }
         ], {

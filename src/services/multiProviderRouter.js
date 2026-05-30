@@ -18,7 +18,7 @@
  *  - chat        → Groq → Gemini Flash → Cerebras
  *  - derivatives → Gemini Pro → Gemini Flash → Groq
  *  - crypto      → Groq → Gemini Flash → Cerebras
- *  - json        → Gemini Flash → Groq → Cerebras  (cần JSON output ổn định)
+ *  - json        → Gemini Flash → Groq → Cerebras
  * ============================================================
  */
 
@@ -36,16 +36,15 @@ dotenv.config({ path: path.join(__dirname, '../../.env'), override: true });
 // RATE LIMIT TRACKER (in-memory, reset theo sliding window)
 // ============================================================
 const rateLimitTracker = new Map();
-// { providerKey: { blockedUntil: timestamp, failCount: number } }
-
+ 
 const RATE_LIMIT_COOLDOWN_MS = {
-    default:   60_000,   // 1 phút
-    groq:      30_000,   // 30 giây (limit khá nhanh reset)
+    default:   60_000,    
+    groq:      30_000,  
     cerebras:  60_000,
     sambanova: 60_000,
     openrouter:60_000,
     deepsinfra: 60_000,
-    gemini:    90_000,   // Gemini có thể cần đợi lâu hơn
+    gemini:    90_000,   
 };
 
 function isProviderBlocked(providerKey) {
@@ -126,7 +125,7 @@ async function openAICompatibleCall(baseUrl, apiKey, model, prompt, options = {}
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
-                ...(options.extraHeaders || {}), // ← Fix #2 luôn ở đây
+                ...(options.extraHeaders || {}), 
             },
             timeout: options.timeout || 60_000,
         }
@@ -262,8 +261,7 @@ async function openrouterGenerate(prompt, options = {}) {
                 {
                     ...options,
                     timeout: 60_000,
-                    // OpenRouter yêu cầu headers bổ sung
-                    extraHeaders: {
+                     extraHeaders: {
                         'HTTP-Referer': process.env.APP_URL || 'http://localhost:3001',
                         'X-Title': 'OmniDuck',
                     }
@@ -328,59 +326,44 @@ const PROVIDER_REGISTRY = {
     sambanova:  sambanovaGenerate,
     openrouter: openrouterGenerate,
     deepinfra:  deepinfraGenerate,
-    // 'gemini' được xử lý đặc biệt trong aiService.js (dùng SDK riêng)
-    // Đây là placeholder để router biết có provider này
-    gemini: null, // sẽ được inject từ aiService.js khi init
+ 
+    gemini: null, 
 };
 
 // ============================================================
 // ROLE → PROVIDER CHAIN CONFIG
 // ============================================================
 // Mỗi role có 1 chain ưu tiên. Provider đầu tiên = ưu tiên cao nhất.
-// 'gemini_pro' = Gemini Pro (paid key, phân tích quan trọng)
-// 'gemini_flash' = Gemini Flash (nhanh, dùng tràn lan)
+// 'gemini_pro' = Gemini Pro  
+// 'gemini_flash' = Gemini Flash  
 const ROLE_PROVIDER_CHAINS = {
-    // Tổng hợp báo cáo chính — Gemini Pro là tốt nhất
-    main:        ['gemini_pro', 'gemini_flash', 'groq', 'cerebras'],
+     main:        ['gemini_pro', 'gemini_flash', 'groq', 'cerebras'],
 
-    // Phân tích kỹ thuật — cần nhanh, Groq rất tốt
-    tech:        ['groq', 'cerebras', 'sambanova', 'gemini_flash'],
+     tech:        ['groq', 'cerebras', 'sambanova', 'gemini_flash'],
 
-    // Phân tích cơ bản — cần context dài, Cerebras/SambaNova tốt
-    fundamental: ['cerebras', 'sambanova', 'groq', 'gemini_flash'],
+     fundamental: ['cerebras', 'sambanova', 'groq', 'gemini_flash'],
 
-    // Phân tích tin tức/sentiment — SambaNova nhanh, Groq fallback
-    news:        ['sambanova', 'groq', 'deepinfra', 'gemini_flash'],
+     news:        ['sambanova', 'groq', 'deepinfra', 'gemini_flash'],
 
-    // Phe Bò — Groq (nhanh, mạnh)
-    bull:        ['groq', 'cerebras', 'openrouter', 'gemini_flash'],
+     bull:        ['groq', 'cerebras', 'openrouter', 'gemini_flash'],
 
-    // Phe Gấu — Cerebras (reasoning tốt)
-    bear: ['sambanova', 'groq', 'gemini_flash'],
+     bear: ['sambanova', 'groq', 'gemini_flash'],
 
-    // Portfolio Manager — Groq (tin tưởng nhất trong free tier)
-    pm:          ['groq', 'cerebras', 'gemini_flash', 'gemini_pro'],
+     pm:          ['groq', 'cerebras', 'gemini_flash', 'gemini_pro'],
 
-    // Bull defense
-    bull_defense: ['groq', 'cerebras', 'sambanova', 'gemini_flash'],
+     bull_defense: ['groq', 'cerebras', 'sambanova', 'gemini_flash'],
 
-    // Action panel (JSON output) — Gemini Flash ổn định JSON nhất
-    action:      ['gemini_flash', 'groq', 'cerebras'],
+     action:      ['gemini_flash', 'groq', 'cerebras'],
 
-    // Chat hỏi đáp — Groq nhanh nhất
-    chat:        ['groq', 'gemini_flash', 'cerebras'],
+     chat:        ['groq', 'gemini_flash', 'cerebras'],
 
-    // Phân tích phái sinh — cần chất lượng cao
-    derivatives: ['gemini_pro', 'gemini_flash', 'groq'],
+     derivatives: ['gemini_pro', 'gemini_flash', 'groq'],
 
-    // Phân tích crypto — nhanh
-    crypto:      ['groq', 'gemini_flash', 'cerebras'],
+     crypto:      ['groq', 'gemini_flash', 'cerebras'],
 
-    // Các lệnh cần JSON output ổn định
-    json:        ['gemini_flash', 'groq', 'cerebras'],
+     json:        ['gemini_flash', 'groq', 'cerebras'],
 
-    // Fallback cuối cùng nếu role không xác định
-    default:     ['gemini_flash', 'groq', 'cerebras', 'sambanova'],
+     default:     ['gemini_flash', 'groq', 'cerebras', 'sambanova'],
 };
 
 // ============================================================
@@ -403,7 +386,7 @@ export function injectGeminiGenerators({ proGenerator, flashGenerator }) {
 /**
  * generateWithRole(role, prompt, options)
  *
- * @param {string} role - Vai trò phân tích (xem ROLE_PROVIDER_CHAINS)
+ * @param {string} role - Vai trò phân tích 
  * @param {string|Array} prompt - Nội dung prompt
  * @param {object} options - { maxTokens, temperature, responseFormat, timeout }
  * @returns {Promise<string>} - Văn bản phản hồi
@@ -478,12 +461,7 @@ export async function generateWithRole(role, prompt, options = {}) {
     console.log(chalk.bgRed.white(`[ROUTER] ❌ Role [${normalizedRole}] — toàn bộ chain thất bại: ${errorSummary}`));
     throw new Error(`[ROUTER] Toàn bộ providers cho role "${role}" đều thất bại. Chi tiết: ${errorSummary}`);
 }
-
-/**
- * generateWithRoleStream(role, prompt, onChunk, options)
- * Phiên bản streaming — chỉ Gemini hỗ trợ stream thực sự,
- * các provider khác sẽ fake stream (gửi 1 lần nhưng cùng interface)
- */
+ 
 export async function generateWithRoleStream(role, prompt, onChunk, options = {}) {
     const chain = ROLE_PROVIDER_CHAINS[role] || ROLE_PROVIDER_CHAINS.default;
     const normalizedRole = role.toUpperCase();
@@ -512,21 +490,18 @@ export async function generateWithRoleStream(role, prompt, onChunk, options = {}
                 }
                 fullText = await streamFn(prompt, { ...options, streamCallback: onChunk, useProModel });
 
-            } else {
-                // Với non-Gemini: generate xong rồi fake stream
+            } else { // fake stream: for UX
                 const providerFn = PROVIDER_REGISTRY[providerKey];
                 if (!providerFn) {
                     errors.push(`${providerKey}: provider không tồn tại`);
                     continue;
                 }
                 fullText = await providerFn(prompt, options);
-                // Fake stream: chia thành chunks và emit
                 const chunkSize = 50;
                 for (let i = 0; i < fullText.length; i += chunkSize) {
                     if (typeof onChunk === 'function') {
                         onChunk(fullText.slice(i, i + chunkSize));
                     }
-                    // Delay nhỏ để giả lập streaming
                     await new Promise(r => setTimeout(r, 5));
                 }
             }
@@ -557,8 +532,7 @@ export async function generateWithRoleStream(role, prompt, onChunk, options = {}
 }
 
 /**
- * getRateLimitStatus() — debug endpoint
- * Trả về trạng thái rate limit hiện tại của tất cả providers
+ * debug endpoint: getRateLimitStatus() — xem trạng thái block hiện tại của các providers
  */
 export function getRateLimitStatus() {
     const status = {};
@@ -573,8 +547,7 @@ export function getRateLimitStatus() {
         };
     }
 
-    // Thêm các providers chưa bị block
-    const allProviders = ['groq', 'cerebras', 'sambanova', 'openrouter', 'deepinfra', 'gemini_pro', 'gemini_flash'];
+     const allProviders = ['groq', 'cerebras', 'sambanova', 'openrouter', 'deepinfra', 'gemini_pro', 'gemini_flash'];
     for (const p of allProviders) {
         if (!status[p]) {
             status[p] = { blocked: false, remainingMs: 0, failCount: 0 };
