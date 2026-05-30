@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { generateWithAutoSwitch } from './aiService.js';
+import { generateWithRole } from './aiService.js';
 import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../scrapers/vnNewsSearch.js';
 
 // =========================================================
@@ -192,14 +192,17 @@ Giới hạn: 180 từ.
 `;
 
     const [techRes, fundRes, newsRes] = await Promise.all([
-        generateWithAutoSwitch([{ text: techPrompt }]),
-        generateWithAutoSwitch([{ text: fundPrompt }]),
-        generateWithAutoSwitch([{ text: newsPrompt }], {}, true),
+        // Kỹ thuật — Groq nhanh + Cerebras fallback (context 128K đủ cho technical data)
+        generateWithRole('tech', [{ text: techPrompt }]),
+        // Cơ bản — Cerebras/SambaNova (context dài cho báo cáo tài chính)
+        generateWithRole('fundamental', [{ text: fundPrompt }]),
+        // Tâm lý & vĩ mô — SambaNova + Groq fallback
+        generateWithRole('news', [{ text: newsPrompt }]),
     ]);
 
-    const techAnalysis = techRes.response.text();
-    const fundAnalysis = fundRes.response.text();
-    const newsAnalysis = newsRes.response.text();
+    const techAnalysis = typeof techRes === 'string' ? techRes : techRes.response?.text?.() || techRes;
+    const fundAnalysis = typeof fundRes === 'string' ? fundRes : fundRes.response?.text?.() || fundRes;
+    const newsAnalysis = typeof newsRes === 'string' ? newsRes : newsRes.response?.text?.() || newsRes;
 
     onDebateChunk({ type: 'tech', content: techAnalysis });
     onDebateChunk({ type: 'fund', content: fundAnalysis });
@@ -210,86 +213,116 @@ Giới hạn: 180 từ.
     // =========================================================
     emitProgress({ step: 'DEBATE_PHASE2', message: 'Phe Bò và Phe Gấu đang tranh luận...', progress: 70 });
 
+    const stockInfo   = data?.stockInfo || {};
+    const techData    = Array.isArray(data?.technicalData) ? data.technicalData : [];
+    const lastCandle  = techData[techData.length - 1] || {};
+    const prev5       = techData.slice(-5).map(c => `${c.date||''} đóng=${c.close} KL=${c.volume||''}`).join(' | ');
+
     const stateContext = `
-=== BÁO CÁO TỪ CÁC CHUYÊN GIA ===
-[Kỹ thuật]
-${techAnalysis}
-[Cơ bản]
-${fundAnalysis}
-[Tâm lý & Vĩ mô]
-${newsAnalysis}
-`;
+    === DỮ LIỆU THỊ TRƯỜNG THỰC TẾ ===
+    Mã: ${ticker} — ${companyName}
+    Giá hiện tại: ${stockInfo.currentPrice} | Thay đổi: ${stockInfo.changePercent}%
+    P/E: ${stockInfo.pe ?? 'N/A'} | P/B: ${stockInfo.pb ?? 'N/A'} | EPS: ${stockInfo.eps ?? 'N/A'}
+    Vốn hóa: ${stockInfo.marketCap ?? 'N/A'} | KLGD hôm nay: ${stockInfo.volume ?? 'N/A'}
+    Mua chủ động: ${stockInfo.buyVolume ?? 'N/A'} | Bán chủ động: ${stockInfo.sellVolume ?? 'N/A'}
+    5 phiên gần nhất: ${prev5 || 'N/A'}
+    EMA20: ${lastCandle.ema20 ?? 'N/A'} | EMA50: ${lastCandle.ema50 ?? 'N/A'} | RSI: ${lastCandle.rsi ?? 'N/A'}
+
+    === NHẬN ĐỊNH CHUYÊN GIA ===
+    [Kỹ thuật]
+    ${techAnalysis}
+    [Cơ bản]
+    ${fundAnalysis}
+    [Tâm lý & Vĩ mô]
+    ${newsAnalysis}
+
+    === TIN TỨC GẦN NHẤT ===
+    ${newsSummary}
+    `;
 
     // ==================== BULL OPENING ====================
     const bullPrompt = `
-Bạn là Bull Analyst của một Hedge Fund.
-${stateContext}
-Mục tiêu:
-Tìm ra lý do thuyết phục nhất để MUA ${ticker}.
-Quy tắc:
-- Chỉ sử dụng dữ liệu được cung cấp.
-- Chọn tối đa 3 luận điểm mạnh nhất.
-- Mỗi luận điểm phải có bằng chứng cụ thể.
-- Ưu tiên catalyst có thể khiến giá tăng trong 2-12 tháng tới.
-- Nếu tồn tại rủi ro, giải thích tại sao thị trường đang đánh giá quá bi quan.
-- Không sử dụng các câu chung chung như "tiềm năng tăng trưởng tốt", "doanh nghiệp đầu ngành", "triển vọng khả quan" nếu không có bằng chứng rõ.
-- Hãy tập trung vào những gì thị trường CHƯA phản ánh vào giá.
-Không nhắc lại tin tức đơn thuần.
-Hãy đánh giá tác động tiềm năng của tin tức tới giá cổ phiếu.
-Format:
-# Luận điểm 1
-- Bằng chứng:
-- Ý nghĩa:
-# Luận điểm 2
-- Bằng chứng:
-- Ý nghĩa:
-# Luận điểm 3
-- Bằng chứng:
-- Ý nghĩa:
-Kết luận:
-- Vì sao nên MUA ngay lúc này.
-Mức độ tự tin: X/10
-Giới hạn 180 từ.
-`;
-    const bullRes = await generateWithAutoSwitch([{ text: bullPrompt }]);
-    const bullCase = bullRes.response.text();
+    Bạn là Bull Analyst của một Hedge Fund lớn.
+    ${stateContext}
+
+    Mục tiêu: Xây dựng luận điểm thuyết phục nhất để MUA ${ticker} NGAY BÂY GIỜ.
+
+    Quy tắc bắt buộc:
+    - Mỗi "Bằng chứng" PHẢI có ít nhất 1 con số cụ thể (giá, %, tỷ lệ, khối lượng, chỉ số).
+    - Ưu tiên những gì thị trường CHƯA phản ánh vào giá.
+    - Nếu có rủi ro, giải thích tại sao rủi ro đó đã được định giá quá mức.
+    - Không dùng câu sáo rỗng ("tiềm năng tốt", "triển vọng khả quan") nếu không có số liệu kèm theo.
+    - Liên kết luận điểm với mức giá cụ thể (entry, target ngắn hạn).
+
+    Format bắt buộc:
+    # Luận điểm 1: [Tên ngắn gọn — VD: "Lợi nhuận tăng tốc Q4"]
+    - Bằng chứng: [Số liệu cụ thể + nguồn]
+    - Tác động giá: [Tại sao điều này sẽ đẩy giá lên, kỳ vọng bao nhiêu %]
+
+    # Luận điểm 2: [Tên ngắn gọn]
+    - Bằng chứng: [Số liệu cụ thể]
+    - Tác động giá: [...]
+
+    # Luận điểm 3: [Tên ngắn gọn]
+    - Bằng chứng: [Số liệu cụ thể]
+    - Tác động giá: [...]
+
+    Kết luận:
+    - Entry hợp lý: [mức giá]
+    - Target ngắn hạn (4-8 tuần): [mức giá]
+    - Lý do mua NGAY thay vì chờ: [1-2 câu]
+    Mức độ tự tin: X/10
+    Giới hạn 280 từ.
+    `;
+    // Phe Bò — Groq (nhanh, lạc quan, tìm lý do mua)
+    const bullRes = await generateWithRole('bull', [{ text: bullPrompt }]);
+    const bullCase = typeof bullRes === 'string' ? bullRes : bullRes.response?.text?.() || bullRes;
     onDebateChunk({ type: 'bull', content: bullCase }); // ✅
 
     // ==================== BEAR REBUTTAL ====================
     emitProgress({ step: 'DEBATE_BEAR', message: 'Phe Gấu đang phản biện...', progress: 74 });
 
     const bearPrompt = `
-Bạn là Bear Analyst của một quỹ Short Selling.
-${stateContext}
-Đây là lập luận của Bull:
-${bullCase}
-Mục tiêu:
-Chứng minh tại sao việc mua ${ticker} có thể là sai lầm.
-Quy tắc:
-- Phản biện trực tiếp từng luận điểm của Bull.
-- Chỉ sử dụng dữ liệu được cung cấp.
-- Chọn tối đa 3 rủi ro nghiêm trọng nhất.
-- Ưu tiên các yếu tố có thể khiến giá giảm mạnh.
-- Tìm dấu hiệu định giá sai, bẫy tăng trưởng hoặc kỳ vọng quá mức.
-- Nếu Bull đúng ở điểm nào, hãy thừa nhận nhưng giải thích vì sao chưa đủ để mua.
-Format:
-# Phản biện 1
-- Luận điểm Bull:
-- Điểm yếu:
-# Phản biện 2
-- Luận điểm Bull:
-- Điểm yếu:
-# Phản biện 3
-- Luận điểm Bull:
-- Điểm yếu:
-Kịch bản xấu nhất:
-...
-Khuyến nghị: BÁN hoặc ĐỨNG NGOÀI
-Mức độ tự tin: X/10
-Giới hạn 180 từ.
-`;
-    const bearRes = await generateWithAutoSwitch([{ text: bearPrompt }], {}, true);
-    const bearCase = bearRes.response.text();
+    Bạn là Bear Analyst của một quỹ Short Selling chuyên nghiệp.
+    ${stateContext}
+
+    Đây là lập luận của Bull:
+    ${bullCase}
+
+    Mục tiêu: Chứng minh tại sao MUA ${ticker} lúc này là sai lầm.
+
+    Quy tắc bắt buộc:
+    - Phản biện TRỰC TIẾP từng luận điểm của Bull bằng số liệu đối lập.
+    - Mỗi phản biện phải chỉ ra điểm yếu cụ thể trong lập luận của Bull.
+    - Nêu rõ mức giá downside nếu kịch bản xấu xảy ra.
+    - Không được chỉ liệt kê rủi ro chung chung — phải gắn với số liệu thực tế.
+
+    Format bắt buộc:
+    # Phản biện 1: [Nhắm vào luận điểm Bull nào]
+    - Điểm yếu của Bull: [Bull đúng điều gì, sai điều gì]
+    - Bằng chứng phản bác: [Số liệu cụ thể]
+    - Downside: [Mức giá có thể về nếu kịch bản xấu]
+
+    # Phản biện 2: [...]
+    - Điểm yếu của Bull: [...]
+    - Bằng chứng phản bác: [...]
+    - Downside: [...]
+
+    # Phản biện 3: [...]
+    - Điểm yếu của Bull: [...]
+    - Bằng chứng phản bác: [...]
+    - Downside: [...]
+
+    Kịch bản xấu nhất:
+    - Trigger: [Điều gì xảy ra sẽ kích hoạt downside]
+    - Mức giá downside: [...]
+    Khuyến nghị: BÁN / ĐỨNG NGOÀI
+    Mức độ tự tin: X/10
+    Giới hạn 280 từ.
+    `;
+    // Phe Gấu — Cerebras (reasoning tốt, tìm điểm yếu)
+    const bearRes = await generateWithRole('bear', [{ text: bearPrompt }]);
+    const bearCase = typeof bearRes === 'string' ? bearRes : bearRes.response?.text?.() || bearRes;
     onDebateChunk({ type: 'bear', content: bearCase }); // Call
 
     // ==================== BULL FINAL DEFENSE ====================
@@ -319,8 +352,9 @@ Tại sao vẫn nên MUA hoặc xem xét MUA.
 Mức độ tự tin: X/10
 Giới hạn 180 từ.
 `;
-    const bullDefenseRes = await generateWithAutoSwitch([{ text: bullDefensePrompt }]);
-    const bullDefense = bullDefenseRes.response.text();
+    // Bull phản công — Groq/Cerebras (cần nhanh và logic)
+    const bullDefenseRes = await generateWithRole('bull_defense', [{ text: bullDefensePrompt }]);
+    const bullDefense = typeof bullDefenseRes === 'string' ? bullDefenseRes : bullDefenseRes.response?.text?.() || bullDefenseRes;
     onDebateChunk({ type: 'def', content: bullDefense });
 
     // =========================================================
@@ -397,8 +431,9 @@ Chỉ tô màu đỏ hoặc xanh tối đa 5 từ khóa quan trọng nhất.
 Tổng độ dài dưới 700 từ.
 `;
 
-     const pmRes = await generateWithAutoSwitch([{ text: pmPrompt }]);
-    const pmDecision = pmRes.response.text();
+     // Portfolio Manager — Groq (tổng hợp, quyết định cuối)
+     const pmRes = await generateWithRole('pm', [{ text: pmPrompt }]);
+    const pmDecision = typeof pmRes === 'string' ? pmRes : pmRes.response?.text?.() || pmRes;
     onDebateChunk({ type: 'pm', content: pmDecision });
 
     // =========================================================
@@ -434,16 +469,15 @@ ${pmDecision}`;
     };
 
     try {
-        const jsonResult = await generateWithAutoSwitch([
+        // Action panel JSON — Gemini Flash ổn định nhất cho JSON output, Groq fallback
+        const jsonText = await generateWithRole('json', [
             { text: actionPanelPrompt }
         ], {
-            generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.1
-            }
-        }, true);
+            responseFormat: 'json_object',
+            temperature: 0.1,
+        });
 
-        const cleanJson = jsonResult.response.text()
+        const cleanJson = (typeof jsonText === 'string' ? jsonText : jsonText.response?.text?.() || '')
             .replace(/```json|```/gi, '')
             .trim();
 

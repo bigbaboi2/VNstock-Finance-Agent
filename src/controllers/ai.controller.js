@@ -3,6 +3,8 @@ import chalk from 'chalk';
 import Stock from '../../models/Stock.js';
 import DerivNews from '../../models/DerivNews.js';
 import crypto from 'crypto';
+import { runDebatePipeline } from '../services/hedgeFundEngine.js';
+
 import { 
     analyzeWithGemini, 
     analyzeWithGeminiStream, 
@@ -10,7 +12,9 @@ import {
     searchNewsWithAI, 
     getQuickActionWithGemini, 
     analyzeDerivativesWithGemini, 
-    chatWithStockAI 
+    chatWithStockAI,
+    getRateLimitStatus,
+    resetProviderBlock,
 } from '../services/aiService.js';
 import { searchVnNewsDirectly, rescoreSentiment } from '../scrapers/vnNewsSearch.js';
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
@@ -146,7 +150,8 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
             if (isClientDisconnected) break; //Exit the loop if Frontend disconnects
             
             //Each page scans 15 messages
-            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, currentPage);
+            const offset = (currentPage - 1) * 15;
+            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset);
             
              if (currentBatch.length === 0) {
                 console.log(chalk.gray(`[HỆ THỐNG] Đã cạn kiệt tài nguyên tin tức mạng ở Trang ${currentPage}.`));
@@ -278,7 +283,7 @@ export const analyzeDerivatives = async (req, res) => {
     }
 };
 
-const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null, onChunk = null) => {
+const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null, onChunk = null, onDebateChunk = () => {}) => {
     if (!fullData || !fullData.stockInfo) {
         const err = new Error('Thiếu dữ liệu.');
         err.statusCode = 400;
@@ -361,12 +366,13 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     if (markdownData)          fullData.tcbsMarkdownData  = markdownData;
     if (macroNews?.length > 0) fullData.macroNews         = macroNews;
 
-    const aiReport = typeof onChunk === 'function'
-        ? await analyzeWithGeminiStream(ticker, fullData, emitProgress, onChunk)
-        : await analyzeWithGemini(ticker, fullData, emitProgress);
-    emitProgress({ step: 'ACTION_PANEL', message: 'Đang viết khuyến nghị đầu tư và action panel', progress: 92 });
-    const actionPanelData = await getQuickActionWithGemini(ticker, fullData.stockInfo, aiReport);
-    let finalAction = actionPanelData?.action || 'QUAN SÁT';
+    const debateResult = await runDebatePipeline(ticker, fullData, emitProgress, onDebateChunk);
+    fullData.debateResult = debateResult;
+    emitProgress({ step: 'AI_GENERATING', message: 'Đang tổng hợp báo cáo chiến lược cuối cùng...', progress: 86 });
+    const aiReport = await analyzeWithGeminiStream(ticker, fullData, emitProgress, onChunk);
+
+    const actionPanelData = debateResult.actionPanelData;
+    const finalAction = actionPanelData?.action || 'QUAN SÁT';
 
     emitProgress({ step: 'SAVE_REPORT', message: 'Đang lưu báo cáo AI vào Database', progress: 96 });
     if (!masterRecord.reports) masterRecord.reports = [];
@@ -382,7 +388,7 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     await masterRecord.save();
     emitProgress({ step: 'DONE', message: 'Hoàn tất phân tích AI và lưu dữ liệu', progress: 100 });
 
-    return { aiReport, actionPanelData };
+    return { aiReport, actionPanelData, debateResult };
 };
 
         export const analyzeStock = async (req, res) => {
@@ -424,7 +430,7 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
-
+    
     const emitProgress = (payload) => {
         const progress = Math.max(lastProgress, Math.min(100, Number(payload.progress) || lastProgress));
         lastProgress = progress;
@@ -432,7 +438,6 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         const estimatedTotalMs = progress > 0 ? Math.round(elapsedMs / (progress / 100)) : null;
         let etaSeconds = estimatedTotalMs ? Math.max(0, Math.ceil((estimatedTotalMs - elapsedMs) / 1000)) : null;
 
-       //[FIX] Realistic buffer injection (Less optimistic)
         if (etaSeconds !== null) {
             if (progress < 30) etaSeconds += 25;      
             else if (progress < 60) etaSeconds += 15; 
@@ -440,14 +445,17 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         }
 
         writeEvent('progress', {
-            ...payload,
-            progress,
-            elapsedSeconds: Number((elapsedMs / 1000).toFixed(1)),
-            etaSeconds,
-        });
-    };
+                ...payload,
+                progress,
+                elapsedSeconds: Number((elapsedMs / 1000).toFixed(1)),
+                etaSeconds,
+            });
+        };
+    const onDebateChunk = (chunk) => {
+            writeEvent('debate_chunk', chunk);
+        };
 
-        try {
+    try {
         const onChunk = (chunkText) => {
             if (!chunkText) return;
             writeEvent('report_chunk', { text: chunkText });
@@ -456,13 +464,25 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         const cachedResult = await getCachedStockAnalysis(ticker, user, inputHash);
         if (cachedResult) {
             emitProgress({ step: 'CACHE_HIT', message: 'Dữ liệu đầu vào không đổi, dùng lại báo cáo AI trong cache', progress: 100 });
-            writeEvent('done', { success: true, ...cachedResult, cached: true, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
+            writeEvent('done', { 
+                success: true, 
+                actionPanelData: cachedResult.actionPanelData,
+                debateResult: cachedResult.debateResult || null,  
+                cached: true, 
+                elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) 
+            });
             res.end();
             return;
         }
 
-        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash, onChunk);
-        writeEvent('done', { success: true, ...result, cached: false, elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) });
+        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash, onChunk, onDebateChunk);
+        writeEvent('done', { 
+            success: true, 
+            actionPanelData: result.actionPanelData,
+            debateResult: result.debateResult,
+            cached: false, 
+            elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) 
+        });
         res.end();
     } catch (error) {
         writeEvent('error', { success: false, message: error.message });
@@ -705,4 +725,64 @@ export const getUserHistory = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: 'Lỗi đọc database', error: error.message });
     }
+};
+
+// =========================================================
+// PROVIDER STATUS & ADMIN ENDPOINTS
+// =========================================================
+
+/**
+ FOR DEBUGGING & MONITORING PURPOSES:
+ */
+export const getProviderStatus = (req, res) => {
+    try {
+        const status = getRateLimitStatus();
+        const now = Date.now();
+
+        // Tính toán thêm thông tin human-readable
+        const enriched = Object.entries(status).reduce((acc, [key, val]) => {
+            acc[key] = {
+                ...val,
+                status: val.blocked ? `🔴 BLOCKED (còn ${Math.ceil(val.remainingMs / 1000)}s)` : '🟢 OK',
+                remainingSeconds: Math.ceil(val.remainingMs / 1000),
+            };
+            return acc;
+        }, {});
+
+        return res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            providers: enriched,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ 
+ */
+export const resetProvider = (req, res) => {
+    const { provider } = req.params;
+    const adminKey = req.body?.adminKey;
+
+     const expectedKey = process.env.ADMIN_RESET_KEY;
+    if (expectedKey && adminKey !== expectedKey) {
+        return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const validProviders = ['groq', 'cerebras', 'sambanova', 'openrouter', 'deepinfra', 'gemini_pro', 'gemini_flash'];
+    if (!validProviders.includes(provider)) {
+        return res.status(400).json({
+            success: false,
+            message: `Provider không hợp lệ. Hợp lệ: ${validProviders.join(', ')}`
+        });
+    }
+
+    resetProviderBlock(provider);
+    return res.json({
+        success: true,
+        message: `✅ Đã reset cooldown cho provider: ${provider}`,
+        provider,
+    });
 };

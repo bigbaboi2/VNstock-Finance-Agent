@@ -166,7 +166,7 @@ useEffect(() => {
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
   const lastActionNewsKeysRef = useRef([]);
-//[ANTI-SPAM FIX]  
+  const vnStocksCloseChatRef = useRef(null);
   useEffect(() => {
       if (actionData && marketData?.stockInfo) {
           lastActionPriceRef.current = parsePriceToNumber(marketData.stockInfo.currentPrice);
@@ -201,9 +201,12 @@ useEffect(() => {
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [lastAiVnTime, setLastAiVnTime] = useState(null);
   const [lastAiVnSnapshot, setLastAiVnSnapshot] = useState(null);
+  const [debateResult, setDebateResult] = useState(null);
+  const [liveDebate, setLiveDebate] = useState({});
 //=======================================================================
   //STATE: AI DERIVATIVES TAB
-  //=======================================================================  const [aiDerivReport, setAiDerivReport] = useState(null);
+  //=======================================================================
+  const [aiDerivReport, setAiDerivReport] = useState(null);
   const [analyzingDeriv, setAnalyzingDeriv] = useState(false);
   const [derivNews, setDerivNews] = useState([]);
   const [lastNewsSave, setLastNewsSave] = useState('');
@@ -336,13 +339,22 @@ if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed
         };
 
         const res = await axios.post('/api/analyze-derivatives', payload);
-        if (res.data.success) {
-            setAiDerivReport(res.data.data);   
-            if (res.data.actionPanelData) {
-                setDerivActionData(res.data.actionPanelData);
-            }    
-            setLastAiDerivTime(now);                
-            setLastAiDerivSnapshot(currentSnapshot);  
+        if (res.data) {
+          console.log('[ANALYZE-DERIV] server response:', res.data);
+          // Primary aiReport location
+          const aiReportResp = res.data.data || res.data.aiReport || (res.data.result && res.data.result.aiReport) || null;
+          if (aiReportResp) setAiDerivReport(aiReportResp);
+
+          // Action panel can be returned in several shapes depending on backend
+          const actionResp = res.data.actionPanelData || res.data.actionData || res.data.data?.actionPanelData || res.data.data?.actionData || res.data.aiResult?.actionPanelData || null;
+          if (actionResp) {
+            setDerivActionData(actionResp);
+          } else {
+            console.log('[ANALYZE-DERIV] No actionPanelData in response.');
+          }
+
+          setLastAiDerivTime(now);
+          setLastAiDerivSnapshot(currentSnapshot);
         }
 
     } catch (err) {
@@ -854,19 +866,23 @@ const derivAnalysis = React.useMemo(() => {
       });
     };
 
-    fetchRadarData(); 
-    
+    fetchRadarData();
+
     let interval;
     if (marketOpen) {
-        interval = setInterval(fetchRadarData, 60000); 
+        interval = setInterval(() => {
+             if (document.visibilityState === 'visible') {
+                fetchRadarData();
+            }
+        }, 60000);
     } else {
         addLog('[HỆ THỐNG] Thị trường đóng cửa. Tạm ngưng tiến trình đồng bộ Realtime.');
     }
-    
+
     return () => {
         if (interval) clearInterval(interval);
     };
-    
+
   }, [marketOpen, activeMode]);
 
 //LOGIC: AUTOMATICALLY LOAD DERIVATIVE GRAPH
@@ -893,7 +909,10 @@ const derivAnalysis = React.useMemo(() => {
 
         fetchDerivData();
         let timer;
-        if (marketOpen) timer = setInterval(fetchDerivData, 10000); 
+        if (marketOpen) timer = setInterval(() => {
+            // [FIX-9] Deriv poll 10s — quan trọng hơn cần check visibility vì tần suất cao
+            if (document.visibilityState === 'visible') fetchDerivData();
+        }, 10000);
         return () => clearInterval(timer);
     }
   }, [activeMode, derivInterval, marketOpen]);
@@ -975,6 +994,7 @@ const derivAnalysis = React.useMemo(() => {
   }, [input, allStocks, loadingMarket]);
 
     const fetchMarketData = async (forceSymbol) => {
+      stopNewsStream(); 
       setActiveInterval('1 ngày');
       const symbol = forceSymbol ? forceSymbol.toUpperCase() : input.toUpperCase();
       if (!symbol) return;
@@ -994,6 +1014,7 @@ const derivAnalysis = React.useMemo(() => {
           lastActionPriceRef.current = null;
           lastNewsCountRef.current = 0;
           lastActionNewsKeysRef.current = [];
+          
   
           setTimeout(() => setErrorAlert(''), 4000); 
           return; 
@@ -1081,7 +1102,13 @@ const derivAnalysis = React.useMemo(() => {
               const existingLinks = new Set((prev.deepNewsData || []).map(n => n.link));
               const fresh = macroNews
                 .filter(n => !existingLinks.has(n.link))
-                .map(n => ({ ...n, source: n.source || 'Vĩ mô', isMacro: true, fetchedAt: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) }));
+                .map(n => {
+                  const pubDate = n.timestamp || n.publishedAt;
+                  const displayTime = pubDate
+                    ? new Date(pubDate).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                  return { ...n, source: n.source || 'Vĩ mô', isMacro: true, fetchedAt: displayTime };
+                });
 
               if (fresh.length === 0) return prev;
               addLog(`[DB] Nạp ${fresh.length} tin vĩ mô từ Database.`);
@@ -1125,7 +1152,11 @@ const derivAnalysis = React.useMemo(() => {
           try {
             const data = JSON.parse(line.slice(6));
             if (data?.type === 'done') { closeAll(); return; }
-            data.fetchedAt = new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit', second: '2-digit'}); 
+            //[FIX] Use original pubDate from article if available, new fallback uses current time
+            const pubDate = data.publishedAt || data.timestamp || data.date;
+            data.fetchedAt = pubDate
+              ? new Date(pubDate).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+              : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             setMarketData(prev => {
               if (!prev) return prev;
               const currentNews = prev.deepNewsData || [];
@@ -1205,9 +1236,11 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         addLog(`[AI CACHE] Truy xuất báo cáo AI đã lưu. Thử lại sau ${remainSec}s.`);
         return;
     }
-
+    
     setAnalyzing(true);
     setAiReport('');
+    setLiveDebate({});   
+    setDebateResult(null);    
     setAiAnalysisDuration(null);
     const startTime = performance.now();
     setAnalysisStep('Khởi tạo engine phân tích và kiểm tra dữ liệu đầu vào');
@@ -1246,7 +1279,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     console.log('🏢 companyProfile:', aiPayload.companyProfile);
     console.log('📈 technicalData (30 nến):', aiPayload.technicalData);
     console.log('🌐 marketContext (VN-INDEX 5 ngày):', aiPayload.marketContext);
-    console.log('📰 news (10 tin):', aiPayload.news);
+    console.log('📰 news (20 tin):', aiPayload.news);
     console.log('📦 Full JSON (copy để test):', JSON.stringify(aiPayload, null, 2));
     console.groupEnd();
 
@@ -1296,12 +1329,20 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 streamError = new Error(payload.message || 'Luồng phân tích AI thất bại.');
                 return; 
             }
-
-            if (eventName === 'done') {
-                finalData = payload;
-                setAnalysisProgress(100);
-                setAiAnalysisEta(0);
+            if (eventName === 'debate_chunk') {
+                setLiveDebate(prev => ({ ...prev, [payload.type]: payload.content }));
             }
+            if (eventName === 'done') {
+              finalData = payload;
+              setAnalysisProgress(100);
+              setAiAnalysisEta(0);
+              console.log('[DONE PAYLOAD]', JSON.stringify({
+                  hasDebateResult: !!payload.debateResult,
+                  debateKeys: payload.debateResult ? Object.keys(payload.debateResult) : [],
+                  hasActionPanel: !!payload.actionPanelData,
+              }));
+              if (payload.debateResult) setDebateResult(payload.debateResult);
+          }
         };
 
         while (true) {
@@ -1404,9 +1445,14 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 const existingLinks = new Set(currentNews.map(n => n.link));
                 const brandNewAiArticles = aiArticles
                     .filter(n => !existingLinks.has(n.link))
-                    .map(n => ({ ...n, isAiGenerated: true,
-                    fetchedAt: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})  
-                }));
+                    .map(n => {
+                      // [FIX] Dùng pubDate gốc thay vì lúc frontend nhận
+                      const pubDate = n.publishedAt || n.timestamp || n.date;
+                      const displayTime = pubDate
+                        ? new Date(pubDate).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                        : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                      return { ...n, isAiGenerated: true, fetchedAt: displayTime };
+                    });
 
                 addLog(`[THÀNH CÔNG] Mạng lưới AI lọc được ${brandNewAiArticles.length} tin tức độc quyền.`);     
 
@@ -1639,6 +1685,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             onRequestCloseChat={(fn) => { vnStocksCloseChatRef.current = fn; }}
             aiAnalysisDuration={aiAnalysisDuration}
             vnReportTimestamp={vnReportTimestamp}
+            debateResult={debateResult}
+            liveDebate={liveDebate}  
         />
         )}
         {/*========================================================= */}
