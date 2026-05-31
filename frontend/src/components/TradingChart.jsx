@@ -49,7 +49,14 @@ if (!_vol_registered) {
               isUp: edge.close >= edge.open
             }
           };
-          window.dispatchEvent(new Event('omniduck_update_dual_tags'));
+          // RAF-throttle: only dispatch once per animation frame to avoid flooding
+          if (!window.__omniduck_raf_pending) {
+            window.__omniduck_raf_pending = true;
+            requestAnimationFrame(() => {
+              window.__omniduck_raf_pending = false;
+              window.dispatchEvent(new Event('omniduck_update_dual_tags'));
+            });
+          }
         }
         if (showVol && maxVol > 0) {
           for (let i = visibleRange.from; i < visibleRange.to; i++) {
@@ -217,10 +224,23 @@ const DRAW_TOOLS = [
   { val:'dotted', label:'Chấm' },
 ];
 
+const INTERVALS_MINUTE = ['1 phút','3 phút','5 phút','15 phút','30 phút'];
+const INTERVALS_DAY    = ['1 giờ','2 giờ','4 giờ','1 ngày','1 tuần','1 tháng','1 năm'];
+const CHART_TYPES = [
+  {id:'candle_solid',     label:'Nến Đặc (Solid)'},
+  {id:'candle_up_stroke', label:'Nến Rỗng (Hollow)'},
+  {id:'candle_stroke',    label:'Nến Viền (Stroke)'},
+  {id:'ohlc',             label:'Hình Thanh (Bar)'},
+  {id:'area',             label:'Biểu đồ Vùng'},
+  {id:'heikin_ashi',      label:'Heikin Ashi'},
+];
+const OVERLAY_COLORS = ['#FF9600','#089981','#F23645','#2196F3','#EAB308','#E11D74','#FFFFFF'];
+const STROKE_SIZES   = [1,2,3,4];
+
 /* ════════════════════════════════════════════════════════════════════
    COMPONENT
 ════════════════════════════════════════════════════════════════════ */
-export default function TradingChart({ data, theme, onIntervalChange, currentInterval }) {
+export default React.memo(function TradingChart({ data, theme, onIntervalChange, currentInterval,isMini = false }) {
   const chartContainerRef   = useRef(null);
   const chartInstance       = useRef(null);
   const topBarRef           = useRef(null);
@@ -254,13 +274,13 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
   useEffect(() => { strokeSizeRef.current   = strokeSize;   }, [strokeSize]);
   useEffect(() => { strokeStyleRef.current  = strokeStyle;  }, [strokeStyle]);
 
-  const closeAllMenus = () => {
+  const closeAllMenus = useCallback(() => {
     setShowIntervalMenu(false); setShowTypeMenu(false);
     setShowIndicatorMenu(false); setShowStrokePanel(false);
-  };
-  const handleScrollLeft  = () => chartInstance.current?.scrollByDistance(chartInstance.current.getBarSpace());
-  const handleScrollRight = () => chartInstance.current?.scrollByDistance(-chartInstance.current.getBarSpace());
-  const handleResetChart  = () => { chartInstance.current?.setBarSpace(6); chartInstance.current?.scrollToRealTime(); };
+  }, []);
+  const handleScrollLeft  = useCallback(() => chartInstance.current?.scrollByDistance(chartInstance.current.getBarSpace()), []);
+  const handleScrollRight = useCallback(() => chartInstance.current?.scrollByDistance(-chartInstance.current.getBarSpace()), []);
+  const handleResetChart  = useCallback(() => { chartInstance.current?.setBarSpace(6); chartInstance.current?.scrollToRealTime(); }, []);
   /* ══════════════════════════════════════════════════════
      EFFECT: FIX CHART  
   ══════════════════════════════════════════════════════ */
@@ -333,11 +353,19 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
       document.removeEventListener('mouseup',     handleMouseUp,      true);
     };
   }, []);
-
-
-
-
-
+/// minichart
+      {!isMini && (
+        <div
+          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[9999] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* ... (Giữ nguyên toàn bộ ruột của Toolbar ở đây: Interval, Chart Type, Chỉ báo, Màu sắc...) ... */}
+          {/* VÍ DỤ ĐOẠN CUỐI CỦA TOOLBAR: */}
+          <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm...`}>
+            {/* ... */}
+          </div>
+        </div>
+      )}
   /* ── activate a drawing tool ─────────────────────── */
  
   const spawnOverlay = useCallback((toolName) => {
@@ -375,7 +403,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
   }, [spawnOverlay]);
 
   /* ── toggle indicator ─────────────────────────────── */
-  const toggleIndicator = (name, isMain) => {
+  const toggleIndicator = useCallback((name, isMain) => {
     if (!chartInstance.current) return;
     if (isMain) {
       if (activeMain.includes(name)) {
@@ -396,7 +424,7 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
         setActiveSub(p => [...p, name]);
       }
     }
-  };
+  }, [activeMain, activeSub]);
 
   /* ══════════════════════════════════════════════════════
      EFFECT 
@@ -591,7 +619,10 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
     const isNew=!cur.length||(cur[0]&&display[0]&&cur[0].timestamp!==display[0].timestamp)||Math.abs(cur.length-display.length)>5;
     if (isNew) chartInstance.current.applyNewData(display);
     else       chartInstance.current.updateData(display[display.length-1]);
-    window.dispatchEvent(new Event('omniduck_update_dual_tags'));
+    // Use RAF so the chart has time to render before we ask for pixel positions
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('omniduck_update_dual_tags'));
+    });
   }, [data, chartType]);
 
   /* ══════════════════════════════════════════════════════
@@ -641,16 +672,23 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
       indicatorBarRef.current.innerHTML = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-family:Inter,sans-serif;background:${bg};padding:4px 12px;border-radius:6px;backdrop-filter:blur(4px);font-size:11px;">${parts}</div>`;
     };
 
-    const onCross = (params) => {
-      if (params?.dataIndex != null) {
-        const list = chartInstance.current?.getDataList();
-        if (list) updateTopBar(list[params.dataIndex]);
-        updateIndicatorBar(params);
-      } else {
-        updateTopBar();
-        if (indicatorBarRef.current) indicatorBarRef.current.style.display='none';
-      }
-    };
+    const onCross = (() => {
+      let rafId = null;
+      return (params) => {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          if (params?.dataIndex != null) {
+            const list = chartInstance.current?.getDataList();
+            if (list) updateTopBar(list[params.dataIndex]);
+            updateIndicatorBar(params);
+          } else {
+            updateTopBar();
+            if (indicatorBarRef.current) indicatorBarRef.current.style.display='none';
+          }
+        });
+      };
+    })();
 
     if (chartInstance.current) chartInstance.current.subscribeAction('onCrosshairChange', onCross);
     updateTopBar();
@@ -705,7 +743,8 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
         setActiveOverlay(null);
       }
       if (e.key==='Escape') {
-        closeAllMenus();
+        setShowIntervalMenu(false); setShowTypeMenu(false);
+        setShowIndicatorMenu(false); setShowStrokePanel(false);
         activeToolRef.current='select';
         setActiveTool('select');
       }
@@ -718,18 +757,23 @@ export default function TradingChart({ data, theme, onIntervalChange, currentInt
      RENDER
   ════════════════════════════════════════════════════════════════════ */
 /*FIX 5: bg solid does not penetrate — use bg-[#0D1117] instead of opacity */  
-const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow-2xl py-2 overflow-y-auto max-h-[280px] z-[9999] ${isDark?'bg-[#0D1117] border-white/10':'bg-white border-slate-200'}`;
+const menuBase = React.useMemo(() =>
+  `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow-2xl py-2 overflow-y-auto max-h-[280px] z-[9999] ${isDark?'bg-[#0D1117] border-white/10':'bg-white border-slate-200'}`,
+  [isDark]);
   
-  const rowBtn   = (active) => `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?'bg-yellow-500 text-black':(isDark?'text-slate-300 hover:bg-yellow-500/80 hover:text-black':'text-slate-700 hover:bg-yellow-500/80 hover:text-black')}`;
+const rowBtn = React.useCallback((active) =>
+  `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?'bg-yellow-500 text-black':(isDark?'text-slate-300 hover:bg-yellow-500/80 hover:text-black':'text-slate-700 hover:bg-yellow-500/80 hover:text-black')}`,
+  [isDark]);
 
   return (
     <div className="w-full h-full relative flex flex-col" onClick={closeAllMenus}>
 
       {/* ── TOP TOOLBAR ──────────────────────────────────────── */}
-      <div
-        className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[9999] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
-        onClick={e => e.stopPropagation()}
-      >
+      {!isMini && (
+        <div
+          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[9999] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          onClick={e => e.stopPropagation()}
+        >
         {/* INTERVAL */}
         <div className="relative z-[99]">
           <button
@@ -742,14 +786,14 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
           {showIntervalMenu && (
             <div className={`${menuBase} w-40`}>
               <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">Phút</p>
-              {['1 phút','3 phút','5 phút','15 phút','30 phút'].map(t=>(
+              {INTERVALS_MINUTE.map(t=>(
                 <button key={t} onClick={()=>{setInterval(t);setShowIntervalMenu(false);onIntervalChange?.(t);}} className={rowBtn(interval===t)}>
                   {t}{interval===t&&<Check size={12}/>}
                 </button>
               ))}
               <div className="h-px bg-white/10 my-1"/>
               <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">Giờ &amp; Ngày</p>
-              {['1 giờ','2 giờ','4 giờ','1 ngày','1 tuần','1 tháng','1 năm'].map(t=>(
+              {INTERVALS_DAY.map(t=>(
                 <button key={t} onClick={()=>{setInterval(t);setShowIntervalMenu(false);onIntervalChange?.(t);}} className={rowBtn(interval===t)}>
                   {t}{interval===t&&<Check size={12}/>}
                 </button>
@@ -771,14 +815,7 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
           </button>
           {showTypeMenu && (
             <div className={`${menuBase} w-48`}>
-              {[
-                {id:'candle_solid',     label:'Nến Đặc (Solid)'},
-                {id:'candle_up_stroke', label:'Nến Rỗng (Hollow)'},
-                {id:'candle_stroke',    label:'Nến Viền (Stroke)'},
-                {id:'ohlc',             label:'Hình Thanh (Bar)'},
-                {id:'area',             label:'Biểu đồ Vùng'},
-                {id:'heikin_ashi',      label:'Heikin Ashi'},
-              ].map(tp=>(
+              {CHART_TYPES.map(tp=>(
                 <button key={tp.id} onClick={()=>{setChartType(tp.id);setShowTypeMenu(false);}}
                   className={`w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${chartType===tp.id?'bg-emerald-500 text-white':(isDark?'text-slate-300 hover:bg-emerald-500/80 hover:text-white':'text-slate-700 hover:bg-emerald-500/80 hover:text-white')}`}>
                   {tp.label}{chartType===tp.id&&<Check size={12}/>}
@@ -819,7 +856,7 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
         {/* COLOR + STROKE */}
         <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
           <span className={`text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>Màu:</span>
-          {['#FF9600','#089981','#F23645','#2196F3','#EAB308','#E11D74','#FFFFFF'].map(hex=>(
+          {OVERLAY_COLORS.map(hex=>(
             <button key={hex} onClick={()=>setOverlayColor(hex)}
               className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${overlayColor===hex?'ring-1 ring-offset-1':''}`}
               style={{ backgroundColor:hex, borderColor:overlayColor===hex?(isDark?'#fff':'#1f2937'):'transparent' }}
@@ -842,7 +879,7 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
               >
                 <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>Độ dày nét</p>
                 <div className="flex gap-2 mb-3">
-                  {[1,2,3,4].map(s=>(
+                  {STROKE_SIZES.map(s=>(
                     <button key={s} onClick={()=>setStrokeSize(s)}
                       className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize===s?'bg-yellow-500 text-black':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
                       <div style={{height:`${s+1}px`,width:'24px',background:'currentColor',borderRadius:1}}/>
@@ -869,13 +906,15 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
           </div>
         </div>
       </div>
+      )}
 
       {/* ── CHART AREA + SIDEBAR ─────────────────────────── */}
       <div className="flex-1 flex flex-row relative min-h-0 rounded-2xl overflow-hidden border border-white/5">
 
         {/* SIDEBAR TOOLS */}
-        <div className={`w-12 shrink-0 border-r flex flex-col items-center py-3 gap-1 z-[50] relative ${isDark?'bg-[#0B0F14] border-white/5':'bg-slate-50 border-slate-200'}`}>
-          {DRAW_TOOLS.map(({ name, Icon, title }) => {
+        {!isMini && (
+          <div className={`w-12 shrink-0 border-r flex flex-col items-center py-3 gap-1 z-[50] relative ${isDark?'bg-[#0B0F14] border-white/5':'bg-slate-50 border-slate-200'}`}>
+            {DRAW_TOOLS.map(({ name, Icon, title }) => {
             const isActive = activeTool===name;
             return (
               <button key={name} title={title}
@@ -895,7 +934,7 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
             <Trash2 size={15}/>
           </button>
         </div>
-
+        )}
         {/* KLINECHARTS CONTAINER */}
         <div className="flex-1 relative w-full h-full overflow-hidden" style={{touchAction:'none'}}>
           <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', willChange: 'transform'}}/>
@@ -918,11 +957,9 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
           )}
 
           {/* TOP BAR OHLCV */}
-          <div ref={topBarRef} style={{position:'absolute',top:'8px',left:'12px',zIndex:50,pointerEvents:'none',fontSize:'11px',fontWeight:'600'}}/>
-
+          {!isMini && <div ref={topBarRef} style={{position:'absolute',top:'8px',left:'12px',zIndex:50,pointerEvents:'none',fontSize:'11px',fontWeight:'600'}}/>} 
           {/* INDICATOR VALUES BAR */}
-          <div ref={indicatorBarRef} style={{display:'none',position:'absolute',top:'36px',left:'12px',zIndex:50,pointerEvents:'none'}}/>
-
+          {!isMini && <div ref={indicatorBarRef} style={{display:'none',position:'absolute',top:'36px',left:'12px',zIndex:50,pointerEvents:'none'}}/>}
           {/* PRICE/VOL LABELS */}
           <div ref={priceLabelLatestRef}/>
           <div ref={volLabelLatestRef}/>
@@ -939,4 +976,4 @@ const menuBase = `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow
       </div>
     </div>
   );
-}
+});
