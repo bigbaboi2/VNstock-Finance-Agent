@@ -1,73 +1,41 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart } from 'lightweight-charts';
 
-export default function MiniRadarChart({ data, theme, color = '#facc15' }) {
+export default React.memo(function MiniRadarChart({ data, theme, color = '#facc15' }) {
   const chartContainerRef = useRef();
   const chartInstance = useRef(null);
+  const seriesRef = useRef(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
+  // Effect 1: Khởi tạo chart 1 lần khi mount / khi theme thay đổi
   useEffect(() => {
     if (!chartContainerRef.current) return;
-    
-    // 1. Reset trạng thái mỗi khi dữ liệu thay đổi
-    chartContainerRef.current.innerHTML = '';
-    setErrorMessage(null);
-
-    // 2. KIỂM TRA DỮ LIỆU ĐẦU VÀO GẮT GAO
-    if (!data || data.length === 0) {
-      setErrorMessage("DỮ LIỆU TRỐNG (API KHÔNG CÓ DATA)");
-      return;
+    // Cleanup chart cũ nếu theme thay đổi
+    if (chartInstance.current) {
+      chartInstance.current.remove();
+      chartInstance.current = null;
+      seriesRef.current = null;
     }
 
-    // Kiểm tra định dạng nến (OHLC)
-    const first = data[0];
-    if (!first.time || first.open === undefined || first.close === undefined) {
-      setErrorMessage("SAI ĐỊNH DẠNG NẾN (THIẾU OHLC)");
-      return;
-    }
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth || 300,
+      height: chartContainerRef.current.clientHeight || 150,
+      layout: {
+        background: { type: 'solid', color: theme === 'dark' ? '#0B0F14' : '#ffffff' },
+        textColor: theme === 'dark' ? '#94A3B8' : '#334155',
+        attributionLogo: false,
+      },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+      timeScale: { visible: true, borderVisible: false },
+      rightPriceScale: { visible: true, borderVisible: false },
+    });
 
-    const render = () => {
-      try {
-        const chart = createChart(chartContainerRef.current, {
-          width: chartContainerRef.current.clientWidth || 300,
-          height: chartContainerRef.current.clientHeight || 150,
-          layout: {
-            background: { type: 'solid', color: theme === 'dark' ? '#0B0F14' : '#ffffff' },
-            textColor: theme === 'dark' ? '#94A3B8' : '#334155',
-            attributionLogo: false,
-          },
-          grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-          timeScale: { visible: true, borderVisible: false },
-          rightPriceScale: { visible: true, borderVisible: false },
-        });
-
-        chartInstance.current = chart;
-
-        const candlestickSeries = chart.addCandlestickSeries({
-          upColor: '#10b981', downColor: '#ef4444',
-          borderVisible: false,
-          wickUpColor: '#10b981', wickDownColor: '#ef4444',
-        });
-
-        // Chống trùng lặp thời gian để tránh crash thư viện
-        const seenTimes = new Set();
-        const uniqueData = data
-          .filter(d => {
-            if (seenTimes.has(d.time)) return false;
-            seenTimes.add(d.time);
-            return true;
-          })
-          .sort((a, b) => new Date(a.time) - new Date(b.time));
-
-        candlestickSeries.setData(uniqueData);
-        chart.timeScale().fitContent();
-
-      } catch (err) {
-        setErrorMessage(`LỖI VẼ: ${err.message}`);
-      }
-    };
-
-    const timer = setTimeout(render, 150);
+    chartInstance.current = chart;
+    seriesRef.current = chart.addCandlestickSeries({
+      upColor: '#10b981', downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#10b981', wickDownColor: '#ef4444',
+    });
 
     const resizeObserver = new ResizeObserver(entries => {
       if (chartInstance.current && chartContainerRef.current) {
@@ -81,14 +49,45 @@ export default function MiniRadarChart({ data, theme, color = '#facc15' }) {
     resizeObserver.observe(chartContainerRef.current);
 
     return () => {
-      clearTimeout(timer);
       resizeObserver.disconnect();
       if (chartInstance.current) {
         chartInstance.current.remove();
         chartInstance.current = null;
+        seriesRef.current = null;
       }
     };
-  }, [data, theme]);
+  }, [theme]);
+
+   useEffect(() => {
+    setErrorMessage(null);
+
+    if (!data || data.length === 0) {
+      setErrorMessage("DỮ LIỆU TRỐNG (API KHÔNG CÓ DATA)");
+      return;
+    }
+    const first = data[0];
+    if (!first.time || first.open === undefined || first.close === undefined) {
+      setErrorMessage("SAI ĐỊNH DẠNG NẾN (THIẾU OHLC)");
+      return;
+    }
+    if (!seriesRef.current) return;
+
+    try {
+      const seenTimes = new Set();
+      const uniqueData = data
+        .filter(d => {
+          if (seenTimes.has(d.time)) return false;
+          seenTimes.add(d.time);
+          return true;
+        })
+        .sort((a, b) => new Date(a.time) - new Date(b.time));
+
+      seriesRef.current.setData(uniqueData);
+      chartInstance.current?.timeScale().fitContent();
+    } catch (err) {
+      setErrorMessage(`LỖI VẼ: ${err.message}`);
+    }
+  }, [data]);
 
   return (
     <div className="w-full h-full relative min-h-[150px] bg-black/20 rounded-lg overflow-hidden border border-white/5">
@@ -105,4 +104,4 @@ export default function MiniRadarChart({ data, theme, color = '#facc15' }) {
       )}
     </div>
   );
-}
+});
