@@ -41,6 +41,10 @@ const parsePriceToNumber = (price) => {
 
 const getNewsKey = (news) => news?.link || `${news?.title || ''}-${news?.date || ''}`;
 const hasStrongNewsSentiment = (news) => AI_STRONG_NEWS_SENTIMENTS.has(String(news?.sentiment || '').toLowerCase());
+
+const removeAccents = (str) =>
+str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase() : '';
+
 function App() {
   //CONFIG: USER STATE & AUTH MANAGEMENT
   const [currentUser, setCurrentUser] = useState(localStorage.getItem('omni_user') || null);
@@ -953,45 +957,39 @@ const derivAnalysis = React.useMemo(() => {
     loadSymbols()
   }, [])
 
-  //LOGIC: (SMART SEARCH)
-  useEffect(() => {
-    if (!input.trim() || loadingMarket) {
-      setSuggestions([]);
-      return;
-    }
-    
+  //LOGIC: (SMART SEARCH, debounce 120ms)
+useEffect(() => {
+  if (!input.trim() || loadingMarket) {
+    setSuggestions([]);
+    return;
+  }
+
+  const timer = setTimeout(() => {
     const keyword = input.trim().toUpperCase();
-    
-    const removeAccents = (str) => {
-      return str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase() : '';
-    };
-    
     const cleanKeyword = removeAccents(keyword);
 
     const filtered = allStocks
       .filter(stock => {
-          const sym = stock.symbol?.toUpperCase() || '';
-          const cName = removeAccents(stock.companyName || stock.name || '');
-          return sym.includes(keyword) || cName.includes(cleanKeyword);
+        const sym = stock.symbol?.toUpperCase() || '';
+        const cName = removeAccents(stock.companyName || stock.name || '');
+        return sym.startsWith(keyword) || sym.includes(keyword) || cName.includes(cleanKeyword);
       })
       .sort((a, b) => {
-          const aSym = a.symbol?.toUpperCase() || '';
-          const bSym = b.symbol?.toUpperCase() || '';
-          
-          if (aSym === keyword) return -1;
-          if (bSym === keyword) return 1;
-          
-          const aStarts = aSym.startsWith(keyword);
-          const bStarts = bSym.startsWith(keyword);
-          if (aStarts && !bStarts) return -1;
-          if (!aStarts && bStarts) return 1;
-          
-          return 0;
+        const aSym = a.symbol?.toUpperCase() || '';
+        const bSym = b.symbol?.toUpperCase() || '';
+        if (aSym === keyword) return -1;
+        if (bSym === keyword) return 1;
+        if (aSym.startsWith(keyword) && !bSym.startsWith(keyword)) return -1;
+        if (!aSym.startsWith(keyword) && bSym.startsWith(keyword)) return 1;
+        return aSym.localeCompare(bSym);
       })
-      .slice(0, 10); 
-      
+      .slice(0, 10);
+
     setSuggestions(filtered);
-  }, [input, allStocks, loadingMarket]);
+  }, 120);  
+
+  return () => clearTimeout(timer); 
+}, [input, allStocks, loadingMarket]);
 
     const fetchMarketData = async (forceSymbol) => {
       stopNewsStream(); 
@@ -1061,24 +1059,50 @@ const derivAnalysis = React.useMemo(() => {
         addLog(`[HỆ THỐNG] Khởi tạo đa luồng phân tích mã ${symbol}...`);
     try {
       axios.get(`/api/history/${symbol}`).then(res => {
-        const hData = res.data?.data || [];
-        if (hData.length > 0) {
-            setChartData(hData);
-            const latest = hData[hData.length - 1];
-            const prev2  = hData[hData.length - 2] || latest;  
-            setMarketData(prevData => ({
-            ...prevData,
-            stockInfo: {
-                ...prevData?.stockInfo,
-                currentPrice: (latest.close * 1000).toLocaleString('vi-VN'),
-                change: (latest.close - prev2.close) * 1000,
-                changePercent: prev2.close ? ((latest.close - prev2.close) / prev2.close) * 100 : 0,
-                totalVolume: latest.value ? latest.value.toLocaleString('vi-VN') : '...',
-            },
-            }));
-            addLog(`[THÀNH CÔNG] Đồng bộ Giá & Biểu đồ kỹ thuật.`);
-        }
-        });
+      const hData = res.data?.data || [];
+      if (hData.length > 0) {
+          setChartData(hData);
+          const latest = hData[hData.length - 1];
+          const prev2  = hData[hData.length - 2] || latest;
+
+          const latestClose = Number(latest?.close);
+          const prevClose   = Number(prev2?.close);
+          const hasPrice    = isFinite(latestClose) && latestClose > 0;
+          const rawChange   = hasPrice && isFinite(prevClose) && prevClose > 0
+                                ? (latestClose - prevClose) * 1000
+                                : null;
+          const rawChangePct = rawChange !== null && prevClose > 0
+                                ? ((latestClose - prevClose) / prevClose) * 100
+                                : null;
+
+          setMarketData(prevData => ({
+              ...prevData,
+              stockInfo: {
+                  ...prevData?.stockInfo,
+                  currentPrice: hasPrice
+                      ? (latestClose * 1000).toLocaleString('vi-VN')
+                      : '---',
+                  change:        rawChange,
+                  changePercent: rawChangePct,
+                  totalVolume: latest.value ? Number(latest.value).toLocaleString('vi-VN') : '---',
+              },
+          }));
+          addLog(`[THÀNH CÔNG] Đồng bộ Giá & Biểu đồ kỹ thuật.`);
+      } else {
+          //Code has no historical data (UPCOM is less liquid /canceled)
+          setMarketData(prevData => ({
+              ...prevData,
+              stockInfo: {
+                  ...prevData?.stockInfo,
+                  currentPrice: '---',
+                  change: null,
+                  changePercent: null,
+                  totalVolume: '---',
+              },
+          }));
+          addLog(`[CẢNH BÁO] Không có dữ liệu lịch sử giá cho mã ${symbol}.`);
+      }
+    });
 
          await axios.get(`/api/info/${symbol}?user=${currentUser}`).then(res => {
         if (res.data?.success) {
