@@ -6,41 +6,9 @@ import DerivNews from '../../models/DerivNews.js';
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { getBrowser } from '../utils/browserManager.js';
 import { decodeGoogleNewsUrl } from '../utils/googleNewsDecoder.js';
+import { detectSentiment } from '../scrapers/vnNewsSearch.js';
 
 export let lastNewsSyncTime = new Date();
-
-//─── Sentiment ───────────────────────────────────────────────────────────────
-
-const analyzeSentiment = (title) => {
-    const text = title.toLowerCase();
-
-     if ((text.includes('nhnn') || text.includes('ngân hàng nhà nước')) &&
-        (text.includes('tuýt còi') || text.includes('yêu cầu xử lý') ||
-         text.includes('giữ lãi suất') || text.includes('ổn định lãi suất'))) return 'positive';
-
-    if (text.includes('giảm lãi suất') || text.includes('hạ lãi suất') ||
-        text.includes('nới lỏng tiền tệ') || text.includes('hút ròng giảm')) return 'positive';
-
-    if (text.includes('tăng lãi suất') && !text.includes('nhnn') &&
-        !text.includes('ngân hàng nhà nước')) return 'negative';
-    if (text.includes('hút ròng mạnh')) return 'negative';
-
-    const positiveWords = [
-        'bơm ròng', 'phục hồi', 'bình ổn', 'vượt đỉnh', 'kỷ lục', 'tích cực',
-        'nới lỏng', 'phát triển', 'hạ nhiệt', 'tăng trưởng', 'giải ngân',
-        'hỗ trợ', 'tăng trưởng gdp', 'xuất siêu',
-    ];
-    const negativeWords = [
-        'gây áp lực', 'bán tháo', 'rút ròng', 'hút ròng', 'căng thẳng',
-        'phá giá', 'tiêu cực', 'thủng', 'bắt bớ', 'lạm phát', 'nhập siêu',
-        'thâm hụt', 'suy thoái', 'khủng hoảng',
-    ];
-
-    if (negativeWords.some(w => text.includes(w))) return 'negative';
-    if (positiveWords.some(w => text.includes(w))) return 'positive';
-    return 'neutral';
-};
-
  
 const MACRO_RSS_QUERIES = [
     `https://news.google.com/rss/search?q=NHNN+OR+ngân+hàng+nhà+nước+lãi+suất+OR+tỷ+giá&hl=vi&gl=VN&ceid=VN:vi`,
@@ -257,7 +225,7 @@ const fetchMacroRSS = async (url, maxItems = 10) => {
                     title,
                     link: realLink,
                     source,
-                    sentiment: analyzeSentiment(title),
+                    sentiment: detectSentiment(title, description),
                     timestamp: new Date($(el).find('pubDate').text() || Date.now()),
                 });
             }
