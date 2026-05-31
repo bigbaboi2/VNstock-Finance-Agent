@@ -130,29 +130,28 @@ const POS_MAP = new Map([
     ['chia cổ tức', 2], ['thưởng cổ phiếu', 1], ['mua lại cổ phiếu', 2],
 ]);
 
- const NEGATION_WINDOW = 20; 
-const NEGATION_WORDS  = ['không', 'chưa', 'chẳng', 'chả', 'không hề', 'chưa hề', 'không phải', 'ngoại trừ', 'loại trừ'];
+const NEGATION_WINDOW = 45; //[FIX] Increase negative word scan window to 45 characters
+const NEGATION_WORDS  = ['không', 'chưa', 'chẳng', 'chả', 'không hề', 'chưa hề', 'không phải', 'ngoại trừ', 'loại trừ', 'ngừng'];
 
-const REGEX_NEG = new RegExp(Array.from(NEG_MAP.keys()).join('|'), 'gi');
-const REGEX_POS = new RegExp(Array.from(POS_MAP.keys()).join('|'), 'gi');
+const REGEX_NEG = new RegExp(`(?:^|\\s)(${Array.from(NEG_MAP.keys()).join('|')})(?:\\s|$)`, 'gi');
+const REGEX_POS = new RegExp(`(?:^|\\s)(${Array.from(POS_MAP.keys()).join('|')})(?:\\s|$)`, 'gi');
 
- 
 function isNegated(text, index) {
     const lookBack = text.slice(Math.max(0, index - NEGATION_WINDOW), index).toLowerCase();
     return NEGATION_WORDS.some(w => lookBack.includes(w));
 }
- 
-function countScoreWithNegation(text, regex, map, weight, oppositeAccum) {
+
+function countScoreWithNegation(text, regex, map, weight) {
     let score = 0;
     let match;
-     regex.lastIndex = 0;
+    regex.lastIndex = 0;
     while ((match = regex.exec(text)) !== null) {
-        const keyword   = match[0].toLowerCase();
-        const points    = (map.get(keyword) || 1) * weight;
-        const negated   = isNegated(text, match.index);
-        if (negated) {
-             oppositeAccum.v += Math.round(points / 2);
-        } else {
+        const keyword = match[1].toLowerCase();  
+        const points  = (map.get(keyword) || 1) * weight;
+        const negated = isNegated(text, match.index);
+        
+       //[FIX] Remove reverse cumulative logic. If negated, the score is reduced to 0.
+        if (!negated) {
             score += points;
         }
     }
@@ -439,19 +438,13 @@ export async function fetchFireAntMarket({ maxShow = 8 } = {}) {
     const tLow = title.toLowerCase();
     const cLow = content.toLowerCase();
 
-     const negFromPosNegation = { v: 0 };   
-    const posFromNegNegation = { v: 0 };  
+    let neg = countScoreWithNegation(tLow, REGEX_NEG, NEG_MAP, 2)
+            + countScoreWithNegation(cLow, REGEX_NEG, NEG_MAP, 1);
 
-    let neg = countScoreWithNegation(tLow, REGEX_NEG, NEG_MAP, 2, posFromNegNegation)
-            + countScoreWithNegation(cLow, REGEX_NEG, NEG_MAP, 1, posFromNegNegation);
+    let pos = countScoreWithNegation(tLow, REGEX_POS, POS_MAP, 2)
+            + countScoreWithNegation(cLow, REGEX_POS, POS_MAP, 1);
 
-    let pos = countScoreWithNegation(tLow, REGEX_POS, POS_MAP, 2, negFromPosNegation)
-            + countScoreWithNegation(cLow, REGEX_POS, POS_MAP, 1, negFromPosNegation);
-
-     neg += negFromPosNegation.v;
-    pos += posFromNegNegation.v;
-
-     const pctMatches = tLow.match(/-\d+([.,]\d+)?%/g) || [];
+    const pctMatches = tLow.match(/-\d+([.,]\d+)?%/g) || [];
     pctMatches.forEach(pm => {
         const pmIdx   = tLow.indexOf(pm);
         const context = tLow.slice(Math.max(0, pmIdx - 15), pmIdx + 10);
@@ -460,7 +453,7 @@ export async function fetchFireAntMarket({ maxShow = 8 } = {}) {
         if (!hasPosContext) neg += 2;
     });
 
-     if (neg >= 3 && neg > pos + 1) return 'negative';
+    if (neg >= 3 && neg > pos + 1) return 'negative';
     if (pos >= 3 && pos > neg + 1) return 'positive';
     if (neg >= 2 && neg > pos)     return 'negative';
     if (pos >= 2 && pos > neg)     return 'positive';
