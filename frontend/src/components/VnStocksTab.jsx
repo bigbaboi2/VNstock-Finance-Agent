@@ -587,16 +587,22 @@ const handleHeatmapMouseMove = (e) => {
                       <div className="text-right">
                         <p className={`text-[9px] uppercase tracking-widest font-black mb-1 ${UI.textMuted}`}>Giá Khớp Lệnh</p>
                         <h2 className={`text-3xl lg:text-4xl font-black leading-none ${UI.textBold}`}>
-                          {marketData.stockInfo.currentPrice}
+                          {marketData.stockInfo.currentPrice ?? '---'}
                         </h2>
-                        <div className={`flex items-center justify-end gap-1 font-black text-xs mt-2 ${(marketData.stockInfo.change || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {(marketData.stockInfo.change || 0) >= 0 ? '▲' : '▼'}
-                          <span>
-                            {Math.abs(marketData.stockInfo.change || 0).toLocaleString('vi-VN')} 
-                            {' '}
-                            ({Number(marketData.stockInfo.changePercent || 0).toFixed(2)}%)
-                          </span>
-                        </div>
+                        {marketData.stockInfo.change !== null && marketData.stockInfo.change !== undefined ? (
+                          <div className={`flex items-center justify-end gap-1 font-black text-xs mt-2 ${marketData.stockInfo.change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {marketData.stockInfo.change >= 0 ? '▲' : '▼'}
+                            <span>
+                              {Math.abs(marketData.stockInfo.change).toLocaleString('vi-VN')}
+                              {' '}
+                              ({Number(marketData.stockInfo.changePercent).toFixed(2)}%)
+                            </span>
+                          </div>
+                        ) : (
+                          <div className={`flex items-center justify-end gap-1 font-black text-xs mt-2 text-slate-500`}>
+                            <span>Không có dữ liệu giao dịch</span>
+                          </div>
+                        )}
                       </div>
                   </div>
               </div>
@@ -1244,7 +1250,7 @@ const handleHeatmapMouseMove = (e) => {
                                   </div>
                                   <div className="text-right">
                                     <p className="text-emerald-400 font-black text-sm">+{s.changePct}%</p>
-                                    <p className={`text-[10px] font-bold ${UI.textMuted}`}>{(s.price).toLocaleString('vi-VN')}</p>
+                                    <p className={`text-[10px] font-bold ${UI.textMuted}`}>{s.price != null ? Number(s.price).toLocaleString('vi-VN') : '---'}</p>
                                   </div>
                                 </div>
                               ))
@@ -1282,7 +1288,7 @@ const handleHeatmapMouseMove = (e) => {
                                   </div>
                                   <div className="text-right">
                                     <p className="text-red-400 font-black text-sm">{s.changePct}%</p>
-                                    <p className={`text-[10px] font-bold ${UI.textMuted}`}>{(s.price).toLocaleString('vi-VN')}</p>
+                                    <p className={`text-[10px] font-bold ${UI.textMuted}`}>{s.price != null ? Number(s.price).toLocaleString('vi-VN') : '---'}</p>
                                   </div>
                                 </div>
                               ))
