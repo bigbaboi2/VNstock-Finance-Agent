@@ -344,7 +344,6 @@ if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed
 
         const res = await axios.post('/api/analyze-derivatives', payload);
         if (res.data) {
-          console.log('[ANALYZE-DERIV] server response:', res.data);
           // Primary aiReport location
           const aiReportResp = res.data.data || res.data.aiReport || (res.data.result && res.data.result.aiReport) || null;
           if (aiReportResp) setAiDerivReport(aiReportResp);
@@ -353,8 +352,6 @@ if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed
           const actionResp = res.data.actionPanelData || res.data.actionData || res.data.data?.actionPanelData || res.data.data?.actionData || res.data.aiResult?.actionPanelData || null;
           if (actionResp) {
             setDerivActionData(actionResp);
-          } else {
-            console.log('[ANALYZE-DERIV] No actionPanelData in response.');
           }
 
           setLastAiDerivTime(now);
@@ -921,7 +918,7 @@ const derivAnalysis = React.useMemo(() => {
     }
   }, [activeMode, derivInterval, marketOpen]);
 
-    const UI = {
+    const UI = React.useMemo(() => ({
     main: isDark ? 'bg-[#06080B] text-white' : 'bg-[#F8FAFC] text-black',
     header: isDark ? 'bg-[#0B0F14]/90 border-white/5' : 'bg-white border-slate-300 shadow-sm',
     searchBg: isDark ? 'bg-[#121821] border-white/10' : 'bg-white border-slate-400 shadow-inner', 
@@ -935,7 +932,7 @@ const derivAnalysis = React.useMemo(() => {
     textMuted: isDark ? 'text-slate-400' : 'text-slate-600',
     border: isDark ? 'border-white/5' : 'border-slate-300',
     btnLog: isDark ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white' : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100 shadow-sm'
-  };
+  }), [isDark]);
 
     const addLog = useCallback((msg) => {
         setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 30))
@@ -1302,14 +1299,16 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     };
 
     //── DEBUG: Print the entire data feed to the console ──
-    console.group(`🦆 OMNI DUCK — AI Data Feed [${marketData.stockInfo.symbol}]`);
-    console.log('📊 stockInfo:', aiPayload.stockInfo);
-    console.log('🏢 companyProfile:', aiPayload.companyProfile);
-    console.log('📈 technicalData (30 nến):', aiPayload.technicalData);
-    console.log('🌐 marketContext (VN-INDEX 5 ngày):', aiPayload.marketContext);
-    console.log('📰 news (20 tin):', aiPayload.news);
-    console.log('📦 Full JSON (copy để test):', JSON.stringify(aiPayload, null, 2));
-    console.groupEnd();
+    if (import.meta.env.DEV) {
+      console.group(`🦆 OMNI DUCK — AI Data Feed [${marketData.stockInfo.symbol}]`);
+      console.log('📊 stockInfo:', aiPayload.stockInfo);
+      console.log('🏢 companyProfile:', aiPayload.companyProfile);
+      console.log('📈 technicalData (30 nến):', aiPayload.technicalData);
+      console.log('🌐 marketContext (VN-INDEX 5 ngày):', aiPayload.marketContext);
+      console.log('📰 news (20 tin):', aiPayload.news);
+      console.log('📦 Full JSON (copy để test):', JSON.stringify(aiPayload, null, 2));
+      console.groupEnd();
+    }
 
     try {
         const baseUrl = API_BASE_URL || "http://localhost:3001";
@@ -1364,11 +1363,6 @@ const handleAiAnalysis = async (forceRefresh = false) => {
               finalData = payload;
               setAnalysisProgress(100);
               setAiAnalysisEta(0);
-              console.log('[DONE PAYLOAD]', JSON.stringify({
-                  hasDebateResult: !!payload.debateResult,
-                  debateKeys: payload.debateResult ? Object.keys(payload.debateResult) : [],
-                  hasActionPanel: !!payload.actionPanelData,
-              }));
               if (payload.debateResult) setDebateResult(payload.debateResult);
           }
         };
@@ -1474,8 +1468,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 const brandNewAiArticles = aiArticles
                     .filter(n => !existingLinks.has(n.link))
                     .map(n => {
-                      // [FIX] Dùng pubDate gốc thay vì lúc frontend nhận
-                      const pubDate = n.publishedAt || n.timestamp || n.date;
+                       const pubDate = n.publishedAt || n.timestamp || n.date;
                       const displayTime = pubDate
                         ? new Date(pubDate).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                         : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -1596,7 +1589,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         actionTimer = setInterval(fetchActionPanel, 15000); 
     }
     return () => clearInterval(actionTimer);
-  }, [aiReport, marketData?.stockInfo?.currentPrice, marketData?.deepNewsData?.length]);
+  }, [aiReport, marketData?.stockInfo?.symbol, activeMode]);
 
   //LOGIC: REALTIME SYNC LOOP
   useEffect(() => {
@@ -1604,6 +1597,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     if (marketData && marketData.stockInfo && marketData.stockInfo.symbol && activeMode === 'VN_STOCKS') {
         timer = setInterval(async () => {
             if (!marketOpen) return;
+            if (document.visibilityState !== 'visible') return;
 
             try {
                 const symbol = marketData.stockInfo.symbol;
@@ -1630,7 +1624,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         }, 5000); 
     }
     return () => clearInterval(timer);
-  }, [marketData?.stockInfo?.symbol, activeInterval, marketOpen]);
+  }, [marketData?.stockInfo?.symbol, activeInterval, marketOpen, activeMode]);
   
   return (
     <div className={`w-full h-screen flex flex-col overflow-hidden font-sans antialiased transition-colors duration-300 ${UI.main}`}>

@@ -1,7 +1,21 @@
+import React, { useMemo } from 'react';
 import { Globe, Zap, Activity } from 'lucide-react';
 
-export default function MarketOverview({ isDark, UI, marketIntel, vnIndexData }) {
+export default React.memo(function MarketOverview({ isDark, UI, marketIntel, vnIndexData }) {
     const isLoading = !marketIntel;
+
+    const colorMap = useMemo(() => ({
+        bullish: isDark ? 'text-emerald-400' : 'text-emerald-600',
+        bearish: isDark ? 'text-red-400' : 'text-red-600',
+        warning: isDark ? 'text-yellow-400' : 'text-yellow-600',
+        neutral: isDark ? 'text-slate-400' : 'text-slate-600'
+    }), [isDark]);
+
+    const statusColor = colorMap[marketIntel?.statusType] || colorMap.neutral;
+    const isUp = parseFloat(marketIntel?.indexChangePct || 0) >= 0;
+
+    const emeraldBadge = isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border border-emerald-300';
+    const redBadge = isDark ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-300';
 
     if (isLoading) {
       return (
@@ -13,18 +27,6 @@ export default function MarketOverview({ isDark, UI, marketIntel, vnIndexData })
         </div>
       );
     }
-    const colorMap = {
-        bullish: isDark ? 'text-emerald-400' : 'text-emerald-600',
-        bearish: isDark ? 'text-red-400' : 'text-red-600',
-        warning: isDark ? 'text-yellow-400' : 'text-yellow-600',
-        neutral: isDark ? 'text-slate-400' : 'text-slate-600'
-    };
-    
-    const statusColor = colorMap[marketIntel?.statusType] || colorMap.neutral;
-    const isUp = parseFloat(marketIntel?.indexChangePct || 0) >= 0;
-
-    const emeraldBadge = isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border border-emerald-300';
-    const redBadge = isDark ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-300';
 
     return (
       <div className={`shrink-0 border-t p-5 flex flex-col z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-300 bg-slate-50'}`}>
@@ -95,4 +97,4 @@ export default function MarketOverview({ isDark, UI, marketIntel, vnIndexData })
         </div>
       </div>
     );
-  }
+});
