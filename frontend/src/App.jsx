@@ -164,13 +164,19 @@ useEffect(() => {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [aiAnalysisEta, setAiAnalysisEta] = useState(null);
   const [pdfMode, setPdfMode] = useState('turbo'); //turbo | fast | balanced | full
-
+  const [newsMode, setNewsMode] = useState(() => localStorage.getItem('omni_newsMode') || 'balanced'); //balanced | fast | deep | ultra
 
   const eventSourceRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
   const lastActionNewsKeysRef = useRef([]);
   const vnStocksCloseChatRef = useRef(null);
+
+  //LOGIC: PERSIST NEWS MODE SELECTION
+  useEffect(() => {
+    localStorage.setItem('omni_newsMode', newsMode);
+  }, [newsMode]);
+
   useEffect(() => {
       if (actionData && marketData?.stockInfo) {
           lastActionPriceRef.current = parsePriceToNumber(marketData.stockInfo.currentPrice);
@@ -988,9 +994,10 @@ useEffect(() => {
   return () => clearTimeout(timer); 
 }, [input, allStocks, loadingMarket]);
 
-    const fetchMarketData = async (forceSymbol) => {
+    const fetchMarketData = async (forceSymbol, forceNewsMode = null) => {
       stopNewsStream(); 
       setActiveInterval('1 ngày');
+      const currentNewsMode = forceNewsMode || newsMode;
       const symbol = forceSymbol ? forceSymbol.toUpperCase() : input.toUpperCase();
       if (!symbol) return;
       const exists = allStocks.some(s => s.symbol === symbol);
@@ -1144,7 +1151,7 @@ useEffect(() => {
         .catch(() => {});
 
       await new Promise((resolve) => {
-  const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}`;
+  const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}?newsMode=${currentNewsMode}`;
   const controller = new AbortController();
   eventSourceRef.current = controller;
 
@@ -1295,8 +1302,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         news: optimizedNews,
         user: currentUser,
         pdfMode: pdfMode,
+        newsMode: newsMode,
         timestamp: new Date().toISOString()
     };
+
 
     //── DEBUG: Print the entire data feed to the console ──
     if (import.meta.env.DEV) {
@@ -1450,9 +1459,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     setLoadingAiNews(true);
     addLog(`[AI CORE] Đang rà quét mạng lưới thông tin cho mã ${symbol}...`);   
     try {
-        const res = await axios.get(`/api/ai-news/${symbol}`);
+        const res = await axios.get(`/api/ai-news/${symbol}?newsMode=${newsMode}`);
         const aiArticles = res.data?.data || []; 
-        
+
         if (aiArticles.length > 0) {
             setMarketData(prev => {
                 const currentNews = [...(prev.deepNewsData || [])];
@@ -1695,6 +1704,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             stopNewsStream={stopNewsStream}
             pdfMode={pdfMode}
             setPdfMode={setPdfMode}
+            newsMode={newsMode}
+            setNewsMode={setNewsMode}
 
             fetchUserHistory={fetchUserHistory}
             userHistory={userHistory}
