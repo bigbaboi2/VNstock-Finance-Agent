@@ -529,7 +529,27 @@ async function _faCachedFetch(store, key, url, label, type) {
     if (data.length > 0) _faCacheSet(store, key, data);  
     return data;
 }
+//Filter data before returning, calculate relevance score based on title, keywords, source and news age
+function getRelevanceScore(item, ticker, mode) {
+    let score = 0;
+    const titleStr = (item.title || '').toLowerCase();
+    const tickerStr = ticker.toLowerCase();
+    const aliasStr = (TICKER_ALIASES[ticker] || '').replace(/"/g, '').replace(/ OR /g, '|').toLowerCase();
 
+     if (titleStr.includes(` ${tickerStr} `) || titleStr.includes(`(${tickerStr})`) || titleStr.startsWith(`${tickerStr}:`)) score += 50;
+    
+     if (aliasStr && new RegExp(`(${aliasStr})`, 'i').test(titleStr)) score += 35;
+    
+     if (mode === 'negative' && /bán tháo|lao dốc|thua lỗ|vi phạm|điều tra|cắt lỗ|margin/i.test(titleStr)) score += 30;
+    if (mode === 'rumor' && /tin đồn|nội bộ|thâu tóm|tay to|dòng tiền lớn/i.test(titleStr)) score += 30;
+    if (mode === 'official' && ['cafef.vn', 'vietstock.vn', 'vneconomy.vn'].some(d => (item.rawLink || '').includes(d))) score += 20;
+
+     const ageDays = (Date.now() - (item.publishedAt?.getTime?.() ?? Date.now())) / (1000 * 60 * 60 * 24);
+    score -= ageDays;
+
+    return score;
+}
+//─────────────────────────────────────────────────────────────────────────────
 function _faNormalizePost(post, sourceLabel) {
     const rawContent = post.originalContent || post.content || '';
     const content = rawContent
@@ -791,42 +811,61 @@ const resolveOneGoogleLink = async (browser, googleUrl) => {
 
  
 const PUPPETEER_GLOBAL_TIMEOUT = 60_000; 
-
-const resolveGoogleLinksParallel = async (items, concurrency = 5) => {
-    const doResolve = async () => {
-        const browser = await getBrowser();
-        if (!browser) return [];
-
-        const results = [];
-        for (let i = 0; i < items.length; i += concurrency) {
-            const batch = items.slice(i, i + concurrency);
-            const resolved = await Promise.all(batch.map(async (item) => {
-                const realLink = await resolveOneGoogleLink(browser, item.rawLink);
-                if (!realLink) return null;
+// Search mode
+const resolveGoogleLinksParallel = async (items, concurrency = 5, bypassPuppeteer = false) => {
+    if (bypassPuppeteer) {
+        return items.map(item => {
+            const decoded = decodeGoogleNewsUrl(item.rawLink);
+            if (decoded && isValidArticleLink(decoded)) {
                 return {
                     title:       item.title,
-                    link:        realLink,
+                    link:        decoded,
                     source:      item.sourceName,
-                    domain:      extractDomain(realLink),
+                    domain:      extractDomain(decoded),
                     sentiment:   detectSentiment(item.title, item.description),
                     publishedAt: item.publishedAt,
                     date:        item.date,
                     fromGoogle:  true,
                 };
-            }));
-            results.push(...resolved.filter(Boolean));
-        }
-        return results;
-    };
+            }
+            return null;
+        }).filter(Boolean);
+    }
+//============================================================================
+    const browser = await getBrowser();
+    if (!browser) return [];
 
-    const timeout = new Promise((resolve) =>
-        setTimeout(() => {
-            console.warn('[vnNewsSearch] Puppeteer global timeout — trả kết quả một phần.');
-            resolve([]);
-        }, PUPPETEER_GLOBAL_TIMEOUT)
-    );
+    const results = [];
+    let isTimedOut = false;
 
-    return Promise.race([doResolve(), timeout]);
+     const timer = setTimeout(() => {
+        console.warn(`[vnNewsSearch] Puppeteer global timeout sau ${PUPPETEER_GLOBAL_TIMEOUT}ms — trả kết quả một phần (${results.length} links).`);
+        isTimedOut = true;
+    }, PUPPETEER_GLOBAL_TIMEOUT);
+
+    for (let i = 0; i < items.length; i += concurrency) {
+        if (isTimedOut) break; 
+        
+        const batch = items.slice(i, i + concurrency);
+        const resolved = await Promise.all(batch.map(async (item) => {
+            const realLink = await resolveOneGoogleLink(browser, item.rawLink);
+            if (!realLink) return null;
+            return {
+                title:       item.title,
+                link:        realLink,
+                source:      item.sourceName,
+                domain:      extractDomain(realLink),
+                sentiment:   detectSentiment(item.title, item.description),
+                publishedAt: item.publishedAt,
+                date:        item.date,
+                fromGoogle:  true,
+            };
+        }));
+        results.push(...resolved.filter(Boolean));
+    }
+
+    clearTimeout(timer); 
+    return results;
 };
 
 
@@ -844,7 +883,7 @@ const fetchDirectRSS = async (source, ticker, maxItems = 50) => {
             const titleLow = title.toLowerCase();
             
             if (!isValidArticleLink(rawLink) || title.length < 15) return null;
-            
+            const titleUp = title.toUpperCase();
             const hasTicker = titleUp.includes(` ${tickerUp} `) || titleUp.includes(`(${tickerUp})`) || titleUp.startsWith(`${tickerUp}:`);
             const hasAlias = aliasStr ? new RegExp(`(${aliasStr})`, 'i').test(titleLow) : false;
             
@@ -879,10 +918,14 @@ const searchOnSite = async (source, ticker, maxItems = 10) => {
             const $el  = $(el);
             const href = $el.attr('href');
             const title = ($el.text().trim() || $el.attr('title') || '').replace(/\s+/g, ' ').trim();
-
-            if (!title || title.length < 15 || !href || !title.toUpperCase().includes(tickerUp)) return;
+            const titleLow = title.toLowerCase();
+            const titleUp = title.toUpperCase();
+            const aliasStr = TICKER_ALIASES[tickerUp]?.replace(/"/g, '').replace(/ OR /g, '|').toLowerCase() || '';
+            const hasTicker = titleUp.includes(` ${tickerUp} `) || titleUp.includes(`(${tickerUp})`) || titleUp.startsWith(`${tickerUp}:`);
+            const hasAlias = aliasStr ? new RegExp(`(${aliasStr})`, 'i').test(titleLow) : false;
+            if (!title || title.length < 15 || !href) return;
+            if (!hasTicker && !hasAlias) return; 
             const link = href.startsWith('/') ? `https://${source.domain}${href}` : href;
-            if (!isValidArticleLink(link) || !link.includes(source.domain)) return;
 
             results.push({
                 title, link, source: source.name, domain: source.domain,
@@ -915,8 +958,8 @@ const dedupByLink = (articles) => {
 const OFFICIAL_DOMAINS = ['cafef.vn', 'vietstock.vn', 'baodautu.vn', 'tinnhanhchungkhoan.vn', 'vneconomy.vn'];
 
 const MIN_COUNT_BY_MODE = {
-    official: 8,
-    balanced: 10,
+    official: 12,  
+    balanced: 15, 
     negative: 6,
     rumor:    5,
 };
@@ -995,48 +1038,94 @@ const filterByMode = (articles, mode) => {
     return result;
 };
 
-
+// MAIN ENTRY POINT
 export async function searchVnNewsDirectly(
     ticker,
     mode = 'balanced',
     limit = 30,
-    offset = 0
+    offset = 0,
+    newsMode = 'balanced'  
 ) {
     const clean    = ticker.toUpperCase();
+    let googleLimit = 45;
+    let rssLimit = 80;
+    let searchLimit = 20;
+    let pptrConcurrency = 5;
+    let bypassPuppeteer = false;
+
+    switch (newsMode) {
+        case 'fast':
+            googleLimit = 20; rssLimit = 30; searchLimit = 5;
+            bypassPuppeteer = true; 
+            break;
+        case 'deep':
+            googleLimit = 50; rssLimit = 80; searchLimit = 20;
+            break;  
+        case 'ultra':
+            googleLimit = 80; rssLimit = 120; searchLimit = 35;
+            pptrConcurrency = 10;  
+            break;
+        case 'balanced':
+        default:
+            break;  
+    }
+
     const ttl      = getActiveCacheTTL();          
-    const cacheKey = `${clean}_${mode}`;      
+    const cacheKey = `${clean}_${mode}_${newsMode}`;  
     const cached = cacheMap.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < ttl)) {
         console.log(`[vnNewsSearch] Cache hit — ${clean} offset=${offset}`);
         return cached.data.slice(offset, offset + limit);
     }
-    
+// Kiểm tra tính tương tích của tin tức ================================================
     const [googleRawItems, rssResults, searchResults] = await Promise.all([
-        Promise.all(buildGoogleNewsQueries(clean, mode).map(q => fetchGoogleNewsRSS(q, 25)))
+        Promise.all(buildGoogleNewsQueries(clean, mode).map(q => fetchGoogleNewsRSS(q, googleLimit)))  
             .then(r => r.flat()),
-        Promise.allSettled(DIRECT_RSS_SOURCES.map(s => fetchDirectRSS(s, clean, 50)))
+        Promise.allSettled(DIRECT_RSS_SOURCES.map(s => fetchDirectRSS(s, clean, rssLimit)))  
             .then(r => r.filter(x => x.status === 'fulfilled').flatMap(x => x.value)),
-        Promise.allSettled(SEARCH_SOURCES.map(s => searchOnSite(s, clean, 10)))
+        Promise.allSettled(SEARCH_SOURCES.map(s => searchOnSite(s, clean, searchLimit)))  
             .then(r => r.filter(x => x.status === 'fulfilled').flatMap(x => x.value)),
     ]);
 
-    
-    const googleResolved = await resolveGoogleLinksParallel(googleRawItems.slice(0, 60), 5);
+//2. SCORING RELEVANCE FOR EACH NEWS FROM GOOGLE BEFORE ENTERING PUPPETEER
+    const scoredGoogleItems = googleRawItems.map(item => ({
+        ...item,
+        relevanceScore: getRelevanceScore(item, clean, mode)
+    }))
+    .filter(item => item.relevanceScore > 0)
+    .sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-    // ── Hard date cut-off (server-side, after fetch) ──────────────────────────
+    const topGoogleItems = scoredGoogleItems.slice(0, googleLimit);
+    const googleResolved = await resolveGoogleLinksParallel(topGoogleItems, pptrConcurrency, bypassPuppeteer);
+
+    const googleResolvedWithScore = googleResolved.map(item => {
+        const originalItem = topGoogleItems.find(g => g.title === item.title);
+        return { ...item, relevanceScore: originalItem?.relevanceScore || 10 };
+    });
+
+    const scoredDirectItems = [...rssResults, ...searchResults].map(item => ({
+        ...item,
+        relevanceScore: getRelevanceScore(item, clean, mode)
+    }));
+
+    // 3. HARD DATE CUT-OFF 
     const FALLBACK_EXTRA_DAYS = 30;
     const maxAgeDays = (MODE_DATE_WINDOW[mode] || 60) + FALLBACK_EXTRA_DAYS;
     const cutoffTime = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
 
-    const merged = dedupByLink([...googleResolved, ...rssResults, ...searchResults])
+    const merged = dedupByLink([...googleResolvedWithScore, ...scoredDirectItems])
         .filter(item => item.publishedAt && item.publishedAt >= cutoffTime)
-        .sort((a, b) => b.publishedAt - a.publishedAt);
+        .sort((a, b) => {
+            if (Math.abs(b.relevanceScore - a.relevanceScore) > 10) {
+                return b.relevanceScore - a.relevanceScore;
+            }
+            return b.publishedAt - a.publishedAt;
+        });
 
-    
     const filtered = filterByMode(merged, mode);
-
     const allResults = distributeSentiment(filtered, mode);      
-    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults }); 
+    cacheMap.set(cacheKey, { timestamp: Date.now(), data: allResults });
+//=============================================================================
     const sentimentSummary = {
         positive: allResults.filter(a => a.sentiment === 'positive').length,
         negative: allResults.filter(a => a.sentiment === 'negative').length,
