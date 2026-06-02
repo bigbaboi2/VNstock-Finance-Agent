@@ -119,10 +119,8 @@ export const getLiveNews = async (req, res) => {
             if (!n) return true;
             if (!n.link || n.link === 'null' || n.link.trim() === '') return true; 
             if (!n.title || n.title === 'null' || n.title.trim() === '') return true; 
-            if (n.link.includes('google.com') || n.link.includes('googleusercontent')) return true; 
             return false;
         };
-
         const staleCount = cachedNews.filter(isBadNews).length;
         if (staleCount > 0) {
             cachedNews = cachedNews.filter(n => !isBadNews(n));
@@ -167,11 +165,10 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
                 break;
             }
 
-            // Keep only articles not yet in DB and with clean (non-Google) links
             const newItems = currentBatch.filter(item => {
-                const isNew   = !seenLinks.has(item.link);
-                const isClean = item.link && !item.link.includes('google.com');
-                return isNew && isClean;
+                const isNew = !seenLinks.has(item.link);
+                const isValidLink = item.link && item.link !== 'null';
+                return isNew && isValidLink;
             });
 
             if (newItems.length > 0) {
@@ -188,8 +185,8 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
                     `[HỆ THỐNG] ↳ Trang ${currentPage} [${mode}]: Toàn tin cũ` +
                     ` (${consecutiveEmptyPages} trang trắng liên tiếp)`
                 ));
-                 if (consecutiveEmptyPages >= 2) {
-                    console.log(chalk.yellow(`[HỆ THỐNG] 2 trang trắng liên tiếp → dừng sớm.`));
+                if (consecutiveEmptyPages >= 4) {
+                    console.log(chalk.yellow(`[HỆ THỐNG] 4 trang trắng liên tiếp → dừng sớm.`));
                     break;
                 }
             }
