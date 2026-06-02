@@ -32,6 +32,256 @@ const MODE_DATE_WINDOW = {
     rumor:    21,
 };
 
+const TICKER_ALIASES = {
+    // === NHÓM NGÂN HÀNG (BANKING) ===
+    'VCB': '"Vietcombank" OR "Ngân hàng Ngoại thương" OR VCB',
+    'BID': '"BIDV" OR "Ngân hàng Đầu tư và Phát triển" OR BID',
+    'CTG': '"VietinBank" OR "Ngân hàng Công Thương" OR CTG',
+    'TCB': '"Techcombank" OR "Ngân hàng Kỹ Thương" OR TCB',
+    'MBB': '"MBBank" OR "Ngân hàng Quân đội" OR MBB',
+    'VPB': '"VPBank" OR "Ngân hàng Việt Nam Thịnh Vượng" OR VPB',
+    'ACB': '"Ngân hàng Á Châu" OR ACB',
+    'STB': '"Sacombank" OR "Ngân hàng Sài Gòn Thương Tín" OR STB',
+    'HDB': '"HDBank" OR "Ngân hàng Phát triển TP.HCM" OR HDB',
+    'SHB': '"Ngân hàng Sài Gòn - Hà Nội" OR SHB',
+    'VIB': '"Ngân hàng Quốc tế" OR VIB',
+    'SSB': '"SeABank" OR "Ngân hàng Đông Nam Á" OR SSB',
+    'LPB': '"LPBank" OR "Ngân hàng Lộc Phát" OR LPB',
+    'MSB': '"Ngân hàng Hàng Hải" OR MSB',
+    'OCB': '"Ngân hàng Phương Đông" OR OCB',
+    'EIB': '"Eximbank" OR "Ngân hàng Xuất Nhập Khẩu" OR EIB',
+    'NAB': '"Nam A Bank" OR "Ngân hàng Nam Á" OR NAB',
+    'KLB': '"Kienlongbank" OR "Ngân hàng Kiên Long" OR KLB',
+    'BVB': '"BVBank" OR "Ngân hàng Bản Việt" OR BVB',
+    'SGB': '"Saigonbank" OR SGB',
+    'VAB': '"VietABank" OR "Ngân hàng Việt Á" OR VAB',
+
+    // === NHÓM CHỨNG KHOÁN (SECURITIES) ===
+    'SSI': '"Chứng khoán SSI" OR SSI',
+    'VND': '"VNDirect" OR "Chứng khoán VNDirect" OR VND',
+    'VCI': '"Vietcap" OR "Chứng khoán Bản Việt" OR VCI',
+    'HCM': '"Chứng khoán HSC" OR "Chứng khoán TP.HCM" OR HCM',
+    'SHS': '"Chứng khoán Sài Gòn Hà Nội" OR SHS',
+    'VIX': '"Chứng khoán VIX" OR VIX',
+    'MBS': '"Chứng khoán MB" OR MBS',
+    'FTS': '"Chứng khoán FPT" OR FTS',
+    'BSI': '"Chứng khoán BIDV" OR BSI',
+    'CTS': '"Chứng khoán VietinBank" OR CTS',
+    'VDS': '"Chứng khoán Rồng Việt" OR VDS',
+    'AGR': '"Chứng khoán Agribank" OR AGR',
+    'ORS': '"Chứng khoán Tiên Phong" OR "Chứng khoán TPS" OR ORS',
+    'TVB': '"Chứng khoán Trí Việt" OR TVB',
+    'TVS': '"Chứng khoán Thiên Việt" OR TVS',
+    'APS': '"Chứng khoán Châu Á Thái Bình Dương" OR APS',
+    'WSS': '"Chứng khoán Phố Wall" OR WSS',
+    'TCI': '"Chứng khoán Thành Công" OR TCI',
+    'DSC': '"Chứng khoán DSC" OR DSC',
+    'BVS': '"Chứng khoán Bảo Việt" OR BVS',
+    'VFS': '"Chứng khoán Nhất Việt" OR VFS',
+    'VIG': '"Chứng khoán Đầu tư Việt Nam" OR VIG',
+
+    // === NHÓM BẤT ĐỘNG SẢN (REAL ESTATE) ===
+    'VHM': '"Vinhomes" OR VHM',
+    'VIC': '"Vingroup" OR VIC',
+    'VRE': '"Vincom Retail" OR VRE',
+    'NVL': '"Novaland" OR NVL',
+    'DIG': '"DIC Corp" OR "Tổng Công ty Đầu tư Phát triển Xây dựng" OR DIG',
+    'PDR': '"Bất động sản Phát Đạt" OR "Địa ốc Phát Đạt" OR PDR',
+    'KBC': '"Tổng công ty Kinh Bắc" OR "Đô thị Kinh Bắc" OR KBC',
+    'DXG': '"Tập đoàn Đất Xanh" OR "Địa ốc Đất Xanh" OR DXG',
+    'NLG': '"Tập đoàn Nam Long" OR "Đầu tư Nam Long" OR NLG',
+    'KDH': '"Nhà Khang Điền" OR "Đầu tư Khang Điền" OR KDH',
+    'CEO': '"CEO Group" OR "Tập đoàn CEO" OR CEO',
+    'HDC': '"Hodeco" OR "Phát triển nhà Bà Rịa" OR HDC',
+    'NTL': '"Nhà Từ Liêm" OR "Lideco" OR NTL',
+    'SJS': '"Sudico" OR SJS',
+    'TCH': '"Tài chính Hoàng Huy" OR "Tập đoàn Hoàng Huy" OR TCH',
+    'QCG': '"Quốc Cường Gia Lai" OR QCG',
+    'HQC': '"Địa ốc Hoàng Quân" OR "Tập đoàn Hoàng Quân" OR HQC',
+    'SCR': '"TTC Land" OR "Địa ốc Sài Gòn Thương Tín" OR SCR',
+    'ITA': '"Tập đoàn Tân Tạo" OR "Khu công nghiệp Tân Tạo" OR ITA',
+    'L14': '"Licogi 14" OR L14',
+    'IJC': '"Hạ tầng Kỹ thuật Becamex" OR IJC',
+    'TDC': '"Kinh doanh và Phát triển Bình Dương" OR TDC',
+    'NBB': '"Năm Bảy Bảy" OR NBB',
+    'CRE': '"Cen Land" OR CRE',
+    'KHG': '"Khải Hoàn Land" OR KHG',
+    'DXS': '"Đất Xanh Services" OR DXS',
+    'HPX': '"Tập đoàn Hải Phát" OR "Địa ốc Hải Phát" OR "Hải Phát Invest" OR HPX',
+    'NRC': '"Tập đoàn Danh Khôi" OR NRC',
+    'VPH': '"Vạn Phát Hưng" OR VPH',
+    'TIG': '"Tập đoàn Đầu tư Thăng Long" OR TIG',
+
+    // === NHÓM BẤT ĐỘNG SẢN KHU CÔNG NGHIỆP ===
+    'IDC': '"Idico" OR "Tổng công ty IDICO" OR IDC',
+    'BCM': '"Becamex" OR "Becamex IDC" OR BCM',
+    'SZC': '"Sonadezi Châu Đức" OR SZC',
+    'SZL': '"Sonadezi Long Thành" OR SZL',
+    'SNZ': '"Tổng công ty Sonadezi" OR SNZ',
+    'TIP': '"Phát triển Khu Công nghiệp Tín Nghĩa" OR TIP',
+    'SIP': '"Đầu tư Sài Gòn VRG" OR SIP',
+    'NTC': '"Nam Tân Uyên" OR NTC',
+    'VGC': '"Viglacera" OR VGC',
+    'D2D': '"Phát triển Đô thị Công nghiệp Số 2" OR D2D',
+    'IDV': '"Hạ tầng Vĩnh Phúc" OR IDV',
+
+    // === NHÓM THÉP & VẬT LIỆU XÂY DỰNG ===
+    'HPG': '"Tập đoàn Hòa Phát" OR "Thép Hòa Phát" OR HPG',
+    'HSG': '"Tập đoàn Hoa Sen" OR "Tôn Hoa Sen" OR HSG',
+    'NKG': '"Thép Nam Kim" OR NKG',
+    'SMC': '"Đầu tư Thương mại SMC" OR SMC',
+    'TLH': '"Thép Tiến Lên" OR "Tập đoàn Tiến Lên" OR TLH',
+    'POM': '"Thép Pomina" OR POM',
+    'TVN': '"Tổng Công ty Thép" OR TVN',
+    'VGS': '"Ống thép Việt Đức" OR VGS',
+    'KSB': '"Khoáng sản Bình Dương" OR KSB',
+    'DHA': '"Hóa An" OR DHA',
+    'VLB': '"Xây dựng Đồng Nai" OR VLB',
+    'HT1': '"Xi măng Hà Tiên" OR "Vicem Hà Tiên" OR HT1',
+    'BCC': '"Xi măng Bỉm Sơn" OR "Vicem Bỉm Sơn" OR BCC',
+    'PLC': '"Hóa dầu Petrolimex" OR PLC',
+    'BMP': '"Nhựa Bình Minh" OR BMP',
+    'NTP': '"Nhựa Tiền Phong" OR NTP',
+    'AAA': '"Nhựa An Phát Xanh" OR AAA',
+    'APH': '"An Phát Holdings" OR APH',
+
+    // === NHÓM XÂY DỰNG & ĐẦU TƯ CÔNG ===
+    'CTD': '"Coteccons" OR CTD',
+    'HBC': '"Xây dựng Hòa Bình" OR "Tập đoàn Hòa Bình" OR HBC',
+    'VCG': '"Vinaconex" OR VCG',
+    'HHV': '"Tập đoàn Đèo Cả" OR "Giao thông Đèo Cả" OR HHV',
+    'C4G': '"Tập đoàn Cienco 4" OR C4G',
+    'LCG': '"Lizen" OR LCG',
+    'FCN': '"Tập đoàn FECON" OR FCN',
+    'HUT': '"Tasco" OR HUT',
+    'CII': '"Hạ tầng Kỹ thuật TP.HCM" OR CII',
+    'DPG': '"Tập đoàn Đạt Phương" OR DPG',
+    'PC1': '"Tập đoàn PC1" OR "Xây lắp Điện 1" OR PC1',
+    'TV2': '"Tư vấn Xây dựng Điện 2" OR TV2',
+    'REE': '"Cơ Điện Lạnh" OR REE',
+    'HDG': '"Tập đoàn Hà Đô" OR HDG',
+
+    // === NHÓM HÓA CHẤT & PHÂN BÓN & CAO SU ===
+    'DGC': '"Hóa chất Đức Giang" OR "Tập đoàn Hóa chất Đức Giang" OR DGC',
+    'CSV': '"Hóa chất Cơ bản Miền Nam" OR CSV',
+    'LAS': '"Supe Phốt phát và Hóa chất Lâm Thao" OR LAS',
+    'BFC': '"Phân bón Bình Điền" OR BFC',
+    'DCM': '"Phân bón Cà Mau" OR "Đạm Cà Mau" OR DCM',
+    'DPM': '"Phân bón Phú Mỹ" OR "Đạm Phú Mỹ" OR DPM',
+    'DDV': '"DAP-Vinachem" OR DDV',
+    'PHR': '"Cao su Phước Hòa" OR PHR',
+    'GVR': '"Công nghiệp Cao su Việt Nam" OR "Tập đoàn Công nghiệp Cao su" OR GVR',
+    'DPR': '"Cao su Đồng Phú" OR DPR',
+    'TRC': '"Cao su Tây Ninh" OR TRC',
+    'DRI': '"Đầu tư Cao su Đắk Lắk" OR DRI',
+    'CSM': '"Cao su Miền Nam" OR "Casumina" OR CSM',
+    'DRC': '"Cao su Đà Nẵng" OR DRC',
+
+    // === NHÓM BÁN LẺ & TIÊU DÙNG & THỰC PHẨM ===
+    'MWG': '"Thế giới di động" OR "Đầu tư Thế Giới Di Động" OR MWG',
+    'PNJ': '"Vàng bạc Đá quý Phú Nhuận" OR PNJ',
+    'FRT': '"FPT Retail" OR "Bán lẻ Kỹ thuật số FPT" OR FRT',
+    'DGW': '"Digiworld" OR DGW',
+    'PET': '"Petrovietnam Retail" OR "Dịch vụ Tổng hợp Dầu khí" OR PET',
+    'MSN': '"Tập đoàn Masan" OR MSN',
+    'VNM': '"Vinamilk" OR "Sữa Việt Nam" OR VNM',
+    'SAB': '"Sabeco" OR "Bia Rượu Nước giải khát Sài Gòn" OR SAB',
+    'BHN': '"Habeco" OR "Bia Rượu Nước giải khát Hà Nội" OR BHN',
+    'KDC': '"Tập đoàn KIDO" OR KDC',
+    'SBT': '"Thành Thành Công - Biên Hòa" OR "TTC AgriS" OR SBT',
+    'QNS': '"Đường Quảng Ngãi" OR QNS',
+    'LSS': '"Mía đường Lam Sơn" OR LSS',
+    'SLS': '"Mía đường Sơn La" OR SLS',
+    'BAF': '"Nông nghiệp BAF" OR BAF',
+    'DBC': '"Tập đoàn Dabaco" OR DBC',
+    'HAG': '"Hoàng Anh Gia Lai" OR "Tập đoàn Hoàng Anh Gia Lai" OR HAG',
+    'HNG': '"Nông nghiệp Quốc tế Hoàng Anh Gia Lai" OR "HAGL Agrico" OR HNG',
+    'VHC': '"Thủy sản Vĩnh Hoàn" OR VHC',
+    'ANV': '"Thủy sản Nam Việt" OR ANV',
+    'IDI': '"Đầu tư và Phát triển Đa Quốc Gia I.D.I" OR IDI',
+    'FMC': '"Thực phẩm Sao Ta" OR FMC',
+    'MPC': '"Thủy sản Minh Phú" OR "Tập đoàn Thủy sản Minh Phú" OR MPC',
+    'ASM': '"Tập đoàn Sao Mai" OR ASM',
+    'PAN': '"Tập đoàn PAN" OR "The PAN Group" OR PAN',
+    'TAR': '"Nông nghiệp Công nghệ cao Trung An" OR TAR',
+    'LTG': '"Tập đoàn Lộc Trời" OR LTG',
+
+    // === NHÓM NĂNG LƯỢNG & DẦU KHÍ ===
+    'GAS': '"PV GAS" OR "Khí Việt Nam" OR GAS',
+    'PVD': '"PV Drilling" OR "Khoan và Dịch vụ Khoan Dầu khí" OR PVD',
+    'PVS': '"Dịch vụ Kỹ thuật Dầu khí" OR PVS',
+    'BSR': '"Lọc hóa dầu Bình Sơn" OR BSR',
+    'PLX': '"Petrolimex" OR "Xăng dầu Việt Nam" OR PLX',
+    'OIL': '"PV OIL" OR "Dầu Việt Nam" OR OIL',
+    'PVT': '"Vận tải Dầu khí" OR PVT',
+    'POW': '"PV Power" OR "Điện lực Dầu khí Việt Nam" OR POW',
+    'NT2': '"Điện lực Dầu khí Nhơn Trạch 2" OR NT2',
+    'PGV': '"Phát điện 3" OR "EVNGENCO 3" OR PGV',
+    'GEG': '"Điện Gia Lai" OR GEG',
+    'QTP': '"Nhiệt điện Quảng Ninh" OR QTP',
+    'HND': '"Nhiệt điện Hải Phòng" OR HND',
+    'VSH': '"Thủy điện Vĩnh Sơn - Sông Hinh" OR VSH',
+    'SBA': '"Thủy điện Sông Ba" OR SBA',
+
+    // === NHÓM LOGISTICS & HÀNG HẢI & HÀNG KHÔNG ===
+    'GMD': '"Gemadept" OR GMD',
+    'HAH': '"Vận tải và Xếp dỡ Hải An" OR HAH',
+    'VOS': '"Vận tải biển Việt Nam" OR VOS',
+    'VTO': '"Vận tải Xăng dầu Vitaco" OR VTO',
+    'VIP': '"Vận tải Xăng dầu VIPCO" OR VIP',
+    'MVN': '"Hàng hải Việt Nam" OR "Vinalines" OR MVN',
+    'SGP': '"Cảng Sài Gòn" OR SGP',
+    'PHP': '"Cảng Hải Phòng" OR PHP',
+    'VJC': '"Vietjet" OR "Hàng không Vietjet" OR VJC',
+    'HVN': '"Vietnam Airlines" OR "Hàng không Quốc gia Việt Nam" OR HVN',
+    'ACV': '"Tổng công ty Cảng hàng không" OR ACV',
+    'AST': '"Dịch vụ Hàng không Taseco" OR AST',
+    'SCS': '"Dịch vụ Hàng hóa Sài Gòn" OR SCS',
+    'SGN': '"Phục vụ Mặt đất Sài Gòn" OR SGN',
+    'VSC': '"Viconship" OR "Tập đoàn Container Việt Nam" OR VSC',
+
+    // === NHÓM CÔNG NGHỆ & VIỄN THÔNG ===
+    'FPT': '"Tập đoàn FPT" OR FPT',
+    'CMG': '"Tập đoàn Công nghệ CMC" OR CMG',
+    'ELC': '"Công nghệ Viễn thông Elcom" OR ELC',
+    'ITD': '"Công nghệ Tiên Phong" OR ITD',
+    'VGI': '"Viettel Global" OR VGI',
+    'CTR': '"Viettel Construction" OR "Công trình Viettel" OR CTR',
+    'FOX': '"FPT Telecom" OR "Viễn thông FPT" OR FOX',
+    'TTN': '"Công nghệ và Truyền thông Việt Nam" OR TTN',
+    'YEG': '"Tập đoàn Yeah1" OR YEG',
+
+    // === NHÓM BẢO HIỂM ===
+    'BVH': '"Tập đoàn Bảo Việt" OR BVH',
+    'BMI': '"Bảo hiểm Bảo Minh" OR BMI',
+    'MIG': '"Bảo hiểm Quân đội" OR "MIC" OR MIG',
+    'BIC': '"Bảo hiểm BIDV" OR BIC',
+    'PVI': '"Bảo hiểm PVI" OR PVI',
+    'VNR': '"Tái bảo hiểm Quốc gia" OR VNR',
+    'PTI': '"Bảo hiểm Bưu điện" OR PTI',
+
+    // === NHÓM DỆT MAY ===
+    'VGT': '"Vinatex" OR "Dệt may Việt Nam" OR VGT',
+    'TNG': '"Đầu tư và Thương mại TNG" OR TNG',
+    'MSH': '"May Sông Hồng" OR MSH',
+    'GIL': '"Sản xuất Kinh doanh Xuất nhập khẩu Bình Thạnh" OR GIL',
+    'TCM': '"Dệt may Thành Công" OR TCM',
+    'STK': '"Sợi Thế Kỷ" OR STK',
+    'VGG': '"Tổng Công ty May Việt Tiến" OR VGG',
+    'M10': '"Tổng Công ty May 10" OR M10',
+
+    // === NHÓM NƯỚC & TIỆN ÍCH ===
+    'BWE': '"Nước - Môi trường Bình Dương" OR BWE',
+    'TDM': '"Nước Thủ Dầu Một" OR TDM',
+    
+    // === NHÓM TẬP ĐOÀN ĐA NGÀNH / KHÁC ===
+    'GEX': '"Tập đoàn GELEX" OR GEX',
+    'FIT': '"Tập đoàn F.I.T" OR FIT',
+    'DVN': '"Tổng Công ty Dược Việt Nam" OR DVN'
+};
+
+const getSearchTerm = (ticker) => TICKER_ALIASES[ticker] || ticker;
+
 /**
  * Returns an ISO date string N days ago, formatted as YYYY-MM-DD,
  * for use with Google News "after:" operator.
@@ -42,7 +292,7 @@ function googleAfterDate(days) {
 }
 
 const buildGoogleNewsQueries = (ticker, mode) => {
-    const t    = encodeURIComponent(ticker);
+    const t = encodeURIComponent(getSearchTerm(ticker)); 
     const base = 'hl=vi&gl=VN&ceid=VN:vi';
     const days = MODE_DATE_WINDOW[mode] || 60;
     const after = encodeURIComponent(`after:${googleAfterDate(days)}`);
@@ -582,23 +832,30 @@ const resolveGoogleLinksParallel = async (items, concurrency = 5) => {
 
 const fetchDirectRSS = async (source, ticker, maxItems = 50) => {
     try {
-        const { data }   = await axios.get(source.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 });
-        const itemsRaw   = [].concat(xmlParser.parse(data)?.rss?.channel?.item || []);
-        const tickerPat  = new RegExp(`(^|\\s|\\(|\\[|:)${ticker.toUpperCase()}(\\s|\\)|\\]|:|$|,|\\.)`);
-        const tickerUp   = ticker.toUpperCase();
-
+        const { data } = await axios.get(source.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 10000 });
+        const itemsRaw = [].concat(xmlParser.parse(data)?.rss?.channel?.item || []);
+        const tickerUp = ticker.toUpperCase();
+        
+        const aliasStr = TICKER_ALIASES[tickerUp]?.replace(/"/g, '').replace(/ OR /g, '|').toLowerCase() || '';
+        
         return itemsRaw.slice(0, maxItems).map(el => {
-            const title    = (el?.title || '').toString();
-            const rawLink  = el?.link || el?.guid?.['#text'] || el?.guid || '';
-            const titleUp  = title.toUpperCase();
+            const title = (el?.title || '').toString();
+            const rawLink = el?.link || el?.guid?.['#text'] || el?.guid || '';
+            const titleLow = title.toLowerCase();
+            
             if (!isValidArticleLink(rawLink) || title.length < 15) return null;
-            if (!tickerPat.test(titleUp) && !titleUp.includes(` ${tickerUp} `)) return null;
+            
+            const hasTicker = titleUp.includes(` ${tickerUp} `) || titleUp.includes(`(${tickerUp})`) || titleUp.startsWith(`${tickerUp}:`);
+            const hasAlias = aliasStr ? new RegExp(`(${aliasStr})`, 'i').test(titleLow) : false;
+            
+            if (!hasTicker && !hasAlias) return null;
+
             return {
                 ...parsePubDate(el.pubDate),
                 title,
-                link:      rawLink,
-                source:    source.name,
-                domain:    source.domain || extractDomain(rawLink),
+                link: rawLink,
+                source: source.name,
+                domain: source.domain || extractDomain(rawLink),
                 sentiment: detectSentiment(title, el.description || ''),
                 fromGoogle: false,
             };
