@@ -9,7 +9,9 @@ const NewsSchema = new mongoose.Schema({
     publishedAt:   { type: Date, default: Date.now },  
     sentiment:     { type: String, enum: ['positive', 'negative', 'neutral'], default: 'neutral' },
     mode:          { type: String, enum: ['official', 'balanced', 'negative', 'rumor'], default: 'balanced' },
-    isAiGenerated: { type: Boolean, default: false }
+    isAiGenerated: { type: Boolean, default: false },
+    relevanceScore:{ type: Number, default: 0 },  
+    category:      { type: String, default: 'general' }  
 }, { _id: false });
 
 const ReportSchema = new mongoose.Schema({

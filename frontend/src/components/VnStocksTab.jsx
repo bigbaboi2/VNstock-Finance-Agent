@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
   Loader2, CheckCircle2, XCircle, Globe, Clock, RefreshCw,
   Sparkles, ChevronRight, Pause, Play, RotateCcw, Target,
-  AlertTriangle, Info, Copy, BookOpen, Layers
+  AlertTriangle, Info, Copy, BookOpen, Layers, X
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,7 +14,7 @@ import rehypeRaw from 'rehype-raw';
 import TradingChart from './TradingChart';
 import MarketOverview from './MarketOverview';
 import MarketRadar from './MarketRadar';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import StockAiChat from './StockAiChat';
 import AtomLoader from './AtomLoader';
 
@@ -590,7 +590,7 @@ const AiAnalysisLoader = React.memo(({
 // =====================================================================
 // COMPONENT
 // ======================================================================
-const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, aiAnalysisDuration, vnReportTimestamp, setShowPdfModal, scrollContainerRef, setIsChatOpen, aiReport }) => {
+const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, aiAnalysisDuration, vnReportTimestamp, setShowPdfModal, scrollContainerRef, setIsChatOpen, aiReport, setShowFullReportModal }) => {
   const [copied, setCopied] = useState(false);
   const sym = marketData?.stockInfo?.symbol;
 
@@ -616,14 +616,12 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
   const isFresh = aiAnalysisDuration != null || (isValidDate && (Date.now() - safeTime.getTime() < 5 * 60 * 1000));
 
   const timeColorClass = isFresh 
-      ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50') // Màu XANH (Báo cáo mới)
-      : (isDark ? 'text-slate-400 border-white/10 bg-white/5' : 'text-slate-500 border-slate-200 bg-slate-50'); // Màu XÁM (Báo cáo trong DB)
+      ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50')
+      : (isDark ? 'text-slate-400 border-white/10 bg-white/5' : 'text-slate-500 border-slate-200 bg-slate-50');
 
   return (
     <div className={`w-full rounded-2xl border mb-4 overflow-hidden ${isDark ? 'bg-[#080c14] border-yellow-400/15' : 'bg-white border-yellow-400/20 shadow-sm'}`}>
-      {/* Top accent */}
       <div className="h-0.5 w-full bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500" />
-
       <div className="px-5 py-4">
         {/* Header row */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -660,9 +658,7 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
           <button
             onClick={() => setIsChatOpen(true)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-              isDark
-                ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/25 hover:bg-yellow-400/20'
-                : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'
+              isDark ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/25 hover:bg-yellow-400/20' : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'
             }`}
           >
             <MessageSquare size={13} /> Chat về báo cáo này
@@ -672,34 +668,44 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
             <button
               onClick={() => setShowPdfModal(true)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-                isDark
-                  ? 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                isDark ? 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
               }`}
             >
               <FileText size={13} /> Xem PDF TCBS
             </button>
           )}
 
-          <button
-            onClick={handleCopy}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ml-auto ${
-              copied
-                ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
-                : (isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600')
-            }`}
-          >
-            {copied ? <><CheckCircle2 size={13} /> Đã sao chép!</> : <><Copy size={13} /> Copy báo cáo</>}
-          </button>
+          {/* Dồn các nút còn lại sang bên phải */}
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setShowFullReportModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
+                isDark ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25' : 'bg-sky-50 text-sky-600 border-sky-300 hover:bg-sky-100'
+              }`}
+            >
+              <BookOpen size={13} /> Đọc toàn văn
+            </button>
 
-          <button
-            onClick={() => scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-              isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600'
-            }`}
-          >
-            <ChevronUp size={13} /> Lên đầu
-          </button>
+            <button
+              onClick={handleCopy}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
+                copied
+                  ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
+                  : (isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600')
+              }`}
+            >
+              {copied ? <><CheckCircle2 size={13} /> Đã sao chép!</> : <><Copy size={13} /> Copy báo cáo</>}
+            </button>
+
+            <button
+              onClick={() => scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
+                isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600'
+              }`}
+            >
+              <ChevronUp size={13} /> Lên đầu
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -710,6 +716,8 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
 // COMPONENT: ACTION SIGNAL CARD 
 // =====================================================================
 const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   if (!actionData?.action) return null;
 
   const isBuy  = actionData.action.includes('MUA');
@@ -724,91 +732,128 @@ const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
 
   return (
     <div className={`w-full rounded-2xl border-2 overflow-hidden animate-in slide-in-from-top-3 duration-500 mb-6 ${colorCfg.border} ${colorCfg.bg} ${colorCfg.glow}`}>
-      {/* Signal Header */}
-      <div className={`px-5 py-3 flex items-center gap-3 border-b ${isDark ? 'border-white/5' : 'border-black/5'}`}>
+      
+      {/* Signal Header acts as toggle */}
+      <div 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className={`px-5 py-3 flex items-center gap-3 cursor-pointer group transition-colors select-none ${isCollapsed ? '' : 'border-b ' + (isDark ? 'border-white/5' : 'border-black/5')} ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}
+      >
         {/* Status dot */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <div className={`w-2.5 h-2.5 rounded-full ${isBuy ? 'bg-emerald-400' : isSell ? 'bg-red-400' : 'bg-yellow-400'}`} />
           {!isUpdatingAction && <div className={`absolute inset-0 rounded-full animate-ping ${isBuy ? 'bg-emerald-400' : isSell ? 'bg-red-400' : 'bg-yellow-400'} opacity-60`} />}
         </div>
 
         {/* Action badge */}
-        <div className={`px-4 py-1 rounded-lg font-black tracking-widest text-sm text-white shadow-lg ${colorCfg.badge}`}>
+        <div className={`px-4 py-1 rounded-lg font-black tracking-widest text-sm text-white shadow-lg shrink-0 ${colorCfg.badge}`}>
           {actionData.action}
         </div>
 
-        <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          Live Signal
-        </span>
-
-        {isUpdatingAction && (
-          <span className={`ml-auto flex items-center gap-1.5 text-[9px] font-bold ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-            <Loader2 size={11} className="animate-spin" /> Đang cập nhật...
+        {/* Cấu hình hiển thị dồn 1 hàng khi Collapse */}
+        {isCollapsed ? (
+          <div className="flex-1 flex items-center gap-4 ml-2 overflow-x-auto no-scrollbar whitespace-nowrap">
+             <div className="flex items-center gap-1.5">
+               <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Entry</span>
+               <span className={`text-[12px] font-black ${UI.textBold}`}>{actionData.entry}</span>
+             </div>
+             <div className="flex items-center gap-1.5">
+               <span className={`text-[9px] font-black uppercase tracking-widest text-red-400/80`}>SL</span>
+               <span className={`text-[12px] font-black text-red-400`}>{actionData.stoploss}</span>
+             </div>
+             <div className="flex items-center gap-1.5">
+               <span className={`text-[9px] font-black uppercase tracking-widest text-emerald-400/80`}>T1</span>
+               <span className={`text-[12px] font-black text-emerald-400`}>{actionData.target1 || 'N/A'}</span>
+             </div>
+             {(actionData.target2 && actionData.target2 !== 'N/A') && (
+               <div className="flex items-center gap-1.5">
+                 <span className={`text-[9px] font-black uppercase tracking-widest text-emerald-400/80`}>T2</span>
+                 <span className={`text-[12px] font-black text-emerald-400`}>{actionData.target2}</span>
+               </div>
+             )}
+          </div>
+        ) : (
+          <span className={`text-[10px] font-black uppercase tracking-widest shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Live Signal
           </span>
         )}
 
-        {actionData.conviction && (
-          <span className={`ml-auto px-2.5 py-1 rounded-full text-[9px] font-black border ${
-            actionData.conviction === 'Cao'
-              ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
-              : (isDark ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' : 'bg-yellow-50 text-yellow-600 border-yellow-200')
-          }`}>
-            Độ tin cậy: {actionData.conviction}
-          </span>
-        )}
-      </div>
+        <div className="ml-auto flex items-center gap-3 shrink-0">
+          {isUpdatingAction && (
+            <span className={`flex items-center gap-1.5 text-[9px] font-bold ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+              <Loader2 size={11} className="animate-spin" /> Đang cập nhật...
+            </span>
+          )}
 
-      {/* Price Grid */}
-      <div className="p-5">
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          {/* Entry */}
-          <div className={`col-span-1 p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-white/8' : 'bg-white/60 border-black/8'}`}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Entry</p>
-            <p className={`font-black text-base leading-none ${UI.textBold}`}>{actionData.entry}</p>
-          </div>
-
-          {/* Stop Loss */}
-          <div className={`col-span-1 p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-red-500/15' : 'bg-red-50/50 border-red-200/50'}`}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-red-400 mb-1">Stop Loss</p>
-            <p className={`font-black text-base leading-none text-red-400`}>{actionData.stoploss}</p>
-          </div>
-
-          {/* T1 */}
-          <div className={`p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-emerald-500/15' : 'bg-emerald-50/50 border-emerald-200/50'}`}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-1">Target 1</p>
-            <p className={`font-black text-sm leading-none text-emerald-400`}>{actionData.target1 || 'N/A'}</p>
-          </div>
-
-          {/* T2 */}
-          <div className={`p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-emerald-500/15' : 'bg-emerald-50/50 border-emerald-200/50'}`}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-1">Target 2</p>
-            <p className={`font-black text-sm leading-none text-emerald-400`}>{actionData.target2 || 'N/A'}</p>
+          {actionData.conviction && !isCollapsed && (
+            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border ${
+              actionData.conviction === 'Cao'
+                ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
+                : (isDark ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' : 'bg-yellow-50 text-yellow-600 border-yellow-200')
+            }`}>
+              Độ tin cậy: {actionData.conviction}
+            </span>
+          )}
+          
+          {/* Nút Chevron biểu thị Collapse */}
+          <div className={`p-1.5 rounded-full transition-colors ${isDark ? 'bg-white/5 text-slate-400 group-hover:bg-white/10' : 'bg-black/5 text-slate-500 group-hover:bg-black/10'}`}>
+            {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           </div>
         </div>
-
-        {/* Long term target */}
-        {actionData.longTermTarget && actionData.longTermTarget !== 'N/A' && (
-          <div className={`mb-3 p-3 rounded-xl border flex items-center justify-between gap-3 ${isDark ? 'bg-yellow-500/5 border-yellow-500/15' : 'bg-yellow-50/70 border-yellow-200'}`}>
-            <div>
-              <p className="text-[9px] text-yellow-500 font-black uppercase tracking-widest">Dự phóng Dài hạn (6–12 tháng)</p>
-              <p className={`text-sm font-black mt-0.5 ${UI.textBold}`}>Mục tiêu: {actionData.longTermTarget} VNĐ</p>
-            </div>
-            {actionData.longTermHorizon && (
-              <div className="text-right shrink-0">
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Kỳ vọng</p>
-                <p className="text-xs font-black text-slate-300 mt-0.5">📅 {actionData.longTermHorizon}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Reason */}
-        {actionData.reason && (
-          <p className={`text-[11px] font-medium leading-relaxed italic ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            <span className="font-black not-italic text-yellow-500">Lý do: </span>{actionData.reason}
-          </p>
-        )}
       </div>
+
+      {/* Expandable Content (Chỉ hiển thị khi đang mở) */}
+      {!isCollapsed && (
+        <div className="p-5 animate-in slide-in-from-top-2 duration-300">
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {/* Entry */}
+            <div className={`col-span-1 p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-white/8' : 'bg-white/60 border-black/8'}`}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Entry</p>
+              <p className={`font-black text-base leading-none ${UI.textBold}`}>{actionData.entry}</p>
+            </div>
+
+            {/* Stop Loss */}
+            <div className={`col-span-1 p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-red-500/15' : 'bg-red-50/50 border-red-200/50'}`}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-red-400 mb-1">Stop Loss</p>
+              <p className={`font-black text-base leading-none text-red-400`}>{actionData.stoploss}</p>
+            </div>
+
+            {/* T1 */}
+            <div className={`p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-emerald-500/15' : 'bg-emerald-50/50 border-emerald-200/50'}`}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-1">Target 1</p>
+              <p className={`font-black text-sm leading-none text-emerald-400`}>{actionData.target1 || 'N/A'}</p>
+            </div>
+
+            {/* T2 */}
+            <div className={`p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-emerald-500/15' : 'bg-emerald-50/50 border-emerald-200/50'}`}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-1">Target 2</p>
+              <p className={`font-black text-sm leading-none text-emerald-400`}>{actionData.target2 || 'N/A'}</p>
+            </div>
+          </div>
+
+          {/* Long term target */}
+          {actionData.longTermTarget && actionData.longTermTarget !== 'N/A' && (
+            <div className={`mb-3 p-3 rounded-xl border flex items-center justify-between gap-3 ${isDark ? 'bg-yellow-500/5 border-yellow-500/15' : 'bg-yellow-50/70 border-yellow-200'}`}>
+              <div>
+                <p className="text-[9px] text-yellow-500 font-black uppercase tracking-widest">Dự phóng Dài hạn (6–12 tháng)</p>
+                <p className={`text-sm font-black mt-0.5 ${UI.textBold}`}>Mục tiêu: {actionData.longTermTarget} VNĐ</p>
+              </div>
+              {actionData.longTermHorizon && (
+                <div className="text-right shrink-0">
+                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Kỳ vọng</p>
+                  <p className="text-xs font-black text-slate-300 mt-0.5">📅 {actionData.longTermHorizon}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reason */}
+          {actionData.reason && (
+            <p className={`text-[11px] font-medium leading-relaxed italic ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <span className="font-black not-italic text-yellow-500">Lý do: </span>{actionData.reason}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -889,6 +934,8 @@ export default function VnStocksTab({
   aiAnalysisDuration,
   pdfMode = 'turbo',
   setPdfMode,
+  newsMode = 'balanced',
+  setNewsMode,
   vnReportTimestamp,
   debateResult,
   liveDebate = {},
@@ -913,8 +960,12 @@ export default function VnStocksTab({
   const tooltipRef = useRef(null);
   const newsScrollRef = useRef(null);
   const [showNewsScroll, setShowNewsScroll] = useState(false);
+  const [showFullReportModal, setShowFullReportModal] = useState(false);
+  // ─── STATE ĐIỀU KHIỂN THU GỌN KHỐI PDF VÀ NEWS ────────────────────
+  const [isPdfConfigOpen, setIsPdfConfigOpen] = useState(true);
+  const [isNewsConfigOpen, setIsNewsConfigOpen] = useState(true);
   // Format chart data for price chart component
-const priceChartData = useMemo(() => {
+  const priceChartData = useMemo(() => {
        if (!Array.isArray(chartData) || chartData.length === 0) return [];
       
       const rawData = chartData.slice(-30);
@@ -1269,39 +1320,226 @@ const priceChartData = useMemo(() => {
                 </summary>
                 
                 <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-300">
+
+                  {/* ─── KHỐI 1: CHẾ ĐỘ ĐỌC PDF  ──────────────────── */}
                   {setPdfMode && (
                     <div className={`rounded-xl p-3 mb-3 border ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm mt-4'}`}>
-                      <p className={`text-[9px] font-black tracking-widest uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>⚡ CHẾ ĐỘ PHÂN TÍCH BÁO CÁO PDF</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { key: 'turbo',    label: 'TURBO',    icon: '⚡', desc: '3 - 8s (Siêu tốc)',       pros: 'Trả kết quả tức thì',        cons: 'Dễ bỏ sót bảng biểu, lỗi chữ' },
-                          { key: 'fast',     label: 'FAST',     icon: '🚀', desc: '20 - 40s (Nhanh)',         pros: 'Cân bằng thời gian tốt',     cons: 'Bảng phức tạp có thể lệch'    },
-                          { key: 'balanced', label: 'BALANCED', icon: '⚖️', desc: '60 - 90s (Tiêu chuẩn)',   pros: 'Đọc dữ liệu tài chính tốt',  cons: 'Thời gian chờ hơi lâu'        },
-                          { key: 'full',     label: 'FULL',     icon: '🔬', desc: '150 - 200s (Chuyên sâu)', pros: 'Chính xác tối đa (OCR)',      cons: 'Rất chậm, ngốn tài nguyên'    },
-                        ].map(({ key, label, icon, desc, pros, cons }) => {
-                          const isActive = pdfMode === key;
-                          return (
-                            <button key={key} onClick={() => setPdfMode(key)} className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${isActive ? (isDark ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' : 'bg-yellow-100 border-yellow-500 text-yellow-700') : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100')}`}>
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-sm">{icon}</span>
-                                  <span className="text-[10px] font-black tracking-wider">{label}</span>
+                      <button 
+                        onClick={() => setIsPdfConfigOpen(!isPdfConfigOpen)}
+                        className="w-full flex items-center justify-between focus:outline-none mb-1.5"
+                      >
+                        <p className={`text-[9px] font-black tracking-widest uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          ⚡ CHẾ ĐỘ PHÂN TÍCH BÁO CÁO PDF
+                        </p>
+                        {isPdfConfigOpen ? <ChevronUp size={12} className={isDark ? 'text-slate-400' : 'text-slate-500'} /> : <ChevronDown size={12} className={isDark ? 'text-slate-400' : 'text-slate-500'} />}
+                      </button>
+
+                      {isPdfConfigOpen && (
+                        <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
+                          {[
+                            { key: 'turbo',    label: 'TURBO',    icon: '⚡', desc: '3 - 8s (Siêu tốc)',       pros: 'Trả kết quả tức thì',        cons: 'Dễ bỏ sót bảng biểu, lỗi chữ' },
+                            { key: 'fast',     label: 'FAST',     icon: '🚀', desc: '20 - 40s (Nhanh)',         pros: 'Cân bằng thời gian tốt',     cons: 'Bảng phức tạp có thể lệch'    },
+                            { key: 'balanced', label: 'BALANCED', icon: '⚖️', desc: '60 - 90s (Tiêu chuẩn)',   pros: 'Đọc dữ liệu tài chính tốt',  cons: 'Thời gian chờ hơi lâu'        },
+                            { key: 'full',     label: 'FULL',     icon: '🔬', desc: '150 - 200s (Chuyên sâu)', pros: 'Chính xác tối đa (OCR)',      cons: 'Rất chậm, ngốn tài nguyên'    },
+                          ].map(({ key, label, icon, desc, pros, cons }) => {
+                            const isActive = pdfMode === key;
+                            return (
+                              <button key={key} onClick={() => setPdfMode(key)} className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${isActive ? (isDark ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' : 'bg-yellow-100 border-yellow-500 text-yellow-700') : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100')}`}>
+                                <div className="flex items-center justify-between w-full">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-sm">{icon}</span>
+                                    <span className="text-[10px] font-black tracking-wider">{label}</span>
+                                  </div>
+                                  {isActive && <span className="text-[10px] font-black">✓</span>}
                                 </div>
-                                {isActive && <span className="text-[10px] font-black">✓</span>}
-                              </div>
-                              <p className={`text-[10px] font-bold ${isActive ? (isDark ? 'text-yellow-200' : 'text-yellow-900') : (isDark ? 'text-slate-300' : 'text-slate-700')}`}>⏱ {desc}</p>
-                              <div className="flex flex-col gap-1 mt-0.5">
-                                <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-emerald-400/80' : 'text-emerald-600')}`}><span className="font-bold">✓</span> {pros}</span>
-                                <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-red-300' : 'text-red-700') : (isDark ? 'text-red-400/80' : 'text-red-500')}`}><span className="font-bold">⚠️</span> {cons}</span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+                                <p className={`text-[10px] font-bold ${isActive ? (isDark ? 'text-yellow-200' : 'text-yellow-900') : (isDark ? 'text-slate-300' : 'text-slate-700')}`}>⏱ {desc}</p>
+                                <div className="flex flex-col gap-1 mt-0.5">
+                                  <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-emerald-400/80' : 'text-emerald-600')}`}><span className="font-bold">✓</span> {pros}</span>
+                                  <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-red-300' : 'text-red-700') : (isDark ? 'text-red-400/80' : 'text-red-500')}`}><span className="font-bold">⚠️</span> {cons}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
+                  {/* ─── KHỐI 2: CHẾ ĐỘ TÌM KIẾM TIN TỨC (COLLAPSE & AUTO-REFRESH UX) ─── */}
+                  {setNewsMode && (
+                    <div className={`rounded-xl p-3 mb-3 border ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm'}`}>
+                      <button 
+                        onClick={() => setIsNewsConfigOpen(!isNewsConfigOpen)}
+                        className="w-full flex items-center justify-between focus:outline-none mb-1.5"
+                      >
+                        <p className={`text-[9px] font-black tracking-widest uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          📡 CHẾ ĐỘ TÌM KIẾM TIN TỨC
+                        </p>
+                        {isNewsConfigOpen ? <ChevronUp size={12} className={isDark ? 'text-slate-400' : 'text-slate-500'} /> : <ChevronDown size={12} className={isDark ? 'text-slate-400' : 'text-slate-500'} />}
+                      </button>
 
-                  {/* Export JSON button */}
+                      {isNewsConfigOpen && (
+                        <div className="animate-in fade-in duration-200">
+                          {/* Hàng trên: 2 mode chính */}
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            {[
+                              {
+                                key: 'fast',
+                                label: 'NHANH',
+                                icon: '⚡',
+                                desc: 'Ít nguồn, cache ưu tiên',
+                                pros: 'Tốc độ cao, tải tức thì',
+                                cons: 'Ít tin hơn, bỏ qua mạng nhỏ',
+                                color: 'sky',
+                                searchNote: 'Google RSS + RSS trực tiếp',
+                              },
+                              {
+                                key: 'balanced',
+                                label: 'CÂN BẰNG',
+                                icon: '⚖️',
+                                desc: 'Đa nguồn, lọc thông minh',
+                                pros: 'Phân bổ đều sentiment',
+                                cons: 'Chậm hơn một chút',
+                                color: 'yellow',
+                                searchNote: 'Google + RSS + Search sites',
+                              },
+                            ].map(({ key, label, icon, desc, pros, cons, color, searchNote }) => {
+                              const isActive = newsMode === key;
+                              const activeStyle = color === 'sky'
+                                ? (isDark ? 'bg-sky-400/15 border-sky-400 text-sky-300' : 'bg-sky-50 border-sky-500 text-sky-700')
+                                : (isDark ? 'bg-yellow-400/15 border-yellow-400 text-yellow-300' : 'bg-yellow-50 border-yellow-500 text-yellow-700');
+                              const inactiveStyle = isDark
+                                ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
+                                : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100';
+                              return (
+                                <button
+                                  key={key}
+                                  onClick={() => {
+                                    setNewsMode(key);
+                                    if (marketData?.stockInfo?.symbol) {
+                                      fetchMarketData(marketData.stockInfo.symbol, key);
+                                    }
+                                  }}
+                                  className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${isActive ? activeStyle : inactiveStyle}`}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-sm">{icon}</span>
+                                      <span className="text-[10px] font-black tracking-wider">{label}</span>
+                                    </div>
+                                    {isActive && <span className="text-[10px] font-black">✓</span>}
+                                  </div>
+                                  <p className={`text-[10px] font-bold ${isActive ? (isDark ? 'text-slate-200' : 'text-slate-700') : (isDark ? 'text-slate-300' : 'text-slate-700')}`}>
+                                    🔎 {desc}
+                                  </p>
+                                  <div className="flex flex-col gap-1 mt-0.5">
+                                    <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-emerald-400/80' : 'text-emerald-600')}`}>
+                                      <span className="font-bold">✓</span> {pros}
+                                    </span>
+                                    <span className={`text-[8px] font-medium leading-tight ${isActive ? (isDark ? 'text-red-300' : 'text-red-700') : (isDark ? 'text-red-400/80' : 'text-red-500')}`}>
+                                      <span className="font-bold">⚠️</span> {cons}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[7px] font-mono font-bold mt-0.5 truncate ${isActive ? (isDark ? 'text-slate-400' : 'text-slate-500') : (isDark ? 'text-slate-600' : 'text-slate-400')}`}>
+                                    📡 {searchNote}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {/* Hàng dưới: 2 advanced modes*/}
+                           <div className="grid grid-cols-2 gap-2">
+                            {[
+                              {
+                                key: 'deep',
+                                label: 'CHUYÊN SÂU',
+                                icon: '🔬',
+                                desc: 'Lọc nguồn chính thức',
+                                pros: 'Chỉ tin báo chí uy tín',
+                                cons: 'Có thể ít tin hơn mong đợi',
+                                color: 'emerald',
+                                searchNote: 'cafef, vietstock, baodautu...',
+                              },
+                              {
+                                key: 'ultra',
+                                label: 'ULTRA',
+                                icon: '🛰️',
+                                desc: 'Toàn bộ mạng lưới + rumor',
+                                pros: 'Tối đa nguồn & tin đồn',
+                                cons: 'Chậm, nhiều nhiễu tiêu cực',
+                                color: 'purple',
+                                searchNote: 'Tất cả nguồn + network scrape',
+                              },
+                            ].map(({ key, label, icon, desc, pros, cons, color, searchNote }) => {
+                              const isActive = newsMode === key;
+                              const colorMap = {
+                                emerald: isActive
+                                  ? (isDark ? 'bg-emerald-500/15 border-emerald-400 text-emerald-300' : 'bg-emerald-50 border-emerald-500 text-emerald-700')
+                                  : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400'),
+                                purple: isActive
+                                  ? (isDark ? 'bg-purple-500/15 border-purple-400 text-purple-300' : 'bg-purple-50 border-purple-500 text-purple-700')
+                                  : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400'),
+                              };
+                              return (
+                                <button
+                                  key={key}
+                                  onClick={() => {
+                                    setNewsMode(key);
+                                     if (marketData?.stockInfo?.symbol) {
+                                      fetchMarketData(marketData.stockInfo.symbol);
+                                    }
+                                  }}
+                                  className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${colorMap[color]}`}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-sm">{icon}</span>
+                                      <span className="text-[10px] font-black tracking-wider">{label}</span>
+                                    </div>
+                                    {isActive && <span className="text-[10px] font-black">✓</span>}
+                                  </div>
+                                  <p className={`text-[10px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    🔎 {desc}
+                                  </p>
+                                  <div className="flex flex-col gap-1 mt-0.5">
+                                    <span className={`text-[8px] font-medium leading-tight ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>
+                                      <span className="font-bold">✓</span> {pros}
+                                    </span>
+                                    <span className={`text-[8px] font-medium leading-tight ${isDark ? 'text-red-400/80' : 'text-red-500'}`}>
+                                      <span className="font-bold">⚠️</span> {cons}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[7px] font-mono font-bold mt-0.5 truncate ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                                    📡 {searchNote}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Active mode badge */}
+                          <div className={`mt-2 px-3 py-1.5 rounded-lg flex items-center justify-between ${isDark ? 'bg-white/3 border border-white/5' : 'bg-slate-50 border border-slate-200'}`}>
+                            <span className={`text-[8px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                              Chế độ đang dùng
+                            </span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                              newsMode === 'fast'     ? (isDark ? 'text-sky-400 border-sky-500/30 bg-sky-500/10' : 'text-sky-600 border-sky-300 bg-sky-50') :
+                              newsMode === 'balanced' ? (isDark ? 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10' : 'text-yellow-600 border-yellow-300 bg-yellow-50') :
+                              newsMode === 'deep'     ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50') :
+                                                        (isDark ? 'text-purple-400 border-purple-500/30 bg-purple-500/10' : 'text-purple-600 border-purple-300 bg-purple-50')
+                            }`}>
+                              {{
+                                fast: '⚡ NHANH',
+                                balanced: '⚖️ CÂN BẰNG',
+                                deep: '🔬 CHUYÊN SÂU',
+                                ultra: '🛰️ ULTRA',
+                              }[newsMode]}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* EXPORT BUTTON */}
                   <button onClick={handleExportData} disabled={isExporting} className={`w-full h-9 mb-3 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border text-[10px] uppercase tracking-widest ${isExporting ? 'opacity-50 cursor-not-allowed' : exportStatus === 'success' ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' : 'bg-emerald-50 text-emerald-600 border-emerald-300') : exportStatus === 'error' ? (isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-500 border-red-200') : (isDark ? 'bg-white/5 text-slate-400 border-white/10 hover:text-emerald-400 hover:border-emerald-500/30' : 'bg-white text-slate-500 border-slate-200 hover:text-emerald-600 hover:border-emerald-300')}`}>
                     {isExporting ? <><Loader2 size={12} className="animate-spin" /> Đang tải...</> : exportStatus === 'success' ? <><CheckCircle2 size={12} /> Xuất thành công!</> : exportStatus === 'error' ? <><XCircle size={12} /> Xuất thất bại</> : <><FileJson size={12} /> Xuất Server Data (JSON)</>}
                   </button>
@@ -1827,6 +2065,7 @@ const priceChartData = useMemo(() => {
           <AiAnalysisLoader
             analyzing={analyzing}
             aiReport={aiReport}
+            setShowFullReportModal={setShowFullReportModal}
             liveDebate={liveDebate}
             analysisStep={analysisStep}
             analysisProgress={analysisProgress}
@@ -1864,6 +2103,7 @@ const priceChartData = useMemo(() => {
                       scrollContainerRef={scrollContainerRef}
                       setIsChatOpen={setIsChatOpen}
                       aiReport={aiReport}
+                      setShowFullReportModal={setShowFullReportModal}
                     />
 
                     {/* 2. Debate Panel */}
@@ -2034,7 +2274,50 @@ const priceChartData = useMemo(() => {
           </div>
         </div>
       </div>
-
+      {/* FULL REPORT MODAL */}
+      {showFullReportModal && (
+         <div className="fixed inset-0 flex items-center justify-center p-6 lg:p-12 pt-24" style={{ zIndex: 999999 }}>
+           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowFullReportModal(false)} />
+           <div className={`relative w-full max-w-5xl h-full flex flex-col rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border ${isDark ? 'bg-[#0d1219] border-white/10' : 'bg-white border-slate-300'} animate-in zoom-in-95 duration-200`}>
+             <div className={`h-14 flex items-center justify-between px-6 border-b shrink-0 ${isDark ? 'bg-[#121212] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="flex items-center gap-3">
+                    <Sparkles size={18} className="text-yellow-400" />
+                    <h3 className={`font-black tracking-widest uppercase text-sm ${UI.textBold}`}>
+                        Toàn văn báo cáo AI: {marketData?.stockInfo?.symbol}
+                    </h3>
+                </div>
+                <button onClick={() => setShowFullReportModal(false)} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'}`}>
+                    <X size={20} strokeWidth={3} />
+                </button>
+             </div>
+             <div className="flex-1 w-full relative overflow-y-auto custom-scrollbar p-6 lg:p-10">
+                <div className={`prose max-w-none break-words
+                  prose-headings:scroll-mt-4
+                  ${isDark
+                    ? 'prose-invert text-slate-200 prose-headings:text-yellow-400 prose-strong:text-white prose-li:text-slate-300 prose-p:text-slate-200 prose-code:text-yellow-300 prose-code:bg-yellow-400/10 prose-blockquote:border-yellow-400/30 prose-blockquote:text-slate-400'
+                    : 'text-slate-800 prose-headings:text-slate-900 prose-strong:text-slate-900 prose-code:text-slate-800 prose-blockquote:border-yellow-400 prose-blockquote:text-slate-600'
+                  }
+                  prose-table:text-sm
+                  prose-th:font-black prose-th:uppercase prose-th:tracking-widest prose-th:text-[10px]
+                  prose-td:text-[12px]
+                `}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]} 
+                    rehypePlugins={[rehypeRaw]}
+                    components={{
+                       h1: ({node, ...props}) => <h1 className={`text-xl font-black mt-8 mb-4 inline-block px-3 py-1.5 rounded-lg border-l-4 shadow-sm ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
+                      h2: ({node, ...props}) => <h2 className={`text-lg font-black mt-6 mb-3 inline-block px-2.5 py-1 rounded border-l-2 ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
+                      h3: ({node, ...props}) => <h3 className={`text-base font-bold mt-5 mb-2 uppercase tracking-wide ${isDark ? 'text-yellow-500' : 'text-yellow-700'}`} {...props} />,
+                      a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 no-underline border-b border-blue-400/30 hover:border-blue-400 transition-colors" {...props} />
+                    }}
+                  >
+                    {aiReport}
+                  </ReactMarkdown>
+                </div>
+             </div>
+           </div>
+         </div>
+      )}
       {/* AI Chat Panel */}
       <StockAiChat
         isOpen={isChatOpen}
