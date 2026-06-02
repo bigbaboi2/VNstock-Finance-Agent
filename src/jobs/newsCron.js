@@ -63,6 +63,18 @@ function recordCircuitFailure(domain) {
         ));
     }
 }
+function cleanupCircuitState() {
+    let deletedCount = 0;
+    for (const [domain, state] of circuitState.entries()) {
+        if (state.failures === 0 && state.openUntil === null) {
+            circuitState.delete(domain);
+            deletedCount++;
+        }
+    }
+    if (deletedCount > 0) {
+        console.log(chalk.gray(`[CIRCUIT] Đã dọn dẹp ${deletedCount} domain an toàn khỏi bộ nhớ.`));
+    }
+}
 
 function extractDomain(url) {
     try { return new URL(url).hostname.replace('www.', ''); }
@@ -70,7 +82,6 @@ function extractDomain(url) {
 }
 
 //─── Google News URL helpers ──────────────────────────────────────────────────
-
 const resolveGoogleLink = async (googleUrl) => {
     if (!googleUrl || !googleUrl.includes('google.com')) return googleUrl;
 
@@ -92,11 +103,13 @@ const resolveGoogleLink = async (googleUrl) => {
     const browser = await getBrowser();
     if (!browser) return null;
     let page;
+    let timer; 
+
     try {
         page = await browser.newPage();
         await page.setRequestInterception(true);
         const finalUrl = await new Promise((resolve) => {
-            const timer = setTimeout(() => resolve(null), 12000);
+            timer = setTimeout(() => resolve(null), 12000);
             page.on('request', (req) => {
                 const url = req.url();
                 if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
@@ -112,7 +125,10 @@ const resolveGoogleLink = async (googleUrl) => {
         });
         return finalUrl;
     } catch { return null; }
-    finally { if (page) await page.close().catch(() => {}); }
+    finally {
+        if (timer) clearTimeout(timer); // [FIX] Dọn dẹp timer an toàn
+        if (page) await page.close().catch(() => {});
+    }
 };
 //─── [FIX-10] scrapeWithConcurrencyLimit — circuit breaker + browser health check ────
 
@@ -120,47 +136,54 @@ const resolveGoogleLink = async (googleUrl) => {
 //With timeout 15s and concurrency 5: worst case 5 × 15s = 75s/batch, ~30% faster
 const SCRAPE_TIMEOUT_MS = 15_000;
 
+const resolveArticleLinks = async (articles, limit = 5) => {
+    const results = [];
+    for (let i = 0; i < articles.length; i += limit) {
+        const batch = articles.slice(i, i + limit);
+        const resolvedBatch = await Promise.all(batch.map(async (article) => {
+            let realLink = article.link;
+            if (realLink && realLink.includes('google.com')) {
+                const decoded = decodeGoogleNewsUrl(realLink);
+                if (decoded) {
+                    realLink = decoded;
+                } else {
+                    const resolved = await resolveGoogleLink(realLink);
+                    if (resolved) realLink = resolved;
+                }
+            }
+            return { ...article, link: realLink };
+        }));
+        results.push(...resolvedBatch);
+    }
+    return results;
+};
+
 const scrapeWithConcurrencyLimit = async (articles, limit = 5) => {
     const results = [];
 
     for (let i = 0; i < articles.length; i += limit) {
         const batch = articles.slice(i, i + limit);
 
-       //[FIX-6] Health checks the browser before each batch — not just once at the beginning.
-        //If the browser dies midway, getBrowser() will automatically respawn (thanks to the fix in browserManager).
-        //Import respawnBrowser is not needed here — getBrowser() is already handled internally.
         const batchResults = await Promise.all(
             batch.map(async (article) => {
-                //Social sources: no need to scrape
                 if (article.source === 'Reddit F1M' || article.source === 'Facebook Group') {
                     return { ...article, content: article.title };
                 }
 
-                //Decode the Google link
-                let realLink = article.link;
-                if (realLink && realLink.includes('google.com')) {
-                    const decoded = decodeGoogleNewsUrl(realLink);
-                    if (decoded) {
-                        realLink = decoded;
-                    } else {
-                        const resolved = await resolveGoogleLink(realLink);
-                        if (resolved) realLink = resolved;
-                    }
-                }
-
+                const realLink = article.link; 
                 const isCleanLink = realLink &&
                     !realLink.includes('google.com') &&
                     !realLink.includes('googleusercontent.com');
 
                 if (!isCleanLink) {
-                    return { ...article, link: realLink, content: article.title };
+                    return { ...article, content: article.title };
                 }
 
-                //[FIX-10] Check circuit breaker before scraping
+                // Check circuit breaker
                 const domain = extractDomain(realLink);
                 if (isCircuitOpen(domain)) {
                     console.log(chalk.yellow(`[CIRCUIT] Bỏ qua ${domain} (circuit open).`));
-                    return { ...article, link: realLink, content: article.title };
+                    return { ...article, content: article.title };
                 }
 
                 try {
@@ -175,7 +198,6 @@ const scrapeWithConcurrencyLimit = async (articles, limit = 5) => {
 
                     return {
                         ...article,
-                        link: realLink,
                         content: (content && content.length > 80) ? content : article.title,
                     };
                 } catch (err) {
@@ -183,14 +205,12 @@ const scrapeWithConcurrencyLimit = async (articles, limit = 5) => {
                         recordCircuitFailure(domain);
                         console.log(chalk.yellow(`[CIRCUIT] ${domain} timeout #${getCircuit(domain).failures}`));
                     }
-                    return { ...article, link: realLink, content: article.title };
+                    return { ...article, content: article.title };
                 }
             })
         );
-
         results.push(...batchResults);
     }
-
     return results;
 };
 
@@ -248,36 +268,47 @@ export const fetchAndSaveNews = async () => {
             MACRO_RSS_QUERIES.map(url => fetchMacroRSS(url, 10))
         );
 
-        const seenLinks    = new Set();
-        const newArticles  = [];
-
+        const rawArticles = [];
         for (const batch of allFetched) {
             for (const article of batch) {
-                if (!seenLinks.has(article.link)) {
-                    seenLinks.add(article.link);
-                    newArticles.push(article);
-                }
+                rawArticles.push(article);
             }
         }
 
-        if (newArticles.length === 0) {
+        if (rawArticles.length === 0) {
             console.log(chalk.yellow('[CẢNH BÁO] Không lấy được bài nào từ RSS. Dừng.'));
             return;
         }
 
-        console.log(chalk.greenBright(`[CRON] Đã lấy ${newArticles.length} bài từ tất cả RSS queries.`));
+        //STEP 1: DECODE THE ENTIRE LINK PREVIOUSLY
+        console.log(chalk.gray(`[CRON] Đang giải mã URL cho ${rawArticles.length} bài viết...`));
+        const resolvedArticles = await resolveArticleLinks(rawArticles);
 
-        const existingLinks    = new Set(
+        //STEP 2: FILTER INTERNAL DUPLICATES INTO NEW LIST
+        const seenLinks = new Set();
+        const newArticles = [];
+        for (const article of resolvedArticles) {
+            if (article.link && !seenLinks.has(article.link)) {
+                seenLinks.add(article.link);
+                newArticles.push(article);
+            }
+        }
+
+        console.log(chalk.greenBright(`[CRON] Đã giải mã xong, lấy được ${newArticles.length} bài unique từ RSS.`));
+
+        //STEP 3: CHECK DUPLICATE WITH DATABASE USING ORIGINAL LINK
+        const existingLinks = new Set(
             (await DerivNews.find({}, { link: 1 }).lean()).map(d => d.link)
         );
         const brandNewArticles = newArticles.filter(a => !existingLinks.has(a.link));
-        const alreadyHave      = newArticles.length - brandNewArticles.length;
+        const alreadyHave = newArticles.length - brandNewArticles.length;
 
-        console.log(chalk.gray(`[CRON] Đã có: ${alreadyHave} | Mới: ${brandNewArticles.length}`));
+        console.log(chalk.gray(`[CRON] Đã có trong DB: ${alreadyHave} | Cần cào mới: ${brandNewArticles.length}`));
 
         if (brandNewArticles.length === 0) {
             console.log(chalk.gray('[CRON] Không có bài mới. Giữ nguyên DB, chờ cron tiếp theo.'));
         } else {
+            //STEP 4: PROCEED TO SCRATCH THE CONTENT
             const articlesWithContent = await scrapeWithConcurrencyLimit(brandNewArticles);
             let addedCount = 0;
 
@@ -297,9 +328,9 @@ export const fetchAndSaveNews = async () => {
             ));
         }
 
-         const count = await DerivNews.countDocuments();
+        const count = await DerivNews.countDocuments();
         if (count > DB_CAP) {
-            const topN    = await DerivNews.find()
+            const topN = await DerivNews.find()
                 .sort({ timestamp: -1 })
                 .limit(DB_CAP)
                 .select('_id')
@@ -312,6 +343,7 @@ export const fetchAndSaveNews = async () => {
         }
 
         lastNewsSyncTime = new Date();
+        cleanupCircuitState(); 
     } catch (error) {
         console.error('[CRON-LỖI]', error.message);
     }
