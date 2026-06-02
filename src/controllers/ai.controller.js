@@ -96,6 +96,8 @@ export const getLiveNews = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const mode = ['official', 'balanced', 'negative', 'rumor'].includes(req.query.mode)
                  ? req.query.mode : 'balanced';
+    const newsMode = ['fast', 'balanced', 'deep', 'ultra'].includes(req.query.newsMode)
+                 ? req.query.newsMode : 'balanced';
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
@@ -158,7 +160,7 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
             if (isClientDisconnected) break;
 
             const offset       = (currentPage - 1) * 15;
-            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset);
+            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset, newsMode);
 
             if (currentBatch.length === 0) {
                 console.log(chalk.gray(`[HỆ THỐNG] Trang ${currentPage}: Server không còn tin. Dừng.`));
@@ -212,8 +214,8 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
              const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
             
             //---END OF LOOP ---
-            
-            const SAFE_BATCH_SIZE = 3;
+
+            const SAFE_BATCH_SIZE = 5;
             for (let i = 0; i < toScrape.length; i += SAFE_BATCH_SIZE) {
                 if (isClientDisconnected) break;
                 const batch   = toScrape.slice(i, i + SAFE_BATCH_SIZE);
@@ -221,9 +223,9 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
                 const scraped = await Promise.all(batch.map(async (news) => {
                     try {
                         const content = await Promise.race([
-                            scrapeArticleContent(news.link),
-                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 35000))
-                        ]);
+                        scrapeArticleContent(news.link),
+                        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))  
+                    ]);
                         const raw = {
                             title:       news.title,
                             link:        news.link,
