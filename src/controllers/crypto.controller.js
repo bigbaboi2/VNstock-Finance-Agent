@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import vader from 'vader-sentiment';
 import CryptoCoin from '../../models/CryptoCoin.js';
 import { analyzeCryptoSignalWithGemini } from '../services/aiService.js';
+import { buildCryptoSignalMessage, sendTelegramMessage } from '../services/telegramService.js';
 import { cryptoCache, formatLargeNumber, calcTechnicals, calcVolumeProfile, translateFearGreed } from '../services/cryptoService.js';
 
 export const getCryptoNews = async (req, res) => {
@@ -144,6 +145,8 @@ export const saveCryptoSignal = async (req, res) => {
             if (coinRecord.reports.length > 10) coinRecord.reports.shift();
             await coinRecord.save();
         } catch (dbErr) {}
+
+        await sendTelegramMessage(buildCryptoSignalMessage(symbol, aiDecision, currentPrice)).catch(() => {});
         return res.json({ success: true, data: aiDecision });
     } catch (error) { return res.status(500).json({ success: false, message: error.message }); }
 };
