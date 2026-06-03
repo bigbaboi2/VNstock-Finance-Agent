@@ -395,7 +395,7 @@ export async function generateWithRole(role, prompt, options = {}) {
     const chain = ROLE_PROVIDER_CHAINS[role] || ROLE_PROVIDER_CHAINS.default;
     const normalizedRole = role.toUpperCase();
 
-    console.log(chalk.blueBright(`[ROUTER] 🎯 Role [${normalizedRole}] → Chain: [${chain.join(' → ')}]`));
+    console.log(chalk.blueBright(`[ROUTER] Role [${normalizedRole}] → Chain: [${chain.join(' → ')}]`));
 
     const errors = [];
 
@@ -466,7 +466,7 @@ export async function generateWithRoleStream(role, prompt, onChunk, options = {}
     const chain = ROLE_PROVIDER_CHAINS[role] || ROLE_PROVIDER_CHAINS.default;
     const normalizedRole = role.toUpperCase();
 
-    console.log(chalk.blueBright(`[ROUTER STREAM] 🎯 Role [${normalizedRole}] → Chain: [${chain.join(' → ')}]`));
+    console.log(chalk.blueBright(`[ROUTER STREAM] Role [${normalizedRole}] → Chain: [${chain.join(' → ')}]`));
 
     const errors = [];
 
