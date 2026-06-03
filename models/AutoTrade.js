@@ -16,6 +16,12 @@ const AutoTradeSchema = new mongoose.Schema({
     confidence: { type: Number, required: true }, 
     reason: { type: String, required: true },  
     aiReportSnapshot: { type: String },  
+    signalBreakdown: { type: mongoose.Schema.Types.Mixed, default: {} },
+    executionMeta: {
+        priceSource: { type: String, default: null },
+        contextSource: { type: String, default: null },
+        fetchedAt: { type: Date, default: null }
+    },
     status: { type: String, default: 'OPEN', enum: ['OPEN', 'CLOSED', 'WATCH', 'SKIP'] },
     openedAt: { type: Date, default: Date.now },
     closedAt: { type: Date, default: null },
