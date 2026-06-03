@@ -3,9 +3,20 @@ import AutoTrade from '../../models/AutoTrade.js';
 import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Stock from '../../models/Stock.js';
-import { analyzeMarketIntelligence } from './quantEngine.js';
-import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
+import DerivNews from '../../models/DerivNews.js';
 import { generateWithRole } from './multiProviderRouter.js';
+import {
+    buildVnStockScanUniverse,
+    getCryptoTradeContext,
+    getDerivativesTradeContext,
+    getVnMarketContext,
+} from './tradeContextService.js';
+import {
+    buildAutoTradeCloseMessage,
+    buildAutoTradeOpenMessage,
+    buildMarketRadarMessage,
+    sendTelegramMessage,
+} from './telegramService.js';
 import axios from 'axios';
 
 // ============================================================
@@ -13,6 +24,9 @@ import axios from 'axios';
 // ============================================================
 
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
+const MIN_DIRECTIONAL_EDGE = 8;
+const ENTRY_SCORE_THRESHOLD = 65;
+const REVERSAL_EXIT_THRESHOLD = 72;
 
 /** Kiểm tra giờ giao dịch VN (T2-T6, 9:00–14:45) */
 const isVNMarketOpen = () => {
@@ -80,6 +94,145 @@ const fetchCurrentPrice = async (symbol) => {
     return candles[candles.length - 1].close;
 };
 
+const fetchCryptoOHLCV = async (symbol, interval = '15m', limit = 120) => {
+    const res = await axios.get(
+        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+        { timeout: 10000 }
+    );
+
+    return res.data.map(k => ({
+        time:   k[0] / 1000,
+        open:   parseFloat(k[1]),
+        high:   parseFloat(k[2]),
+        low:    parseFloat(k[3]),
+        close:  parseFloat(k[4]),
+        volume: parseFloat(k[5]),
+    }));
+};
+
+const fetchRealtimeQuote = async (symbol) => {
+    const price = await fetchCurrentPrice(symbol);
+    if (!Number.isFinite(price) || price <= 0) {
+        throw new Error(`Gia realtime khong hop le cho ${symbol}`);
+    }
+
+    return {
+        price,
+        source: symbol === 'BTCUSDT' ? 'BINANCE_TICKER' : 'ENTRADE_15M_CLOSE',
+        fetchedAt: new Date(),
+    };
+};
+
+const fetchAnalysisCandles = async (symbol, asset) => {
+    if (asset === 'CRYPTO') return fetchCryptoOHLCV(symbol, '15m', 160);
+
+    try {
+        const intraday = await fetchOHLCV(symbol, '15', 15);
+        if (intraday.length >= 60) return intraday;
+    } catch (err) {
+        console.log(chalk.yellow(`  [DATA] Khong du nen intraday cho ${symbol}, fallback 1D: ${err.message}`));
+    }
+
+    return fetchOHLCV(symbol, '1D', 90);
+};
+
+const classifyNewsSentiment = (text = '') => {
+    const lower = String(text).toLowerCase();
+    const positiveWords = [
+        'tăng', 'vượt', 'lãi', 'lợi nhuận', 'kỷ lục', 'bứt phá', 'mua ròng',
+        'positive', 'surge', 'rally', 'gain', 'record', 'profit', 'inflow', 'bull',
+    ];
+    const negativeWords = [
+        'giảm', 'lỗ', 'bán tháo', 'bán ròng', 'điều tra', 'nợ xấu', 'rủi ro',
+        'negative', 'drop', 'fall', 'selloff', 'lawsuit', 'hack', 'outflow', 'bear',
+    ];
+    const positive = positiveWords.some(w => lower.includes(w));
+    const negative = negativeWords.some(w => lower.includes(w));
+    if (positive && !negative) return 'positive';
+    if (negative && !positive) return 'negative';
+    return 'neutral';
+};
+
+const summarizeNewsItems = (items = []) => {
+    const cleanItems = items
+        .filter(n => n?.title)
+        .slice(0, 8)
+        .map(n => ({
+            title: String(n.title).trim(),
+            sentiment: n.sentiment || classifyNewsSentiment(n.title),
+            source: n.source || 'N/A',
+            publishedAt: n.publishedAt || n.timestamp || n.date || null,
+        }));
+
+    const counts = cleanItems.reduce((acc, n) => {
+        acc[n.sentiment] = (acc[n.sentiment] || 0) + 1;
+        return acc;
+    }, { positive: 0, negative: 0, neutral: 0 });
+    const sentimentScore = Math.max(-3, Math.min(3, counts.positive - counts.negative));
+    const bias = sentimentScore > 0 ? 'positive' : sentimentScore < 0 ? 'negative' : 'neutral';
+    const topTitle = cleanItems[0]?.title || '';
+    const summary = cleanItems.length
+        ? `${bias.toUpperCase()} | +${counts.positive}/-${counts.negative}/=${counts.neutral} | ${topTitle}`
+        : 'Không có tin tức mới đủ tin cậy.';
+
+    return {
+        items: cleanItems,
+        counts,
+        sentimentScore,
+        bias,
+        topTitle,
+        summary,
+    };
+};
+
+const fetchCryptoNewsContext = async (symbol) => {
+    const baseSymbol = String(symbol).replace(/USDT$/i, '');
+    const items = [];
+
+    try {
+        const rssRes = await axios.get(
+            `https://news.google.com/rss/search?q=${encodeURIComponent(`${baseSymbol} crypto`)}&hl=en-US&gl=US&ceid=US:en`,
+            { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }
+        );
+        const matches = [...String(rssRes.data || '').matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 8);
+        for (const m of matches) {
+            const raw = m[1];
+            const title = raw.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1]
+                || raw.match(/<title>(.*?)<\/title>/)?.[1]
+                || '';
+            if (title) items.push({ title, source: 'Google News', sentiment: classifyNewsSentiment(title) });
+        }
+    } catch (err) {
+        console.log(chalk.gray(`[NEWS] Không lấy được crypto news cho ${symbol}: ${err.message}`));
+    }
+
+    return summarizeNewsItems(items);
+};
+
+const getNewsContextForAsset = async (asset, symbol) => {
+    try {
+        if (asset === 'VN_STOCK') {
+            const stock = await Stock.findOne({ symbol }, { deepNewsData: { $slice: -10 } }).lean();
+            return summarizeNewsItems((stock?.deepNewsData || []).slice().reverse());
+        }
+
+        if (asset === 'DERIVATIVES') {
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            const news = await DerivNews.find({ timestamp: { $gte: thirtyDaysAgo } })
+                .sort({ timestamp: -1 })
+                .limit(10)
+                .lean();
+            return summarizeNewsItems(news);
+        }
+
+        if (asset === 'CRYPTO') return fetchCryptoNewsContext(symbol);
+    } catch (err) {
+        console.log(chalk.gray(`[NEWS] Không lấy được news context cho ${asset}/${symbol}: ${err.message}`));
+    }
+
+    return summarizeNewsItems([]);
+};
+
 // ============================================================
 // TECHNICAL INDICATORS (tự tính, không phụ thuộc thư viện ngoài)
 // ============================================================
@@ -127,7 +280,8 @@ const calcRSI = (closes, period = 14) => {
 
 const calcVolumeSurge = (volumes) => {
     if (volumes.length < 5) return 1;
-    const avg = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+    const baseline = volumes.slice(-21, -1);
+    const avg = baseline.reduce((a, b) => a + b, 0) / baseline.length;
     if (avg === 0) return 1;
     return volumes[volumes.length - 1] / avg;
 };
@@ -168,83 +322,120 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
     const boll   = calcBollinger(closes, 20);
     const volSurge = calcVolumeSurge(volumes);
 
-    // ── Tính điểm từng thành phần (0-100 mỗi thành phần) ──
-    let breakdown = {};
+    const latest = candles[candles.length - 1];
+    const candleBias = latest.close > latest.open ? 'LONG' : latest.close < latest.open ? 'SHORT' : 'NEUTRAL';
 
-    // 1. EMA Trend (ema9 > ema21 > ema50 = bullish full stack)
-    let emaTrendScore = 50;
+    let trendLong = 50;
+    let trendShort = 50;
     if (ema9 && ema21 && ema50) {
-        if (ema9 > ema21 && ema21 > ema50)       emaTrendScore = 90; // full bull
-        else if (ema9 < ema21 && ema21 < ema50)  emaTrendScore = 10; // full bear
-        else if (ema9 > ema21)                    emaTrendScore = 65; // partial bull
-        else                                      emaTrendScore = 35; // partial bear
+        if (ema9 > ema21 && ema21 > ema50) {
+            trendLong = 90;
+            trendShort = 15;
+        } else if (ema9 < ema21 && ema21 < ema50) {
+            trendLong = 15;
+            trendShort = 90;
+        } else if (ema9 > ema21) {
+            trendLong = 65;
+            trendShort = 40;
+        } else {
+            trendLong = 40;
+            trendShort = 65;
+        }
     }
-    breakdown.emaTrend = Math.round(emaTrendScore);
 
-    // 2. RSI (30-70 tốt, <30 oversold cơ hội long, >70 overbought cơ hội short)
-    let rsiScore = 50;
-    if      (rsi < 25)  rsiScore = 85; // oversold mạnh → cơ hội long
-    else if (rsi < 35)  rsiScore = 70; // oversold → long
-    else if (rsi > 75)  rsiScore = 15; // overbought → short
-    else if (rsi > 65)  rsiScore = 30; // overbought nhẹ → short
-    else                rsiScore = 55; // neutral
-    breakdown.rsi = Math.round(rsiScore);
-
-    // 3. Bollinger position
-    let bollScore = 50;
-    if (boll) {
-        const pctB = (currentPrice - boll.lower) / (boll.upper - boll.lower); // 0 = lower, 1 = upper
-        if      (currentPrice > boll.upper)  bollScore = 75; // breakout trên
-        else if (currentPrice < boll.lower)  bollScore = 25; // breakdown dưới
-        else if (pctB > 0.7)                 bollScore = 65;
-        else if (pctB < 0.3)                 bollScore = 35;
-        else                                 bollScore = 50;
+    let rsiLong = 50;
+    let rsiShort = 50;
+    if (rsi < 25) {
+        rsiLong = 78;
+        rsiShort = 25;
+    } else if (rsi < 35) {
+        rsiLong = 68;
+        rsiShort = 35;
+    } else if (rsi <= 62) {
+        rsiLong = 60;
+        rsiShort = 45;
+    } else if (rsi <= 72) {
+        rsiLong = 45;
+        rsiShort = 60;
+    } else {
+        rsiLong = 25;
+        rsiShort = 78;
     }
-    breakdown.bollinger = Math.round(bollScore);
 
-    // 4. Volume surge (xác nhận tín hiệu — không có volume surge thì giảm trọng số)
-    let volScore = 50;
-    if      (volSurge >= 2.5) volScore = 90;
-    else if (volSurge >= 1.5) volScore = 70;
-    else if (volSurge >= 1.0) volScore = 50;
-    else                      volScore = 30;
-    breakdown.volumeSurge = Math.round(volScore);
+    let bollLong = 50;
+    let bollShort = 50;
+    if (boll && boll.upper > boll.lower) {
+        const pctB = (currentPrice - boll.lower) / (boll.upper - boll.lower);
+        if (currentPrice > boll.upper) {
+            bollLong = 72;
+            bollShort = 35;
+        } else if (currentPrice < boll.lower) {
+            bollLong = 35;
+            bollShort = 72;
+        } else if (pctB > 0.7) {
+            bollLong = 62;
+            bollShort = 48;
+        } else if (pctB < 0.3) {
+            bollLong = 48;
+            bollShort = 62;
+        }
+    }
 
-    // 5. Market Breadth (từ quantEngine)
-    let breadthScore = breadthRatio; // trực tiếp dùng breadthRatio (0-100)
-    breakdown.breadth = Math.round(breadthScore);
+    let volumeConfirm = 35;
+    if      (volSurge >= 2.5) volumeConfirm = 90;
+    else if (volSurge >= 1.5) volumeConfirm = 72;
+    else if (volSurge >= 1.0) volumeConfirm = 55;
 
-    // 6. Market Status bonus
-    let statusBonus = 50;
-    if      (statusType === 'bullish') statusBonus = 75;
-    else if (statusType === 'bearish') statusBonus = 25;
-    else if (statusType === 'warning') statusBonus = 40;
-    breakdown.marketStatus = Math.round(statusBonus);
+    const volumeLong = candleBias === 'LONG' ? volumeConfirm : Math.max(25, 100 - volumeConfirm);
+    const volumeShort = candleBias === 'SHORT' ? volumeConfirm : Math.max(25, 100 - volumeConfirm);
 
-    // ── Tổng hợp điểm (có trọng số) ──
-    const weightedScore =
-        breakdown.emaTrend    * 0.30 +
-        breakdown.rsi         * 0.15 +
-        breakdown.bollinger   * 0.15 +
-        breakdown.volumeSurge * 0.20 +
-        breakdown.breadth     * 0.10 +
-        breakdown.marketStatus* 0.10;
+    const marketLong = Math.max(0, Math.min(100,
+        breadthRatio + (statusType === 'bullish' ? 15 : statusType === 'bearish' ? -20 : statusType === 'warning' ? -10 : 0)
+    ));
+    const marketShort = Math.max(0, Math.min(100,
+        (100 - breadthRatio) + (statusType === 'bearish' ? 15 : statusType === 'bullish' ? -20 : statusType === 'warning' ? 5 : 0)
+    ));
 
-    const finalScore = Math.min(100, Math.max(0, Math.round(weightedScore)));
+    const longScore =
+        trendLong    * 0.34 +
+        rsiLong      * 0.14 +
+        bollLong     * 0.14 +
+        volumeLong   * 0.20 +
+        marketLong   * 0.18;
 
-    // ── Xác định hướng lệnh ──
+    const shortScore =
+        trendShort   * 0.34 +
+        rsiShort     * 0.14 +
+        bollShort    * 0.14 +
+        volumeShort  * 0.20 +
+        marketShort  * 0.18;
+
+    const roundedLong = Math.round(longScore);
+    const roundedShort = Math.round(shortScore);
+    const edge = Math.abs(roundedLong - roundedShort);
+
     let direction = 'NEUTRAL';
-    if (finalScore >= 65) {
-        // Ưu tiên LONG khi EMA bullish + breadth tốt
-        direction = (emaTrendScore >= 50 && breadthRatio >= 45) ? 'LONG' : 'SHORT';
-    } else if (finalScore <= 35) {
-        // SHORT khi điểm thấp + EMA bearish
-        direction = (emaTrendScore <= 50 && breadthRatio <= 55) ? 'SHORT' : 'NEUTRAL';
+    let finalScore = Math.max(roundedLong, roundedShort);
+    if (finalScore >= ENTRY_SCORE_THRESHOLD && edge >= MIN_DIRECTIONAL_EDGE) {
+        direction = roundedLong > roundedShort ? 'LONG' : 'SHORT';
     }
 
-    // Override nếu full bearish
-    if (emaTrendScore <= 15 && rsiScore >= 75) direction = 'SHORT';
-    if (emaTrendScore >= 85 && rsiScore <= 30) direction = 'LONG';
+    const breakdown = {
+        longScore: roundedLong,
+        shortScore: roundedShort,
+        edge,
+        trendLong: Math.round(trendLong),
+        trendShort: Math.round(trendShort),
+        rsiLong: Math.round(rsiLong),
+        rsiShort: Math.round(rsiShort),
+        bollLong: Math.round(bollLong),
+        bollShort: Math.round(bollShort),
+        volumeLong: Math.round(volumeLong),
+        volumeShort: Math.round(volumeShort),
+        marketLong: Math.round(marketLong),
+        marketShort: Math.round(marketShort),
+        candleBias,
+    };
 
     return {
         direction,
@@ -279,11 +470,227 @@ export const verifyOrderFeasibility = (assetType, targetPct) => {
     return { feasible: true };
 };
 
+const getTradeRewardRiskPct = (entryPrice, takeProfitPrice, stopLossPrice, direction) => {
+    const isLong = direction === 'LONG' || direction === 'MUA';
+    const rewardPct = isLong
+        ? ((takeProfitPrice - entryPrice) / entryPrice) * 100
+        : ((entryPrice - takeProfitPrice) / entryPrice) * 100;
+    const riskPct = isLong
+        ? ((entryPrice - stopLossPrice) / entryPrice) * 100
+        : ((stopLossPrice - entryPrice) / entryPrice) * 100;
+
+    return {
+        rewardPct: Math.round(Math.max(0, rewardPct) * 100) / 100,
+        riskPct: Math.round(Math.max(0, riskPct) * 100) / 100,
+    };
+};
+
+const buildTradePlanFromSignal = (asset, techSignal, quote) => {
+    const entryPrice = Math.round(Number(quote.price) * 100) / 100;
+    const atr = techSignal.atr || entryPrice * 0.02;
+    const atrMultiplierTP = asset === 'CRYPTO' ? 3.0 : (asset === 'DERIVATIVES' ? 2.5 : 2.0);
+    const atrMultiplierSL = asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.8 : 1.5);
+    const isLong = techSignal.direction === 'LONG' || techSignal.direction === 'MUA';
+
+    const takeProfitPrice = isLong
+        ? Math.round((entryPrice + atr * atrMultiplierTP) * 100) / 100
+        : Math.round((entryPrice - atr * atrMultiplierTP) * 100) / 100;
+    const stopLossPrice = isLong
+        ? Math.round((entryPrice - atr * atrMultiplierSL) * 100) / 100
+        : Math.round((entryPrice + atr * atrMultiplierSL) * 100) / 100;
+    const directionLabel = asset === 'VN_STOCK'
+        ? (techSignal.direction === 'LONG' ? 'MUA' : 'BÁN')
+        : techSignal.direction;
+    const { rewardPct, riskPct } = getTradeRewardRiskPct(
+        entryPrice,
+        takeProfitPrice,
+        stopLossPrice,
+        directionLabel
+    );
+
+    return {
+        directionLabel,
+        entryPrice,
+        takeProfitPrice,
+        stopLossPrice,
+        rewardPct,
+        riskPct,
+        atr,
+    };
+};
+
+const applyExecutionContextBias = (signal, asset, context = {}) => {
+    if (!signal?.breakdown || signal.direction === 'NEUTRAL') return signal;
+
+    let longBias = 0;
+    let shortBias = 0;
+    const reasons = [];
+    const newsScore = Number(context.news?.sentimentScore);
+
+    if (Number.isFinite(newsScore) && newsScore !== 0) {
+        if (newsScore > 0) {
+            longBias += Math.min(5, newsScore * 2);
+            reasons.push('positive_news_flow');
+        } else {
+            shortBias += Math.min(5, Math.abs(newsScore) * 2);
+            reasons.push('negative_news_flow');
+        }
+    }
+
+    if (asset === 'CRYPTO') {
+        const ratio = Number(context.orderbook?.ratio);
+        const funding = Number(context.derivatives?.fundingRatePct);
+        const longShortRatio = Number(context.derivatives?.longShortRatio);
+
+        if (Number.isFinite(ratio) && ratio > 1.2) {
+            longBias += 4;
+            reasons.push('orderbook_bid_dominant');
+        } else if (Number.isFinite(ratio) && ratio < 0.8) {
+            shortBias += 4;
+            reasons.push('orderbook_ask_dominant');
+        }
+
+        if (Number.isFinite(funding) && funding > 0.05) {
+            shortBias += 2;
+            reasons.push('positive_funding_crowded_long');
+        } else if (Number.isFinite(funding) && funding < -0.03) {
+            longBias += 2;
+            reasons.push('negative_funding_short_pressure');
+        }
+
+        if (Number.isFinite(longShortRatio) && longShortRatio > 1.6) {
+            shortBias += 2;
+            reasons.push('long_short_ratio_overcrowded');
+        } else if (Number.isFinite(longShortRatio) && longShortRatio > 0 && longShortRatio < 0.7) {
+            longBias += 2;
+            reasons.push('short_side_overcrowded');
+        }
+    }
+
+    if (asset === 'DERIVATIVES') {
+        const basis = Number(context.basis);
+        const changePct = Number(context.changePct);
+        const foreignNet = Number(context.foreignNet);
+        const oiTrend = context.oiTrend;
+
+        if (Number.isFinite(basis) && basis > 1.5) {
+            longBias += 2;
+            reasons.push('positive_basis');
+        } else if (Number.isFinite(basis) && basis < -1.5) {
+            shortBias += 2;
+            reasons.push('negative_basis');
+        }
+
+        if (oiTrend === 'UP' && Number.isFinite(changePct) && changePct > 0) {
+            longBias += 3;
+            reasons.push('oi_up_price_up');
+        } else if (oiTrend === 'UP' && Number.isFinite(changePct) && changePct < 0) {
+            shortBias += 3;
+            reasons.push('oi_up_price_down');
+        }
+
+        if (Number.isFinite(foreignNet) && foreignNet > 0) {
+            longBias += 2;
+            reasons.push('foreign_net_buy');
+        } else if (Number.isFinite(foreignNet) && foreignNet < 0) {
+            shortBias += 2;
+            reasons.push('foreign_net_sell');
+        }
+    }
+
+    if (longBias === 0 && shortBias === 0) return signal;
+
+    const longScore = Math.max(0, Math.min(100, (signal.breakdown.longScore || 0) + longBias));
+    const shortScore = Math.max(0, Math.min(100, (signal.breakdown.shortScore || 0) + shortBias));
+    const edge = Math.abs(longScore - shortScore);
+    const score = Math.max(longScore, shortScore);
+    const direction = score >= ENTRY_SCORE_THRESHOLD && edge >= MIN_DIRECTIONAL_EDGE
+        ? longScore > shortScore ? 'LONG' : 'SHORT'
+        : 'NEUTRAL';
+
+    return {
+        ...signal,
+        direction,
+        score,
+        breakdown: {
+            ...signal.breakdown,
+            longScore,
+            shortScore,
+            edge,
+            contextLongBias: longBias,
+            contextShortBias: shortBias,
+            contextBiasReasons: reasons,
+        },
+    };
+};
+
+const getExecutionContextForAsset = async (asset, symbol) => {
+    try {
+        if (asset === 'CRYPTO') return await getCryptoTradeContext(symbol);
+        if (asset === 'DERIVATIVES') return await getDerivativesTradeContext();
+        if (asset === 'VN_STOCK') return { source: 'VN_MARKET_CONTEXT', ...(await getVnMarketContext()) };
+    } catch (err) {
+        console.log(chalk.gray(`[CONTEXT] Không lấy được context bổ sung cho ${asset}/${symbol}: ${err.message}`));
+    }
+    return {};
+};
+
+const isUserOrderCompatibleWithTrade = (userOrder, tradePlan) => {
+    const { rewardPct, riskPct } = getTradeRewardRiskPct(
+        tradePlan.entryPrice,
+        tradePlan.takeProfitPrice,
+        tradePlan.stopLossPrice,
+        tradePlan.direction
+    );
+
+    if (rewardPct < Number(userOrder.targetPct)) {
+        return {
+            compatible: false,
+            reason: `TP thực tế ${rewardPct}% thấp hơn mục tiêu user ${userOrder.targetPct}%.`,
+        };
+    }
+
+    if (Number.isFinite(Number(userOrder.stopLossPct)) && riskPct > Number(userOrder.stopLossPct)) {
+        return {
+            compatible: false,
+            reason: `Risk thực tế ${riskPct}% vượt stop loss user ${userOrder.stopLossPct}%.`,
+        };
+    }
+
+    return { compatible: true, rewardPct, riskPct };
+};
+
 // ============================================================
 // AI SIGNAL CONFIRMATION (dùng AI để xác nhận tín hiệu kỹ thuật)
 // ============================================================
 
-const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc) => {
+const compactContextForPrompt = (context = {}) => {
+    if (!context || Object.keys(context).length === 0) return 'Không có context bổ sung.';
+    const newsLine = context.news
+        ? `\nNews sentiment: ${context.news.bias || 'neutral'} | score ${context.news.sentimentScore ?? 0} | ${context.news.topTitle || 'Không có headline nổi bật'}`
+        : '';
+
+    if (context.orderbook || context.derivatives) {
+        return [
+            `Nguồn: ${context.source || 'N/A'}`,
+            `24h change: ${Number(context.change24h || 0).toFixed(2)}%`,
+            `Orderbook bid/ask: ${context.orderbook?.bidPct ?? 'N/A'}%/${context.orderbook?.askPct ?? 'N/A'}% | ratio ${context.orderbook?.ratio ?? 'N/A'} | spread ${context.orderbook?.spread ?? 'N/A'}`,
+            `Funding: ${Number(context.derivatives?.fundingRatePct || 0).toFixed(4)}% | OI: ${context.derivatives?.openInterest || 'N/A'} | Long/Short: ${context.derivatives?.longShortRatio || 'N/A'}`,
+        ].join('\n') + newsLine;
+    }
+
+    if (context.vn30f1m || context.basis !== undefined) {
+        return [
+            `Nguồn: ${context.source || 'N/A'}`,
+            `VN30F1M: ${context.vn30f1m || 'N/A'} | VN30: ${context.vn30 || 'N/A'} | Basis: ${context.basis ?? 'N/A'}`,
+            `Change: ${context.changePct ?? 'N/A'}% | Volume: ${context.volume || 'N/A'} | OI: ${context.oi || 'N/A'} (${context.oiTrend || 'N/A'}) | Foreign net: ${context.foreignNet || 'N/A'}`,
+        ].join('\n') + newsLine;
+    }
+
+    return `Nguồn: ${context.source || 'N/A'} | fetchedAt: ${context.fetchedAt || 'N/A'}${newsLine}`;
+};
+
+const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc, executionContext = {}) => {
     try {
         const prompt = `Bạn là chuyên gia phân tích kỹ thuật của hệ thống OMNI DUCK.
 Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệnh sắp vào:
@@ -303,12 +710,18 @@ Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệ
 - Tình trạng thị trường: ${marketStatus}
 - Chẩn đoán: ${diagnosticDesc}
 
+[CONTEXT BỔ SUNG TỪ TAB/SERVICE LIÊN QUAN]
+${compactContextForPrompt(executionContext)}
+
 [CHI TIẾT ĐIỂM]
-- EMA Trend: ${signal.breakdown.emaTrend}/100
-- RSI Score: ${signal.breakdown.rsi}/100
-- Bollinger: ${signal.breakdown.bollinger}/100
-- Volume: ${signal.breakdown.volumeSurge}/100
-- Breadth: ${signal.breakdown.breadth}/100
+- Long Score: ${signal.breakdown.longScore}/100
+- Short Score: ${signal.breakdown.shortScore}/100
+- Directional Edge: ${signal.breakdown.edge}
+- Trend Long/Short: ${signal.breakdown.trendLong}/${signal.breakdown.trendShort}
+- RSI Long/Short: ${signal.breakdown.rsiLong}/${signal.breakdown.rsiShort}
+- Bollinger Long/Short: ${signal.breakdown.bollLong}/${signal.breakdown.bollShort}
+- Volume Long/Short: ${signal.breakdown.volumeLong}/${signal.breakdown.volumeShort}
+- Market Long/Short: ${signal.breakdown.marketLong}/${signal.breakdown.marketShort}
 
 Hãy phân tích xác nhận hoặc bác bỏ tín hiệu này trong 2-3 câu ngắn gọn, rõ ràng bằng tiếng Việt. Kết thúc bằng: "XÁC NHẬN" hoặc "BÁC BỎ".`;
 
@@ -334,7 +747,7 @@ Hãy phân tích xác nhận hoặc bác bỏ tín hiệu này trong 2-3 câu ng
 // REALTIME EXIT CHECK — kiểm tra SL/TP đã hit chưa
 // ============================================================
 
-const checkExitConditions = async (trade) => {
+const checkExitConditions = async (trade, marketContext = {}) => {
     try {
         let currentPrice;
 
@@ -379,6 +792,26 @@ const checkExitConditions = async (trade) => {
             exitReason  = `Timeout: Lệnh quá thời hạn giữ tối đa (${Math.round(holdMs / 3600000)}h). Đóng để quản lý rủi ro.`;
         }
 
+        const minHoldForSignalExitMs = trade.assetType === 'CRYPTO' ? 30 * 60_000 : 60 * 60_000;
+        if (!shouldClose && holdMs > minHoldForSignalExitMs) {
+            try {
+                const candles = await fetchAnalysisCandles(trade.symbol, trade.assetType);
+                const signal = analyzeTechnicalSignal(
+                    candles,
+                    marketContext.breadthRatio ?? 50,
+                    marketContext.statusType ?? 'neutral'
+                );
+                const reverseDirection = isLong ? 'SHORT' : 'LONG';
+
+                if (signal.direction === reverseDirection && signal.score >= REVERSAL_EXIT_THRESHOLD) {
+                    shouldClose = true;
+                    exitReason = `Đảo chiều kỹ thuật: ${reverseDirection} score ${signal.score}/100 (edge ${signal.breakdown.edge}).`;
+                }
+            } catch (signalErr) {
+                console.log(chalk.gray(`[EXIT SIGNAL] Không đủ dữ liệu đảo chiều cho ${trade.symbol}: ${signalErr.message}`));
+            }
+        }
+
         return { shouldClose, currentPrice, exitReason };
     } catch (err) {
         console.log(chalk.yellow(`[EXIT CHECK] Không fetch được giá realtime cho ${trade.symbol}: ${err.message}`));
@@ -402,31 +835,27 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
         let diagnosticDesc = 'Chưa có dữ liệu vĩ mô.';
         let topGainersFromMarket = [];
         let topLosersFromMarket  = [];
+        let topVolumeFromMarket  = [];
+        let strongSectorsFromMarket = [];
+        let vnMarketContext = null;
+        const radarCandidates = {
+            CRYPTO: [],
+            VN_STOCK: [],
+            DERIVATIVES: [],
+        };
 
         try {
-            const marketScraped = await scrapeCafefMarketOverview();
-            if (marketScraped.success) {
-                const to   = Math.floor(Date.now() / 1000);
-                const from = to - (5 * 24 * 60 * 60);
-                const vnRes = await axios.get(
-                    `${ENTRADE_BASE}/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`,
-                    { timeout: 10000 }
-                ).catch(() => null);
-
-                if (vnRes?.data?.t) {
-                    const d          = vnRes.data;
-                    const rawVnIndex = d.t.map((ts, i) => ({ close: Number(d.c[i]), volume: Number(d.v[i]) || 0 }));
-                    const symbolsDb  = await Stock.find({}).limit(200);
-                    const intel      = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
-                    if (intel.success) {
-                        breadthRatio          = parseFloat(intel.intelligence.breadthRatio) || 50;
-                        marketStatus          = intel.intelligence.marketStatus;
-                        statusType            = intel.intelligence.statusType;
-                        diagnosticDesc        = intel.intelligence.diagnosticDesc;
-                        topGainersFromMarket  = intel.intelligence.topGainers || [];
-                        topLosersFromMarket   = intel.intelligence.topLosers  || [];
-                    }
-                }
+            vnMarketContext = await getVnMarketContext();
+            const intel = vnMarketContext?.intelligence;
+            if (intel) {
+                breadthRatio            = parseFloat(intel.breadthRatio) || 50;
+                marketStatus            = intel.marketStatus;
+                statusType              = intel.statusType;
+                diagnosticDesc          = intel.diagnosticDesc;
+                topGainersFromMarket    = intel.topGainers || [];
+                topLosersFromMarket     = intel.topLosers || [];
+                topVolumeFromMarket     = intel.topVolume || [];
+                strongSectorsFromMarket = intel.strongSectors || [];
             }
         } catch (macroErr) {
             console.log(chalk.yellow(`[AUTODUCK] Lấy dữ liệu vĩ mô lỗi, tiếp tục với breadth mặc định: ${macroErr.message}`));
@@ -460,15 +889,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             let symbolsToScan = [];
 
             if (asset === 'VN_STOCK') {
-                // Ưu tiên top gainers từ market scan + thêm các mã volume lớn từ DB
-                const topGainerSymbols = topGainersFromMarket.slice(0, 3).map(s => s.symbol);
-                const dbHighVol = await Stock.find({ volume: { $gt: 1_000_000 } })
-                                            .sort({ changePct: -1 })
-                                            .limit(5)
-                                            .lean();
-                const dbSymbols = dbHighVol.map(s => s.symbol);
-                symbolsToScan = [...new Set([...topGainerSymbols, ...dbSymbols])].slice(0, 5);
-                if (symbolsToScan.length === 0) symbolsToScan = ['FPT', 'VHM', 'VCB', 'HPG', 'MBB'];
+                symbolsToScan = await buildVnStockScanUniverse(vnMarketContext, 20);
+                console.log(chalk.gray(
+                    `[AUTODUCK] VN universe ${symbolsToScan.length} mã | Gainers: ${topGainersFromMarket.slice(0, 5).map(s => s.symbol).join(', ') || 'N/A'} | Volume: ${topVolumeFromMarket.slice(0, 5).map(s => s.symbol).join(', ') || 'N/A'} | Sector: ${strongSectorsFromMarket.map(s => s.name).join(', ') || 'N/A'}`
+                ));
 
             } else if (asset === 'DERIVATIVES') {
                 symbolsToScan = ['VN30F1M'];
@@ -482,33 +906,26 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                 try {
                     console.log(chalk.gray(`  [SCAN] ${symbol}...`));
 
-                    // Fetch OHLCV lịch sử để tính indicators
+                    // Fetch OHLCV intraday/historical để tính indicators
                     let candles;
                     try {
-                        if (asset === 'CRYPTO') {
-                            // Binance klines 1D
-                            const binanceRes = await axios.get(
-                                `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=60`,
-                                { timeout: 10000 }
-                            );
-                            candles = binanceRes.data.map(k => ({
-                                time:   k[0] / 1000,
-                                open:   parseFloat(k[1]),
-                                high:   parseFloat(k[2]),
-                                low:    parseFloat(k[3]),
-                                close:  parseFloat(k[4]),
-                                volume: parseFloat(k[5]),
-                            }));
-                        } else {
-                            candles = await fetchOHLCV(symbol, '1D', 60);
-                        }
+                        candles = await fetchAnalysisCandles(symbol, asset);
                     } catch (fetchErr) {
                         console.log(chalk.yellow(`  [SCAN] Không fetch được OHLCV ${symbol}: ${fetchErr.message}`));
                         continue;
                     }
 
                     // Phân tích kỹ thuật thực
-                    const techSignal = analyzeTechnicalSignal(candles, breadthRatio, statusType);
+                    const [baseExecutionContext, newsContext] = await Promise.all([
+                        getExecutionContextForAsset(asset, symbol),
+                        getNewsContextForAsset(asset, symbol),
+                    ]);
+                    const executionContext = {
+                        ...baseExecutionContext,
+                        news: newsContext,
+                    };
+                    let techSignal = analyzeTechnicalSignal(candles, breadthRatio, statusType);
+                    techSignal = applyExecutionContextBias(techSignal, asset, executionContext);
                     techSignal.symbol = symbol;
 
                     console.log(chalk.gray(
@@ -516,10 +933,18 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                     ));
 
                     // Bỏ qua nếu tín hiệu NEUTRAL hoặc điểm thấp
-                    if (techSignal.direction === 'NEUTRAL' || techSignal.score < 60) {
+                    if (techSignal.direction === 'NEUTRAL' || techSignal.score < ENTRY_SCORE_THRESHOLD) {
                         console.log(chalk.gray(`  [SKIP] ${symbol} — điểm ${techSignal.score} hoặc hướng NEUTRAL.`));
                         continue;
                     }
+
+                    if (asset === 'VN_STOCK' && techSignal.direction === 'SHORT') {
+                        console.log(chalk.gray(`  [SKIP] ${symbol} — tín hiệu SHORT nhưng VN_STOCK cơ sở không hỗ trợ bán khống trong engine hiện tại.`));
+                        continue;
+                    }
+
+                    const quote = await fetchRealtimeQuote(symbol);
+                    const tradePlan = buildTradePlanFromSignal(asset, techSignal, quote);
 
                     // Kiểm tra xem đã có lệnh OPEN cho symbol này chưa (tránh duplicate)
                     const existingOpen = await AutoTrade.findOne({ symbol, assetType: asset, status: 'OPEN' });
@@ -529,8 +954,24 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                     }
 
                     // ── 5. AI xác nhận tín hiệu ──
-                    const aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc);
+                    const aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc, executionContext);
                     console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason.slice(0, 120)}`));
+
+                    radarCandidates[asset].push({
+                        symbol,
+                        assetType: asset,
+                        direction: tradePlan.directionLabel,
+                        score: techSignal.score,
+                        entryPrice: tradePlan.entryPrice,
+                        takeProfitPrice: tradePlan.takeProfitPrice,
+                        stopLossPrice: tradePlan.stopLossPrice,
+                        rewardPct: tradePlan.rewardPct,
+                        riskPct: tradePlan.riskPct,
+                        aiConfirmed: aiConfirm.confirmed,
+                        reason: aiConfirm.reason,
+                        news: newsContext,
+                        breakdown: techSignal.breakdown,
+                    });
 
                     if (!aiConfirm.confirmed && techSignal.score < 75) {
                         // AI bác bỏ + score không đủ cao → bỏ qua
@@ -539,30 +980,15 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                     }
 
                     // ── 6. Tính SL/TP động theo ATR ──
-                    const entryPrice = techSignal.entryPrice;
-                    const atr        = techSignal.atr || entryPrice * 0.02; // fallback 2%
-
-                    // Nhân ATR với hệ số phù hợp từng asset
-                    const atrMultiplierTP = asset === 'CRYPTO' ? 3.0 : (asset === 'DERIVATIVES' ? 2.5 : 2.0);
-                    const atrMultiplierSL = asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.8 : 1.5);
-
-                    let takeProfitPrice, stopLossPrice;
-                    if (techSignal.direction === 'LONG' || techSignal.direction === 'MUA') {
-                        takeProfitPrice = Math.round((entryPrice + atr * atrMultiplierTP) * 100) / 100;
-                        stopLossPrice   = Math.round((entryPrice - atr * atrMultiplierSL) * 100) / 100;
-                    } else {
-                        // SHORT
-                        takeProfitPrice = Math.round((entryPrice - atr * atrMultiplierTP) * 100) / 100;
-                        stopLossPrice   = Math.round((entryPrice + atr * atrMultiplierSL) * 100) / 100;
-                    }
+                    const {
+                        directionLabel,
+                        entryPrice,
+                        takeProfitPrice,
+                        stopLossPrice,
+                    } = tradePlan;
 
                     const volume = asset === 'CRYPTO' ? 0.05 : (asset === 'DERIVATIVES' ? 5 : 2000);
                     const investedAmount = entryPrice * volume;
-
-                    // Direction label theo asset type
-                    const directionLabel = asset === 'VN_STOCK'
-                        ? (techSignal.direction === 'LONG' ? 'MUA' : 'BÁN')
-                        : techSignal.direction;
 
                     // ── 7. Lưu lệnh vào DB ──
                     const newTrade = new AutoTrade({
@@ -577,11 +1003,25 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         aiScore: techSignal.score,
                         confidence: techSignal.score,
                         reason: aiConfirm.reason,
+                        aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; longScore=${techSignal.breakdown.longScore}; shortScore=${techSignal.breakdown.shortScore}; edge=${techSignal.breakdown.edge}; news=${newsContext.summary}`,
                         status: 'OPEN',
                         marketCondition: marketStatus,
                         signalBreakdown: techSignal.breakdown,
+                        executionMeta: {
+                            priceSource: quote.source,
+                            fetchedAt: quote.fetchedAt,
+                            contextSource: executionContext.source || null,
+                        },
                     });
                     await newTrade.save();
+
+                    const telegramOpenMessage = buildAutoTradeOpenMessage(
+                        newTrade,
+                        aiConfirm,
+                        quote,
+                        executionContext
+                    );
+                    await sendTelegramMessage(telegramOpenMessage).catch(() => {});
 
                     console.log(chalk.green.bold(
                         `  [LỆNH MỚI] ${directionLabel} ${symbol} @ ${entryPrice} | TP: ${takeProfitPrice} | SL: ${stopLossPrice} | Score: ${techSignal.score}`
@@ -602,9 +1042,21 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                             continue;
                         }
 
+                        const compatibility = isUserOrderCompatibleWithTrade(userOrder, {
+                            entryPrice,
+                            takeProfitPrice,
+                            stopLossPrice,
+                            direction: directionLabel,
+                        });
+                        if (!compatibility.compatible) {
+                            userOrder.result.message = `Đang chờ lệnh phù hợp hơn: ${compatibility.reason}`;
+                            await userOrder.save();
+                            continue;
+                        }
+
                         userOrder.assignedTrade = newTrade._id;
                         userOrder.status        = 'MATCHED';
-                        userOrder.result.message = `[${directionLabel}] Đã khớp vào ${symbol} @ ${entryPrice}. TP: ${takeProfitPrice} | SL: ${stopLossPrice}. Mục tiêu: +${userOrder.targetPct}%.`;
+                        userOrder.result.message = `[${directionLabel}] Đã khớp vào ${symbol} @ ${entryPrice}. TP: ${takeProfitPrice} | SL: ${stopLossPrice}. Reward/Risk: +${compatibility.rewardPct}%/-${compatibility.riskPct}%.`;
                         await userOrder.save();
                         console.log(chalk.bgGreen.black(`  [AUTO-MATCH] User ${userOrder.username} → lệnh ${newTrade._id}`));
                     }
@@ -616,8 +1068,26 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             }
         }
 
+        for (const asset of Object.keys(radarCandidates)) {
+            radarCandidates[asset].sort((a, b) => {
+                if (Number(b.aiConfirmed) !== Number(a.aiConfirmed)) {
+                    return Number(b.aiConfirmed) - Number(a.aiConfirmed);
+                }
+                return (b.score || 0) - (a.score || 0);
+            });
+        }
+
+        const hasRadarCandidates = Object.values(radarCandidates).some(items => items.length > 0);
+        const shouldSendEmptyRadar = Boolean(forcedAssetType);
+        if (hasRadarCandidates || shouldSendEmptyRadar) {
+            await sendTelegramMessage(buildMarketRadarMessage(radarCandidates, {
+                generatedAt: new Date(),
+                marketStatus,
+            })).catch(() => {});
+        }
+
         // ── 9. Vòng đóng lệnh theo SL/TP realtime ──
-        await runExitAndLearningPipeline(marketStatus);
+        await runExitAndLearningPipeline(marketStatus, { breadthRatio, statusType });
 
     } catch (err) {
         console.error(chalk.red(`[AUTODUCK CRITICAL ERROR] ${err.message}`));
@@ -628,14 +1098,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 // EXIT + AI LEARNING PIPELINE
 // ============================================================
 
-async function runExitAndLearningPipeline(currentMarketStatus) {
+async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {}) {
     const openTrades = await AutoTrade.find({ status: 'OPEN' });
     if (openTrades.length === 0) return;
 
     console.log(chalk.gray(`\n[EXIT PIPELINE] Kiểm tra ${openTrades.length} lệnh đang mở...`));
 
     for (const trade of openTrades) {
-        const { shouldClose, currentPrice, exitReason } = await checkExitConditions(trade);
+        const { shouldClose, currentPrice, exitReason } = await checkExitConditions(trade, marketContext);
 
         if (!shouldClose) {
             if (currentPrice) {
@@ -661,6 +1131,8 @@ async function runExitAndLearningPipeline(currentMarketStatus) {
         trade.pnlPercent = Math.round((priceDiff / trade.entryPrice) * 100 * 100) / 100;
         trade.pnl        = Math.round(trade.volume * trade.entryPrice * (priceDiff / trade.entryPrice));
         await trade.save();
+
+        await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
 
         const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
         console.log(chalk.bgYellow.black(
