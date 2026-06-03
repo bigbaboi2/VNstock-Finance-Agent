@@ -16,6 +16,7 @@ import marketRoutes from './routes/market.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import cryptoRoutes from './routes/crypto.routes.js';
+import autoTradeRoutes from './routes/autoTrade.routes.js'; 
 
 // Import Jobs & Services
 import { updateSymbolsDatabase } from './services/symbolUpdater.js';
@@ -23,6 +24,7 @@ import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import { startPortfolioMatcher } from './jobs/portfolioMatcher.js';
 import { startDerivUpdater } from './jobs/derivUpdater.js';
 import { startCronJobs } from './jobs/newsCron.js';
+import { startAutoDuckScheduler } from './services/autoTradeEngine.js';
 
 const app = express();
 const PORT = 3001;
@@ -45,6 +47,7 @@ app.use('/api/derivatives',  derivativesRoutes);
 app.use('/api/market',       marketRoutes);
 app.use('/api/ai',           aiRoutes);
 app.use('/api/history',      historyRoutes);
+app.use('/api/auto-trade', autoTradeRoutes);
 
 // ─── Flat alias routes  ────────────────────────
 
@@ -80,6 +83,7 @@ startDerivUpdater();
 
 app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.italic(`\n OMNI DUCK SERVER MONGODB READY (local test: http://localhost:${PORT}) `));
+    startAutoDuckScheduler();
     try {
         await updateSymbolsDatabase();
         await updateCryptoSymbols();

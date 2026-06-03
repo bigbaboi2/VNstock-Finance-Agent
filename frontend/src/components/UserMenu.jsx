@@ -1,4 +1,4 @@
-import { Activity, Globe, Database, Zap, X, User } from 'lucide-react';
+import { Activity, Globe, Database, Zap, X, User, Bot } from 'lucide-react';
 
 export default function UserMenu({ 
   isDark, UI, currentUser, activeMode, 
@@ -39,14 +39,25 @@ export default function UserMenu({
             <button disabled className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm opacity-40 grayscale cursor-not-allowed text-left">
                 <Database size={16} /> 4. Quốc tế (Update sau)
             </button>
-              <button onClick={() => { setActiveMode('PAPER_TRADING'); setShowUserMenu(false); }}
+            
+            <button onClick={() => { setActiveMode('PAPER_TRADING'); setShowUserMenu(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
                     activeMode === 'PAPER_TRADING' 
                     ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
                     : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
                 }`}>
                 <Activity size={16} /> 5. Giao dịch giả lập
-              </button>
+            </button>
+
+            {/* TAB AUTODUCK */}
+            <button onClick={() => { setActiveMode('AUTO_TRADE'); setShowUserMenu(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
+                    activeMode === 'AUTO_TRADE' 
+                    ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20' 
+                    : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                }`}>
+                <Bot size={16} /> 6. Tự động vào lệnh AI
+            </button>
         </div>
 
         {/* ĐĂNG XUẤT */}
