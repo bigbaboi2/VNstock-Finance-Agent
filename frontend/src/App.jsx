@@ -10,6 +10,7 @@ import VnStocksTab from './components/VnStocksTab';
 import AuthScreen from './components/AuthScreen';
 import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
+import AutoDuckTab from './components/AutoDuckTab';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 axios.defaults.baseURL = API_BASE_URL;
@@ -1434,6 +1435,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
 
         if (currentUser) fetchUserHistory();
     } catch (err) {
+        if (err.name === 'AbortError' || err.message.includes('abort')) {
+             console.log('[HỆ THỐNG] Đã hủy luồng stream AI do người dùng chuyển trang.');
+             return; 
+        }
         addLog('[LỖI] Xử lý AI thất bại: Tràn bộ nhớ hoặc mất kết nối API.');
         console.error(err);
     } finally {
@@ -1462,9 +1467,9 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         const res = await axios.get(`/api/ai-news/${symbol}?newsMode=${newsMode}`);
         const aiArticles = res.data?.data || []; 
 
-        if (aiArticles.length > 0) {
+            if (aiArticles.length > 0) {
             setMarketData(prev => {
-                const currentNews = [...(prev.deepNewsData || [])];
+                const currentNews = (prev.deepNewsData || []).map(item => ({ ...item }));
                 
                 aiArticles.forEach(aiItem => {
                     const existingIndex = currentNews.findIndex(n => n.link === aiItem.link);
@@ -1789,6 +1794,16 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             handlePaperTrade={handlePaperTrade}
             handleCancelOrder={handleCancelOrder}
         />
+        )}
+        {/*========================================================= */}
+        {/*MODE 6: TỰ ĐỘNG VÀO LỆNH AI */}
+        {/*========================================================= */}
+        {activeMode === 'AUTO_TRADE' && (
+            <AutoDuckTab 
+                username={currentUser}
+                isDark={isDark}    
+                UI={UI}
+            />
         )}
     </div>
 </div>
