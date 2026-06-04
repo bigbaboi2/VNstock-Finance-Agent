@@ -62,8 +62,8 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
     const [formData, setFormData] = useState({
         capital: 5000000,
-        targetPct: 15,
-        stopLossPct: 5,
+        targetPct: 5,
+        stopLossPct: 3,
         assetType: 'ALL',
     });
 

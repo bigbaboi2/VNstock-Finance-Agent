@@ -27,7 +27,7 @@ export default React.memo(function MiniRadarChart({ data, theme, color = '#facc1
       },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       timeScale: { visible: true, borderVisible: false },
-      rightPriceScale: { visible: true, borderVisible: false },
+      rightPriceScale: { visible: true, borderVisible: false }
     });
 
     chartInstance.current = chart;
