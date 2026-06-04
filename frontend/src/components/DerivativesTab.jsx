@@ -37,10 +37,10 @@ function ScrollableColumn({ children, className, isDark }) {
     };
 
     return (
-        <div className="relative h-full flex flex-col min-h-0 w-full group/scroller">
+        <div className="relative h-auto lg:h-full flex flex-col min-h-0 w-full group/scroller">
             {}
             {canScrollUp && (
-                <div className="absolute top-0 left-0 right-3 flex justify-center z-20 pointer-events-none">
+                <div className="hidden lg:flex absolute top-0 left-0 right-3 justify-center z-20 pointer-events-none">
                     <button 
                         onClick={() => scrollByAmount(-250)}
                         title="Cuộn lên"
@@ -56,13 +56,13 @@ function ScrollableColumn({ children, className, isDark }) {
             )}
             
             {}
-            <div ref={scrollRef} onScroll={checkScroll} className={`flex-1 overflow-y-auto custom-scrollbar ${className}`}>
+            <div ref={scrollRef} onScroll={checkScroll} className={`flex-none lg:flex-1 lg:overflow-y-auto custom-scrollbar ${className}`}>
                 {children}
             </div>
 
             {}
             {canScrollDown && (
-                <div className="absolute bottom-0 left-0 right-3 flex justify-center z-20 pointer-events-none">
+                <div className="hidden lg:flex absolute bottom-0 left-0 right-3 justify-center z-20 pointer-events-none">
                     <button 
                         onClick={() => scrollByAmount(250)}
                         title="Cuộn xuống"
@@ -106,7 +106,7 @@ export default function DerivativesTab({
 }) {
 const [mobileTab, setMobileTab] = useState('ai');
     // USESTATE
-const [chartHeight, setChartHeight] = useState(500);
+const [chartHeight, setChartHeight] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024 ? 380 : 500);
 const dragStartY = useRef(null);
 const dragStartH = useRef(null);
 const [isChatOpen, setIsChatOpen] = useState(false);
@@ -140,7 +140,7 @@ const onChartDragStart = useCallback((e) => {
 
       <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden relative">
         {/* CỘT TRÁI PHÁI SINH: VN30 ENGINE , BASIS RADAR , NEWS*/}
-            <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[450px] border-r flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol} animate-in fade-in slide-in-from-left-4`}>
+            <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[450px] border-r flex-col shrink-0 overflow-y-auto lg:overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol} animate-in fade-in slide-in-from-left-4 custom-scrollbar`}>
                 
                 {/*  1. HEADER CARD: GIÁ & BASIS */}
                     <div className={`p-6 border-b shadow-sm relative transition-colors duration-300 ${UI.card}`}>
@@ -191,7 +191,7 @@ const onChartDragStart = useCallback((e) => {
                 </div>
 
                 {/* PHẦN CUỘN: DANH SÁCH MÃ */}
-                <div className="px-6 flex-1 overflow-y-auto custom-scrollbar pb-2">
+                <div className="px-6 flex-none lg:flex-1 lg:overflow-y-auto custom-scrollbar pb-2">
                     <div className="grid grid-cols-1 gap-3">
                         {(derivRadar?.influencers || []).map(stock => {
                             const changeVal = parseFloat(stock.change) || 0;
@@ -282,7 +282,7 @@ const onChartDragStart = useCallback((e) => {
                 </div>
 
                 {/* 3: LIVE MACRO & DERIVATIVES NEWS FEED */}
-                <div className="mt-2 pt-4 border-t border-white/10 flex flex-col h-[380px] w-full px-6 pb-6 shrink-0">
+                <div className="mt-2 pt-4 border-t border-white/10 flex flex-col h-auto lg:h-[380px] w-full px-6 pb-6 shrink-0">
                     <div className="flex items-center justify-between mb-3 border-b pb-2 border-white/10 w-full">
                         <h3 className={`text-[11px] font-black uppercase tracking-widest flex items-center gap-2 ${UI.textBold}`}>
                             <Globe size={14} className="text-orange-500 animate-spin-[spin_4s_linear_infinite]" />
@@ -323,7 +323,7 @@ const onChartDragStart = useCallback((e) => {
                         </div>
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-2 w-full">
+                    <div className="flex-none lg:flex-1 lg:overflow-y-auto custom-scrollbar pr-1 space-y-2 w-full">
                         {(!derivNews || derivNews.length === 0) ? (
                             <div className="flex flex-col items-center justify-center py-16 opacity-40 border border-dashed border-white/5 rounded-2xl">
                                 <Globe size={20} className="mb-2 animate-bounce text-orange-500" />
@@ -357,7 +357,7 @@ const onChartDragStart = useCallback((e) => {
             </div>
 
         {/* CỘT PHẢI PHÁI SINH: EXECUTION FLOW */}
-        <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 overflow-hidden flex-col p-4 lg:p-8 pb-4 relative transition-colors duration-300 ${UI.rightCol} animate-in fade-in`}>            
+        <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 overflow-y-auto lg:overflow-hidden flex-col p-4 lg:p-8 pb-4 relative transition-colors duration-300 ${UI.rightCol} animate-in fade-in custom-scrollbar`}>            
             {/* HEADER CHIẾN THUẬT */}
             <div className={`shrink-0 flex items-center justify-between mb-6 pb-4 border-b ${UI.border}`}>
                     <div className="flex items-center gap-3">
@@ -387,7 +387,7 @@ const onChartDragStart = useCallback((e) => {
                         {/* DRAG HANDLE */}
                     <div
                         onMouseDown={onChartDragStart}
-                        className={`absolute bottom-0 left-0 right-0 h-6 cursor-ns-resize flex items-center justify-center group transition-colors duration-150 ${isDark ? 'hover:bg-white/5' : 'hover:bg-black/[0.03]'}`}
+                        className={`absolute bottom-0 left-0 right-0 h-6 cursor-ns-resize hidden lg:flex items-center justify-center group transition-colors duration-150 ${isDark ? 'hover:bg-white/5' : 'hover:bg-black/[0.03]'}`}
                         title="Kéo lên/xuống để thay đổi chiều cao chart"
                     >
                          <div className={`absolute right-3 flex items-center gap-1.5 transition-all duration-150 ${isDark ? 'text-white group-hover:text-orange-500' : 'text-slate-500 group-hover:text-orange-500'}`}>
@@ -411,7 +411,7 @@ const onChartDragStart = useCallback((e) => {
                 {/* VOLUME PROFILE */}
                 <div
                     className={`lg:col-span-1 col-span-1 rounded-[24px] border shadow-sm p-4 flex flex-col relative ${isDark?'bg-black/20 border-white/5':'bg-white border-slate-200'}`}
-                    style={{ height: chartHeight + 'px' }}
+                    style={typeof window !== 'undefined' && window.innerWidth < 1024 ? {} : { height: chartHeight + 'px' }}
                 >
                     <div className="flex items-center justify-between mb-4">
                         <p className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>Volume Profile</p>
@@ -443,7 +443,7 @@ const onChartDragStart = useCallback((e) => {
             </div>
 
             {/* AI SCALPING ASSISTANT */}
-            <div className={`flex-1 flex flex-col min-h-0 p-6 rounded-[32px] border transition-all duration-500 ${isDark ? 'bg-[#10151C] border-orange-500/30 shadow-[0_0_30px_rgba(249,115,22,0.1)]' : 'bg-orange-50 border-orange-200'}`}>
+            <div className={`flex-none lg:flex-1 flex flex-col min-h-0 p-4 lg:p-6 rounded-[32px] border transition-all duration-500 ${isDark ? 'bg-[#10151C] border-orange-500/30 shadow-[0_0_30px_rgba(249,115,22,0.1)]' : 'bg-orange-50 border-orange-200'}`}>
                 {/* Đã bỏ 3 dấu chấm và bọc nội dung vào trong thẻ div chuẩn */}
                 <div className="shrink-0 flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/40"><BrainCircuit size={20}/></div>
@@ -454,11 +454,11 @@ const onChartDragStart = useCallback((e) => {
                 </div>
 
                 {/* MAIN GRID */}
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar">
+                <div className="flex-none lg:flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 min-h-0 lg:overflow-hidden">
                     {/* ============================================================
                         COL 1: ORDER FLOW & MACRO MATRIX  
                         ============================================================ */}
-                    <ScrollableColumn isDark={isDark} className="pr-2 pb-8 flex flex-col gap-4 min-h-[600px] lg:min-h-0">
+                    <ScrollableColumn isDark={isDark} className="pr-2 pb-4 lg:pb-8 flex flex-col gap-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-purple-400">
                                 <Database size={16} />
@@ -608,7 +608,7 @@ const onChartDragStart = useCallback((e) => {
                         {/* ============================================================
                         COL 2: AI SCALPING ASSISTANT
                         ============================================================ */}
-                        <ScrollableColumn isDark={isDark} className="pr-2 pb-8 flex flex-col gap-4 min-h-[500px] lg:min-h-0">
+                        <ScrollableColumn isDark={isDark} className="pr-2 pb-4 lg:pb-8 flex flex-col gap-4">
                         
                         {/* --- GIAO DIỆN AI ACTION PANEL  --- */}
                         {derivActionData ? (
@@ -722,8 +722,8 @@ const onChartDragStart = useCallback((e) => {
                 {/* ============================================================
                 /// COL 3: TECHNICAL CONFLUENCE & DYNAMICS
                 /// ============================================================ */}
-                <div className={`lg:border-l lg:pl-6 relative h-full flex flex-col min-h-0 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
-                    <ScrollableColumn isDark={isDark} className="pr-2 pb-8 space-y-5 min-h-[600px] lg:min-h-0"> 
+                <div className={`lg:border-l lg:pl-6 relative h-auto lg:h-full flex flex-col min-h-0 mt-4 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-t-0 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
+                    <ScrollableColumn isDark={isDark} className="pr-2 pb-4 lg:pb-8 space-y-5"> 
     
                         {/* ATR Visual */}
                         <div>
