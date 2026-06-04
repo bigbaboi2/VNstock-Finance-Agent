@@ -1043,6 +1043,8 @@ export default function VnStocksTab({
 
   // HANDLE CHART DRAG TO RESIZE
   const handleDragStart = useCallback((e) => {
+    e.preventDefault();
+    e.currentTarget?.setPointerCapture?.(e.pointerId);
     setIsDraggingChart(true);
     dragStartY.current = e.clientY;
     startHeight.current = chartWrapperRef.current ? chartWrapperRef.current.offsetHeight : 600;
@@ -1086,7 +1088,10 @@ export default function VnStocksTab({
     const handleGlobalMouseMove = (e) => {
       if (!isDraggingChart) return;
       const delta = e.clientY - dragStartY.current;
-      const newHeight = Math.max(300, Math.min(1200, startHeight.current + delta));
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+      const minHeight = isMobile ? 220 : 300;
+      const maxHeight = isMobile ? Math.min(window.innerHeight * 0.78, 720) : 1200;
+      const newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight.current + delta));
       if (chartWrapperRef.current) {
         chartWrapperRef.current.style.height = `${newHeight}px`;
         chartWrapperRef.current.style.flexBasis = `${newHeight}px`;
@@ -1100,12 +1105,14 @@ export default function VnStocksTab({
       }
     };
     if (isDraggingChart) {
-      window.addEventListener('mousemove', handleGlobalMouseMove);
-      window.addEventListener('mouseup', handleGlobalMouseUp);
+      window.addEventListener('pointermove', handleGlobalMouseMove);
+      window.addEventListener('pointerup', handleGlobalMouseUp);
+      window.addEventListener('pointercancel', handleGlobalMouseUp);
     }
     return () => {
-      window.removeEventListener('mousemove', handleGlobalMouseMove);
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('pointermove', handleGlobalMouseMove);
+      window.removeEventListener('pointerup', handleGlobalMouseUp);
+      window.removeEventListener('pointercancel', handleGlobalMouseUp);
     };
   }, [isDraggingChart]);
 
@@ -1737,8 +1744,8 @@ export default function VnStocksTab({
               </div>
               {/* Resize handle */}
               <div
-                onMouseDown={handleDragStart}
-                className={`h-3.5 w-full cursor-row-resize hidden lg:flex items-center justify-center lg:shrink-0 z-10 transition-colors border-t rounded-b-2xl ${
+                onPointerDown={handleDragStart}
+                className={`h-5 lg:h-3.5 w-full cursor-row-resize flex items-center justify-center shrink-0 z-10 transition-colors border-t rounded-b-2xl touch-none select-none ${
                   isDraggingChart
                     ? 'bg-yellow-400/20 border-yellow-400/50'
                     : isDark
