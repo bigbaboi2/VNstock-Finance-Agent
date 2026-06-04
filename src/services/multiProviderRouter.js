@@ -27,6 +27,7 @@ import chalk from 'chalk';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { sendTelegramMessage, buildSystemAlertMessage } from './telegramService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,7 +70,18 @@ function markProviderBlocked(providerKey, reason = 'rate_limit') {
         failCount,
         reason,
     });
-    console.log(chalk.yellow(`[ROUTER] 🚫 ${providerKey} bị block (${reason}), cooldown ${(backoff/1000).toFixed(0)}s`));
+    const cooldownSec = (backoff / 1000).toFixed(0);
+    console.log(chalk.yellow(`[ROUTER] 🚫 ${providerKey} bị block (${reason}), cooldown ${cooldownSec}s`));
+
+    if (failCount === 1 || failCount % 10 === 0) {
+        const issue = reason === 'rate_limit' ? 'Vượt quá Rate Limit (429/503)' : 'Lỗi kết nối / API Key có vấn đề';
+        const alertMsg = buildSystemAlertMessage(
+            'AI Router',
+            `Provider [${providerKey}] ngừng hoạt động`,
+            `Lý do: ${issue}\nĐóng băng: ${cooldownSec}s\nSố lần lỗi liên tiếp: ${failCount}`
+        );
+        sendTelegramMessage(alertMsg).catch(() => {});
+    }
 }
 
 function clearProviderBlock(providerKey) {
@@ -92,20 +104,16 @@ async function openAICompatibleCall(baseUrl, apiKey, model, prompt, options = {}
     let messages;
 
     if (typeof prompt === 'string') {
-        // String thường
         messages = [{ role: 'user', content: prompt }];
     } else if (Array.isArray(prompt)) {
-        // Kiểm tra xem có phải Gemini format [{ text: "..." }, { text: "..." }] không
         const isGeminiFormat = prompt.every(p => typeof p === 'object' && ('text' in p || 'inlineData' in p || 'fileData' in p));
         if (isGeminiFormat) {
-            // Convert: gộp tất cả các text parts thành 1 message
             const combinedText = prompt
                 .filter(p => typeof p.text === 'string')
                 .map(p => p.text)
                 .join('\n\n');
             messages = [{ role: 'user', content: combinedText }];
         } else {
-            // Đã là OpenAI message array [{ role, content }]
             messages = prompt;
         }
     } else {
@@ -395,8 +403,6 @@ export async function generateWithRole(role, prompt, options = {}) {
     const chain = ROLE_PROVIDER_CHAINS[role] || ROLE_PROVIDER_CHAINS.default;
     const normalizedRole = role.toUpperCase();
 
-    console.log(chalk.blueBright(`[ROUTER] Role [${normalizedRole}] → Chain: [${chain.join(' → ')}]`));
-
     const errors = [];
 
     for (const providerKey of chain) {
@@ -434,9 +440,8 @@ export async function generateWithRole(role, prompt, options = {}) {
                 result = await providerFn(prompt, options);
             }
 
-            // Thành công — reset fail count nếu có
             clearProviderBlock(providerKey);
-            console.log(chalk.greenBright(`[ROUTER] ✅ Role [${normalizedRole}] hoàn tất qua [${providerKey.toUpperCase()}]`));
+            console.log(chalk.dim(`[ROUTER] ✅ Role [${normalizedRole}] hoàn tất qua [${providerKey.toUpperCase()}]`));
             return result;
 
         } catch (err) {
@@ -459,14 +464,18 @@ export async function generateWithRole(role, prompt, options = {}) {
     // Toàn bộ chain thất bại
     const errorSummary = errors.join(' | ');
     console.log(chalk.bgRed.white(`[ROUTER] ❌ Role [${normalizedRole}] — toàn bộ chain thất bại: ${errorSummary}`));
+        const alertMsg = buildSystemAlertMessage(
+            'AI Router',
+            `Toàn bộ chain cho Role [${normalizedRole}] thất bại`,
+            `Chi tiết lỗi: ${errorSummary}`
+        );
+        sendTelegramMessage(alertMsg).catch(() => {});
     throw new Error(`[ROUTER] Toàn bộ providers cho role "${role}" đều thất bại. Chi tiết: ${errorSummary}`);
 }
  
 export async function generateWithRoleStream(role, prompt, onChunk, options = {}) {
     const chain = ROLE_PROVIDER_CHAINS[role] || ROLE_PROVIDER_CHAINS.default;
     const normalizedRole = role.toUpperCase();
-
-    console.log(chalk.blueBright(`[ROUTER STREAM] Role [${normalizedRole}] → Chain: [${chain.join(' → ')}]`));
 
     const errors = [];
 
@@ -490,7 +499,7 @@ export async function generateWithRoleStream(role, prompt, onChunk, options = {}
                 }
                 fullText = await streamFn(prompt, { ...options, streamCallback: onChunk, useProModel });
 
-            } else { // fake stream: for UX
+            } else {
                 const providerFn = PROVIDER_REGISTRY[providerKey];
                 if (!providerFn) {
                     errors.push(`${providerKey}: provider không tồn tại`);
@@ -507,7 +516,7 @@ export async function generateWithRoleStream(role, prompt, onChunk, options = {}
             }
 
             clearProviderBlock(providerKey);
-            console.log(chalk.greenBright(`[ROUTER STREAM] ✅ Role [${normalizedRole}] hoàn tất qua [${providerKey.toUpperCase()}]`));
+            console.log(chalk.dim(`[ROUTER STREAM] ✅ Role [${normalizedRole}] hoàn tất qua [${providerKey.toUpperCase()}]`));
             return fullText;
 
         } catch (err) {
@@ -528,6 +537,12 @@ export async function generateWithRoleStream(role, prompt, onChunk, options = {}
     }
 
     const errorSummary = errors.join(' | ');
+        const alertMsg = buildSystemAlertMessage(
+            'AI Router',
+            `Toàn bộ chain STREAM cho Role [${normalizedRole}] thất bại`,
+            `Chi tiết lỗi: ${errorSummary}`
+        );
+        sendTelegramMessage(alertMsg).catch(() => {});
     throw new Error(`[ROUTER STREAM] Toàn bộ providers cho role "${role}" đều thất bại. ${errorSummary}`);
 }
 
