@@ -27,9 +27,9 @@ import axios from 'axios';
 // ============================================================
 
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
-const MIN_DIRECTIONAL_EDGE = 8;
-const ENTRY_SCORE_THRESHOLD = 65;
-const REVERSAL_EXIT_THRESHOLD = 72;
+const MIN_DIRECTIONAL_EDGE = 5;
+const ENTRY_SCORE_THRESHOLD = 60;
+const REVERSAL_EXIT_THRESHOLD = 65;
 let autoTradePipelineRunning = false;
 const volatilityAlertCooldown = new Map();
 
@@ -507,8 +507,8 @@ const getTradeRewardRiskPct = (entryPrice, takeProfitPrice, stopLossPrice, direc
 const buildTradePlanFromSignal = (asset, techSignal, quote) => {
     const entryPrice = Math.round(Number(quote.price) * 100) / 100;
     const atr = techSignal.atr || entryPrice * 0.02;
-    const atrMultiplierTP = asset === 'CRYPTO' ? 3.0 : (asset === 'DERIVATIVES' ? 2.5 : 2.0);
-    const atrMultiplierSL = asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.8 : 1.5);
+    const atrMultiplierTP = asset === 'CRYPTO' ? 4.0 : (asset === 'DERIVATIVES' ? 3.0 : 2.5);
+    const atrMultiplierSL = asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.5 : 1.5);
     const isLong = techSignal.direction === 'LONG' || techSignal.direction === 'MUA';
 
     const takeProfitPrice = isLong
@@ -662,17 +662,17 @@ const isUserOrderCompatibleWithTrade = (userOrder, tradePlan) => {
         tradePlan.direction
     );
 
-    if (rewardPct < Number(userOrder.targetPct)) {
+    if (rewardPct < Number(userOrder.targetPct) * 0.5) {
         return {
             compatible: false,
-            reason: `TP thực tế ${rewardPct}% thấp hơn mục tiêu user ${userOrder.targetPct}%.`,
+            reason: `TP thực tế ${rewardPct}% quá thấp so với mục tiêu user ${userOrder.targetPct}%.`,
         };
     }
 
-    if (Number.isFinite(Number(userOrder.stopLossPct)) && riskPct > Number(userOrder.stopLossPct)) {
+    if (Number.isFinite(Number(userOrder.stopLossPct)) && riskPct > Number(userOrder.stopLossPct) * 1.5) {
         return {
             compatible: false,
-            reason: `Risk thực tế ${riskPct}% vượt stop loss user ${userOrder.stopLossPct}%.`,
+            reason: `Risk thực tế ${riskPct}% vượt quá xa stop loss user ${userOrder.stopLossPct}%.`,
         };
     }
 
@@ -725,6 +725,7 @@ Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệ
 - EMA9/21/50: ${signal.ema9?.toFixed(2) || 'N/A'} / ${signal.ema21?.toFixed(2) || 'N/A'} / ${signal.ema50?.toFixed(2) || 'N/A'}
 - ATR: ${signal.atr}
 
+Nếu tín hiệu kỹ thuật đủ tốt để lướt sóng ngắn hạn, hãy thiên về XÁC NHẬN.
 [TRẠNG THÁI VĨ MÔ]
 - Tình trạng thị trường: ${marketStatus}
 - Chẩn đoán: ${diagnosticDesc}
@@ -1037,9 +1038,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         breakdown: techSignal.breakdown,
                     });
 
-                    if (!aiConfirm.confirmed && techSignal.score < 75) {
+                    if (!aiConfirm.confirmed && techSignal.score < 70) {
                         // AI bác bỏ + score không đủ cao → bỏ qua
-                        console.log(chalk.gray(`  [SKIP] ${symbol} — AI bác bỏ + score < 75.`));
+                        console.log(chalk.gray(`  [SKIP] ${symbol} — AI bác bỏ + score < 70.`));
                         continue;
                     }
 
