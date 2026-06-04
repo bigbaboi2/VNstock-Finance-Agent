@@ -1563,12 +1563,18 @@ export default function VnStocksTab({
 
                     return (
                       <div className={`flex flex-col gap-3 mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                        <button onClick={() => handleAiAnalysis(false)} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
+                        <button onClick={() => { 
+                            handleAiAnalysis(false); 
+                            setMobileTab('ai'); // Tự động nhảy sang tab AI khi bắt đầu phân tích
+                        }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
                           <BrainCircuit size={18} className={analyzing ? 'animate-pulse' : ''} />
                           {analyzing ? 'OMNI DUCK ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
                         </button>
                         {marketData && (
-                          <button onClick={() => setIsChatOpen(true)} className={`w-full h-10 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 border active:scale-95 ${isDark ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-400/20' : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'}`}>
+                          <button onClick={() => { 
+                              setIsChatOpen(true); 
+                              setMobileTab('ai'); // Tự động chuyển sang AI nếu mở Chat từ tab Dữ liệu
+                          }} className={`w-full h-10 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 border active:scale-95 ${isDark ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-400/20' : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'}`}>
                             <MessageSquare size={16} /> {aiReport ? 'CHAT VỀ BÁO CÁO NÀY' : 'HỎI ĐÁP VỚI AI'}
                           </button>
                         )}
@@ -1580,7 +1586,10 @@ export default function VnStocksTab({
                             }
                           </span>
                           {lastAiVnTime && (
-                            <button onClick={() => handleAiAnalysis(true)} disabled={analyzing} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'}`} title="Bỏ qua thời gian làm mát và ép AI quét lại">
+                            <button onClick={() => { 
+                                handleAiAnalysis(true); 
+                                setMobileTab('ai'); 
+                            }} disabled={analyzing} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'}`} title="Bỏ qua thời gian làm mát và ép AI quét lại">
                               ↻ Quét lại ngay
                             </button>
                           )}
