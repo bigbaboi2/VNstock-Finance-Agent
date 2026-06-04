@@ -1717,7 +1717,7 @@ export default function VnStocksTab({
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* GRID COLUMN 2: CHART + AI ANALYSIS */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <div className={`flex-1 h-full min-h-0 flex flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
+      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
 
         {/* ── CHART (PINNED) ── */}
         {marketData && (
@@ -1727,7 +1727,7 @@ export default function VnStocksTab({
                 ? 'border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]'
                 : 'border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
             }`}>
-              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent" style={{ height: typeof window !== 'undefined' && window.innerWidth < 1024 ? '320px' : '600px', flexBasis: typeof window !== 'undefined' && window.innerWidth < 1024 ? '320px' : '600px' }}>
+              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent h-[260px] sm:h-[320px] lg:h-[600px] lg:basis-[600px]">
                 <TradingChart
                   data={chartData}
                   theme={isDark ? 'dark' : 'light'}
@@ -1776,12 +1776,12 @@ export default function VnStocksTab({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-           className="lg:flex-1 lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
+           className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar relative transition-all duration-300 scroll-smooth"
         >
-           <div className="px-5 lg:px-8 pb-16 pt-1">
+           <div className="px-3 sm:px-5 lg:px-8 pb-24 lg:pb-16 pt-1">
           {/* ── HOME SCREEN: History + Heatmap ── */}
           {!analyzing && !aiReport && (
-            <div className="flex flex-col gap-6 animate-in fade-in duration-700 pt-5">
+            <div className="flex flex-col gap-5 lg:gap-6 animate-in fade-in duration-700 pt-4 lg:pt-5">
               {/* Recent stocks */}
               <div>
                 <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
@@ -2115,7 +2115,7 @@ export default function VnStocksTab({
           {aiReport && (
                 <div className="w-full flex flex-col gap-0 mt-4 relative">
 
-                   <div className={`sticky top-0 z-40 pt-2 pb-1 -mt-2 backdrop-blur-2xl ${isDark ? 'bg-[#0d1219]/95' : 'bg-slate-50/95'}`}>
+                   <div className={`lg:sticky lg:top-0 z-40 pt-2 pb-1 -mt-2 backdrop-blur-2xl ${isDark ? 'bg-[#0d1219]/95' : 'bg-slate-50/95'}`}>
                     {/* 1. Meta Header & Quick Actions */}
                     <AiReportHeader
                       isDark={isDark}
@@ -2147,7 +2147,7 @@ export default function VnStocksTab({
                   </div>
 
                   {/* 4. Main Report Content */}
-                  <div className={`w-full border rounded-[32px] p-8 lg:p-10 shadow-2xl transition-all duration-300 relative overflow-hidden mb-6 mt-4 ${
+                  <div className={`w-full border rounded-2xl lg:rounded-[32px] p-4 sm:p-6 lg:p-10 shadow-2xl transition-all duration-300 relative overflow-hidden mb-6 mt-4 ${
                     isDark ? 'bg-[#0d1219] border-yellow-400/15' : 'bg-white border-yellow-400/20'
                   }`}>
                 {/* Subtle top border glow */}
