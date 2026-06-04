@@ -1181,7 +1181,7 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 relative h-full transition-colors duration-300 ${UI.leftCol}`}>
+      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 relative h-full min-h-0 transition-colors duration-300 ${UI.leftCol}`}>
           
         {/* Loading bar */}
         <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
@@ -1246,7 +1246,7 @@ export default function VnStocksTab({
             <div
               ref={newsScrollRef}
               onScroll={handleNewsScroll}
-              className={`flex-1 flex flex-col overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
+              className={`flex-1 flex flex-col overflow-y-auto min-h-0 custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
             >
               {/* MODULE 1: CHỈ SỐ TÀI CHÍNH */}
               <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
@@ -1776,7 +1776,7 @@ export default function VnStocksTab({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-           className="shrink-0 lg:shrink lg:flex-1 overflow-visible lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
+           className="lg:flex-1 lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
         >
            <div className="px-5 lg:px-8 pb-16 pt-1">
           {/* ── HOME SCREEN: History + Heatmap ── */}
@@ -2253,7 +2253,7 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 3: INDEX RADAR & TCBS PDF         */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[350px] xl:w-[450px] flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10 lg:pb-0 overflow-y-auto lg:overflow-hidden custom-scrollbar`}>
+      <div className={`${mobileTab === 'radar' ? 'block' : 'hidden'} lg:flex w-full lg:w-[350px] xl:w-[450px] lg:flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10 lg:pb-0 overflow-y-auto lg:overflow-hidden custom-scrollbar`}>
         <div className="h-auto lg:h-1/2 flex flex-col border-b border-white/10 shrink-0">
           <div className="h-auto lg:h-2/5 flex flex-col sm:flex-row border-b border-white/10">
             <div className="flex-1 border-b sm:border-b-0 sm:border-r border-white/10 p-3 flex flex-col min-h-[180px] lg:min-h-0">
