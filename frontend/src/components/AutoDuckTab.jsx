@@ -493,7 +493,7 @@ function TradeCard({ log, isDark, UI }) {
                     </div>
                     <div className={`rounded-lg border p-3 ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                         <p className={`text-[8px] font-black uppercase tracking-widest mb-2 ${UI.textMuted}`}>Lý do tín hiệu</p>
-                        <p className={`text-[11px] leading-relaxed line-clamp-3 ${UI.textMuted}`}>{log.reason}</p>
+                        <p className={`text-[11px] leading-relaxed ${UI.textMuted}`}>{log.reason}</p>
                     </div>
                 </div>
             </div>
