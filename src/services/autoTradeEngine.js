@@ -1020,7 +1020,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 
                     // ── 5. AI xác nhận tín hiệu ──
                     const aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc, executionContext);
-                    console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason.slice(0, 120)}`));
+                    console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason}`));
 
                     radarCandidates[asset].push({
                         symbol,
@@ -1205,7 +1205,7 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
 
             const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
             console.log(chalk.bgYellow.black(
-                `[ĐÓNG LỆNH] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason.slice(0, 60)}`
+                `[ĐÓNG LỆNH] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason}`
             ));
 
             // Cập nhật user orders liên kết
@@ -1213,7 +1213,7 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
             for (const uOrder of boundUserOrders) {
                 uOrder.status          = 'COMPLETED';
                 uOrder.result.finalPnl = Math.round(uOrder.capital * (trade.pnlPercent / 100));
-                uOrder.result.message  = `Vị thế đã đóng. PnL thực tế: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%. Lý do: ${exitReason.slice(0, 100)}`;
+                uOrder.result.message  = `Vị thế đã đóng. PnL thực tế: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%. Lý do: ${exitReason}`;
                 await uOrder.save();
             }
 
@@ -1233,7 +1233,7 @@ Phân tích giao dịch vừa kết thúc và rút ra bài học kinh nghiệm n
 
 Bài học kinh nghiệm (tiếng Việt, 2-3 câu thực chiến):`;
 
-                const lessonText = await generateWithRole('pm', reflectivePrompt, { maxTokens: 250, temperature: 0.4 });
+                const lessonText = await generateWithRole('pm', reflectivePrompt, { maxTokens: 500, temperature: 0.4 });
 
                 const behaviorLog = new AiBehavior({
                     symbol:         trade.symbol,
@@ -1246,7 +1246,7 @@ Bài học kinh nghiệm (tiếng Việt, 2-3 câu thực chiến):`;
                     tags:           trade.pnlPercent > 0 ? ['WIN_SIGNAL', 'TP_HIT'] : ['LOSS_SIGNAL', 'SL_HIT'],
                 });
                 await behaviorLog.save();
-                console.log(chalk.blueBright(`  [AI LEARN] ${lessonText.trim().slice(0, 100)}...`));
+                console.log(chalk.blueBright(`  [AI LEARN] ${lessonText.trim()}`));
 
             } catch (aiErr) {
                 console.log(chalk.gray(`  [AI LEARN] Không ghi được bài học: ${aiErr.message}`));
