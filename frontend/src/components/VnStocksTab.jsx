@@ -952,6 +952,7 @@ export default function VnStocksTab({
 
   const [elapsedTime, setElapsedTime] = useState(0);
   const scrollContainerRef = useRef(null);
+  const mobileScrollRef = useRef(null);
   const [isDraggingChart, setIsDraggingChart] = useState(false);
   const dragStartY = useRef(0);
   const startHeight = useRef(600);
@@ -1072,6 +1073,9 @@ export default function VnStocksTab({
     if (analyzing && aiReport && scrollContainerRef.current && isAutoScroll) {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
+    if (analyzing && aiReport && mobileScrollRef.current && isAutoScroll) {
+      mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
+    }
   }, [aiReport, analyzing, isAutoScroll]);
 
   useEffect(() => {
@@ -1177,7 +1181,7 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol}`}>
+      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 overflow-y-auto lg:overflow-hidden custom-scrollbar relative h-full transition-colors duration-300 ${UI.leftCol}`}>
           
         {/* Loading bar */}
         <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
@@ -1195,7 +1199,7 @@ export default function VnStocksTab({
             <p className="text-xs font-black uppercase">Waiting for Command</p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col min-h-0 relative">
+          <div className="flex-none lg:flex-1 flex flex-col min-h-0 relative">
             {/* HEADER: STOCK INFO */}
             <div className={`shrink-0 p-5 border-b shadow-sm z-20 relative ${isDark ? 'bg-[#080C11] border-white/5' : 'bg-white border-slate-200'}`}>
               <div className="flex justify-between items-start mb-4">
@@ -1242,7 +1246,7 @@ export default function VnStocksTab({
             <div
               ref={newsScrollRef}
               onScroll={handleNewsScroll}
-              className={`flex-1 flex flex-col overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
+              className={`flex-none lg:flex-1 flex flex-col lg:overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
             >
               {/* MODULE 1: CHỈ SỐ TÀI CHÍNH */}
               <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
@@ -1255,7 +1259,7 @@ export default function VnStocksTab({
                 </summary>
                 
                 <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className={`grid grid-cols-4 gap-3 text-center mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                  <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 text-center mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                     <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
                       <p className={`text-[9px] mb-1.5 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>VỐN HÓA</p>
                       <p className="font-black text-sm leading-none whitespace-nowrap">{marketData.stockInfo.marketCap}</p>
@@ -1723,7 +1727,7 @@ export default function VnStocksTab({
                 ? 'border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]'
                 : 'border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
             }`}>
-              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent" style={{ height: typeof window !== 'undefined' && window.innerWidth < 1024 ? '380px' : '600px', flexBasis: typeof window !== 'undefined' && window.innerWidth < 1024 ? '380px' : '600px' }}>
+              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent" style={{ height: typeof window !== 'undefined' && window.innerWidth < 1024 ? '320px' : '600px', flexBasis: typeof window !== 'undefined' && window.innerWidth < 1024 ? '320px' : '600px' }}>
                 <TradingChart
                   data={chartData}
                   theme={isDark ? 'dark' : 'light'}
@@ -1756,6 +1760,10 @@ export default function VnStocksTab({
                 scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
                 setIsAutoScroll(true);
               }
+            if (mobileScrollRef.current) {
+              mobileScrollRef.current.scrollTo({ top: mobileScrollRef.current.scrollHeight, behavior: 'smooth' });
+              setIsAutoScroll(true);
+            }
             }}
             className="absolute bottom-10 right-8 z-[100] p-3 bg-yellow-500 text-black rounded-full shadow-[0_0_20px_rgba(234,179,8,0.5)] hover:bg-yellow-400 transition-all animate-bounce opacity-50 hover:opacity-100"
             title="Trở lại cuộn tự động"
@@ -1768,7 +1776,7 @@ export default function VnStocksTab({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-           className="flex-1 overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
+           className="flex-none lg:flex-1 lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
         >
            <div className="px-5 lg:px-8 pb-16 pt-1">
           {/* ── HOME SCREEN: History + Heatmap ── */}
@@ -1808,7 +1816,7 @@ export default function VnStocksTab({
                           item.lastAction?.includes('MUA') ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' :
                           item.lastAction?.includes('BÁN') ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-yellow-500'
                         }`} />
-                        <div className="flex flex-row items-center gap-6 min-w-0 flex-1 ml-2">
+                        <div className="flex flex-row items-center gap-3 lg:gap-6 min-w-0 flex-1 ml-2">
                           <div className="flex-1 flex flex-col items-start gap-y-0.5 min-w-0 pr-4">
                             <div className="flex items-center gap-1.5">
                               <h3 className={`text-xl font-black tracking-tighter text-yellow-400 ${UI.textBold}`}>{item.symbol}</h3>
@@ -2224,7 +2232,10 @@ export default function VnStocksTab({
         {/* ── FLOATING: SCROLL TO TOP ── */}
         {aiReport && (
           <button
-            onClick={() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={() => {
+              scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              mobileScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             className={`fixed bottom-6 right-8 z-50 p-3 rounded-full shadow-[0_8px_25px_rgba(250,204,21,0.4)] transition-all duration-300 hover:-translate-y-1.5 active:scale-95 border-2 ${
               isDark
                 ? 'bg-yellow-500 text-black border-yellow-400 hover:bg-yellow-400'
@@ -2242,30 +2253,30 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 3: INDEX RADAR & TCBS PDF         */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[350px] xl:w-[450px] flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10 lg:pb-0`}>
-        <div className="h-1/2 flex flex-col border-b border-white/10">
-          <div className="h-2/5 flex border-b border-white/10">
-            <div className="flex-1 border-r border-white/10 p-3 flex flex-col">
+      <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[350px] xl:w-[450px] flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10 lg:pb-0 overflow-y-auto lg:overflow-hidden custom-scrollbar`}>
+        <div className="h-auto lg:h-1/2 flex flex-col border-b border-white/10 shrink-0">
+          <div className="h-auto lg:h-2/5 flex flex-col sm:flex-row border-b border-white/10">
+            <div className="flex-1 border-b sm:border-b-0 sm:border-r border-white/10 p-3 flex flex-col min-h-[180px] lg:min-h-0">
               <span className="text-[9px] font-black text-yellow-500 mb-1">VN-INDEX</span>
-              <div className="flex-1 min-h-0"><MarketRadar data={vnIndexData} theme={isDark ? 'dark' : 'light'} color="#facc15" /></div>
+              <div className="flex-1 min-h-[150px] lg:min-h-0"><MarketRadar data={vnIndexData} theme={isDark ? 'dark' : 'light'} color="#facc15" /></div>
             </div>
-            <div className="flex-1 p-3 flex flex-col">
+            <div className="flex-1 p-3 flex flex-col min-h-[180px] lg:min-h-0">
               <span className="text-[9px] font-black text-sky-400 mb-1">HNX-INDEX</span>
-              <div className="flex-1 min-h-0"><MarketRadar data={hnxIndexData} theme={isDark ? 'dark' : 'light'} color="#38bdf8" /></div>
+              <div className="flex-1 min-h-[150px] lg:min-h-0"><MarketRadar data={hnxIndexData} theme={isDark ? 'dark' : 'light'} color="#38bdf8" /></div>
             </div>
           </div>
-          <div className="h-3/5 p-4 flex flex-col">
+          <div className="h-auto lg:h-3/5 p-4 flex flex-col min-h-[220px] lg:min-h-0">
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">VN30 Premium</span>
               <Activity size={14} className="text-emerald-500" />
             </div>
-            <div className="flex-1 min-h-0 rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+            <div className="flex-1 min-h-[180px] lg:min-h-0 rounded-xl bg-black/20 border border-white/5 overflow-hidden">
               <MarketRadar data={vn30Data} theme={isDark ? 'dark' : 'light'} color="#10b981" />
             </div>
           </div>
         </div>
 
-        <div className="h-1/2 flex flex-col overflow-hidden">
+        <div className="h-[400px] lg:h-1/2 flex flex-col overflow-hidden shrink-0">
           <div className={`h-10 border-b flex items-center justify-between px-4 shrink-0 ${UI.header}`}>
             <div className="flex items-center gap-2">
               <FileText size={14} className="text-yellow-500" />
