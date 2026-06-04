@@ -1738,7 +1738,7 @@ export default function VnStocksTab({
               {/* Resize handle */}
               <div
                 onMouseDown={handleDragStart}
-                className={`h-3.5 w-full cursor-row-resize hidden lg:flex items-center justify-center shrink-0 z-10 transition-colors border-t rounded-b-2xl ${
+                className={`h-3.5 w-full cursor-row-resize hidden lg:flex items-center justify-center lg:shrink-0 z-10 transition-colors border-t rounded-b-2xl ${
                   isDraggingChart
                     ? 'bg-yellow-400/20 border-yellow-400/50'
                     : isDark
@@ -1776,7 +1776,7 @@ export default function VnStocksTab({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-           className="flex-none lg:flex-1 lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
+           className="lg:flex-1 lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
         >
            <div className="px-5 lg:px-8 pb-16 pt-1">
           {/* ── HOME SCREEN: History + Heatmap ── */}
