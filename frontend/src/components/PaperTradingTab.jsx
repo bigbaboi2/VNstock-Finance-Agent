@@ -27,6 +27,7 @@ export default function PaperTradingTab({
   handleCancelOrder,
 }) {
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [mobileTab, setMobileTab] = useState('trade'); // Mặc định mở tab giao dịch trên mobile
     const [livePrices, setLivePrices] = useState({});
     
     useEffect(() => {
@@ -67,10 +68,17 @@ export default function PaperTradingTab({
      }, [portfolio?.holdings]);
 
   return (
-    <div className={`flex-1 flex w-full h-full overflow-hidden animate-in zoom-in-95 duration-500 ${isDark ? 'bg-[#05080c]' : 'bg-slate-50'}`}>
+    <div className={`flex flex-col w-full h-full overflow-hidden animate-in zoom-in-95 duration-500 ${isDark ? 'bg-[#05080c]' : 'bg-slate-50'}`}>
+        
+        {/* MOBILE TABS */}
+        <div className={`lg:hidden flex w-full border-b shrink-0 ${isDark ? 'bg-[#080C11] border-white/10' : 'bg-slate-50 border-slate-200'} z-50`}>
+            <button onClick={() => setMobileTab('portfolio')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'portfolio' ? 'border-purple-500 text-purple-500 bg-purple-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Ví & Danh Mục</button>
+            <button onClick={() => setMobileTab('trade')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'trade' ? 'border-purple-500 text-purple-500 bg-purple-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Giao Dịch</button>
+        </div>
 
+        <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden relative">
         {/* CỘT TRÁI: QUẢN LÝ VÍ & DANH MỤC */}
-                <div className={`w-[400px] border-r flex flex-col relative z-30 ${UI.leftCol}`}>
+                <div className={`${mobileTab === 'portfolio' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[400px] xl:w-[450px] border-r flex-col relative z-30 ${UI.leftCol}`}>
                     {/* 2. HEADER */}
                     <div className="p-6 pb-2 shrink-0">
                         <div className="flex items-center gap-3 relative">
@@ -117,6 +125,7 @@ export default function PaperTradingTab({
                                 <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${UI.textMuted}`}>Live Paper Trading</p>
                             </div>
                         </div>
+                    </div>
                     
                     {/* 3. KHU VỰC CHỨA SỐ DƯ & DANH MỤC TÀI SẢN */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6">
@@ -292,14 +301,13 @@ export default function PaperTradingTab({
                             </div>
                         )}
                     </div>
-                    </div> 
-                </div>
               </div>
+            </div>
 
                 {/* CỘT PHẢI: BỘ LỌC THỊ TRƯỜNG & ĐẶT LỆNH */}
-                    <div className="flex-1 flex flex-col p-6 h-full">
+                    <div className={`${mobileTab === 'trade' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col p-4 lg:p-6 h-full min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar`}>
                     {/* TÙY CHỌN THỊ TRƯỜNG  */}
-                    <div className="flex gap-4 mb-6">
+                    <div className="flex gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto custom-scrollbar pb-2 shrink-0">
                         {[
                             { id: 'VN_STOCKS', label: 'Chứng khoán VN' },
                             { id: 'VN_DERIVATIVES', label: 'Phái sinh VN' },
@@ -321,9 +329,9 @@ export default function PaperTradingTab({
                     </div>
 
                     {/* KHU VỰC CHART VÀ ĐẶT LỆNH */}
-                    <div className="flex-1 grid grid-cols-3 gap-6 min-h-0">
+                    <div className="flex-none lg:flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 min-h-0 lg:overflow-hidden">
                         {/* BIỂU ĐỒ REALTIME */}
-                        <div className={`col-span-2 rounded-[32px] border flex flex-col overflow-hidden shadow-xl relative ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
+                        <div className={`col-span-1 lg:col-span-2 h-[350px] sm:h-[450px] lg:h-auto rounded-[32px] border flex flex-col overflow-hidden shadow-xl relative ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-slate-200'}`}>
                             {paperChartData ? (
                                 <div className="flex-1 w-full min-h-0">
                                     <TradingChart 
@@ -342,7 +350,7 @@ export default function PaperTradingTab({
                         </div>
                         
                         {/* ORDER PANEL TÍCH HỢP CÁC LOẠI LỆNH LO, MP, ATO, ATC */}
-                        <div className={`col-span-1 rounded-[32px] border p-6 flex flex-col ${isDark ? 'bg-[#0f141e] border-white/5' : 'bg-white border-slate-200'}`}>
+                        <div className={`col-span-1 rounded-[32px] border p-5 sm:p-6 flex flex-col ${isDark ? 'bg-[#0f141e] border-white/5' : 'bg-white border-slate-200'}`}>
                             <h3 className={`text-sm font-black uppercase tracking-widest mb-6 ${UI.textBold}`}>Khớp lệnh ({paperMarket})</h3>
                             
                             <div className="flex-1 space-y-4">
@@ -467,6 +475,7 @@ export default function PaperTradingTab({
                         </div>
                     </div>   
                 </div>    
+            </div>
                 <StockAiChat
                     isOpen={isChatOpen}
                     onClose={() => setIsChatOpen(false)}
