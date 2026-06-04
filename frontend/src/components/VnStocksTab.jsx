@@ -1181,7 +1181,7 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 overflow-y-auto lg:overflow-hidden custom-scrollbar relative h-full transition-colors duration-300 ${UI.leftCol}`}>
+      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 relative h-full transition-colors duration-300 ${UI.leftCol}`}>
           
         {/* Loading bar */}
         <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
@@ -1199,7 +1199,7 @@ export default function VnStocksTab({
             <p className="text-xs font-black uppercase">Waiting for Command</p>
           </div>
         ) : (
-          <div className="flex-none lg:flex-1 flex flex-col min-h-0 relative">
+          <div className="flex-1 flex flex-col min-h-0 relative">
             {/* HEADER: STOCK INFO */}
             <div className={`shrink-0 p-5 border-b shadow-sm z-20 relative ${isDark ? 'bg-[#080C11] border-white/5' : 'bg-white border-slate-200'}`}>
               <div className="flex justify-between items-start mb-4">
@@ -1246,7 +1246,7 @@ export default function VnStocksTab({
             <div
               ref={newsScrollRef}
               onScroll={handleNewsScroll}
-              className={`flex-none lg:flex-1 flex flex-col lg:overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
+              className={`flex-1 flex flex-col overflow-y-auto custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
             >
               {/* MODULE 1: CHỈ SỐ TÀI CHÍNH */}
               <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
@@ -1776,7 +1776,7 @@ export default function VnStocksTab({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-           className="lg:flex-1 lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
+           className="shrink-0 lg:shrink lg:flex-1 overflow-visible lg:overflow-y-auto custom-scrollbar relative transition-all duration-300 scroll-smooth"
         >
            <div className="px-5 lg:px-8 pb-16 pt-1">
           {/* ── HOME SCREEN: History + Heatmap ── */}
