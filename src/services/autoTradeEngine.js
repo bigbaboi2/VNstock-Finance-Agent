@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import AutoTrade from '../../models/AutoTrade.js';
 import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
+import Setting from '../../models/Setting.js';
 import Stock from '../../models/Stock.js';
 import DerivNews from '../../models/DerivNews.js';
 import { generateWithRole } from './multiProviderRouter.js';
@@ -27,9 +28,10 @@ import axios from 'axios';
 // ============================================================
 
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
-const MIN_DIRECTIONAL_EDGE = 5;
-const ENTRY_SCORE_THRESHOLD = 60;
-const REVERSAL_EXIT_THRESHOLD = 65;
+const MIN_DIRECTIONAL_EDGE = 20;
+const ENTRY_SCORE_THRESHOLD = 70;
+const REVERSAL_EXIT_THRESHOLD = 60;
+const AI_OVERRIDE_SCORE_THRESHOLD = 82;
 let autoTradePipelineRunning = false;
 const volatilityAlertCooldown = new Map();
 
@@ -45,6 +47,15 @@ const isVNMarketOpen = () => {
     return mins >= 540 && mins <= 885;
 };
 
+/** Kiểm tra trước giờ mở cửa (8:30–8:59) để quét lên lịch lệnh */
+const isPreMarket = () => {
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false;
+    const mins = now.getHours() * 60 + now.getMinutes();
+    return mins >= 510 && mins < 540;
+};
+
 /** Kiểm tra ATO (9:00–9:15) — tránh vào lệnh khi giá chưa ổn định */
 const isATOPeriod = () => {
     const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
@@ -57,6 +68,34 @@ const isATCPeriod = () => {
     const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
     const mins = now.getHours() * 60 + now.getMinutes();
     return mins >= 870 && mins <= 885;
+};
+
+// --- LẤY TỶ GIÁ USD/VND TỰ ĐỘNG ---
+let cachedUsdVndRate = 25400;  
+let lastUsdVndFetch = 0;
+
+const getUsdVndRate = async () => {
+    const now = Date.now();
+    if (now - lastUsdVndFetch < 60 * 60 * 1000) return cachedUsdVndRate;  
+
+    try {
+        const vcbRes = await axios.get(
+            'https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10',
+            { timeout: 4000, headers: { 'User-Agent': 'Mozilla/5.0' } }
+        );
+        const match = vcbRes.data.match(/<Exrate CurrencyCode="USD"[^>]*Transfer="([^"]+)"/);
+        if (match && match[1]) {
+            const rate = parseFloat(match[1].replace(/,/g, ''));
+            if (rate > 20000 && rate < 30000) {
+                cachedUsdVndRate = rate;
+                lastUsdVndFetch = now;
+                console.log(chalk.gray(`[SYSTEM] Đã cập nhật tỷ giá USD/VND Vietcombank: ${rate.toLocaleString('vi-VN')}`));
+            }
+        }
+    } catch (error) {
+        console.log(chalk.yellow(`[CẢNH BÁO] Lỗi lấy tỷ giá VCB, dùng giá cũ: ${cachedUsdVndRate}`));
+    }
+    return cachedUsdVndRate;
 };
 
 // ============================================================
@@ -99,7 +138,6 @@ const fetchOHLCV = async (symbol, resolution = '1D', days = 30, assetType = 'VN_
  */
 const fetchCurrentPrice = async (symbol, assetType = 'VN_STOCK') => {
     if (assetType === 'CRYPTO') {
-        // Binance public API cho crypto
         const res = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`, {
             timeout: 8000
         });
@@ -143,7 +181,6 @@ const fetchAnalysisCandles = async (symbol, asset) => {
     if (asset === 'CRYPTO') return fetchCryptoOHLCV(symbol, '15m', 160);
 
     try {
-        // Giới hạn số ngày lấy dữ liệu cho Phái sinh để tránh lỗi 400 (Bad Request)
         const days = asset === 'DERIVATIVES' ? 5 : 15;
         const intraday = await fetchOHLCV(symbol, '15', days, asset);
         if (intraday.length >= 60) return intraday;
@@ -278,7 +315,6 @@ const calcATR = (candles, period = 14) => {
             Math.abs(c.low  - prev.close)
         );
     });
-    // Simple average of last `period` TRs
     const recent = trs.slice(-period);
     return recent.reduce((a, b) => a + b, 0) / period;
 };
@@ -286,15 +322,62 @@ const calcATR = (candles, period = 14) => {
 /** RSI */
 const calcRSI = (closes, period = 14) => {
     if (closes.length < period + 1) return 50;
+    
     let gains = 0, losses = 0;
-    for (let i = closes.length - period; i < closes.length; i++) {
+    for (let i = 1; i <= period; i++) {
         const diff = closes[i] - closes[i - 1];
         if (diff > 0) gains += diff;
-        else losses += Math.abs(diff);
+        else losses -= diff;
     }
-    if (losses === 0) return 100;
-    const rs = gains / losses;
+    
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    
+    for (let i = period + 1; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        const gain = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? -diff : 0;
+        
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+    }
+    
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
     return 100 - (100 / (1 + rs));
+};
+
+/** MACD — tính đúng chuẩn: EMA12 từ SMA(12 nến đầu), EMA26 từ SMA(26 nến đầu) */
+const calcMACD = (closes) => {
+    if (closes.length < 35) return { macd: null, signal: null, hist: null };
+
+    const k12 = 2 / 13;
+    const k26 = 2 / 27;
+    const k9  = 2 / 10;
+
+    let ema12 = closes.slice(0, 12).reduce((a, b) => a + b, 0) / 12;
+    for (let i = 12; i < 26; i++) {
+        ema12 = closes[i] * k12 + ema12 * (1 - k12);
+    }
+
+    let ema26 = closes.slice(0, 26).reduce((a, b) => a + b, 0) / 26;
+
+    const macdLine = [];
+    for (let i = 26; i < closes.length; i++) {
+        ema12 = closes[i] * k12 + ema12 * (1 - k12);
+        ema26 = closes[i] * k26 + ema26 * (1 - k26);
+        macdLine.push(ema12 - ema26);
+    }
+
+    if (macdLine.length < 9) return { macd: null, signal: null, hist: null };
+
+    let signal = macdLine.slice(0, 9).reduce((a, b) => a + b, 0) / 9;
+    for (let i = 9; i < macdLine.length; i++) {
+        signal = macdLine[i] * k9 + signal * (1 - k9);
+    }
+
+    const macd = macdLine[macdLine.length - 1];
+    return { macd, signal, hist: macd - signal };
 };
 
 const calcVolumeSurge = (volumes) => {
@@ -315,7 +398,7 @@ const calcBollinger = (closes, period = 20, stdMult = 2) => {
         upper: mean + stdMult * std,
         mid:   mean,
         lower: mean - stdMult * std,
-        bwPct: (std * 2 * stdMult / mean) * 100, // Bandwidth %
+        bwPct: (std * 2 * stdMult / mean) * 100,
     };
 };
 
@@ -340,6 +423,17 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
     const atr    = calcATR(candles, 14);
     const boll   = calcBollinger(closes, 20);
     const volSurge = calcVolumeSurge(volumes);
+    const { macd, signal: macdSignal, hist } = calcMACD(closes);
+
+    // ── REGIME FILTER: thị trường đang nén/sideways → không vào lệnh ──
+    if (boll && boll.bwPct < 2.5) {
+        return {
+            direction: 'NEUTRAL',
+            score: 0,
+            breakdown: { regimeFilter: 'SIDEWAYS', bwPct: boll.bwPct },
+            atr: atr ? Math.round(atr * 100) / 100 : null,
+        };
+    }
 
     const latest = candles[candles.length - 1];
     const candleBias = latest.close > latest.open ? 'LONG' : latest.close < latest.open ? 'SHORT' : 'NEUTRAL';
@@ -381,6 +475,18 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
         rsiShort = 78;
     }
 
+    let macdLong = 50;
+    let macdShort = 50;
+    if (hist !== null) {
+        if (hist > 0 && macd > macdSignal) {
+            macdLong = 80;
+            macdShort = 20;
+        } else if (hist < 0 && macd < macdSignal) {
+            macdLong = 20;
+            macdShort = 80;
+        }
+    }
+
     let bollLong = 50;
     let bollShort = 50;
     if (boll && boll.upper > boll.lower) {
@@ -405,8 +511,15 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
     else if (volSurge >= 1.5) volumeConfirm = 72;
     else if (volSurge >= 1.0) volumeConfirm = 55;
 
-    const volumeLong = candleBias === 'LONG' ? volumeConfirm : Math.max(25, 100 - volumeConfirm);
-    const volumeShort = candleBias === 'SHORT' ? volumeConfirm : Math.max(25, 100 - volumeConfirm);
+    const isAccumulation = candleBias === 'LONG'  && volSurge >= 1.5;
+    const isDistribution = candleBias === 'SHORT' && volSurge >= 1.5;
+
+    const volumeLong  = isAccumulation ? volumeConfirm
+                      : isDistribution ? Math.max(20, 100 - volumeConfirm)
+                      : (candleBias === 'LONG' ? volumeConfirm : Math.max(25, 100 - volumeConfirm));
+    const volumeShort = isDistribution ? volumeConfirm
+                      : isAccumulation ? Math.max(20, 100 - volumeConfirm)
+                      : (candleBias === 'SHORT' ? volumeConfirm : Math.max(25, 100 - volumeConfirm));
 
     const marketLong = Math.max(0, Math.min(100,
         breadthRatio + (statusType === 'bullish' ? 15 : statusType === 'bearish' ? -20 : statusType === 'warning' ? -10 : 0)
@@ -415,19 +528,34 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
         (100 - breadthRatio) + (statusType === 'bearish' ? 15 : statusType === 'bullish' ? -20 : statusType === 'warning' ? 5 : 0)
     ));
 
+    let trendWeight = 0.25;
+    let rsiWeight = 0.14;
+    let macdWeight = 0.15;
+    
+    if (statusType === 'bearish') {
+        rsiWeight = 0.20;
+        trendWeight = 0.20;
+    } else if (statusType === 'bullish') {
+        trendWeight = 0.30;
+        rsiWeight = 0.10;
+    }
+    const marketWeight = 1 - trendWeight - macdWeight - rsiWeight - 0.14 - 0.15;
+
     const longScore =
-        trendLong    * 0.34 +
-        rsiLong      * 0.14 +
+        trendLong    * trendWeight +
+        macdLong     * macdWeight +
+        rsiLong      * rsiWeight +
         bollLong     * 0.14 +
-        volumeLong   * 0.20 +
-        marketLong   * 0.18;
+        volumeLong   * 0.15 +
+        marketLong   * marketWeight;
 
     const shortScore =
-        trendShort   * 0.34 +
-        rsiShort     * 0.14 +
+        trendShort   * trendWeight +
+        macdShort    * macdWeight +
+        rsiShort     * rsiWeight +
         bollShort    * 0.14 +
-        volumeShort  * 0.20 +
-        marketShort  * 0.18;
+        volumeShort  * 0.15 +
+        marketShort  * marketWeight;
 
     const roundedLong = Math.round(longScore);
     const roundedShort = Math.round(shortScore);
@@ -447,6 +575,8 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
         trendShort: Math.round(trendShort),
         rsiLong: Math.round(rsiLong),
         rsiShort: Math.round(rsiShort),
+        macdLong: Math.round(macdLong),
+        macdShort: Math.round(macdShort),
         bollLong: Math.round(bollLong),
         bollShort: Math.round(bollShort),
         volumeLong: Math.round(volumeLong),
@@ -507,8 +637,28 @@ const getTradeRewardRiskPct = (entryPrice, takeProfitPrice, stopLossPrice, direc
 const buildTradePlanFromSignal = (asset, techSignal, quote) => {
     const entryPrice = Math.round(Number(quote.price) * 100) / 100;
     const atr = techSignal.atr || entryPrice * 0.02;
-    const atrMultiplierTP = asset === 'CRYPTO' ? 4.0 : (asset === 'DERIVATIVES' ? 3.0 : 2.5);
-    const atrMultiplierSL = asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.5 : 1.5);
+    
+    const volPct = (atr / entryPrice) * 100;
+    let adaptiveScale = 1.0;
+    if (volPct > 5) adaptiveScale = 1.3; 
+    else if (volPct < 1.5) adaptiveScale = 0.8; 
+    
+    let atrMultiplierTP = (asset === 'CRYPTO' ? 4.0 : (asset === 'DERIVATIVES' ? 3.0 : 2.5)) * adaptiveScale;
+    let atrMultiplierSL = (asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.5 : 1.5)) * adaptiveScale;
+
+    // --- GIỚI HẠN RỦI RO TỐI ĐA BẢO VỆ TÀI KHOẢN ---
+    const maxRiskPct = asset === 'CRYPTO' ? 0.04 : (asset === 'DERIVATIVES' ? 0.02 : 0.06);
+    const riskFromAtr = (atr * atrMultiplierSL) / entryPrice;
+    if (riskFromAtr > maxRiskPct) {
+        atrMultiplierSL = (entryPrice * maxRiskPct) / atr;
+        atrMultiplierTP = Math.max(atrMultiplierTP, atrMultiplierSL * 1.5);
+    }
+
+    const finalSlDistancePct = (atr * atrMultiplierSL) / entryPrice;
+    if (finalSlDistancePct > maxRiskPct * 1.1) {
+        return null;
+    }
+
     const isLong = techSignal.direction === 'LONG' || techSignal.direction === 'MUA';
 
     const takeProfitPrice = isLong
@@ -662,7 +812,7 @@ const isUserOrderCompatibleWithTrade = (userOrder, tradePlan) => {
         tradePlan.direction
     );
 
-    if (rewardPct < Number(userOrder.targetPct) * 0.5) {
+    if (rewardPct < Number(userOrder.targetPct) * 0.8) {
         return {
             compatible: false,
             reason: `TP thực tế ${rewardPct}% quá thấp so với mục tiêu user ${userOrder.targetPct}%.`,
@@ -711,6 +861,19 @@ const compactContextForPrompt = (context = {}) => {
 
 const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc, executionContext = {}) => {
     try {
+        let lessonContext = 'Không có lịch sử giao dịch trước đó cho mã này.';
+        try {
+            const recentLessons = await AiBehavior.find({ symbol: signal.symbol, assetType: asset })
+                .sort({ createdAt: -1 })
+                .limit(3)
+                .lean();
+            if (recentLessons.length > 0) {
+                lessonContext = recentLessons
+                    .map((l, i) => `[${i + 1}] PnL: ${l.actualPnl >= 0 ? '+' : ''}${l.actualPnl}% | ${l.lesson}`)
+                    .join('\n');
+            }
+        } catch (_) {}
+
         const prompt = `Bạn là chuyên gia phân tích kỹ thuật của hệ thống OMNI DUCK.
 Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệnh sắp vào:
 
@@ -725,7 +888,7 @@ Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệ
 - EMA9/21/50: ${signal.ema9?.toFixed(2) || 'N/A'} / ${signal.ema21?.toFixed(2) || 'N/A'} / ${signal.ema50?.toFixed(2) || 'N/A'}
 - ATR: ${signal.atr}
 
-Nếu tín hiệu kỹ thuật đủ tốt để lướt sóng ngắn hạn, hãy thiên về XÁC NHẬN.
+Hãy đánh giá KHÁCH QUAN. Nếu có rủi ro tiềm ẩn, điểm yếu kỹ thuật, hoặc bối cảnh thị trường bất lợi — hãy BÁC BỎ.
 [TRẠNG THÁI VĨ MÔ]
 - Tình trạng thị trường: ${marketStatus}
 - Chẩn đoán: ${diagnosticDesc}
@@ -743,6 +906,9 @@ ${compactContextForPrompt(executionContext)}
 - Volume Long/Short: ${signal.breakdown.volumeLong}/${signal.breakdown.volumeShort}
 - Market Long/Short: ${signal.breakdown.marketLong}/${signal.breakdown.marketShort}
 
+[LỊCH SỬ GIAO DỊCH GẦN NHẤT (${signal.symbol})]
+${lessonContext}
+
 Hãy phân tích xác nhận hoặc bác bỏ tín hiệu này trong 2-3 câu ngắn gọn, rõ ràng bằng tiếng Việt. Kết thúc bằng: "XÁC NHẬN" hoặc "BÁC BỎ".`;
 
         const response = await generateWithRole('derivatives', prompt, {
@@ -754,7 +920,6 @@ Hãy phân tích xác nhận hoặc bác bỏ tín hiệu này trong 2-3 câu ng
         return { confirmed, reason: response.trim() };
 
     } catch (err) {
-        // Nếu AI không phản hồi, mặc định tin tín hiệu kỹ thuật nếu score cao
         console.log(chalk.yellow(`[AI CONFIRM] Không gọi được AI, fallback theo score kỹ thuật: ${err.message}`));
         return {
             confirmed: signal.score >= 70,
@@ -776,8 +941,24 @@ const checkExitConditions = async (trade, marketContext = {}) => {
 
         let shouldClose = false;
         let exitReason  = '';
+        let trailingUpdated = false;
 
         if (isLong) {
+            const reward = trade.takeProfitPrice - trade.entryPrice;
+            if (reward > 0) {
+                const activationPrice = trade.entryPrice + reward * 0.4;
+                if (currentPrice >= activationPrice) {
+                    let newSL = trade.entryPrice + reward * 0.05; 
+                    if (currentPrice >= trade.entryPrice + reward * 0.7) {
+                        newSL = trade.entryPrice + reward * 0.4;
+                    }
+                    if (newSL > trade.stopLossPrice) {
+                        trade.stopLossPrice = Math.round(newSL * 100) / 100;
+                        trailingUpdated = true;
+                    }
+                }
+            }
+
             if (currentPrice >= trade.takeProfitPrice) {
                 shouldClose = true;
                 exitReason  = `TP HIT: Giá ${currentPrice} chạm mục tiêu ${trade.takeProfitPrice}`;
@@ -786,6 +967,21 @@ const checkExitConditions = async (trade, marketContext = {}) => {
                 exitReason  = `SL HIT: Giá ${currentPrice} phá đáy cắt lỗ ${trade.stopLossPrice}`;
             }
         } else if (isShort) {
+            const reward = trade.entryPrice - trade.takeProfitPrice;
+            if (reward > 0) {
+                const activationPrice = trade.entryPrice - reward * 0.4; 
+                if (currentPrice <= activationPrice) {
+                    let newSL = trade.entryPrice - reward * 0.05;
+                    if (currentPrice <= trade.entryPrice - reward * 0.7) {
+                        newSL = trade.entryPrice - reward * 0.4;
+                    }
+                    if (newSL < trade.stopLossPrice) {
+                        trade.stopLossPrice = Math.round(newSL * 100) / 100;
+                        trailingUpdated = true;
+                    }
+                }
+            }
+
             if (currentPrice <= trade.takeProfitPrice) {
                 shouldClose = true;
                 exitReason  = `TP HIT (SHORT): Giá ${currentPrice} rơi đến mục tiêu ${trade.takeProfitPrice}`;
@@ -795,7 +991,6 @@ const checkExitConditions = async (trade, marketContext = {}) => {
             }
         }
 
-        // Time-based exit: CRYPTO giữ tối đa 8 tiếng, VN tối đa 2 phiên giao dịch
         const maxHoldMs = trade.assetType === 'CRYPTO' ? 8 * 3600_000 : 2 * 24 * 3600_000;
         const holdMs    = Date.now() - new Date(trade.openedAt).getTime();
         if (!shouldClose && holdMs > maxHoldMs) {
@@ -823,10 +1018,10 @@ const checkExitConditions = async (trade, marketContext = {}) => {
             }
         }
 
-        return { shouldClose, currentPrice, exitReason };
+        return { shouldClose, currentPrice, exitReason, trailingUpdated };
     } catch (err) {
         console.log(chalk.yellow(`[EXIT CHECK] Không fetch được giá realtime cho ${trade.symbol}: ${err.message}`));
-        return { shouldClose: false, currentPrice: null, exitReason: '' };
+        return { shouldClose: false, currentPrice: null, exitReason: '', trailingUpdated: false };
     }
 };
 
@@ -839,12 +1034,10 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
     const now = Date.now();
     const cooldownKey = `${asset}_${symbol}`;
     
-    // Chống spam: Mỗi mã chỉ báo động 1 lần trong 2 tiếng
     if (volatilityAlertCooldown.has(cooldownKey) && now < volatilityAlertCooldown.get(cooldownKey)) {
         return; 
     }
 
-    // So sánh nến hiện tại và nến cách đây 4 cây (Tương đương 1 tiếng nếu dùng nến 15m)
     const currentCandle = candles[candles.length - 1];
     const oldCandle = candles[candles.length - 5];
     const priceDiff = currentCandle.close - oldCandle.close;
@@ -921,34 +1114,45 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
         if (forcedAssetType) {
             targetAssets.push(forcedAssetType);
         } else {
-            targetAssets.push('CRYPTO'); // Crypto luôn active 24/7
-            if (isVNMarketOpen()) {
-                if (!isATOPeriod() && !isATCPeriod()) {
-                    targetAssets.push('VN_STOCK');
-                    targetAssets.push('DERIVATIVES');
-                } else {
-                    console.log(chalk.yellow('[AUTODUCK] ATO/ATC period — bỏ qua VN_STOCK & DERIVATIVES để tránh slippage.'));
-                }
-            } else {
-                console.log(chalk.yellow('[AUTODUCK] VN Market đóng cửa — chỉ quét CRYPTO.'));
+            targetAssets.push('CRYPTO'); 
+            
+            // Quét cả trong phiên, ATO/ATC và Pre-Market. Sẽ cấp cờ PENDING nếu chưa vào phiên chuẩn
+            if (isVNMarketOpen() || isPreMarket() || isATOPeriod() || isATCPeriod()) {
+                targetAssets.push('VN_STOCK');
+                targetAssets.push('DERIVATIVES');
             }
         }
+
+        const isOutOfStandardHours = !isVNMarketOpen() || isATOPeriod() || isATCPeriod();
+
+        // ── Lấy cấu hình vốn để kiểm soát giải ngân ──
+        let totalCapitalSetting = await Setting.findOne({ key: 'autoTradeTotalCapital' });
+        if (!totalCapitalSetting) {
+            totalCapitalSetting = new Setting({ key: 'autoTradeTotalCapital', value: 5_000_000_000 });
+            await totalCapitalSetting.save();
+        }
+        const TOTAL_CAPITAL = Number(totalCapitalSetting.value) || 5_000_000_000;
+        
+        // ── Đếm lệnh bằng DB query trực tiếp (atomic, tránh race condition) ──
+        const MAX_CONCURRENT_TRADES = 5;
+        const openTradesList = await AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } });
+        let currentAllocatedCapital = openTradesList.reduce((sum, t) => sum + (Number(t.investedAmount) || 0), 0);
+        let currentOpenCount = openTradesList.length;
 
         // ── 3. Quét từng phân khúc ──
         for (const asset of targetAssets) {
             console.log(chalk.cyan(`\n[AUTODUCK] ═══ Quét phân khúc: ${asset} ═══`));
 
-            // Chọn danh sách symbol cần scan
+            const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, aiRejected: 0, matched: 0 };
             let symbolsToScan = [];
 
             if (asset === 'VN_STOCK') {
                 const baseUniverse = await buildVnStockScanUniverse(vnMarketContext, 15);
-                // Gộp thêm các mã cổ phiếu vừa được user tra cứu gần đây nhất
                 const recentStocks = await Stock.find({ 'reports.0': { $exists: true } })
                     .sort({ 'reports.timestamp': -1 })
                     .limit(10).select('symbol').lean();
                 const recentSymbols = recentStocks.map(s => s.symbol);
-                symbolsToScan = [...new Set([...baseUniverse, ...recentSymbols])]; // Merge không trùng
+                symbolsToScan = [...new Set([...baseUniverse, ...recentSymbols])];
                 console.log(chalk.gray(
                     `[AUTODUCK] VN universe ${symbolsToScan.length} mã | Gainers: ${topGainersFromMarket.slice(0, 5).map(s => s.symbol).join(', ') || 'N/A'} | Volume: ${topVolumeFromMarket.slice(0, 5).map(s => s.symbol).join(', ') || 'N/A'} | Sector: ${strongSectorsFromMarket.map(s => s.name).join(', ') || 'N/A'}`
                 ));
@@ -957,30 +1161,24 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                 symbolsToScan = ['VN30F1M'];
 
             } else if (asset === 'CRYPTO') {
-                // Quét 200 Crypto chia thành các chunk, tính điểm preScore và lọc ra 15 mã bùng nổ nhất lúc này
-                const baseUniverse = await buildCryptoScanUniverse(15);
+                const baseUniverse = await buildCryptoScanUniverse(50);
                 symbolsToScan = baseUniverse;
-                console.log(chalk.gray(`[AUTODUCK] CRYPTO universe ${symbolsToScan.length} mã: ${symbolsToScan.join(', ')}`));
             }
 
             // ── 4. Phân tích từng symbol ──
             for (const symbol of symbolsToScan) {
                 try {
-                    console.log(chalk.gray(`  [SCAN] ${symbol}...`));
+                    stats.scanned++;
 
-                    // Fetch OHLCV intraday/historical để tính indicators
                     let candles;
                     try {
                         candles = await fetchAnalysisCandles(symbol, asset);
                     } catch (fetchErr) {
-                        console.log(chalk.yellow(`  [SCAN] Không fetch được OHLCV ${symbol}: ${fetchErr.message}`));
                         continue;
                     }
 
-                    // Cảnh báo biến động mạnh realtime lên Telegram
                     await checkVolatilityAndAlert(symbol, asset, candles);
 
-                    // Phân tích kỹ thuật thực
                     const [baseExecutionContext, newsContext] = await Promise.all([
                         getExecutionContextForAsset(asset, symbol),
                         getNewsContextForAsset(asset, symbol),
@@ -993,28 +1191,40 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                     techSignal = applyExecutionContextBias(techSignal, asset, executionContext);
                     techSignal.symbol = symbol;
 
-                    console.log(chalk.gray(
-                        `  → Score: ${techSignal.score}/100 | Dir: ${techSignal.direction} | RSI: ${techSignal.rsi} | VolSurge: ${techSignal.volumeSurge}x | ATR: ${techSignal.atr}`
-                    ));
-
-                    // Bỏ qua nếu tín hiệu NEUTRAL hoặc điểm thấp
                     if (techSignal.direction === 'NEUTRAL' || techSignal.score < ENTRY_SCORE_THRESHOLD) {
-                        console.log(chalk.gray(`  [SKIP] ${symbol} — điểm ${techSignal.score} hoặc hướng NEUTRAL.`));
+                        stats.skipScore++;
+                        continue;
+                    }
+
+                    if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
+                        stats.skipLimit++;
                         continue;
                     }
 
                     if (asset === 'VN_STOCK' && techSignal.direction === 'SHORT') {
-                        console.log(chalk.gray(`  [SKIP] ${symbol} — tín hiệu SHORT nhưng VN_STOCK cơ sở không hỗ trợ bán khống trong engine hiện tại.`));
+                        stats.skipScore++;
                         continue;
                     }
 
                     const quote = await fetchRealtimeQuote(symbol, asset);
                     const tradePlan = buildTradePlanFromSignal(asset, techSignal, quote);
 
-                    // Kiểm tra xem đã có lệnh OPEN cho symbol này chưa (tránh duplicate)
-                    const existingOpen = await AutoTrade.findOne({ symbol, assetType: asset, status: 'OPEN' });
+                    if (!tradePlan) {
+                        stats.skipRisk++;
+                        continue;
+                    }
+
+                    const existingOpen = await AutoTrade.findOne({ 
+                        symbol, 
+                        assetType: asset, 
+                        status: { $in: ['OPEN', 'PENDING'] } 
+                    });
                     if (existingOpen) {
-                        console.log(chalk.gray(`  [SKIP] ${symbol} — đã có lệnh OPEN, bỏ qua.`));
+                        continue;
+                    }
+
+                    if (techSignal.volumeSurge < 1.5) {
+                        stats.skipScore++;
                         continue;
                     }
 
@@ -1038,9 +1248,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         breakdown: techSignal.breakdown,
                     });
 
-                    if (!aiConfirm.confirmed && techSignal.score < 70) {
-                        // AI bác bỏ + score không đủ cao → bỏ qua
-                        console.log(chalk.gray(`  [SKIP] ${symbol} — AI bác bỏ + score < 70.`));
+                    if (!aiConfirm.confirmed && techSignal.score < AI_OVERRIDE_SCORE_THRESHOLD) {
+                        stats.aiRejected++;
                         continue;
                     }
 
@@ -1052,8 +1261,67 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         stopLossPrice,
                     } = tradePlan;
 
-                const volume = asset === 'CRYPTO' ? 0.05 : (asset === 'DERIVATIVES' ? 5 : 2000);
-                    const investedAmount = entryPrice * volume;
+                    // ── AI PHÂN BỔ VỐN THÔNG MINH (Tổng quỹ 5 TỶ VNĐ) ──
+                    let availableCapital = TOTAL_CAPITAL - currentAllocatedCapital;
+                    if (availableCapital <= 0) {
+                        stats.skipLimit++;
+                        continue;
+                    }
+
+                    let allocationPct = 0.05;
+                    if (techSignal.score >= 85) allocationPct = 0.20;
+                    else if (techSignal.score >= 78) allocationPct = 0.15;
+                    else if (techSignal.score >= 74) allocationPct = 0.10;
+
+                    let idealInvestedAmount = TOTAL_CAPITAL * allocationPct;
+                    
+                    let maxVolumeByRisk = Infinity;
+                    const riskUnit = Math.abs(entryPrice - stopLossPrice);
+                    const currentUsdRate = await getUsdVndRate();
+                    if (riskUnit > 0) {
+                        const riskAmountUSD = asset === 'CRYPTO' ? (TOTAL_CAPITAL * 0.02) / currentUsdRate : 0;
+                        const riskAmountVND = TOTAL_CAPITAL * 0.02;
+                        maxVolumeByRisk = asset === 'CRYPTO' ? riskAmountUSD / riskUnit : riskAmountVND / riskUnit;
+                    }
+
+                    let investedAmount = Math.min(idealInvestedAmount, availableCapital);
+                    let volume = 0;
+
+                    if (asset === 'CRYPTO') {
+                        const investedUSD = investedAmount / currentUsdRate;
+                        volume = Math.min(parseFloat((investedUSD / entryPrice).toFixed(4)), maxVolumeByRisk);
+                        if (investedUSD < 10) {
+                            stats.skipRisk++;
+                            continue;
+                        }
+                    } else if (asset === 'DERIVATIVES') {
+                        volume = Math.max(0, Math.floor(Math.min(investedAmount / 25_000_000, maxVolumeByRisk)));
+                        if (volume < 1) {
+                            stats.skipRisk++;
+                            continue;
+                        }
+                    } else {
+                        volume = Math.floor(Math.min(investedAmount / entryPrice, maxVolumeByRisk));
+                        volume = Math.floor(volume / 100) * 100;
+                        if (volume < 100) {
+                            stats.skipRisk++;
+                            continue;
+                        }
+                    }
+
+                    investedAmount = asset === 'CRYPTO' ? volume * entryPrice * currentUsdRate : volume * entryPrice;
+                    
+                    currentAllocatedCapital += investedAmount;
+                    currentOpenCount++;
+
+                    const tradeStatus = (isOutOfStandardHours && asset !== 'CRYPTO') ? 'PENDING' : 'OPEN';
+
+                    // ── ATOMIC COUNT CHECK: đếm lại từ DB ngay trước khi lưu, tránh race condition ──
+                    const liveOpenCount = await AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } });
+                    if (liveOpenCount >= MAX_CONCURRENT_TRADES) {
+                        stats.skipLimit++;
+                        continue;
+                    }
 
                     // ── 7. Lưu lệnh vào DB ──
                     const newTrade = new AutoTrade({
@@ -1069,7 +1337,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         confidence: techSignal.score,
                         reason: aiConfirm.reason,
                         aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; longScore=${techSignal.breakdown.longScore}; shortScore=${techSignal.breakdown.shortScore}; edge=${techSignal.breakdown.edge}; news=${newsContext.summary}`,
-                        status: 'OPEN',
+                        status: tradeStatus,
                         marketCondition: marketStatus,
                         signalBreakdown: techSignal.breakdown,
                         executionMeta: {
@@ -1085,13 +1353,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         aiConfirm,
                         quote,
                         executionContext,
-                        tradePlan // Truyền thêm tradePlan để lấy reward/risk đã tính
+                        tradePlan
                     );
                     await sendTelegramMessage(telegramOpenMessage).catch(() => {});
 
                     console.log(chalk.green.bold(
-                        `  [LỆNH MỚI] ${directionLabel} ${symbol} @ ${entryPrice} | TP: ${takeProfitPrice} | SL: ${stopLossPrice} | Score: ${techSignal.score}`
+                        `  [LỆNH ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | Vốn: ${(investedAmount/1e6).toFixed(1)}Tr | Score: ${techSignal.score}`
                     ));
+                    stats.matched++;
 
                     // ── 8. Khớp user orders đang PENDING ──
                     const pendingUserOrders = await UserOrder.find({
@@ -1132,6 +1401,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                     continue;
                 }
             }
+            
+            if (stats.scanned > 0) {
+                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua (Điểm yếu: ${stats.skipScore}, Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit}, AI hủy: ${stats.aiRejected}) | Đã vào: ${stats.matched} lệnh.`));
+            }
         }
 
         for (const asset of Object.keys(radarCandidates)) {
@@ -1152,6 +1425,16 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             })).catch(() => {});
         }
 
+        // ── Kích hoạt Lệnh Chờ khi vào Phiên Chuẩn ──
+        if (!isOutOfStandardHours) {
+            const pendingTrades = await AutoTrade.find({ status: 'PENDING', assetType: { $ne: 'CRYPTO' } });
+            for (const pt of pendingTrades) {
+                pt.status = 'OPEN';
+                await pt.save();
+                console.log(chalk.bgGreen.white(`[AUTODUCK] 🟢 Lệnh chờ ${pt.symbol} đã ACTIVE do thị trường mở cửa.`));
+            }
+        }
+
         // ── 9. Vòng đóng lệnh theo SL/TP realtime ──
         await runExitAndLearningPipeline(marketStatus, { breadthRatio, statusType });
 
@@ -1167,38 +1450,50 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 // ============================================================
 
 async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {}) {
-    const openTrades = await AutoTrade.find({ status: 'OPEN' });
+    const openTrades = await AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } });
     if (openTrades.length === 0) return;
 
-    console.log(chalk.gray(`\n[EXIT PIPELINE] Kiểm tra ${openTrades.length} lệnh đang mở...`));
+    console.log(chalk.gray(`\n[EXIT PIPELINE] Kiểm tra ${openTrades.length} lệnh đang mở/chờ...`));
 
     for (const trade of openTrades) {
         try {
-            const { shouldClose, currentPrice, exitReason } = await checkExitConditions(trade, marketContext);
+            const { shouldClose, currentPrice, exitReason, trailingUpdated } = await checkExitConditions(trade, marketContext);
+
+            if (trailingUpdated && !shouldClose) {
+                await trade.save();
+                console.log(chalk.cyan(`  [TRAIL] ${trade.symbol} dời SL tự động đến ${trade.stopLossPrice}`));
+            }
 
             if (!shouldClose) {
-                if (currentPrice) {
-                    const pctFromEntry = ((currentPrice - trade.entryPrice) / trade.entryPrice * 100).toFixed(2);
-                    const isLong       = trade.direction === 'LONG' || trade.direction === 'MUA';
-                    const floatingPnl  = isLong ? pctFromEntry : (-pctFromEntry).toFixed(2);
-                    console.log(chalk.gray(
-                        `  [HOLD] ${trade.symbol} | Giá TT: ${currentPrice} | Float PnL: ${floatingPnl > 0 ? '+' : ''}${floatingPnl}% | TP: ${trade.takeProfitPrice} | SL: ${trade.stopLossPrice}`
-                    ));
-                }
                 continue;
             }
 
-            // Tính PnL thực tế
             const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
             const priceDiff = isLong
                 ? (currentPrice - trade.entryPrice)
                 : (trade.entryPrice - currentPrice);
 
+            if (!Number.isFinite(currentPrice) || !Number.isFinite(trade.entryPrice) || trade.entryPrice === 0 || !Number.isFinite(trade.volume)) {
+                console.log(chalk.red(`  [LỖI PNL] Không thể tính PnL cho ${trade.symbol} (${trade._id}). Giá hiện tại: ${currentPrice}, Giá vào: ${trade.entryPrice}, Khối lượng: ${trade.volume}. Đặt PnL về 0.`));
+                trade.exitPrice = currentPrice;
+                trade.status = 'CLOSED';
+                trade.closedAt = new Date();
+                trade.pnlPercent = 0;
+                trade.pnl = 0;
+                await trade.save();
+                continue;
+            }
+
             trade.exitPrice  = currentPrice;
             trade.status     = 'CLOSED';
             trade.closedAt   = new Date();
             trade.pnlPercent = Math.round((priceDiff / trade.entryPrice) * 100 * 100) / 100;
-            trade.pnl        = Math.round(trade.volume * trade.entryPrice * (priceDiff / trade.entryPrice));
+            
+            const currentUsdRate = await getUsdVndRate();
+            let rawPnlValue = trade.volume * priceDiff;
+            if (trade.assetType === 'CRYPTO') rawPnlValue *= currentUsdRate;
+            trade.pnl       = Math.round(rawPnlValue);
+            
             await trade.save();
 
             await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
@@ -1208,7 +1503,6 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                 `[ĐÓNG LỆNH] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason}`
             ));
 
-            // Cập nhật user orders liên kết
             const boundUserOrders = await UserOrder.find({ assignedTrade: trade._id, status: 'MATCHED' });
             for (const uOrder of boundUserOrders) {
                 uOrder.status          = 'COMPLETED';
@@ -1217,7 +1511,6 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                 await uOrder.save();
             }
 
-            // AI Reflection Learning
             try {
                 const reflectivePrompt = `Bạn là Giám đốc Nghiên cứu AI của hệ thống OMNI DUCK.
 Phân tích giao dịch vừa kết thúc và rút ra bài học kinh nghiệm ngắn gọn (tối đa 3 câu).
@@ -1266,7 +1559,6 @@ export const sendDailyPnLReport = async () => {
         const vnDateStr = new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"});
         const vnDateObj = new Date(vnDateStr);
         
-        // Tính giới hạn đầu ngày và cuối ngày dựa trên giờ Việt Nam
         const msSinceStartOfDayVN = vnDateObj.getHours() * 3600000 + vnDateObj.getMinutes() * 60000 + vnDateObj.getSeconds() * 1000 + vnDateObj.getMilliseconds();
         const startOfDayUTC = new Date(nowTs - msSinceStartOfDayVN);
         const endOfDayUTC = new Date(nowTs - msSinceStartOfDayVN + 86400000 - 1);
@@ -1313,22 +1605,18 @@ export const startAutoDuckScheduler = () => {
         }
     };
 
-    // Chạy ngay lần đầu
     runScheduledPipeline('ALL');
 
-    // Crypto: mỗi 15 phút (24/7)
     setInterval(async () => {
         await runScheduledPipeline('CRYPTO', 'CRYPTO');
     }, 15 * 60 * 1000);
 
-    // VN_STOCK + DERIVATIVES: mỗi 30 phút (chỉ giờ giao dịch)
     setInterval(async () => {
-        if (isVNMarketOpen()) {
+        if (isVNMarketOpen() || isPreMarket() || isATOPeriod() || isATCPeriod()) {
             await runScheduledPipeline('ALL');
         }
     }, 30 * 60 * 1000);
 
-    // Báo cáo PnL hàng ngày lúc 15:05 (Sau khi đóng cửa thị trường phái sinh)
     let dailyReportSentForDay = -1;
     setInterval(async () => {
         const nowInVN = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
@@ -1344,11 +1632,7 @@ export const startAutoDuckScheduler = () => {
         }
     }, 5 * 60 * 1000);
 };
-
-/**
- * Export thêm để autoTrade.controller.js dùng
- * (calculateSignalScore giữ nguyên interface cũ cho backward compat)
- */
+ 
 export const calculateSignalScore = (aiScore, sentimentType, breadthRatio, isVolumeConfirmed) => {
     let sentimentScore = 50;
     if (sentimentType === 'positive') sentimentScore = 90;
