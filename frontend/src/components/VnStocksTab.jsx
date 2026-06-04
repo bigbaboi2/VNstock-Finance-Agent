@@ -804,7 +804,7 @@ const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
       {/* Expandable Content (Chỉ hiển thị khi đang mở) */}
       {!isCollapsed && (
         <div className="p-5 animate-in slide-in-from-top-2 duration-300">
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {/* Entry */}
             <div className={`col-span-1 p-3 rounded-xl border flex flex-col ${isDark ? 'bg-black/20 border-white/8' : 'bg-white/60 border-black/8'}`}>
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Entry</p>
@@ -940,6 +940,7 @@ export default function VnStocksTab({
   debateResult,
   liveDebate = {},
 }) {
+  const [mobileTab, setMobileTab] = useState('ai');
   // STATES & REFS
   const [isNewsOpen, setIsNewsOpen] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(3);
@@ -1164,11 +1165,19 @@ export default function VnStocksTab({
   // RENDER
   // ─────────────────────────────────────────────────────────────────
   return (
-    <>
+    <div className="flex flex-col w-full h-full overflow-hidden">
+      {/* MOBILE TABS */}
+      <div className={`lg:hidden flex w-full border-b shrink-0 ${isDark ? 'bg-[#080C11] border-white/10' : 'bg-slate-50 border-slate-200'} z-50`}>
+        <button onClick={() => setMobileTab('market')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'market' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Dữ liệu</button>
+        <button onClick={() => setMobileTab('ai')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'ai' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Omni AI</button>
+        <button onClick={() => setMobileTab('radar')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'radar' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Radar</button>
+      </div>
+
+      <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden relative">
       {/* ========================================================= */}
       {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
       {/* ========================================================= */}
-      <div className={`w-[500px] lg:w-[550px] border-r flex flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol}`}>
+      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol}`}>
           
         {/* Loading bar */}
         <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
@@ -1335,7 +1344,7 @@ export default function VnStocksTab({
                       </button>
 
                       {isPdfConfigOpen && (
-                        <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in fade-in duration-200">
                           {[
                             { key: 'turbo',    label: 'TURBO',    icon: '⚡', desc: '3 - 8s (Siêu tốc)',       pros: 'Trả kết quả tức thì',        cons: 'Dễ bỏ sót bảng biểu, lỗi chữ' },
                             { key: 'fast',     label: 'FAST',     icon: '🚀', desc: '20 - 40s (Nhanh)',         pros: 'Cân bằng thời gian tốt',     cons: 'Bảng phức tạp có thể lệch'    },
@@ -1380,7 +1389,7 @@ export default function VnStocksTab({
                       {isNewsConfigOpen && (
                         <div className="animate-in fade-in duration-200">
                           {/* Hàng trên: 2 mode chính */}
-                          <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                             {[
                               {
                                 key: 'fast',
@@ -1447,7 +1456,7 @@ export default function VnStocksTab({
                             })}
                           </div>
                           {/* Hàng dưới: 2 advanced modes*/}
-                           <div className="grid grid-cols-2 gap-2">
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {[
                               {
                                 key: 'deep',
@@ -2224,7 +2233,7 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 3: INDEX RADAR & TCBS PDF         */}
       {/* ========================================================= */}
-      <div className={`w-[350px] lg:w-[450px] flex flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10`}>
+      <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[350px] xl:w-[450px] flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10 lg:pb-0`}>
         <div className="h-1/2 flex flex-col border-b border-white/10">
           <div className="h-2/5 flex border-b border-white/10">
             <div className="flex-1 border-r border-white/10 p-3 flex flex-col">
@@ -2318,6 +2327,7 @@ export default function VnStocksTab({
            </div>
          </div>
       )}
+      </div>
       {/* AI Chat Panel */}
       <StockAiChat
         isOpen={isChatOpen}
@@ -2331,6 +2341,6 @@ export default function VnStocksTab({
         isDark={isDark}
         currentUser={currentUser}
       />
-    </>
+    </div>
   );
 }
