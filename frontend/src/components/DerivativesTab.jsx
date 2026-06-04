@@ -104,6 +104,7 @@ export default function DerivativesTab({
   currentUser,
   derivActionData, 
 }) {
+const [mobileTab, setMobileTab] = useState('ai');
     // USESTATE
 const [chartHeight, setChartHeight] = useState(500);
 const dragStartY = useRef(null);
@@ -130,9 +131,16 @@ const onChartDragStart = useCallback((e) => {
 }, [chartHeight]);
 
   return (
-    <>
+    <div className="flex flex-col w-full h-full overflow-hidden">
+      {/* MOBILE TABS */}
+      <div className={`lg:hidden flex w-full border-b shrink-0 ${isDark ? 'bg-[#080C11] border-white/10' : 'bg-slate-50 border-slate-200'} z-50`}>
+        <button onClick={() => setMobileTab('radar')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'radar' ? 'border-orange-500 text-orange-500 bg-orange-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Radar & Tin</button>
+        <button onClick={() => setMobileTab('ai')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'ai' ? 'border-orange-500 text-orange-500 bg-orange-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Omni AI</button>
+      </div>
+
+      <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden relative">
         {/* CỘT TRÁI PHÁI SINH: VN30 ENGINE , BASIS RADAR , NEWS*/}
-            <div className={`w-[450px] border-r flex flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol} animate-in fade-in slide-in-from-left-4`}>
+            <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[450px] border-r flex-col shrink-0 overflow-hidden relative h-full transition-colors duration-300 ${UI.leftCol} animate-in fade-in slide-in-from-left-4`}>
                 
                 {/*  1. HEADER CARD: GIÁ & BASIS */}
                     <div className={`p-6 border-b shadow-sm relative transition-colors duration-300 ${UI.card}`}>
@@ -349,7 +357,7 @@ const onChartDragStart = useCallback((e) => {
             </div>
 
         {/* CỘT PHẢI PHÁI SINH: EXECUTION FLOW */}
-        <div className={`flex-1 overflow-hidden flex flex-col p-8 pb-4 relative transition-colors duration-300 ${UI.rightCol} animate-in fade-in`}>            
+        <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 overflow-hidden flex-col p-4 lg:p-8 pb-4 relative transition-colors duration-300 ${UI.rightCol} animate-in fade-in`}>            
             {/* HEADER CHIẾN THUẬT */}
             <div className={`shrink-0 flex items-center justify-between mb-6 pb-4 border-b ${UI.border}`}>
                     <div className="flex items-center gap-3">
@@ -359,11 +367,11 @@ const onChartDragStart = useCallback((e) => {
             </div>
             {/* CHART AREA */}
             <div
-                className="shrink-0 grid grid-cols-4 gap-6 mb-4"
+                className="shrink-0 grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6 mb-4"
                 style={{ paddingBottom: '8px' }}
             >
                 {/* CHART */}
-                <div className={`col-span-3 rounded-[24px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark?'bg-black/40 border-orange-500/20':'bg-white border-orange-200'}`}
+                <div className={`lg:col-span-3 col-span-1 rounded-[24px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark?'bg-black/40 border-orange-500/20':'bg-white border-orange-200'}`}
                         style={{ height: chartHeight + 'px' }}
                     >
                         {derivChartData ? (
@@ -402,7 +410,7 @@ const onChartDragStart = useCallback((e) => {
 
                 {/* VOLUME PROFILE */}
                 <div
-                    className={`col-span-1 rounded-[24px] border shadow-sm p-4 flex flex-col relative ${isDark?'bg-black/20 border-white/5':'bg-white border-slate-200'}`}
+                    className={`lg:col-span-1 col-span-1 rounded-[24px] border shadow-sm p-4 flex flex-col relative ${isDark?'bg-black/20 border-white/5':'bg-white border-slate-200'}`}
                     style={{ height: chartHeight + 'px' }}
                 >
                     <div className="flex items-center justify-between mb-4">
@@ -446,11 +454,11 @@ const onChartDragStart = useCallback((e) => {
                 </div>
 
                 {/* MAIN GRID */}
-                <div className="flex-1 grid grid-cols-3 gap-6 min-h-0">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar">
                     {/* ============================================================
                         COL 1: ORDER FLOW & MACRO MATRIX  
                         ============================================================ */}
-                    <ScrollableColumn isDark={isDark} className="pr-2 pb-8 flex flex-col gap-4">
+                    <ScrollableColumn isDark={isDark} className="pr-2 pb-8 flex flex-col gap-4 min-h-[600px] lg:min-h-0">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-purple-400">
                                 <Database size={16} />
@@ -600,7 +608,7 @@ const onChartDragStart = useCallback((e) => {
                         {/* ============================================================
                         COL 2: AI SCALPING ASSISTANT
                         ============================================================ */}
-                        <ScrollableColumn isDark={isDark} className="pr-2 pb-8 flex flex-col gap-4">
+                        <ScrollableColumn isDark={isDark} className="pr-2 pb-8 flex flex-col gap-4 min-h-[500px] lg:min-h-0">
                         
                         {/* --- GIAO DIỆN AI ACTION PANEL  --- */}
                         {derivActionData ? (
@@ -714,8 +722,8 @@ const onChartDragStart = useCallback((e) => {
                 {/* ============================================================
                 /// COL 3: TECHNICAL CONFLUENCE & DYNAMICS
                 /// ============================================================ */}
-                <div className={`border-l pl-6 relative h-full flex flex-col min-h-0 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
-                    <ScrollableColumn isDark={isDark} className="pr-2 pb-8 space-y-5"> 
+                <div className={`lg:border-l lg:pl-6 relative h-full flex flex-col min-h-0 ${isDark ? 'border-white/10' : 'border-orange-200'}`}>
+                    <ScrollableColumn isDark={isDark} className="pr-2 pb-8 space-y-5 min-h-[600px] lg:min-h-0"> 
     
                         {/* ATR Visual */}
                         <div>
@@ -801,6 +809,7 @@ const onChartDragStart = useCallback((e) => {
                 </div>
             </div>  
         </div>
+      </div>
     </div> 
 
             <StockAiChat
@@ -812,6 +821,6 @@ const onChartDragStart = useCallback((e) => {
             isDark={isDark}
             currentUser={currentUser}
         />  
-    </>
+    </div>
   );
 }

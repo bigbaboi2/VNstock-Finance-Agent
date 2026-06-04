@@ -1,6 +1,7 @@
 import axios from 'axios';
 import chalk from 'chalk';
 import Stock from '../../models/Stock.js';
+import CryptoCoin from '../../models/CryptoCoin.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from './quantEngine.js';
 import { globalDerivCache } from '../jobs/derivUpdater.js';
@@ -291,6 +292,95 @@ export const buildVnStockScanUniverse = async (marketContext, limit = 18) => {
     const fallback = ['FPT', 'VCB', 'HPG', 'MBB', 'TCB', 'SSI', 'VHM', 'VIC', 'MWG', 'DGC', 'GAS', 'PVD'];
 
     return uniqSymbols([...fromTopLists, ...fromDb, ...fallback]).slice(0, limit);
+};
+
+// ============================================================
+// CRYPTO BATCH SCANNER & UNIVERSE
+// ============================================================
+const scoreCryptoCandidate = (symbol, candles) => {
+    if (!candles || candles.length < 8) return null;
+
+    const last = candles[candles.length - 1];
+    const prev = candles[candles.length - 2];
+    if (!last?.close || !prev?.close || !last.volume) return null;
+
+    const closes = candles.map(c => Number(c.close)).filter(Number.isFinite);
+    const volumes = candles.map(c => Number(c.volume || 0));
+    const avgVol20Base = volumes.slice(-21, -1);
+    const avgVol20 = avgVol20Base.length
+        ? avgVol20Base.reduce((sum, v) => sum + v, 0) / avgVol20Base.length
+        : last.volume;
+    
+    const changePct = ((last.close - prev.close) / prev.close) * 100;
+    const momentum5Base = candles.at(-6)?.close || prev.close;
+    const momentum5d = momentum5Base ? ((last.close - momentum5Base) / momentum5Base) * 100 : changePct;
+    const volSurge = avgVol20 > 0 ? last.volume / avgVol20 : 1;
+    const liquidityValue = last.close * last.volume;
+
+    // Điểm kỹ thuật sơ bộ (preScore) để lọc ra top ứng viên
+    const changeScore = Math.max(0, Math.min(100, 50 + changePct * 15));
+    const momentumScore = Math.max(0, Math.min(100, 50 + momentum5d * 10));
+    const volumeScore = Math.max(0, Math.min(100, 35 + volSurge * 22));
+    const liquidityScore = Math.max(0, Math.min(100, Math.log10(Math.max(1, liquidityValue)) * 8));
+
+    const preScore = Math.round(Math.max(0, Math.min(100,
+        changeScore * 0.3 + momentumScore * 0.3 + volumeScore * 0.3 + liquidityScore * 0.1
+    )));
+
+    return { symbol, preScore, changePct: Math.round(changePct * 100) / 100, volSurge: Math.round(volSurge * 100) / 100 };
+};
+
+const CRYPTO_BATCH_SCAN_CACHE_KEY = 'CRYPTO_BATCH_SCAN_RANKING';
+const CRYPTO_BATCH_SCAN_TTL = 15 * 60 * 1000; // Cache 15 phút
+
+export const runCryptoBatchSymbolScanner = async ({ forceRefresh = false, chunkSize = 15, topLimit = 20 } = {}) => {
+    if (!forceRefresh) {
+        const inMemory = getMemory(CRYPTO_BATCH_SCAN_CACHE_KEY);
+        if (inMemory && isFreshPayload(inMemory, CRYPTO_BATCH_SCAN_TTL)) return inMemory;
+        const dbCached = await getCachedData(CRYPTO_BATCH_SCAN_CACHE_KEY);
+        if (dbCached && isFreshPayload(dbCached, CRYPTO_BATCH_SCAN_TTL)) return setMemory(CRYPTO_BATCH_SCAN_CACHE_KEY, dbCached);
+    }
+
+    // Lấy top 200 coin có vốn hóa tốt nhất từ DB
+    const coinsDb = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI', 'TUSD', 'USDD'] } })
+        .sort({ marketCap: -1 }).limit(200).lean();
+
+    let symbols = uniqSymbols(coinsDb.map(c => c.symbol.toUpperCase() + 'USDT'));
+    const chunks = chunkArray(symbols, Math.max(5, Math.min(20, chunkSize)));
+    const ranked = [];
+
+    for (const chunk of chunks) {
+        const results = await Promise.all(chunk.map(async (symbol) => {
+            try {
+                const res = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=15m&limit=120`, { timeout: 8000 });
+                const candles = res.data.map(k => ({ time: k[0], open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) }));
+                return scoreCryptoCandidate(symbol, candles);
+            } catch (err) { return null; }
+        }));
+        ranked.push(...results.filter(Boolean));
+        await new Promise(r => setTimeout(r, 400)); // Nghỉ 400ms tránh bị Binance chặn Rate Limit
+    }
+
+    ranked.sort((a, b) => b.preScore - a.preScore);
+    const payload = { success: true, fetchedAt: new Date().toISOString(), top: ranked.slice(0, topLimit) };
+    setMemory(CRYPTO_BATCH_SCAN_CACHE_KEY, payload);
+    await saveToCache(CRYPTO_BATCH_SCAN_CACHE_KEY, payload);
+    return payload;
+};
+
+export const buildCryptoScanUniverse = async (limit = 15) => {
+    try {
+        const batchRanking = await runCryptoBatchSymbolScanner({ chunkSize: 15, topLimit: Math.max(limit, 20) });
+        const batchSymbols = uniqSymbols(batchRanking.top || []);
+        if (batchSymbols.length >= Math.min(8, limit)) return batchSymbols.slice(0, limit);
+    } catch (err) {
+        console.log(chalk.yellow(`[CRYPTO BATCH SCANNER] Fallback sang universe nhanh: ${err.message}`));
+    }
+    const dbCandidates = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI'] } })
+        .sort({ change24h: -1 }).limit(20).lean().catch(() => []);
+    const fromDb = uniqSymbols(dbCandidates.map(c => c.symbol + 'USDT'));
+    const fallback = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT'];
+    return uniqSymbols([...fromDb, ...fallback]).slice(0, limit);
 };
 
 export const getCryptoTradeContext = async (symbol = 'BTCUSDT') => {
