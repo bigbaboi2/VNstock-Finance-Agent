@@ -84,52 +84,53 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
     const takeProfitPrice = escapeMarkdownV2(formatNumber(trade.takeProfitPrice, 2));
     const stopLossPrice = escapeMarkdownV2(formatNumber(trade.stopLossPrice, 2));
     const score = escapeMarkdownV2(`${trade.aiScore}/100`);
-    const reason = escapeMarkdownV2(String(aiConfirm?.reason || trade.reason || '').slice(0, 700));
-    const priceSource = escapeMarkdownV2(String(quote?.source || 'N/A'));
-    const contextSource = escapeMarkdownV2(String(executionContext?.source || 'N/A'));
+    const reason = escapeMarkdownV2(String(aiConfirm?.reason || trade.reason || '').slice(0, 300) + '...');
 
-    // Sử dụng giá trị từ plan nếu có để chính xác tuyệt đối với Engine
     const rewardPct = plan?.rewardPct ?? null;
     const riskPct = plan?.riskPct ?? null;
 
+    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+    const dirIcon = isLong ? '📈' : '📉';
+    const assetIcon = trade.assetType === 'CRYPTO' ? '🪙' : trade.assetType === 'DERIVATIVES' ? '📊' : '🏢';
+
     return [
-        `🟢 *AUTO TRADE MỚI*`,
-        `Mã: *${symbol}*`,
-        `Hướng: *${direction}*`,
-        `Entry: *${entryPrice}*`,
-        `TP: *${takeProfitPrice}*`,
-        `SL: *${stopLossPrice}*`,
-        `AI Score: *${score}*`,
-        `Reward/Risk: *${escapeMarkdownV2(rewardPct != null ? `+${rewardPct.toFixed(2)}%` : '--')}* / *${escapeMarkdownV2(riskPct != null ? `-${riskPct.toFixed(2)}%` : '--')}*`,
-        `Nguồn giá: *${priceSource}*`,
-        `Context: *${contextSource}*`,
-        `Lý do: ${reason}`,
+        ` *LỆNH MỚI ${assetIcon}*`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `🎯 *Mã:* ${symbol} \\| ${dirIcon} *${direction}*`,
+        `📍 *Entry:* ${entryPrice}`,
+        `✅ *TP:* ${takeProfitPrice} \\(${escapeMarkdownV2(rewardPct != null ? `+${rewardPct.toFixed(2)}%` : '--')}\\)`,
+        `❌ *SL:* ${stopLossPrice} \\(${escapeMarkdownV2(riskPct != null ? `-${riskPct.toFixed(2)}%` : '--')}\\)`,
+        `🤖 *AI Score:* ${score}`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `📝 *Lý do:* ${reason}`
     ].join('\n');
 };
 
 const buildMarketRadarMessage = (radar = {}, meta = {}) => {
     const assetLabels = {
-        CRYPTO: 'Crypto',
-        VN_STOCK: 'Chứng khoán VN',
-        DERIVATIVES: 'Phái sinh VN30',
+        CRYPTO: 'Crypto 🪙',
+        VN_STOCK: 'Chứng khoán VN 🏢',
+        DERIVATIVES: 'Phái sinh VN30 📊',
     };
     const lines = [
         `📡 *AUTO TRADE RADAR*`,
-        `Thời điểm: *${escapeMarkdownV2(new Date(meta.generatedAt || Date.now()).toLocaleString('vi-VN'))}*`,
-        meta.marketStatus ? `Thị trường: *${escapeMarkdownV2(meta.marketStatus)}*` : null,
+        `🕒 *Thời điểm:* ${escapeMarkdownV2(new Date(meta.generatedAt || Date.now()).toLocaleString('vi-VN'))}`,
+        meta.marketStatus ? `🌐 *Thị trường:* ${escapeMarkdownV2(meta.marketStatus)}` : null,
     ].filter(Boolean);
 
     for (const asset of ['CRYPTO', 'VN_STOCK', 'DERIVATIVES']) {
         const items = Array.isArray(radar[asset]) ? radar[asset].slice(0, 3) : [];
-        lines.push('');
-        lines.push(`*${escapeMarkdownV2(assetLabels[asset] || asset)}*`);
-
         if (items.length === 0) {
-            lines.push(escapeMarkdownV2('Chưa có mã đủ điều kiện vào lệnh hiện tại.'));
             continue;
         }
 
+        lines.push(``);
+        lines.push(`🔥 *${escapeMarkdownV2(assetLabels[asset] || asset)}*`);
+        lines.push(`\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
+
         items.forEach((item, index) => {
+            const isLong = item.direction === 'LONG' || item.direction === 'MUA';
+            const dirIcon = isLong ? '📈' : item.direction === 'SHORT' || item.direction === 'BÁN' ? '📉' : '⏳';
             const direction = escapeMarkdownV2(item.direction || 'WAIT');
             const symbol = escapeMarkdownV2(item.symbol || 'N/A');
             const score = escapeMarkdownV2(`${item.score ?? '--'}/100`);
@@ -138,15 +139,14 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
             const sl = escapeMarkdownV2(formatNumber(item.stopLossPrice, asset === 'CRYPTO' ? 4 : 2));
             const reward = escapeMarkdownV2(formatPct(item.rewardPct, 2));
             const risk = escapeMarkdownV2(formatPct(-Math.abs(Number(item.riskPct) || 0), 2));
-            const ai = item.aiConfirmed === true ? 'AI xác nhận' : item.aiConfirmed === false ? 'AI chưa xác nhận' : 'Chờ AI';
-            const news = item.news?.summary || 'Tin tức trung tính hoặc chưa có tin mới';
+            const ai = item.aiConfirmed === true ? '✅ AI duyệt' : item.aiConfirmed === false ? '❌ AI hủy' : '⏳ Chờ AI';
             const reason = item.reason || item.news?.topTitle || '';
 
-            lines.push(`${index + 1}\\. *${symbol}* \\| *${direction}* \\| Score *${score}*`);
-            lines.push(`Entry *${entry}* \\| TP *${tp}* \\| SL *${sl}*`);
-            lines.push(`Kỳ vọng *${reward}* \\| Rủi ro *${risk}* \\| ${escapeMarkdownV2(ai)}`);
-            lines.push(`News: ${escapeMarkdownV2(String(news).slice(0, 180))}`);
-            if (reason) lines.push(`Lý do: ${escapeMarkdownV2(String(reason).slice(0, 220))}`);
+            lines.push(`*${index + 1}\\. ${symbol}* \\| ${dirIcon} *${direction}* \\| 🤖 *${score}*`);
+            lines.push(`📍 *E:* ${entry} \\| ✅ *TP:* ${tp} \\| ❌ *SL:* ${sl}`);
+            lines.push(`⚖️ *R:R:* ${reward} / ${risk} \\| ${escapeMarkdownV2(ai)}`);
+            if (reason) lines.push(`📝 *Lý do:* ${escapeMarkdownV2(String(reason).slice(0, 120))}...`);
+            lines.push(`\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
         });
     }
 
@@ -169,17 +169,21 @@ const buildAutoTradeCloseMessage = (trade, exitReason) => {
     const exit = escapeMarkdownV2(formatNumber(trade.exitPrice, 2));
     const pnlPct = escapeMarkdownV2(formatSignedPct(trade.pnlPercent, 2));
     const pnl = escapeMarkdownV2(formatNumber(trade.pnl, 0));
-    const reason = escapeMarkdownV2(String(exitReason || '').slice(0, 700));
+    const reason = escapeMarkdownV2(String(exitReason || '').slice(0, 300));
+
+    const isWin = trade.pnlPercent >= 0;
+    const statusIcon = isWin ? '🤑' : '🩸';
+    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+    const dirIcon = isLong ? '📈' : '📉';
 
     return [
-        `🔔 *AUTO TRADE ĐÃ ĐÓNG*`,
-        `Mã: *${symbol}*`,
-        `Hướng: *${direction}*`,
-        `Entry: *${entry}*`,
-        `Exit: *${exit}*`,
-        `PnL: *${pnlPct}*`,
-        `PnL tiền: *${pnl}*`,
-        `Lý do: ${reason}`,
+        `${statusIcon} *LỆNH ĐÃ ĐÓNG*`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `🎯 *Mã:* ${symbol} \\| ${dirIcon} *${direction}*`,
+        `📍 *Entry:* ${entry} \\| 🏁 *Exit:* ${exit}`,
+        `💰 *PnL:* ${pnlPct} \\(${pnl} VNĐ\\)`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `📝 *Lý do:* ${reason}`
     ].join('\n');
 };
 
@@ -192,37 +196,56 @@ const buildCryptoSignalMessage = (symbol, aiDecision, currentPrice) => {
     const tp = escapeMarkdownV2(String(aiDecision?.tp || '--'));
     const horizon = escapeMarkdownV2(String(aiDecision?.horizon || '--'));
     const rr = escapeMarkdownV2(String(aiDecision?.risk_reward || '--'));
-    const advice = escapeMarkdownV2(String(aiDecision?.advice || '').slice(0, 700));
+    const advice = escapeMarkdownV2(String(aiDecision?.advice || '').slice(0, 300));
     const livePrice = escapeMarkdownV2(formatNumber(currentPrice, 4));
 
+    const isLong = String(aiDecision?.signal).includes('LONG');
+    const isShort = String(aiDecision?.signal).includes('SHORT');
+    const dirIcon = isLong ? '📈' : isShort ? '📉' : '⏳';
+
     return [
-        `🪙 *CRYPTO AI RECOMMENDATION*`,
-        `Mã: *${cleanSymbol}*`,
-        `Signal: *${signal}*`,
-        `Confidence: *${confidence}*`,
-        `Giá hiện tại: *${livePrice}*`,
-        `Entry: *${entry}*`,
-        `Stop loss: *${sl}*`,
-        `Take profit: *${tp}*`,
-        `Horizon: *${horizon}*`,
-        `R:R: *${rr}*`,
-        `Advice: ${advice}`,
+        `🪙 *CRYPTO AI SIGNAL*`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `🎯 *Mã:* ${cleanSymbol} \\| ${dirIcon} *${signal}*`,
+        `📍 *Live Price:* ${livePrice}`,
+        `✅ *Entry:* ${entry}`,
+        `🎯 *TP:* ${tp} \\| ❌ *SL:* ${sl}`,
+        `🤖 *Confidence:* ${confidence} \\| ⚖️ *R:R:* ${rr}`,
+        `⏱ *Horizon:* ${horizon}`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `💡 *Advice:* ${advice}`
     ].join('\n');
 };
 
 const buildVolatilityAlertMessage = (asset, symbol, currentPrice, changePct, timeFrame, note) => {
     const cleanSymbol = escapeMarkdownV2(symbol);
-    const price = escapeMarkdownV2(formatNumber(currentPrice, asset === 'CRYPTO' ? 2 : 2));
+    const price = escapeMarkdownV2(formatNumber(currentPrice, asset === 'CRYPTO' ? 4 : 2));
     const change = escapeMarkdownV2(formatSignedPct(changePct, 2));
     const frame = escapeMarkdownV2(timeFrame);
     const cleanNote = escapeMarkdownV2(note || '');
 
+    const isUp = changePct >= 0;
+    const alertIcon = isUp ? '🚀' : '💥';
+
     return [
-        `⚠️ *CẢNH BÁO BIẾN ĐỘNG MẠNH* ⚠️`,
-        `Tài sản: *${cleanSymbol}* \\(${escapeMarkdownV2(asset)}\\)`,
-        `Giá hiện tại: *${price}*`,
-        `Biến động: *${change}* trong *${frame}*`,
-        `Ghi chú: ${cleanNote}`
+        `${alertIcon} *CẢNH BÁO BIẾN ĐỘNG*`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `🎯 *Mã:* ${cleanSymbol} \\(${escapeMarkdownV2(asset)}\\)`,
+        `📍 *Giá hiện tại:* ${price}`,
+        `📊 *Biến động:* ${change} trong ${frame}`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `📝 *Ghi chú:* ${cleanNote}`
+    ].join('\n');
+};
+
+const buildSystemAlertMessage = (moduleName, issue, details) => {
+    return [
+        `🚨 *HỆ THỐNG CẢNH BÁO*`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `⚙️ *Module:* ${escapeMarkdownV2(moduleName)}`,
+        `⚠️ *Vấn đề:* ${escapeMarkdownV2(issue)}`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `📝 *Chi tiết:* ${escapeMarkdownV2(String(details).slice(0, 300))}`
     ].join('\n');
 };
 
@@ -243,27 +266,21 @@ const buildDailyPnLReportMessage = (trades, date = new Date()) => {
     const formattedWinRate = escapeMarkdownV2(formatNumber(winRate, 1) + '%');
 
     const lines = [
-        `📊 *BÁO CÁO PNL TỔNG KẾT NGÀY* 📊`,
-        `Ngày: *${formattedDate}*`,
-        ``,
-        `📈 *KẾT QUẢ GIAO DỊCH:*`,
-        `Tổng số lệnh đóng: *${totalTrades}*`,
-        `Thắng: *${winningTrades}* \\| Thua: *${losingTrades}* \\| Hòa: *${breakEvenTrades}*`,
-        `Tỉ lệ thắng \\(Win Rate\\): *${formattedWinRate}*`,
-        ``,
-        `💰 *HIỆU QUẢ LỢI NHUẬN:*`,
-        `Tổng PnL: *${formattedTotalPnL}* VNĐ`,
-        `Tỉ suất PnL/Vốn: *${formattedPnlPct}*`,
+        `📋 *TỔNG KẾT NGÀY ${formattedDate}*`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `📊 *Tổng lệnh:* ${totalTrades} \\(✅ ${winningTrades} \\| ❌ ${losingTrades} \\| ➖ ${breakEvenTrades}\\)`,
+        `🏆 *Win Rate:* ${formattedWinRate}`,
+        `💰 *Tổng PnL:* ${formattedTotalPnL} VNĐ \\(${formattedPnlPct}\\)`,
     ];
 
     if (totalTrades > 0) {
-        lines.push(``);
+        lines.push(`\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
         lines.push(`📝 *CHI TIẾT LỆNH ĐÓNG TRONG NGÀY:*`);
         trades.slice(0, 15).forEach(t => {
             const sym = escapeMarkdownV2(t.symbol);
             const dir = escapeMarkdownV2(t.direction);
             const pnl = escapeMarkdownV2(formatSignedPct(t.pnlPercent, 2));
-            const icon = t.pnl > 0 ? '🟢' : t.pnl < 0 ? '🔴' : '⚪';
+            const icon = t.pnl > 0 ? '🤑' : t.pnl < 0 ? '🩸' : '⚪';
             lines.push(`${icon} *${sym}* \\(${dir}\\): ${pnl}`);
         });
         if (totalTrades > 15) {
@@ -282,5 +299,6 @@ export {
     buildCryptoSignalMessage,
     buildMarketRadarMessage,
     buildVolatilityAlertMessage,
+    buildSystemAlertMessage,
     buildDailyPnLReportMessage,
 };

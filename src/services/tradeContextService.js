@@ -294,11 +294,24 @@ export const buildVnStockScanUniverse = async (marketContext, limit = 18) => {
     return uniqSymbols([...fromTopLists, ...fromDb, ...fallback]).slice(0, limit);
 };
 
+const calcRSI = (closes, period = 14) => {
+    if (closes.length < period + 1) return 50;
+    let gains = 0, losses = 0;
+    for (let i = closes.length - period; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        if (diff > 0) gains += diff;
+        else losses += Math.abs(diff);
+    }
+    if (losses === 0) return 100;
+    const rs = gains / losses;
+    return 100 - (100 / (1 + rs));
+};
+
 // ============================================================
 // CRYPTO BATCH SCANNER & UNIVERSE
 // ============================================================
 const scoreCryptoCandidate = (symbol, candles) => {
-    if (!candles || candles.length < 8) return null;
+    if (!candles || candles.length < 20) return null;
 
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
@@ -310,6 +323,7 @@ const scoreCryptoCandidate = (symbol, candles) => {
     const avgVol20 = avgVol20Base.length
         ? avgVol20Base.reduce((sum, v) => sum + v, 0) / avgVol20Base.length
         : last.volume;
+    const rsi = calcRSI(closes, 14);
     
     const changePct = ((last.close - prev.close) / prev.close) * 100;
     const momentum5Base = candles.at(-6)?.close || prev.close;
@@ -317,17 +331,30 @@ const scoreCryptoCandidate = (symbol, candles) => {
     const volSurge = avgVol20 > 0 ? last.volume / avgVol20 : 1;
     const liquidityValue = last.close * last.volume;
 
+    let rsiScore = 50;
+    if (rsi > 78) rsiScore = 15; // Phạt nặng overbought
+    else if (rsi > 70) rsiScore = 35;
+    else if (rsi > 60) rsiScore = 85; // Đà tăng tốt
+    else if (rsi > 50) rsiScore = 75;
+    else if (rsi < 25) rsiScore = 70; // Có khả năng bật lại
+    else if (rsi < 35) rsiScore = 55;
+    else rsiScore = 60;
+
     // Điểm kỹ thuật sơ bộ (preScore) để lọc ra top ứng viên
-    const changeScore = Math.max(0, Math.min(100, 50 + changePct * 15));
-    const momentumScore = Math.max(0, Math.min(100, 50 + momentum5d * 10));
-    const volumeScore = Math.max(0, Math.min(100, 35 + volSurge * 22));
+    const changeScore = Math.max(0, Math.min(100, 50 + changePct * 10)); // Giảm trọng số
+    const momentumScore = Math.max(0, Math.min(100, 50 + momentum5d * 8));
+    const volumeScore = Math.max(0, Math.min(100, 40 + volSurge * 20));
     const liquidityScore = Math.max(0, Math.min(100, Math.log10(Math.max(1, liquidityValue)) * 8));
 
     const preScore = Math.round(Math.max(0, Math.min(100,
-        changeScore * 0.3 + momentumScore * 0.3 + volumeScore * 0.3 + liquidityScore * 0.1
+        momentumScore * 0.30 +
+        volumeScore * 0.30 +
+        rsiScore * 0.25 +
+        changeScore * 0.05 +
+        liquidityScore * 0.10
     )));
 
-    return { symbol, preScore, changePct: Math.round(changePct * 100) / 100, volSurge: Math.round(volSurge * 100) / 100 };
+    return { symbol, preScore, changePct: Math.round(changePct * 100) / 100, volSurge: Math.round(volSurge * 100) / 100, rsi: Math.round(rsi) };
 };
 
 const CRYPTO_BATCH_SCAN_CACHE_KEY = 'CRYPTO_BATCH_SCAN_RANKING';
@@ -368,7 +395,7 @@ export const runCryptoBatchSymbolScanner = async ({ forceRefresh = false, chunkS
     return payload;
 };
 
-export const buildCryptoScanUniverse = async (limit = 15) => {
+export const buildCryptoScanUniverse = async (limit = 200) => {
     try {
         const batchRanking = await runCryptoBatchSymbolScanner({ chunkSize: 15, topLimit: Math.max(limit, 20) });
         const batchSymbols = uniqSymbols(batchRanking.top || []);
@@ -430,8 +457,8 @@ export const getDerivativesTradeContext = async () => {
     if (cached) return cached;
 
     const [f1mCandles, vn30Candles] = await Promise.all([
-        fetchEntradeCandles('VN30F1M', '1', 2, 'derivative').catch(() => []),
-        fetchEntradeCandles('VN30', '1', 2, 'index').catch(() => []),
+        fetchEntradeCandles('VN30F1M', '15', 5, 'derivative').catch(() => []),
+        fetchEntradeCandles('VN30', '15', 5, 'index').catch(() => []),
     ]);
 
     const lastF1M = f1mCandles.at(-1)?.close || null;
