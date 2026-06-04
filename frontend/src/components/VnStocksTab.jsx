@@ -1723,7 +1723,7 @@ export default function VnStocksTab({
                 ? 'border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]'
                 : 'border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
             }`}>
-              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent" style={{ height: '600px', flexBasis: '600px' }}>
+              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent" style={{ height: typeof window !== 'undefined' && window.innerWidth < 1024 ? '380px' : '600px', flexBasis: typeof window !== 'undefined' && window.innerWidth < 1024 ? '380px' : '600px' }}>
                 <TradingChart
                   data={chartData}
                   theme={isDark ? 'dark' : 'light'}
@@ -1734,7 +1734,7 @@ export default function VnStocksTab({
               {/* Resize handle */}
               <div
                 onMouseDown={handleDragStart}
-                className={`h-3.5 w-full cursor-row-resize flex items-center justify-center shrink-0 z-10 transition-colors border-t rounded-b-2xl ${
+                className={`h-3.5 w-full cursor-row-resize hidden lg:flex items-center justify-center shrink-0 z-10 transition-colors border-t rounded-b-2xl ${
                   isDraggingChart
                     ? 'bg-yellow-400/20 border-yellow-400/50'
                     : isDark

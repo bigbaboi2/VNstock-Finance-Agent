@@ -290,15 +290,19 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
 
     let isDragging   = false;
     let activeCanvas = null;  
+    let isTouch      = false;
 
      const suppressMouseLeave = (e) => {
-      if (isDragging) {
+      if (isDragging && !isTouch) {
         e.stopImmediatePropagation();
         e.preventDefault();
       }
     };
 
+    const handleTouchStart = () => { isTouch = true; };
+
      const handleMouseDown = (e) => {
+      if (isTouch) return; // Vô hiệu hóa forward chuột nếu đang dùng cảm ứng để tránh xung đột kéo trục
       if (e.target && e.target.tagName === 'CANVAS') {
         isDragging   = true;
         activeCanvas = e.target;  
@@ -313,7 +317,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     // ── C: Forward clamped event vào document.documentElement ─
  
     const handleDocMouseMove = (e) => {
-      if (!isDragging || !activeCanvas) return;
+      if (!isDragging || !activeCanvas || isTouch) return;
       if (container.contains(e.target)) return; 
 
       const box = container.getBoundingClientRect();
@@ -341,12 +345,14 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
        activeCanvas.ownerDocument.documentElement.dispatchEvent(synth);
     };
 
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
     container.addEventListener('mouseleave', suppressMouseLeave, true);
     container.addEventListener('mousedown',  handleMouseDown,    true);
     document.addEventListener('mousemove',   handleDocMouseMove, true);
     document.addEventListener('mouseup',     handleMouseUp,      true);
 
     return () => {
+      container.removeEventListener('touchstart', handleTouchStart, { passive: true });
       container.removeEventListener('mouseleave', suppressMouseLeave, true);
       container.removeEventListener('mousedown',  handleMouseDown,    true);
       document.removeEventListener('mousemove',   handleDocMouseMove, true);
