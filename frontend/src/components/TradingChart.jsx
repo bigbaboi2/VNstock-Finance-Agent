@@ -852,7 +852,7 @@ const rowBtn = React.useCallback((active) =>
         )}
         {/* KLINECHARTS CONTAINER */}
         <div className="flex-1 relative w-full h-full overflow-hidden">
-          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', willChange: 'transform'}}/>
+          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', willChange: 'transform'}}/>
 
           {/* SELECTED OVERLAY BAR */}
           {activeOverlay && (
