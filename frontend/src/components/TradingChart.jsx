@@ -281,6 +281,13 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   const handleScrollLeft  = useCallback(() => chartInstance.current?.scrollByDistance(chartInstance.current.getBarSpace()), []);
   const handleScrollRight = useCallback(() => chartInstance.current?.scrollByDistance(-chartInstance.current.getBarSpace()), []);
   const handleResetChart  = useCallback(() => { chartInstance.current?.setBarSpace(6); chartInstance.current?.scrollToRealTime(); }, []);
+  const interactivePaneOptions = useCallback((id, height) => ({
+    id,
+    ...(height ? { height } : {}),
+    minHeight: 80,
+    dragEnabled: true,
+    axisOptions: { scrollZoomEnabled: true }
+  }), []);
   /* ── activate a drawing tool ─────────────────────── */
  
   const spawnOverlay = useCallback((toolName) => {
@@ -325,7 +332,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
         chartInstance.current.removeIndicator('candle_pane', name);
         setActiveMain(p => p.filter(n => n !== name));
       } else {
-        chartInstance.current.createIndicator(name, true, { id: 'candle_pane' });
+        chartInstance.current.createIndicator(name, true, interactivePaneOptions('candle_pane'));
         setActiveMain(p => [...p, name]);
       }
     } else {
@@ -335,11 +342,11 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
         setActiveSub(p => p.filter(n => n !== name));
       } else {
         if (name === 'VOL') chartInstance.current.overrideIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true] }, 'candle_pane');
-        else                chartInstance.current.createIndicator(name, false, { id:`pane_${name}`, height:120 });
+        else                chartInstance.current.createIndicator(name, false, interactivePaneOptions(`pane_${name}`, 120));
         setActiveSub(p => [...p, name]);
       }
     }
-  }, [activeMain, activeSub]);
+  }, [activeMain, activeSub, interactivePaneOptions]);
 
   /* ══════════════════════════════════════════════════════
      EFFECT 
@@ -348,9 +355,12 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     if (!chartContainerRef.current) return;
     if (!chartInstance.current) {
       chartInstance.current = init(chartContainerRef.current);
-      chartInstance.current.createIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true] }, true, { id:'candle_pane' });
+      chartInstance.current.setScrollEnabled(true);
+      chartInstance.current.setZoomEnabled(true);
+      chartInstance.current.setPaneOptions(interactivePaneOptions('candle_pane'));
+      chartInstance.current.createIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true] }, true, interactivePaneOptions('candle_pane'));
       activeSub.forEach(ind => {
-        if (ind !== 'VOL') chartInstance.current.createIndicator(ind, false, { id:`pane_${ind}`, height:120 });
+        if (ind !== 'VOL') chartInstance.current.createIndicator(ind, false, interactivePaneOptions(`pane_${ind}`, 120));
       });
     }
     const chart = chartInstance.current;
@@ -467,7 +477,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
 
     chart.subscribeAction('onScroll', () => setActiveOverlay(null));
     chart.subscribeAction('onZoom',   () => setActiveOverlay(null));
-  }, [theme, isDark, chartType]);
+  }, [theme, isDark, chartType, interactivePaneOptions]);
 
   /* ══════════════════════════════════════════════════════
      EFFECT: resize + cleanup (debounced để tránh lag)
@@ -851,8 +861,8 @@ const rowBtn = React.useCallback((active) =>
         </div>
         )}
         {/* KLINECHARTS CONTAINER */}
-        <div className="flex-1 relative w-full h-full overflow-hidden">
-          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', willChange: 'transform'}}/>
+        <div className="flex-1 relative w-full h-full overflow-hidden touch-none overscroll-contain">
+          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
 
           {/* SELECTED OVERLAY BAR */}
           {activeOverlay && (
