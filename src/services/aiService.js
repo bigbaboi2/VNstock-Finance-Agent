@@ -8,15 +8,15 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import FormData from 'form-data';
 import mongoose from 'mongoose';
-
-// ─── MULTI-PROVIDER ROUTER ─────────────────────────────────────────────────────
 import {
     injectGeminiGenerators,
     generateWithRole,
     generateWithRoleStream,
     getRateLimitStatus,
-    resetProviderBlock,
+    resetProviderBlock
 } from './multiProviderRouter.js';
+import { sendTelegramMessage, buildSystemAlertMessage } from './telegramService.js';
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 const __filename = fileURLToPath(import.meta.url);
@@ -148,12 +148,10 @@ let _modelsFetchPromise = null;
 const MODEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;  
 
 async function getDynamicModels() {
-    // Trả cache nếu còn hạn
     if (ALL_MODELS_CACHE.length > 0 && (Date.now() - ALL_MODELS_CACHE_TS) < MODEL_CACHE_TTL_MS) {
         return ALL_MODELS_CACHE;
     }
 
-    // Dedup: nếu đang fetch rồi thì đợi kết quả đó, không fetch lại
     if (_modelsFetchPromise) return _modelsFetchPromise;
 
     _modelsFetchPromise = (async () => {
@@ -202,13 +200,19 @@ async function getDynamicModels() {
             ALL_MODELS_CACHE = modelsToSort.slice(0, 6);
             ALL_MODELS_CACHE_TS = Date.now();
 
-            console.log(chalk.green(`[HỆ THỐNG] Đã nạp ${ALL_MODELS_CACHE.length} Model vào Cache:`));
-            ALL_MODELS_CACHE.forEach((m, i) => console.log(chalk.green.bold(`  [${i + 1}] ${m}`)));
+            const modelNames = ALL_MODELS_CACHE.join(', ');
+            console.log(chalk.green(`[HỆ THỐNG] Đã nạp ${ALL_MODELS_CACHE.length} Model vào Cache: `) + chalk.green.bold(modelNames));
 
             return ALL_MODELS_CACHE;
 
         } catch (error) {
             console.log(chalk.red(`[LỖI] Quét Model động thất bại (${error.message}). Dùng models dự phòng.`));
+            const alertMsg = buildSystemAlertMessage(
+                'AI Core',
+                'Quét Model từ Google API thất bại',
+                `Lỗi: ${error.message}\nKhả năng API Key chính (Gemini) bị lỗi, hết hạn, hoặc bị Google chặn. Đã tự động chuyển sang danh sách models dự phòng.`
+            );
+            sendTelegramMessage(alertMsg).catch(() => {});
              ALL_MODELS_CACHE = [
                 'gemini-2.5-flash',
                 'gemini-2.5-flash-lite',
@@ -253,6 +257,16 @@ export const generateWithAutoSwitch = async (promptData, options = {}, useAction
          if (attempt < MAX_RETRIES) {
             const delay = BASE_DELAY * Math.pow(2, attempt);  
             console.log(chalk.bgRed.white(`[QUÁ TẢI] Toàn bộ Model đều kẹt đạn. Hệ thống ngủ đông ${delay/1000}s trước khi thử lại đợt ${attempt + 1}...`));
+            
+            if (attempt === 0) {
+                const alertMsg = buildSystemAlertMessage(
+                    'AI Core',
+                    'Quá tải toàn bộ Model Gemini',
+                    `Tất cả model đều dính Rate Limit (Lỗi 429/503). Hệ thống tạm ngủ đông ${delay/1000}s để hồi phục.`
+                );
+                sendTelegramMessage(alertMsg).catch(() => {});
+            }
+
             await new Promise(r => setTimeout(r, delay));
         }
     }
@@ -296,6 +310,16 @@ export const generateStreamWithAutoSwitch = async (promptData, onChunk, options 
         if (attempt < MAX_RETRIES) {
             const delay = BASE_DELAY * Math.pow(2, attempt); 
             console.log(chalk.bgRed.white(`[QUÁ TẢI STREAM] Hệ thống ngủ đông ${delay/1000}s trước khi thử lại đợt ${attempt + 1}...`));
+            
+            if (attempt === 0) {
+                const alertMsg = buildSystemAlertMessage(
+                    'AI Core Stream',
+                    'Quá tải toàn bộ Model Gemini',
+                    `Tất cả model đều dính Rate Limit lúc stream. Hệ thống ngủ đông ${delay/1000}s để hồi phục.`
+                );
+                sendTelegramMessage(alertMsg).catch(() => {});
+            }
+
             await new Promise(r => setTimeout(r, delay));
         }
     }
@@ -444,8 +468,6 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
                     displayName: `BCTC_${tickerUpper}`
                 });
 
-                // Xóa ngay sau khi upload xong, TRƯỚC khi gọi AI
-                // (file đã lên Google server rồi, không cần giữ local nữa)
                 try { fs.unlinkSync(tempPdfPath); } catch (_) {}
 
                 const model = genAI_Main.getGenerativeModel({ model: "gemini-1.5-pro" });
@@ -460,7 +482,6 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
                 return aiMarkdown;
 
             } catch (aiError) {
-                // Đảm bảo cleanup dù lỗi bất kỳ đâu
                 try { if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath); } catch (_) {}
                 console.log(chalk.red(`[LỖI] Fallback Gemini Vision báo lỗi: ${aiError.message}`));
                 emitProgress({ step: 'DOCLING_FAILED', message: 'Docling và Vision đều lỗi, tiếp tục phân tích bằng dữ liệu thị trường', progress: 46 });
@@ -619,7 +640,6 @@ export async function analyzeWithGeminiStream(ticker, data, onProgress = null, o
 
     try {
         emitProgress({ step: 'AI_GENERATING', message: 'Đang stream dữ liệu BCTC sang AI và sinh báo cáo chiến lược', progress: 76 });
-        // Stream báo cáo chính — ưu tiên Gemini Pro với stream thực, fallback fake-stream từ provider khác
         const aiReport = await generateWithRoleStream('main', promptParts, onChunk);
         emitProgress({ step: 'AI_REPORT_DONE', message: 'AI đã hoàn tất báo cáo chiến lược', progress: 88 });
         return aiReport;
@@ -657,7 +677,6 @@ Trả về JSON array, không có text thừa:
  
         let text;
         try {
-            // Ưu tiên: Gemini với googleSearch tool
             const result = await generateWithAutoSwitch(prompt, {
                 tools: [{ googleSearch: {} }],
                 generationConfig: { responseMimeType: "application/json" }
@@ -665,7 +684,6 @@ Trả về JSON array, không có text thừa:
             text = result.response.text();
         } catch (geminiErr) {
             console.log(chalk.yellow(`[AI NEWS] Gemini search thất bại (${geminiErr.message}), dùng fallback provider không có search tool...`));
-            // Fallback: các provider khác sẽ dùng kiến thức huấn luyện
             text = await generateWithRole('news', prompt, { responseFormat: 'json_object' });
         }
 
@@ -875,7 +893,6 @@ ${question}
 Trả lời bằng tiếng Việt, chuyên nghiệp, đi thẳng vào vấn đề:`;
  
     try {
-        // Chat ưu tiên Groq (nhanh), fallback Gemini Flash
         const answer = await generateWithRole('chat', [prompt]);
         console.log(chalk.whiteBright(`[THÀNH CÔNG] Đã trả lời Chat cho ${ticker} (${answer.length} ký tự)`));
         return answer;
