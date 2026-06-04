@@ -77,7 +77,7 @@ const sendTelegramMessage = async (message, { parseMode = 'MarkdownV2' } = {}) =
     }
 };
 
-const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {}) => {
+const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {}, plan = null) => {
     const direction = escapeMarkdownV2(trade.direction);
     const symbol = escapeMarkdownV2(trade.symbol);
     const entryPrice = escapeMarkdownV2(formatNumber(trade.entryPrice, 2));
@@ -88,17 +88,9 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
     const priceSource = escapeMarkdownV2(String(quote?.source || 'N/A'));
     const contextSource = escapeMarkdownV2(String(executionContext?.source || 'N/A'));
 
-    const isLong = String(trade.direction).includes('LONG') || String(trade.direction).includes('MUA');
-    const rewardPct = Number.isFinite(Number(trade.entryPrice)) && Number.isFinite(Number(trade.takeProfitPrice))
-        ? isLong
-            ? ((Number(trade.takeProfitPrice) - Number(trade.entryPrice)) / Number(trade.entryPrice)) * 100
-            : ((Number(trade.entryPrice) - Number(trade.takeProfitPrice)) / Number(trade.entryPrice)) * 100
-        : null;
-    const riskPct = Number.isFinite(Number(trade.entryPrice)) && Number.isFinite(Number(trade.stopLossPrice))
-        ? isLong
-            ? ((Number(trade.entryPrice) - Number(trade.stopLossPrice)) / Number(trade.entryPrice)) * 100
-            : ((Number(trade.stopLossPrice) - Number(trade.entryPrice)) / Number(trade.entryPrice)) * 100
-        : null;
+    // Sử dụng giá trị từ plan nếu có để chính xác tuyệt đối với Engine
+    const rewardPct = plan?.rewardPct ?? null;
+    const riskPct = plan?.riskPct ?? null;
 
     return [
         `🟢 *AUTO TRADE MỚI*`,
@@ -218,6 +210,70 @@ const buildCryptoSignalMessage = (symbol, aiDecision, currentPrice) => {
     ].join('\n');
 };
 
+const buildVolatilityAlertMessage = (asset, symbol, currentPrice, changePct, timeFrame, note) => {
+    const cleanSymbol = escapeMarkdownV2(symbol);
+    const price = escapeMarkdownV2(formatNumber(currentPrice, asset === 'CRYPTO' ? 2 : 2));
+    const change = escapeMarkdownV2(formatSignedPct(changePct, 2));
+    const frame = escapeMarkdownV2(timeFrame);
+    const cleanNote = escapeMarkdownV2(note || '');
+
+    return [
+        `⚠️ *CẢNH BÁO BIẾN ĐỘNG MẠNH* ⚠️`,
+        `Tài sản: *${cleanSymbol}* \\(${escapeMarkdownV2(asset)}\\)`,
+        `Giá hiện tại: *${price}*`,
+        `Biến động: *${change}* trong *${frame}*`,
+        `Ghi chú: ${cleanNote}`
+    ].join('\n');
+};
+
+const buildDailyPnLReportMessage = (trades, date = new Date()) => {
+    const totalTrades = trades.length;
+    const winningTrades = trades.filter(t => t.pnl > 0).length;
+    const losingTrades = trades.filter(t => t.pnl < 0).length;
+    const breakEvenTrades = trades.filter(t => t.pnl === 0).length;
+    const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+
+    const totalPnL = trades.reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
+    const totalInvested = trades.reduce((sum, t) => sum + (Number(t.investedAmount) || 0), 0);
+    const pnlPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+
+    const formattedDate = escapeMarkdownV2(date.toLocaleDateString('vi-VN'));
+    const formattedTotalPnL = escapeMarkdownV2(formatNumber(totalPnL, 0));
+    const formattedPnlPct = escapeMarkdownV2(formatSignedPct(pnlPct, 2));
+    const formattedWinRate = escapeMarkdownV2(formatNumber(winRate, 1) + '%');
+
+    const lines = [
+        `📊 *BÁO CÁO PNL TỔNG KẾT NGÀY* 📊`,
+        `Ngày: *${formattedDate}*`,
+        ``,
+        `📈 *KẾT QUẢ GIAO DỊCH:*`,
+        `Tổng số lệnh đóng: *${totalTrades}*`,
+        `Thắng: *${winningTrades}* \\| Thua: *${losingTrades}* \\| Hòa: *${breakEvenTrades}*`,
+        `Tỉ lệ thắng \\(Win Rate\\): *${formattedWinRate}*`,
+        ``,
+        `💰 *HIỆU QUẢ LỢI NHUẬN:*`,
+        `Tổng PnL: *${formattedTotalPnL}* VNĐ`,
+        `Tỉ suất PnL/Vốn: *${formattedPnlPct}*`,
+    ];
+
+    if (totalTrades > 0) {
+        lines.push(``);
+        lines.push(`📝 *CHI TIẾT LỆNH ĐÓNG TRONG NGÀY:*`);
+        trades.slice(0, 15).forEach(t => {
+            const sym = escapeMarkdownV2(t.symbol);
+            const dir = escapeMarkdownV2(t.direction);
+            const pnl = escapeMarkdownV2(formatSignedPct(t.pnlPercent, 2));
+            const icon = t.pnl > 0 ? '🟢' : t.pnl < 0 ? '🔴' : '⚪';
+            lines.push(`${icon} *${sym}* \\(${dir}\\): ${pnl}`);
+        });
+        if (totalTrades > 15) {
+            lines.push(escapeMarkdownV2(`... và ${totalTrades - 15} lệnh khác`));
+        }
+    }
+
+    return lines.join('\n');
+};
+
 export {
     isTelegramConfigured,
     sendTelegramMessage,
@@ -225,4 +281,6 @@ export {
     buildAutoTradeCloseMessage,
     buildCryptoSignalMessage,
     buildMarketRadarMessage,
+    buildVolatilityAlertMessage,
+    buildDailyPnLReportMessage,
 };

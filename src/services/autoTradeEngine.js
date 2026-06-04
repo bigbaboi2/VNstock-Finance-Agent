@@ -7,6 +7,7 @@ import DerivNews from '../../models/DerivNews.js';
 import { generateWithRole } from './multiProviderRouter.js';
 import {
     buildVnStockScanUniverse,
+    buildCryptoScanUniverse,
     getCryptoTradeContext,
     getDerivativesTradeContext,
     getVnMarketContext,
@@ -15,6 +16,8 @@ import {
     buildAutoTradeCloseMessage,
     buildAutoTradeOpenMessage,
     buildMarketRadarMessage,
+    buildVolatilityAlertMessage,
+    buildDailyPnLReportMessage,
     sendTelegramMessage,
 } from './telegramService.js';
 import axios from 'axios';
@@ -27,10 +30,15 @@ const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
 const MIN_DIRECTIONAL_EDGE = 8;
 const ENTRY_SCORE_THRESHOLD = 65;
 const REVERSAL_EXIT_THRESHOLD = 72;
+let autoTradePipelineRunning = false;
+const volatilityAlertCooldown = new Map();
 
-/** Kiểm tra giờ giao dịch VN (T2-T6, 9:00–14:45) */
+/** 
+ * Kiểm tra giờ giao dịch VN (T2-T6, 9:00–14:45)
+ * Đảm bảo sử dụng múi giờ Asia/Ho_Chi_Minh
+ */
 const isVNMarketOpen = () => {
-    const now = new Date();
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
     const day = now.getDay();
     if (day === 0 || day === 6) return false;
     const mins = now.getHours() * 60 + now.getMinutes();
@@ -39,14 +47,14 @@ const isVNMarketOpen = () => {
 
 /** Kiểm tra ATO (9:00–9:15) — tránh vào lệnh khi giá chưa ổn định */
 const isATOPeriod = () => {
-    const now = new Date();
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
     const mins = now.getHours() * 60 + now.getMinutes();
     return mins >= 540 && mins <= 555;
 };
 
 /** Kiểm tra ATC (14:30–14:45) — tránh vào lệnh cuối phiên */
 const isATCPeriod = () => {
-    const now = new Date();
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
     const mins = now.getHours() * 60 + now.getMinutes();
     return mins >= 870 && mins <= 885;
 };
@@ -54,14 +62,22 @@ const isATCPeriod = () => {
 // ============================================================
 // REAL-TIME PRICE FETCHING
 // ============================================================
-const fetchOHLCV = async (symbol, resolution = '1D', days = 30) => {
+const fetchOHLCV = async (symbol, resolution = '1D', days = 30, assetType = 'VN_STOCK') => {
     const to = Math.floor(Date.now() / 1000);
     const from = to - (days * 24 * 60 * 60);
-    const isIndex = ['VNINDEX', 'VN30', 'HNX'].includes(symbol);
-    const endpoint = isIndex ? `${ENTRADE_BASE}/index` : `${ENTRADE_BASE}/stock`;
 
-    const res = await axios.get(`${endpoint}?from=${from}&to=${to}&symbol=${symbol}&resolution=${resolution}`, {
-        timeout: 10000
+    let type = 'stock';
+    if (assetType === 'DERIVATIVES') {
+        type = 'derivative';
+    } else if (['VNINDEX', 'VN30', 'HNX'].includes(symbol)) {
+        type = 'index';
+    }
+
+    const url = `${ENTRADE_BASE}/${type}?from=${from}&to=${to}&symbol=${symbol}&resolution=${resolution}`;
+
+    const res = await axios.get(url, {
+        timeout: 10000,
+        headers: { 'User-Agent': 'Mozilla/5.0' }
     });
 
     if (!res?.data?.t || res.data.t.length < 2) {
@@ -81,16 +97,16 @@ const fetchOHLCV = async (symbol, resolution = '1D', days = 30) => {
 /**
  * Fetch giá realtime hiện tại (lấy close của nến 1D hoặc 15m gần nhất)
  */
-const fetchCurrentPrice = async (symbol) => {
-    if (symbol === 'BTCUSDT') {
+const fetchCurrentPrice = async (symbol, assetType = 'VN_STOCK') => {
+    if (assetType === 'CRYPTO') {
         // Binance public API cho crypto
-        const res = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT`, {
+        const res = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`, {
             timeout: 8000
         });
         return parseFloat(res.data.price);
     }
 
-    const candles = await fetchOHLCV(symbol, '15', 2);
+    const candles = await fetchOHLCV(symbol, '15', 2, assetType);
     return candles[candles.length - 1].close;
 };
 
@@ -110,15 +126,15 @@ const fetchCryptoOHLCV = async (symbol, interval = '15m', limit = 120) => {
     }));
 };
 
-const fetchRealtimeQuote = async (symbol) => {
-    const price = await fetchCurrentPrice(symbol);
+const fetchRealtimeQuote = async (symbol, assetType) => {
+    const price = await fetchCurrentPrice(symbol, assetType);
     if (!Number.isFinite(price) || price <= 0) {
         throw new Error(`Gia realtime khong hop le cho ${symbol}`);
     }
 
     return {
         price,
-        source: symbol === 'BTCUSDT' ? 'BINANCE_TICKER' : 'ENTRADE_15M_CLOSE',
+        source: assetType === 'CRYPTO' ? 'BINANCE_TICKER' : 'ENTRADE_15M_CLOSE',
         fetchedAt: new Date(),
     };
 };
@@ -127,13 +143,16 @@ const fetchAnalysisCandles = async (symbol, asset) => {
     if (asset === 'CRYPTO') return fetchCryptoOHLCV(symbol, '15m', 160);
 
     try {
-        const intraday = await fetchOHLCV(symbol, '15', 15);
+        // Giới hạn số ngày lấy dữ liệu cho Phái sinh để tránh lỗi 400 (Bad Request)
+        const days = asset === 'DERIVATIVES' ? 5 : 15;
+        const intraday = await fetchOHLCV(symbol, '15', days, asset);
         if (intraday.length >= 60) return intraday;
     } catch (err) {
         console.log(chalk.yellow(`  [DATA] Khong du nen intraday cho ${symbol}, fallback 1D: ${err.message}`));
     }
 
-    return fetchOHLCV(symbol, '1D', 90);
+    const fallbackDays = asset === 'DERIVATIVES' ? 30 : 90;
+    return fetchOHLCV(symbol, '1D', fallbackDays, asset);
 };
 
 const classifyNewsSentiment = (text = '') => {
@@ -749,16 +768,7 @@ Hãy phân tích xác nhận hoặc bác bỏ tín hiệu này trong 2-3 câu ng
 
 const checkExitConditions = async (trade, marketContext = {}) => {
     try {
-        let currentPrice;
-
-        if (trade.assetType === 'CRYPTO') {
-            currentPrice = await fetchCurrentPrice('BTCUSDT');
-        } else if (trade.assetType === 'DERIVATIVES') {
-            currentPrice = await fetchCurrentPrice(trade.symbol);
-        } else {
-            // VN_STOCK
-            currentPrice = await fetchCurrentPrice(trade.symbol);
-        }
+        const currentPrice = await fetchCurrentPrice(trade.symbol, trade.assetType);
 
         const isLong  = trade.direction === 'LONG' || trade.direction === 'MUA';
         const isShort = trade.direction === 'SHORT' || trade.direction === 'BÁN';
@@ -823,8 +833,50 @@ const checkExitConditions = async (trade, marketContext = {}) => {
 // CORE ENGINE LOOP
 // ============================================================
 
+const checkVolatilityAndAlert = async (symbol, asset, candles) => {
+    if (!candles || candles.length < 5) return;
+    const now = Date.now();
+    const cooldownKey = `${asset}_${symbol}`;
+    
+    // Chống spam: Mỗi mã chỉ báo động 1 lần trong 2 tiếng
+    if (volatilityAlertCooldown.has(cooldownKey) && now < volatilityAlertCooldown.get(cooldownKey)) {
+        return; 
+    }
+
+    // So sánh nến hiện tại và nến cách đây 4 cây (Tương đương 1 tiếng nếu dùng nến 15m)
+    const currentCandle = candles[candles.length - 1];
+    const oldCandle = candles[candles.length - 5];
+    const priceDiff = currentCandle.close - oldCandle.close;
+    const pctDiff = (priceDiff / oldCandle.close) * 100;
+    const absPct = Math.abs(pctDiff);
+
+    let isAnomalous = false;
+    let note = '';
+
+    if (asset === 'CRYPTO' && absPct >= 2.5) {
+        isAnomalous = true; note = `Biến động giật mạnh vượt ngưỡng 2.5% của khung 1H.`;
+    } else if (asset === 'DERIVATIVES' && Math.abs(priceDiff) >= 7) {
+        isAnomalous = true; note = `Thị trường phái sinh giật mạnh ${Math.abs(priceDiff).toFixed(1)} điểm.`;
+    } else if (asset === 'VN_STOCK' && absPct >= 3.5) {
+        isAnomalous = true; note = `Cổ phiếu có dấu hiệu kéo/xả bất thường (biến động > 3.5%).`;
+    }
+
+    if (isAnomalous) {
+        const msg = buildVolatilityAlertMessage(asset, symbol, currentCandle.close, pctDiff, '1 giờ (4 nến 15m)', note);
+        await sendTelegramMessage(msg).catch(() => {});
+        console.log(chalk.magenta.bold(`[VOLATILITY] Đã cảnh báo Telegram biến động mạnh cho ${symbol} (${pctDiff.toFixed(2)}%)`));
+        volatilityAlertCooldown.set(cooldownKey, now + 2 * 60 * 60 * 1000);
+    }
+};
+
 export const runAutoTradePipeline = async (forcedAssetType = null) => {
     if (forcedAssetType === 'ALL') forcedAssetType = null;
+    if (autoTradePipelineRunning) {
+        console.log(chalk.gray(`[AUTODUCK] Bỏ qua chu kỳ ${forcedAssetType || 'ALL'}: pipeline trước vẫn đang chạy.`));
+        return { skipped: true, reason: 'pipeline_running' };
+    }
+
+    autoTradePipelineRunning = true;
     console.log(chalk.bgMagenta.black(`\n[AUTODUCK ENGINE v2] Khởi chạy chu kỳ rà soát thị trường thực tế...`));
 
     try {
@@ -889,7 +941,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             let symbolsToScan = [];
 
             if (asset === 'VN_STOCK') {
-                symbolsToScan = await buildVnStockScanUniverse(vnMarketContext, 20);
+                const baseUniverse = await buildVnStockScanUniverse(vnMarketContext, 15);
+                // Gộp thêm các mã cổ phiếu vừa được user tra cứu gần đây nhất
+                const recentStocks = await Stock.find({ 'reports.0': { $exists: true } })
+                    .sort({ 'reports.timestamp': -1 })
+                    .limit(10).select('symbol').lean();
+                const recentSymbols = recentStocks.map(s => s.symbol);
+                symbolsToScan = [...new Set([...baseUniverse, ...recentSymbols])]; // Merge không trùng
                 console.log(chalk.gray(
                     `[AUTODUCK] VN universe ${symbolsToScan.length} mã | Gainers: ${topGainersFromMarket.slice(0, 5).map(s => s.symbol).join(', ') || 'N/A'} | Volume: ${topVolumeFromMarket.slice(0, 5).map(s => s.symbol).join(', ') || 'N/A'} | Sector: ${strongSectorsFromMarket.map(s => s.name).join(', ') || 'N/A'}`
                 ));
@@ -898,7 +956,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                 symbolsToScan = ['VN30F1M'];
 
             } else if (asset === 'CRYPTO') {
-                symbolsToScan = ['BTCUSDT'];
+                // Quét 200 Crypto chia thành các chunk, tính điểm preScore và lọc ra 15 mã bùng nổ nhất lúc này
+                const baseUniverse = await buildCryptoScanUniverse(15);
+                symbolsToScan = baseUniverse;
+                console.log(chalk.gray(`[AUTODUCK] CRYPTO universe ${symbolsToScan.length} mã: ${symbolsToScan.join(', ')}`));
             }
 
             // ── 4. Phân tích từng symbol ──
@@ -914,6 +975,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         console.log(chalk.yellow(`  [SCAN] Không fetch được OHLCV ${symbol}: ${fetchErr.message}`));
                         continue;
                     }
+
+                    // Cảnh báo biến động mạnh realtime lên Telegram
+                    await checkVolatilityAndAlert(symbol, asset, candles);
 
                     // Phân tích kỹ thuật thực
                     const [baseExecutionContext, newsContext] = await Promise.all([
@@ -943,7 +1007,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         continue;
                     }
 
-                    const quote = await fetchRealtimeQuote(symbol);
+                    const quote = await fetchRealtimeQuote(symbol, asset);
                     const tradePlan = buildTradePlanFromSignal(asset, techSignal, quote);
 
                     // Kiểm tra xem đã có lệnh OPEN cho symbol này chưa (tránh duplicate)
@@ -987,7 +1051,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         stopLossPrice,
                     } = tradePlan;
 
-                    const volume = asset === 'CRYPTO' ? 0.05 : (asset === 'DERIVATIVES' ? 5 : 2000);
+                const volume = asset === 'CRYPTO' ? 0.05 : (asset === 'DERIVATIVES' ? 5 : 2000);
                     const investedAmount = entryPrice * volume;
 
                     // ── 7. Lưu lệnh vào DB ──
@@ -1019,7 +1083,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         newTrade,
                         aiConfirm,
                         quote,
-                        executionContext
+                        executionContext,
+                        tradePlan // Truyền thêm tradePlan để lấy reward/risk đã tính
                     );
                     await sendTelegramMessage(telegramOpenMessage).catch(() => {});
 
@@ -1091,6 +1156,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 
     } catch (err) {
         console.error(chalk.red(`[AUTODUCK CRITICAL ERROR] ${err.message}`));
+    } finally {
+        autoTradePipelineRunning = false;
     }
 };
 
@@ -1105,52 +1172,53 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
     console.log(chalk.gray(`\n[EXIT PIPELINE] Kiểm tra ${openTrades.length} lệnh đang mở...`));
 
     for (const trade of openTrades) {
-        const { shouldClose, currentPrice, exitReason } = await checkExitConditions(trade, marketContext);
-
-        if (!shouldClose) {
-            if (currentPrice) {
-                const pctFromEntry = ((currentPrice - trade.entryPrice) / trade.entryPrice * 100).toFixed(2);
-                const isLong       = trade.direction === 'LONG' || trade.direction === 'MUA';
-                const floatingPnl  = isLong ? pctFromEntry : (-pctFromEntry).toFixed(2);
-                console.log(chalk.gray(
-                    `  [HOLD] ${trade.symbol} | Giá TT: ${currentPrice} | Float PnL: ${floatingPnl > 0 ? '+' : ''}${floatingPnl}% | TP: ${trade.takeProfitPrice} | SL: ${trade.stopLossPrice}`
-                ));
-            }
-            continue;
-        }
-
-        // Tính PnL thực tế
-        const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
-        const priceDiff = isLong
-            ? (currentPrice - trade.entryPrice)
-            : (trade.entryPrice - currentPrice);
-
-        trade.exitPrice  = currentPrice;
-        trade.status     = 'CLOSED';
-        trade.closedAt   = new Date();
-        trade.pnlPercent = Math.round((priceDiff / trade.entryPrice) * 100 * 100) / 100;
-        trade.pnl        = Math.round(trade.volume * trade.entryPrice * (priceDiff / trade.entryPrice));
-        await trade.save();
-
-        await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
-
-        const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
-        console.log(chalk.bgYellow.black(
-            `[ĐÓNG LỆNH] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason.slice(0, 60)}`
-        ));
-
-        // Cập nhật user orders liên kết
-        const boundUserOrders = await UserOrder.find({ assignedTrade: trade._id, status: 'MATCHED' });
-        for (const uOrder of boundUserOrders) {
-            uOrder.status          = 'COMPLETED';
-            uOrder.result.finalPnl = Math.round(uOrder.capital * (trade.pnlPercent / 100));
-            uOrder.result.message  = `Vị thế đã đóng. PnL thực tế: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%. Lý do: ${exitReason.slice(0, 100)}`;
-            await uOrder.save();
-        }
-
-        // AI Reflection Learning
         try {
-            const reflectivePrompt = `Bạn là Giám đốc Nghiên cứu AI của hệ thống OMNI DUCK.
+            const { shouldClose, currentPrice, exitReason } = await checkExitConditions(trade, marketContext);
+
+            if (!shouldClose) {
+                if (currentPrice) {
+                    const pctFromEntry = ((currentPrice - trade.entryPrice) / trade.entryPrice * 100).toFixed(2);
+                    const isLong       = trade.direction === 'LONG' || trade.direction === 'MUA';
+                    const floatingPnl  = isLong ? pctFromEntry : (-pctFromEntry).toFixed(2);
+                    console.log(chalk.gray(
+                        `  [HOLD] ${trade.symbol} | Giá TT: ${currentPrice} | Float PnL: ${floatingPnl > 0 ? '+' : ''}${floatingPnl}% | TP: ${trade.takeProfitPrice} | SL: ${trade.stopLossPrice}`
+                    ));
+                }
+                continue;
+            }
+
+            // Tính PnL thực tế
+            const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+            const priceDiff = isLong
+                ? (currentPrice - trade.entryPrice)
+                : (trade.entryPrice - currentPrice);
+
+            trade.exitPrice  = currentPrice;
+            trade.status     = 'CLOSED';
+            trade.closedAt   = new Date();
+            trade.pnlPercent = Math.round((priceDiff / trade.entryPrice) * 100 * 100) / 100;
+            trade.pnl        = Math.round(trade.volume * trade.entryPrice * (priceDiff / trade.entryPrice));
+            await trade.save();
+
+            await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
+
+            const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
+            console.log(chalk.bgYellow.black(
+                `[ĐÓNG LỆNH] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason.slice(0, 60)}`
+            ));
+
+            // Cập nhật user orders liên kết
+            const boundUserOrders = await UserOrder.find({ assignedTrade: trade._id, status: 'MATCHED' });
+            for (const uOrder of boundUserOrders) {
+                uOrder.status          = 'COMPLETED';
+                uOrder.result.finalPnl = Math.round(uOrder.capital * (trade.pnlPercent / 100));
+                uOrder.result.message  = `Vị thế đã đóng. PnL thực tế: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%. Lý do: ${exitReason.slice(0, 100)}`;
+                await uOrder.save();
+            }
+
+            // AI Reflection Learning
+            try {
+                const reflectivePrompt = `Bạn là Giám đốc Nghiên cứu AI của hệ thống OMNI DUCK.
 Phân tích giao dịch vừa kết thúc và rút ra bài học kinh nghiệm ngắn gọn (tối đa 3 câu).
 
 [DỮ LIỆU GIAO DỊCH]
@@ -1164,26 +1232,61 @@ Phân tích giao dịch vừa kết thúc và rút ra bài học kinh nghiệm n
 
 Bài học kinh nghiệm (tiếng Việt, 2-3 câu thực chiến):`;
 
-            const lessonText = await generateWithRole('pm', reflectivePrompt, { maxTokens: 250, temperature: 0.4 });
+                const lessonText = await generateWithRole('pm', reflectivePrompt, { maxTokens: 250, temperature: 0.4 });
 
-            const behaviorLog = new AiBehavior({
-                symbol:         trade.symbol,
-                assetType:      trade.assetType,
-                action:         trade.direction,
-                predictedScore: trade.aiScore,
-                actualPnl:      trade.pnlPercent,
-                marketCondition: currentMarketStatus,
-                lesson:         lessonText.trim(),
-                tags:           trade.pnlPercent > 0 ? ['WIN_SIGNAL', 'TP_HIT'] : ['LOSS_SIGNAL', 'SL_HIT'],
-            });
-            await behaviorLog.save();
-            console.log(chalk.blueBright(`  [AI LEARN] ${lessonText.trim().slice(0, 100)}...`));
+                const behaviorLog = new AiBehavior({
+                    symbol:         trade.symbol,
+                    assetType:      trade.assetType,
+                    action:         trade.direction,
+                    predictedScore: trade.aiScore,
+                    actualPnl:      trade.pnlPercent,
+                    marketCondition: currentMarketStatus,
+                    lesson:         lessonText.trim(),
+                    tags:           trade.pnlPercent > 0 ? ['WIN_SIGNAL', 'TP_HIT'] : ['LOSS_SIGNAL', 'SL_HIT'],
+                });
+                await behaviorLog.save();
+                console.log(chalk.blueBright(`  [AI LEARN] ${lessonText.trim().slice(0, 100)}...`));
 
-        } catch (aiErr) {
-            console.log(chalk.gray(`  [AI LEARN] Không ghi được bài học: ${aiErr.message}`));
+            } catch (aiErr) {
+                console.log(chalk.gray(`  [AI LEARN] Không ghi được bài học: ${aiErr.message}`));
+            }
+        } catch (tradeErr) {
+            console.log(chalk.yellow(`[EXIT PIPELINE] Lỗi xử lý lệnh ${trade.symbol}/${trade._id}: ${tradeErr.message}`));
         }
     }
 }
+
+// ============================================================
+// DAILY PNL REPORT
+// ============================================================
+export const sendDailyPnLReport = async () => {
+    try {
+        const nowTs = Date.now();
+        const vnDateStr = new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"});
+        const vnDateObj = new Date(vnDateStr);
+        
+        // Tính giới hạn đầu ngày và cuối ngày dựa trên giờ Việt Nam
+        const msSinceStartOfDayVN = vnDateObj.getHours() * 3600000 + vnDateObj.getMinutes() * 60000 + vnDateObj.getSeconds() * 1000 + vnDateObj.getMilliseconds();
+        const startOfDayUTC = new Date(nowTs - msSinceStartOfDayVN);
+        const endOfDayUTC = new Date(nowTs - msSinceStartOfDayVN + 86400000 - 1);
+
+        const closedTradesToday = await AutoTrade.find({
+            status: 'CLOSED',
+            closedAt: { $gte: startOfDayUTC, $lte: endOfDayUTC }
+        }).sort({ closedAt: -1 }).lean();
+
+        if (closedTradesToday.length === 0) {
+            console.log(chalk.gray(`[AUTODUCK] Không có lệnh đóng trong ngày, bỏ qua báo cáo PnL.`));
+            return;
+        }
+
+        const message = buildDailyPnLReportMessage(closedTradesToday, vnDateObj);
+        await sendTelegramMessage(message).catch(() => {});
+        console.log(chalk.green(`[AUTODUCK] Đã gửi báo cáo PnL tổng kết ngày qua Telegram.`));
+    } catch (error) {
+        console.log(chalk.red(`[AUTODUCK] Lỗi gửi báo cáo PnL cuối ngày: ${error.message}`));
+    }
+};
 
 // ============================================================
 // SCHEDULER
@@ -1192,20 +1295,53 @@ Bài học kinh nghiệm (tiếng Việt, 2-3 câu thực chiến):`;
 export const startAutoDuckScheduler = () => {
     console.log(chalk.bold.green('🚀 [AUTODUCK v2 SCHEDULER] Hệ thống tuần hoàn lệnh thực tế đã lên lịch.'));
 
+    const runningPipelines = new Set();
+    const runScheduledPipeline = async (label, forcedAssetType = null) => {
+        if (runningPipelines.has(label)) {
+            console.log(chalk.gray(`[AUTODUCK] Bỏ qua chu kỳ ${label}: pipeline trước vẫn đang chạy.`));
+            return;
+        }
+
+        runningPipelines.add(label);
+        try {
+            await runAutoTradePipeline(forcedAssetType);
+        } catch (err) {
+            console.error(chalk.red(`[SCHEDULER ${label}] ${err.message}`));
+        } finally {
+            runningPipelines.delete(label);
+        }
+    };
+
     // Chạy ngay lần đầu
-    runAutoTradePipeline().catch(err => console.error(chalk.red(`[SCHEDULER BOOT] ${err.message}`)));
+    runScheduledPipeline('ALL');
 
     // Crypto: mỗi 15 phút (24/7)
     setInterval(async () => {
-        await runAutoTradePipeline('CRYPTO').catch(console.error);
+        await runScheduledPipeline('CRYPTO', 'CRYPTO');
     }, 15 * 60 * 1000);
 
     // VN_STOCK + DERIVATIVES: mỗi 30 phút (chỉ giờ giao dịch)
     setInterval(async () => {
         if (isVNMarketOpen()) {
-            await runAutoTradePipeline().catch(console.error);
+            await runScheduledPipeline('ALL');
         }
     }, 30 * 60 * 1000);
+
+    // Báo cáo PnL hàng ngày lúc 15:05 (Sau khi đóng cửa thị trường phái sinh)
+    let dailyReportSentForDay = -1;
+    setInterval(async () => {
+        const nowInVN = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
+        const hours = nowInVN.getHours();
+        const minutes = nowInVN.getMinutes();
+        const currentDayStr = nowInVN.getDate();
+
+        if (hours === 15 && minutes >= 5 && minutes <= 15) {
+            if (dailyReportSentForDay !== currentDayStr) {
+                dailyReportSentForDay = currentDayStr;
+                await sendDailyPnLReport();
+            }
+        }
+    }, 5 * 60 * 1000);
 };
 
 /**
