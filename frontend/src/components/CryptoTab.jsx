@@ -251,6 +251,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
     const [showOBInfo, setShowOBInfo] = useState(false);
     const [showNewsPanel, setShowNewsPanel] = useState(true);
     const [tradeMsg, setTradeMsg] = useState('');
+    const [mobileTab, setMobileTab] = useState('chart');
 
     // ── STATE: DEMO TRADING ──
     const [balance, setBalance] = useState(10000); 
@@ -452,12 +453,20 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
     // RENDER
     // ───────────────────────────────────────────────────
     return (
-        <div className={`flex-1 flex w-full h-full overflow-hidden animate-in zoom-in-95 duration-500 ${isDark ? 'bg-[#05080C]' : 'bg-slate-50'}`}>
+        <div className={`flex flex-col w-full h-full overflow-hidden animate-in zoom-in-95 duration-500 ${isDark ? 'bg-[#05080C]' : 'bg-slate-50'}`}>
+            
+            {/* MOBILE TABS */}
+            <div className={`lg:hidden flex w-full border-b shrink-0 ${isDark ? 'bg-[#080C11] border-white/10' : 'bg-slate-50 border-slate-200'} z-50`}>
+                <button onClick={() => setMobileTab('radar')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'radar' ? 'border-purple-500 text-purple-500 bg-purple-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Radar</button>
+                <button onClick={() => setMobileTab('chart')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'chart' ? 'border-purple-500 text-purple-500 bg-purple-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Market & AI</button>
+            </div>
+
+            <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden relative">
 
             {/* ═══════════════════════════════════════════════
                 CỘT TRÁI: CRYPTO RADAR
              ═══════════════════════════════════════════════ */}
-            <div className={`w-[300px] shrink-0 border-r flex flex-col overflow-y-auto custom-scrollbar transition-colors duration-300 ${UI.leftCol} ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+            <div className={`${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[300px] shrink-0 border-r flex-col overflow-y-auto custom-scrollbar transition-colors duration-300 ${UI.leftCol} ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
 
                 {/* HEADER CỘT TRÁI */}
                 <div className={`h-11 border-b shrink-0 flex items-center px-4 gap-2 sticky top-0 z-10 ${isDark ? 'bg-[#080C11] border-white/5' : 'bg-slate-100 border-slate-200'}`}>
@@ -567,13 +576,13 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
             {/* ═══════════════════════════════════════════════
                 CỘT GIỮA: CHART + SEARCH + AI ANALYSIS
             ═══════════════════════════════════════════════ */}
-            <div className={`flex-1 flex flex-col overflow-y-auto custom-scrollbar transition-colors duration-300 ${UI.rightCol}`}>
+            <div className={`${mobileTab === 'chart' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-y-auto custom-scrollbar transition-colors duration-300 ${UI.rightCol}`}>
 
                 {/* SEARCH BAR   */}
-                <div className={`sticky top-0 z-30 shrink-0 px-6 py-3 border-b z-[999] ${isDark ? 'bg-[#05080C]/95 border-white/5 backdrop-blur-xl' : 'bg-white/95 border-slate-200 backdrop-blur-xl shadow-sm'}`}>
-                    <div className="flex items-center gap-3" ref={searchRef}>
+                <div className={`sticky top-0 z-30 shrink-0 px-4 sm:px-6 py-3 border-b z-[999] ${isDark ? 'bg-[#05080C]/95 border-white/5 backdrop-blur-xl' : 'bg-white/95 border-slate-200 backdrop-blur-xl shadow-sm'}`}>
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3" ref={searchRef}>
                         {/* Input tìm kiếm */}
-                        <div className="relative flex-1 max-w-sm">
+                        <div className="relative flex-1 min-w-[200px] max-w-sm">
                             <Search size={16} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${UI.textMuted}`} />
                             <input
                                 type="text"
@@ -607,8 +616,8 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                         {/* Nút phân tích */}
                         <button
                             onClick={() => selectCoin(searchInput)}
-                            className="h-11 px-6 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20"
-                        >TÌM KIẾM</button>
+                            className="h-11 px-4 sm:px-6 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 shrink-0"
+                        >TÌM</button>
 
                         {/* Refresh */}
                         <button
@@ -649,15 +658,15 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
 
                     {/* PRICE HEADER */}
                     {priceData && (
-                        <div className={`p-6 rounded-[32px] border mb-6 transition-all ${isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
-                            <div className="flex flex-wrap items-center justify-between gap-6">
+                        <div className={`p-4 sm:p-6 rounded-[32px] border mb-6 transition-all ${isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                                 
                                 {/* 1. LOGO, TÊN & MÔ TẢ */}
-                                <div className="flex items-center gap-4 flex-1 min-w-[300px]">
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
                                     <img 
                                         src={`https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`} 
                                         alt={symbol} 
-                                        className="w-16 h-16 rounded-full bg-white/10 p-1 shadow-lg shrink-0 object-contain"
+                                        className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white/10 p-1 shadow-lg shrink-0 object-contain"
                                         onError={(e) => {
                                              if (!e.target.dataset.retried) {
                                                 e.target.dataset.retried = 'true';
@@ -668,8 +677,8 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                                         }}
                                     />
                                     <div>
-                                        <div className="flex items-center gap-3">
-                                            <h1 className={`text-4xl font-black leading-none ${UI.textBold}`}>{symbol}</h1>
+                                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                            <h1 className={`text-2xl sm:text-4xl font-black leading-none ${UI.textBold}`}>{symbol}</h1>
                                             <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${isDark ? 'bg-white/10 text-white' : 'bg-black/10 text-black'}`}>
                                                 {allCryptos.find(c => c.symbol === symbol)?.name || 'Digital Asset'}
                                             </span>
@@ -681,10 +690,10 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                                 </div>
 
                                 {/* 2. GIÁ, THÔNG SỐ & CHUYỂN ĐỔI */}
-                                <div className="flex flex-col items-end gap-3 shrink-0">
+                                <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
                                     {/* Giá & Biến động */}
-                                    <div className="flex items-baseline gap-3">
-                                        <span className={`text-4xl font-mono font-black ${UI.textBold}`}>
+                                    <div className="flex items-baseline gap-2 sm:gap-3">
+                                        <span className={`text-2xl sm:text-4xl font-mono font-black ${UI.textBold}`}>
                                             {currUnit === 'USD' ? fmtUSD(px) : `₫ ${(px * 25450).toLocaleString('vi-VN')}`}
                                         </span>
                                         <span className={`text-lg font-black ${parseFloat(ch24) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -738,9 +747,9 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                     )}
 
                     {/* CHART + VOLUME PROFILE */}
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                         {/* TRADING CHART */}
-                        <div className={`col-span-3 h-[420px] rounded-[28px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark ? 'bg-black/40 border-purple-500/20' : 'bg-white border-purple-100 shadow-purple-100/50'}`}>
+                        <div className={`lg:col-span-3 h-[300px] sm:h-[420px] rounded-[28px] border overflow-hidden shadow-xl relative flex items-center justify-center ${isDark ? 'bg-black/40 border-purple-500/20' : 'bg-white border-purple-100 shadow-purple-100/50'}`}>
                             {chartData && chartData.length > 0 ? (
                                 <TradingChart
                                     data={chartData}
@@ -759,7 +768,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                         </div>
 
                         {/* VOLUME PROFILE */}
-                        <div className={`col-span-1 rounded-[28px] border p-4 flex flex-col ${isDark ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
+                        <div className={`lg:col-span-1 rounded-[28px] border p-4 flex flex-col ${isDark ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
                             <div className="flex items-center justify-between mb-3">
                                 <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${UI.textMuted}`}>Volume Profile</p>
                                 <div className="relative" onMouseEnter={() => setShowVolInfo(true)} onMouseLeave={() => setShowVolInfo(false)}>
@@ -795,9 +804,9 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
             {tech && <div className="ml-auto"><SentimentBar score={tech.score} isDark={isDark} UI={UI} /></div>}
         </div>
 
-    <div className="grid grid-cols-12 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* CỘT 1: BIẾN SỐ KỸ THUẬT (3 CỘT) */}
-        <div className="col-span-3 space-y-3">
+        <div className="lg:col-span-3 space-y-3">
             <div className="flex items-center gap-2 text-purple-400">
                 <Activity size={15} />
                 <span className="text-[10px] font-black uppercase tracking-widest">Biến số Kỹ thuật</span>
@@ -824,7 +833,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
     </div>
 
         {/* CỘT 2: AI REPORT (6 CỘT - THAY THẾ DEMO TRADING) */}
-<div className={`col-span-6 border-l border-r px-6 relative ${isDark ? 'border-white/10' : 'border-purple-200'}`}>
+<div className={`lg:col-span-6 lg:border-l lg:border-r lg:px-6 relative ${isDark ? 'border-white/10' : 'border-purple-200'} mt-4 lg:mt-0`}>
         <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-blue-400">
                 <Database size={15} />
@@ -869,7 +878,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
         )}
     </div>
         {/* CỘT 3: KHUNG LỆNH DỰ BÁO (3 CỘT) */}
-<div className={`col-span-3 space-y-3 transition-all duration-300 ${loadingAi ? 'opacity-40 pointer-events-none' : ''}`}>
+<div className={`lg:col-span-3 space-y-3 transition-all duration-300 ${loadingAi ? 'opacity-40 pointer-events-none' : ''} mt-4 lg:mt-0`}>
         <div className="flex items-center gap-2 text-emerald-400">
             <TrendingUp size={15} />
             <span className="text-[10px] font-black uppercase tracking-widest">Dự báo vào lệnh</span>
@@ -940,6 +949,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                     </div>
 
                 </div>
+            </div>
             </div>
             <StockAiChat
             isOpen={isChatOpen}
