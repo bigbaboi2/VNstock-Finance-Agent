@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
   Loader2, CheckCircle2, XCircle, Globe, Clock, RefreshCw,
   Sparkles, ChevronRight, Pause, Play, RotateCcw, Target,
-  AlertTriangle, Info, Copy, BookOpen, Layers, X
+  AlertTriangle, Info, Copy, BookOpen, Layers, X, Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -19,7 +19,7 @@ import StockAiChat from './StockAiChat';
 import AtomLoader from './AtomLoader';
 
 // =====================================================================
-// COMPONENT: COMPANY OVERVIEW (GIỮ NGUYÊN)
+// COMPONENT: COMPANY OVERVIEW 
 // =====================================================================
 const CompanyOverview = React.memo(function CompanyOverview({ profile, isDark, UI }) {
   const [expanded, setExpanded] = useState(false);
@@ -683,7 +683,7 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
                 isDark ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25' : 'bg-sky-50 text-sky-600 border-sky-300 hover:bg-sky-100'
               }`}
             >
-              <BookOpen size={13} /> Đọc toàn văn
+              <BookOpen size={13} /> Đọc toàn bộ báo cáo
             </button>
 
             <button
@@ -1040,6 +1040,20 @@ export default function VnStocksTab({
       setExportStatus('success'); setTimeout(() => setExportStatus(null), 3000);
     } catch (err) { setExportStatus('error'); setTimeout(() => setExportStatus(null), 4000); } finally { setIsExporting(false); }
   }, [isExporting, marketData, chartData, vnIndexData, currentUser]);
+
+  // HANDLE DOWNLOAD MD REPORT
+  const handleDownloadReport = useCallback(() => {
+    if (!aiReport) return;
+    const blob = new Blob([aiReport], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `OMNI_DUCK_REPORT_${marketData?.stockInfo?.symbol || 'REPORT'}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [aiReport, marketData]);
 
   // HANDLE CHART DRAG TO RESIZE
   const handleDragStart = useCallback((e) => {
@@ -1729,13 +1743,14 @@ export default function VnStocksTab({
         {/* ── CHART (PINNED) ── */}
         {marketData && (
           <div className="px-2 pt-2 shrink-0">
-            <div className={`w-full relative flex flex-col border rounded-2xl transition-all duration-300 ${
+            <div className={`w-full relative flex flex-col border rounded-2xl transition-all duration-300 overflow-hidden ${
               isDark
-                ? 'border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]'
-                : 'border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+                ? 'bg-[#0a0f18] border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]'
+                : 'bg-white border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
             }`}>
-              <div ref={chartWrapperRef} className="w-full shrink-0 relative flex flex-col bg-transparent h-[260px] sm:h-[320px] lg:h-[600px] lg:basis-[600px]">
+              <div ref={chartWrapperRef} className={`w-full shrink-0 relative flex flex-col h-[260px] sm:h-[320px] lg:h-[600px] lg:basis-[600px] ${isDark ? 'bg-[#0a0f18]' : 'bg-white'}`}>
                 <TradingChart
+                  key={isDark ? 'chart-dark' : 'chart-light'}
                   data={chartData}
                   theme={isDark ? 'dark' : 'light'}
                   onIntervalChange={handleIntervalChange}
@@ -1965,21 +1980,173 @@ export default function VnStocksTab({
                           }
                           return rawPct > 15 ? '#2563eb' : rawPct > 5 ? '#1d4ed8' : '#1e3a8a';
                         };
+
+                        const minW = hmData.length > 0 ? Math.min(...hmData.map(d => d.weight)) : 0;
+                        const maxW = hmData.length > 0 ? Math.max(...hmData.map(d => d.weight)) : 0;
+                        const minSz = 54, maxSz = 160;
+
+                        const getSizePx = (weight) =>
+                          maxW === minW ? 100 : minSz + (maxSz - minSz) * ((weight - minW) / (maxW - minW));
+
+                        // ─── RECTANGLE: giữ nguyên flex-wrap cũ ───────────────────────────
+                        if (hmShape === 'rectangle') {
+                          return (
+                            <div className="flex flex-wrap gap-1.5 mb-8 content-start" style={{ minHeight: '220px' }}>
+                              {hmData.map(item => {
+                                const rawPct = hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0;
+                                const pctWidth = Math.max(rawPct, 4);
+                                const color = getBg(item.changePct, rawPct);
+                                const heightPx = getSizePx(item.weight);
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onMouseEnter={(e) => {
+                                      setHmHovered({ id: item.id, name: item.name, fullName: item.fullName || item.name });
+                                      setTimeout(() => {
+                                        if (tooltipRef.current) {
+                                          tooltipRef.current.style.left = `${e.clientX + 14}px`;
+                                          tooltipRef.current.style.top = `${e.clientY - 10}px`;
+                                        }
+                                      }, 0);
+                                    }}
+                                    onMouseLeave={() => setHmHovered(null)}
+                                    onMouseMove={handleHeatmapMouseMove}
+                                    onClick={() => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } }}
+                                    onDoubleClick={() => { if (heatmapView === 'stocks') { setInput(item.name); fetchMarketData(item.name); } }}
+                                    style={{ width: `calc(${pctWidth}% - 4px)`, minHeight: heightPx, background: color, flexGrow: 1 }}
+                                    className="text-white p-2 rounded-md flex flex-col justify-between border border-black/10 shadow-sm cursor-pointer hover:brightness-125 transition-[filter] group overflow-hidden active:scale-95"
+                                  >
+                                    <div className="flex flex-col relative z-10">
+                                      <span className="text-[11px] md:text-sm font-black uppercase leading-tight truncate drop-shadow-md">{item.name}</span>
+                                      {heatmapView === 'stocks' && <span className="text-[8px] font-medium opacity-80 truncate hidden md:block leading-tight mt-0.5 max-w-full drop-shadow-md">{item.fullName}</span>}
+                                    </div>
+                                    <div className="flex flex-col mt-1 relative z-10">
+                                      <span className="text-sm md:text-base font-black drop-shadow-md">{item.changePct >= 0 ? '+' : ''}{item.changePct}%</span>
+                                      {heatmapView === 'stocks' && <span className="text-[9px] font-bold opacity-80 drop-shadow-md">{(item.price || 0).toLocaleString('vi-VN')}</span>}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+
+                        // ─── CIRCLE / POLYGON: layout đồng tâm động ─────────────────────
+                        // Kích thước hex/circle: tâm lớn nhất, thu dần ra ngoài theo vòng
+                        // Bán kính vòng = (r_tâm + gap + r_vòng_trước_avg)  → hình sát nhau
+                        const sorted = [...hmData].sort((a, b) => b.weight - a.weight);
+                        const n = sorted.length;
+
+                        // Gán kích thước riêng cho từng item theo rank
+                        // Ring 0 = max, ring 1 = 80%, ring 2+ = 60-50%
+                        const getSzByRank = (rankRatio) => {
+                          // rankRatio 0..1 (0 = lớn nhất)
+                          const factor = 1 - rankRatio * 0.55; // 1.0 → 0.45
+                          return Math.round(maxSz * Math.max(factor, 0.35));
+                        };
+
+                        // Nhóm thành các vòng; tính bán kính ĐỘNG dựa trên kích thước thực tế
+                        // ring 0: 1 item ở tâm
+                        // ring k: đủ để fit theo chu vi, tối đa 8 item/vòng
+                        const rings = [];
+                        let rem = sorted.map((item, i) => ({ item, rank: i / Math.max(n - 1, 1) }));
+
+                        // Vòng 0: 1 item to nhất
+                        rings.push(rem.splice(0, 1));
+                        // Các vòng tiếp theo: tối đa 6 rồi 8 rồi 10
+                        const maxPerRing = [6, 8, 10, 12];
+                        let ri = 0;
+                        while (rem.length > 0) {
+                          const cap = maxPerRing[Math.min(ri, maxPerRing.length - 1)];
+                          rings.push(rem.splice(0, cap));
+                          ri++;
+                        }
+
+                        // Tính bán kính từng ring dựa theo kích thước hình thực tế (sát nhau hơn)
+                        const GAP = 6; // khoảng hở tối thiểu giữa các hình (px trong SVG coord)
+                        const ringRadiiDyn = [0];
+                        let prevOuterR = getSzByRank(0) / 2; // bán kính hình tâm
+
+                        for (let rIdx = 1; rIdx < rings.length; rIdx++) {
+                          const ring = rings[rIdx];
+                          // Kích thước trung bình các item trong vòng này
+                          const avgSz = ring.reduce((s, { rank }) => s + getSzByRank(rank), 0) / ring.length;
+                          const itemR = avgSz / 2;
+                          // Khoảng cách tâm-tâm đủ để không chồng nhau
+                          // d = prevOuterR + gap + itemR (tính theo hướng bán kính)
+                          // Nhưng nếu nhiều hình trên vòng, giới hạn bởi chu vi:
+                          // 2π * R / count ≥ 2*itemR + gap  →  R ≥ count*(2*itemR+gap)/(2π)
+                          const rFromSpacing = (ring.length * (2 * itemR + GAP)) / (2 * Math.PI);
+                          const rFromStack   = prevOuterR + GAP + itemR;
+                          const R = Math.max(rFromSpacing, rFromStack);
+                          ringRadiiDyn.push(R);
+                          prevOuterR = R + itemR;
+                        }
+
+                        // Canvas: bao quanh vòng ngoài cùng + margin
+                        const outermost = ringRadiiDyn[ringRadiiDyn.length - 1];
+                        const lastRingItems = rings[rings.length - 1];
+                        const lastAvgSz = lastRingItems.reduce((s, { rank }) => s + getSzByRank(rank), 0) / lastRingItems.length;
+                        const MARGIN = lastAvgSz / 2 + 18;
+                        const canvasR = outermost + MARGIN;
+                        const canvasW = canvasR * 2;
+                        const canvasH = canvasR * 2;
+                        const cx = canvasR;
+                        const cy = canvasR;
+
+                        // Tính vị trí (x,y) cho từng item
+                        const positions = [];
+                        rings.forEach((ring, rIdx) => {
+                          const R = ringRadiiDyn[rIdx];
+                          if (rIdx === 0) {
+                            positions.push({ ...ring[0], x: cx, y: cy, isCenter: true });
+                          } else {
+                            // Xoay lệch mỗi vòng 30° để tránh thẳng hàng
+                            const angleOffset = (Math.PI / rings[rIdx].length) * (rIdx % 2) + (rIdx * Math.PI) / 7;
+                            ring.forEach(({ item, rank }, i) => {
+                              const angle = angleOffset + (2 * Math.PI * i) / ring.length;
+                              positions.push({
+                                item, rank,
+                                x: cx + R * Math.cos(angle),
+                                y: cy + R * Math.sin(angle),
+                                isCenter: false,
+                              });
+                            });
+                          }
+                        });
+
                         return (
-                          <div className="flex flex-wrap gap-1 mb-8 content-start" style={{ minHeight: '220px' }}>
-                            {(() => {
-                              const minW = hmData.length > 0 ? Math.min(...hmData.map(d => d.weight)) : 0;
-                              const maxW = hmData.length > 0 ? Math.max(...hmData.map(d => d.weight)) : 0;
-                              const minH = 60, maxH = 160;
-                              return hmData.map(item => {
-                              const rawPct = hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0;
-                              const pctWidth = Math.max(rawPct, 4);
-                              const color = getBg(item.changePct, rawPct);
-                              const heightPx = maxW === minW ? 100 : minH + (maxH - minH) * ((item.weight - minW) / (maxW - minW));
-                              return (
-                                <div
-                                  key={item.id}
-                                  onMouseEnter={(e) => {
+                          <div className="mb-8 w-full flex justify-center" style={{ minHeight: Math.min(canvasH, 600) }}>
+                            <svg
+                              viewBox={`0 0 ${canvasW} ${canvasH}`}
+                              width="100%"
+                              style={{ maxWidth: Math.min(canvasW, 660), overflow: 'visible' }}
+                            >
+                              {/* Vòng tròn tham chiếu mờ */}
+                              {ringRadiiDyn.slice(1).map((R, i) => (
+                                <circle key={`ring-ref-${i}`} cx={cx} cy={cy} r={R}
+                                  fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="4 6" />
+                              ))}
+
+                              {/* Đường nối từ tâm */}
+                              {positions.slice(1).map(({ x, y }, i) => (
+                                <line key={`conn-${i}`}
+                                  x1={cx} y1={cy} x2={x} y2={y}
+                                  stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                              ))}
+
+                              {positions.map(({ item, rank, x, y, isCenter }, pi) => {
+                                const rawPct = hmTotal > 0 ? (item.weight / hmTotal) * 100 : 0;
+                                const color = getBg(item.changePct, rawPct);
+                                const sz = getSzByRank(rank);
+                                const half = sz / 2;
+                                const nameFontSz = isCenter ? 13 : sz < 72 ? 8 : sz < 90 ? 9 : 11;
+                                const pctFontSz  = isCenter ? 12 : sz < 72 ? 7 : sz < 90 ? 8 : 10;
+                                const nameY = sz < 72 ? -5 : -8;
+                                const pctY  = sz < 72 ?  6 :  8;
+
+                                const commonEvents = {
+                                  onMouseEnter: (e) => {
                                     setHmHovered({ id: item.id, name: item.name, fullName: item.fullName || item.name });
                                     setTimeout(() => {
                                       if (tooltipRef.current) {
@@ -1987,26 +2154,60 @@ export default function VnStocksTab({
                                         tooltipRef.current.style.top = `${e.clientY - 10}px`;
                                       }
                                     }, 0);
-                                  }}
-                                  onMouseLeave={() => setHmHovered(null)}
-                                  onMouseMove={handleHeatmapMouseMove}
-                                  onClick={() => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } }}
-                                  onDoubleClick={() => { if (heatmapView === 'stocks') { setInput(item.name); fetchMarketData(item.name); } }}
-                                  style={{ width: `calc(${pctWidth}% - 4px)`, minHeight: heightPx, background: color, flexGrow: 1 }}
-                                  className="text-white rounded-md p-2 flex flex-col justify-between cursor-pointer hover:brightness-125 transition-[filter] border border-black/10 shadow-sm group overflow-hidden active:scale-95"
-                                >
-                                  <div className="flex flex-col relative z-10">
-                                    <span className="text-[11px] md:text-sm font-black uppercase leading-tight truncate drop-shadow-md">{item.name}</span>
-                                    {heatmapView === 'stocks' && <span className="text-[8px] font-medium opacity-80 truncate hidden md:block leading-tight mt-0.5 max-w-full drop-shadow-md">{item.fullName}</span>}
-                                  </div>
-                                  <div className="flex flex-col mt-1 relative z-10">
-                                    <span className="text-sm md:text-base font-black drop-shadow-md">{item.changePct >= 0 ? '+' : ''}{item.changePct}%</span>
-                                    {heatmapView === 'stocks' && <span className="text-[9px] font-bold opacity-80 drop-shadow-md">{(item.price || 0).toLocaleString('vi-VN')}</span>}
-                                  </div>
-                                </div>
-                              );
-                            });
-                            })()}
+                                  },
+                                  onMouseLeave: () => setHmHovered(null),
+                                  onMouseMove: handleHeatmapMouseMove,
+                                  onClick: () => { if (heatmapView === 'sectors') { setHeatmapSector(item.name); setHeatmapView('stocks'); } },
+                                  onDoubleClick: () => { if (heatmapView === 'stocks') { setInput(item.name); fetchMarketData(item.name); } },
+                                  style: { cursor: 'pointer' },
+                                };
+
+                                const label = (
+                                  <>
+                                    <text x={0} y={nameY} textAnchor="middle" dominantBaseline="middle"
+                                      fill="white" fontSize={nameFontSz} fontWeight="900"
+                                      style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)', pointerEvents: 'none', userSelect: 'none' }}>
+                                      {item.name}
+                                    </text>
+                                    <text x={0} y={pctY} textAnchor="middle" dominantBaseline="middle"
+                                      fill="white" fontSize={pctFontSz} fontWeight="700" opacity="0.93"
+                                      style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)', pointerEvents: 'none', userSelect: 'none' }}>
+                                      {item.changePct >= 0 ? '+' : ''}{item.changePct}%
+                                    </text>
+                                  </>
+                                );
+
+                                if (hmShape === 'circle') {
+                                  return (
+                                    <g key={item.id} transform={`translate(${x},${y})`} {...commonEvents}>
+                                      <circle cx={0} cy={0} r={half} fill={color}
+                                        stroke={isCenter ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)'}
+                                        strokeWidth={isCenter ? 2.5 : 1}
+                                        className="transition-[filter] hover:brightness-125" />
+                                      {isCenter && <circle cx={0} cy={0} r={half + 7} fill="none" stroke={color} strokeWidth="2" opacity="0.25" />}
+                                      {label}
+                                    </g>
+                                  );
+                                }
+
+                                // Polygon (hexagon) — flat-top orientation
+                                const hex = (r) => Array.from({ length: 6 }, (_, k) => {
+                                  const a = (Math.PI / 3) * k - Math.PI / 6;
+                                  return `${r * Math.cos(a)},${r * Math.sin(a)}`;
+                                }).join(' ');
+
+                                return (
+                                  <g key={item.id} transform={`translate(${x},${y})`} {...commonEvents}>
+                                    <polygon points={hex(half)} fill={color}
+                                      stroke={isCenter ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.18)'}
+                                      strokeWidth={isCenter ? 2.5 : 1}
+                                      className="transition-[filter] hover:brightness-125" />
+                                    {isCenter && <polygon points={hex(half + 7)} fill="none" stroke={color} strokeWidth="2" opacity="0.25" />}
+                                    {label}
+                                  </g>
+                                );
+                              })}
+                            </svg>
                           </div>
                         );
                       })()}
@@ -2183,35 +2384,25 @@ export default function VnStocksTab({
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
                     components={{
-                       h1: ({node, ...props}) => <h1 className={`text-xl font-black mt-8 mb-4 inline-block px-3 py-1.5 rounded-lg border-l-4 shadow-sm ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
+                      h1: ({node, ...props}) => <h1 className={`text-xl font-black mt-8 mb-4 inline-block px-3 py-1.5 rounded-lg border-l-4 shadow-sm ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
                       h2: ({node, ...props}) => <h2 className={`text-lg font-black mt-6 mb-3 inline-block px-2.5 py-1 rounded border-l-2 ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
                       h3: ({node, ...props}) => <h3 className={`text-base font-bold mt-5 mb-2 uppercase tracking-wide ${isDark ? 'text-yellow-500' : 'text-yellow-700'}`} {...props} />,
-                      a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 no-underline border-b border-blue-400/30 hover:border-blue-400 transition-colors" {...props} />
+                      a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 no-underline border-b border-blue-400/30 hover:border-blue-400 transition-colors" {...props} />,
+                      pre: ({node, ...props}) => (
+                        <pre className={`rounded-xl border p-4 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre my-4 ${
+                          isDark
+                            ? 'bg-[#0d1117] text-slate-300 border-white/10'
+                            : 'bg-slate-50 text-slate-800 border-slate-200'
+                        }`} {...props} />
+                      ),
+                      code: ({node, inline, className, ...props}) => inline
+                        ? <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${isDark ? 'bg-yellow-400/10 text-yellow-300' : 'bg-slate-100 text-slate-700'}`} {...props} />
+                        : <code className="block" {...props} />,
                     }}
                   >
                     {aiReport}
                   </ReactMarkdown>
                 </div>
-                {/* ========================================================= */}
-                {/* BẢN NÂNG CẤP: DÙNG TRỰC TIẾP TRADING CHART VẼ 30 NẾN */}
-                {/* ========================================================= */}
-                {chartData && chartData.length > 0 && (
-                  <div className={`mt-10 p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-[#0f141e] border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-                    <h3 className={`text-[11px] font-black tracking-widest uppercase mb-4 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                      <Activity size={14} className="text-blue-400" /> Biểu đồ nến hành vi giá (30 phiên gần nhất)
-                    </h3>
-                    
-                    {/* Ép chiều cao 350px để làm biểu đồ mini */}
-                    <div className="w-full relative rounded-xl overflow-hidden border border-white/5 bg-transparent" style={{ height: '350px' }}>
-                      <TradingChart
-                        data={chartData.slice(-30)} 
-                        theme={isDark ? 'dark' : 'light'}
-                        currentInterval="1D"
-                        isMini={true} 
-                      />
-                    </div>
-                  </div>
-                )}
                 {vnReportTimestamp && (
                   <div className={`mt-6 pt-4 border-t flex items-center justify-between text-[10px] font-mono ${isDark ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'}`}>
                     <span>REPORT GENERATED: {formatReportTime(vnReportTimestamp)}</span>
@@ -2319,12 +2510,17 @@ export default function VnStocksTab({
                 <div className="flex items-center gap-3">
                     <Sparkles size={18} className="text-yellow-400" />
                     <h3 className={`font-black tracking-widest uppercase text-sm ${UI.textBold}`}>
-                        Toàn văn báo cáo AI: {marketData?.stockInfo?.symbol}
+                        Full báo cáo AI: {marketData?.stockInfo?.symbol}
                     </h3>
                 </div>
-                <button onClick={() => setShowFullReportModal(false)} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'}`}>
-                    <X size={20} strokeWidth={3} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={handleDownloadReport} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${isDark ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25' : 'bg-sky-50 text-sky-600 border-sky-300 hover:bg-sky-100'}`}>
+                        <Download size={14} /> Tải file MD
+                    </button>
+                    <button onClick={() => setShowFullReportModal(false)} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'}`}>
+                        <X size={20} strokeWidth={3} />
+                    </button>
+                </div>
              </div>
              <div className="flex-1 w-full relative overflow-y-auto custom-scrollbar p-6 lg:p-10">
                 <div className={`prose max-w-none break-words
@@ -2341,10 +2537,20 @@ export default function VnStocksTab({
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
                     components={{
-                       h1: ({node, ...props}) => <h1 className={`text-xl font-black mt-8 mb-4 inline-block px-3 py-1.5 rounded-lg border-l-4 shadow-sm ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
+                      h1: ({node, ...props}) => <h1 className={`text-xl font-black mt-8 mb-4 inline-block px-3 py-1.5 rounded-lg border-l-4 shadow-sm ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
                       h2: ({node, ...props}) => <h2 className={`text-lg font-black mt-6 mb-3 inline-block px-2.5 py-1 rounded border-l-2 ${isDark ? 'text-yellow-400 bg-yellow-400/10 border-yellow-400' : 'text-yellow-800 bg-yellow-100 border-yellow-500'}`} {...props} />,
                       h3: ({node, ...props}) => <h3 className={`text-base font-bold mt-5 mb-2 uppercase tracking-wide ${isDark ? 'text-yellow-500' : 'text-yellow-700'}`} {...props} />,
-                      a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 no-underline border-b border-blue-400/30 hover:border-blue-400 transition-colors" {...props} />
+                      a: ({node, ...props}) => <a className="text-blue-400 hover:text-blue-300 no-underline border-b border-blue-400/30 hover:border-blue-400 transition-colors" {...props} />,
+                      pre: ({node, ...props}) => (
+                        <pre className={`rounded-xl border p-4 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre my-4 ${
+                          isDark
+                            ? 'bg-[#0d1117] text-slate-300 border-white/10'
+                            : 'bg-slate-50 text-slate-800 border-slate-200'
+                        }`} {...props} />
+                      ),
+                      code: ({node, inline, className, ...props}) => inline
+                        ? <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${isDark ? 'bg-yellow-400/10 text-yellow-300' : 'bg-slate-100 text-slate-700'}`} {...props} />
+                        : <code className="block" {...props} />,
                     }}
                   >
                     {aiReport}

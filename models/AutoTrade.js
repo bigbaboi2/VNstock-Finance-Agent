@@ -25,7 +25,8 @@ const AutoTradeSchema = new mongoose.Schema({
     status: { type: String, default: 'OPEN', enum: ['OPEN', 'CLOSED', 'WATCH', 'SKIP'] },
     openedAt: { type: Date, default: Date.now },
     closedAt: { type: Date, default: null },
-    marketCondition: { type: String, default: 'NORMAL' }
+    marketCondition: { type: String, default: 'NORMAL' },
+    riskLevel: { type: Number, default: 2 }
 }, { timestamps: true });
 
 AutoTradeSchema.index({ symbol: 1, status: 1 });

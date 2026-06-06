@@ -32,6 +32,7 @@
     "inquirer": "^14.0.0",
     "mongoose": "^9.6.2",
     "node-cron": "^4.2.1",
+    "pm2": "^7.0.1",
     "puppeteer": "^24.43.0",
     "rss-parser": "^3.13.0",
     "tree-node-cli": "^3.0.0",

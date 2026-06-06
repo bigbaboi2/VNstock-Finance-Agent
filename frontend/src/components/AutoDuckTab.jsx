@@ -5,11 +5,13 @@ import {
     AlertCircle,
     Briefcase,
     Bot,
+    Check,
     ChevronDown,
     BrainCircuit,
     Clock,
     Crosshair,
     DatabaseZap,
+    Edit2,
     Gauge,
     LineChart,
     Play,
@@ -17,6 +19,7 @@ import {
     Target,
     TrendingDown,
     TrendingUp,
+    X,
     Zap,
 } from 'lucide-react';
 
@@ -65,6 +68,12 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     const [loading, setLoading] = useState(false);
     const [actionMessage, setActionMessage] = useState({ text: '', isError: false });
     
+    // State bộ lọc và sắp xếp
+    const [filterStatus, setFilterStatus] = useState('ALL');
+    const [filterAsset, setFilterAsset] = useState('ALL');
+    const [sortTime, setSortTime] = useState('DESC');
+    const [riskLevel, setRiskLevel] = useState(2);
+
     // State cho quản lý vốn
     const [totalCapital, setTotalCapital] = useState(5_000_000_000);
     const [isEditingCapital, setIsEditingCapital] = useState(false);
@@ -99,6 +108,31 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         };
     }, [systemLogs]);
 
+    const filteredAndSortedLogs = useMemo(() => {
+        let result = [...systemLogs];
+
+        // Lọc theo trạng thái
+        if (filterStatus === 'OPEN') {
+            result = result.filter(log => ['OPEN', 'PENDING'].includes(log.status));
+        } else if (filterStatus === 'CLOSED') {
+            result = result.filter(log => ['CLOSED', 'REJECTED', 'SKIP'].includes(log.status));
+        }
+
+        // Lọc theo thị trường
+        if (filterAsset !== 'ALL') {
+            result = result.filter(log => log.assetType === filterAsset);
+        }
+
+        // Sắp xếp theo thời gian
+        result.sort((a, b) => {
+            const timeA = new Date(a.openedAt || a.createdAt).getTime();
+            const timeB = new Date(b.openedAt || b.createdAt).getTime();
+            return sortTime === 'DESC' ? timeB - timeA : timeA - timeB;
+        });
+
+        return result;
+    }, [systemLogs, filterStatus, filterAsset, sortTime]);
+
     // Tính toán phân bổ vốn
     const allocatedCapital = performance.openExposure;
     const allocationPercent = totalCapital > 0 ? Math.min(100, (allocatedCapital / totalCapital) * 100) : 0;
@@ -119,10 +153,15 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             }
             if (resUser.data.success) setUserOrders(resUser.data.data);
             if (resLessons.data.success) setAiLessons(resLessons.data.data);
-            if (resSettings.data.success && resSettings.data.data?.value) {
-                setTotalCapital(resSettings.data.data.value);
-                if (!isEditingCapital) {
-                    setCapitalInput(Number(resSettings.data.data.value).toLocaleString('vi-VN'));
+            if (resSettings.data.success && resSettings.data.data) {
+                if (resSettings.data.data.autoTradeTotalCapital) {
+                    setTotalCapital(resSettings.data.data.autoTradeTotalCapital);
+                    if (!isEditingCapital) {
+                        setCapitalInput(Number(resSettings.data.data.autoTradeTotalCapital).toLocaleString('vi-VN'));
+                    }
+                }
+                if (resSettings.data.data.autoTradeRiskLevel) {
+                    setRiskLevel(Number(resSettings.data.data.autoTradeRiskLevel));
                 }
             }
         } catch (err) {
@@ -137,7 +176,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     }, [username]);
 
     const handleSaveCapital = async () => {
-        const numericValue = Number(String(capitalInput).replace(/,/g, ''));
+        const numericValue = Number(String(capitalInput).replace(/\D/g, ''));
         if (isNaN(numericValue) || numericValue < 100_000_000) {
             setActionMessage({ text: 'Vốn phải là số và tối thiểu 100,000,000 đ.', isError: true });
             return;
@@ -150,6 +189,20 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             setActionMessage({ text: 'Đã cập nhật tổng vốn cho AI thành công!', isError: false });
         } catch (err) {
             setActionMessage({ text: 'Lỗi khi cập nhật vốn.', isError: true });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRiskLevelChange = async (e) => {
+        const level = Number(e.target.value);
+        setLoading(true);
+        try {
+            await axios.post('/api/auto-trade/settings', { riskLevel: level });
+            setRiskLevel(level);
+            setActionMessage({ text: `Đã chuyển hệ thống AI sang nhóm rủi ro mức ${level}.`, isError: false });
+        } catch (err) {
+            setActionMessage({ text: 'Lỗi khi cập nhật cấp độ rủi ro.', isError: true });
         } finally {
             setLoading(false);
         }
@@ -240,17 +293,62 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
             {/* THẺ QUẢN LÝ PHÂN BỔ VỐN AI */}
             <div className={`p-6 rounded-3xl border shadow-lg mb-6 ${isDark ? 'bg-[#0f141e] border-white/10' : 'bg-white border-slate-200'}`}>
-                <div className="flex items-center gap-3 mb-4">
-                    <Briefcase className="text-purple-500" />
-                    <h3 className={`text-lg font-black uppercase tracking-widest ${UI.textBold}`}>
-                        AI Capital Manager
-                    </h3>
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                        <Briefcase className="text-purple-500" />
+                        <h3 className={`text-lg font-black uppercase tracking-widest ${UI.textBold}`}>
+                            AI Capital & Risk Manager
+                        </h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Khẩu vị Rủi ro:</span>
+                        <select 
+                            value={riskLevel}
+                            onChange={handleRiskLevelChange}
+                            disabled={loading}
+                            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded outline-none border transition-colors cursor-pointer ${
+                                riskLevel === 1 ? 'bg-blue-500/10 text-blue-500 border-blue-500/30' :
+                                riskLevel === 3 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
+                                riskLevel === 4 ? 'bg-red-500/10 text-red-500 border-red-500/30' :
+                                'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                            }`}
+                        >
+                            <option value={1} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>1 - RẤT THẬN TRỌNG</option>
+                            <option value={2} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>2 - CÂN BẰNG (CHUẨN)</option>
+                            <option value={3} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>3 - CHUYÊN GIA (ƯA RỦI RO)</option>
+                            <option value={4} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>4 - DEGEN (MAX PROFIT)</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
                     <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Tổng Vốn Cấu Hình</p>
-                        <p className={`text-2xl font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            <p className="text-[10px] uppercase font-bold text-slate-500">Tổng Vốn Cấu Hình</p>
+                            {!isEditingCapital ? (
+                                <button onClick={() => setIsEditingCapital(true)} className="text-purple-500 hover:text-purple-600 transition-colors">
+                                    <Edit2 size={12} />
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleSaveCapital} className="text-emerald-500 hover:text-emerald-600 transition-colors"><Check size={14} /></button>
+                                    <button onClick={() => { setIsEditingCapital(false); setCapitalInput(totalCapital.toLocaleString('vi-VN')); }} className="text-red-500 hover:text-red-600 transition-colors"><X size={14} /></button>
+                                </div>
+                            )}
+                        </div>
+                        {!isEditingCapital ? (
+                            <p className={`text-2xl font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</p>
+                        ) : (
+                            <input
+                                type="text"
+                                value={capitalInput}
+                                onChange={e => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    setCapitalInput(val ? Number(val).toLocaleString('vi-VN') : '');
+                                }}
+                                className={`w-full bg-transparent border-b-2 border-purple-500 text-2xl font-mono font-black outline-none ${UI.textBold}`}
+                            />
+                        )}
                     </div>
                     <div>
                         <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Đã Giải Ngân</p>
@@ -346,14 +444,32 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         </button>
                     </div>
 
+                    <div className={`px-4 py-3 flex flex-wrap gap-2 border-b ${isDark ? 'border-white/5 bg-[#0a0f18]' : 'border-slate-100 bg-slate-50'} shrink-0`}>
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                            <option value="ALL">Trạng thái: Tất cả</option>
+                            <option value="OPEN">Trạng thái: Đang chạy</option>
+                            <option value="CLOSED">Trạng thái: Đã đóng</option>
+                        </select>
+                        <select value={filterAsset} onChange={e => setFilterAsset(e.target.value)} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                            <option value="ALL">Thị trường: Tất cả</option>
+                            <option value="VN_STOCK">Chứng khoán VN</option>
+                            <option value="CRYPTO">Crypto</option>
+                            <option value="DERIVATIVES">Phái sinh VN</option>
+                        </select>
+                        <select value={sortTime} onChange={e => setSortTime(e.target.value)} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                            <option value="DESC">Sắp xếp: Mới nhất</option>
+                            <option value="ASC">Sắp xếp: Cũ nhất</option>
+                        </select>
+                    </div>
+
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                        {systemLogs.length === 0 ? (
+                        {filteredAndSortedLogs.length === 0 ? (
                             <div className={`flex flex-col items-center justify-center h-full opacity-60 ${UI.textMuted}`}>
                                 <Crosshair size={32} className="mb-3" />
-                                <p className="text-[10px] font-black uppercase tracking-widest">Chưa có tín hiệu thỏa điều kiện.</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest">Không có lệnh nào thỏa mãn bộ lọc.</p>
                             </div>
                         ) : (
-                            systemLogs.map((log) => <TradeCard key={log._id} log={log} isDark={isDark} UI={UI} />)
+                            filteredAndSortedLogs.map((log) => <TradeCard key={log._id} log={log} isDark={isDark} UI={UI} />)
                         )}
                     </div>
                 </section>
@@ -365,8 +481,8 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         <BrainCircuit size={16} className="text-purple-500" />
                         <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>AI lessons</span>
                     </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                        {aiLessons.slice(0, 3).map((lesson) => (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                        {aiLessons.map((lesson) => (
                             <div key={lesson._id} className={`rounded-lg border p-3 ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                                 <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${UI.textMuted}`}>
                                     {lesson.symbol} · {formatDateTime(lesson.date)}
@@ -446,9 +562,18 @@ function TradeCard({ log, isDark, UI }) {
                             }`}>
                                 {log.status === 'PENDING' ? 'Lệnh chờ' : 'Simulated'}
                             </span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border ${
+                                log.riskLevel === 1 ? 'bg-blue-500/10 text-blue-500 border-blue-500/30' :
+                                log.riskLevel === 3 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
+                                log.riskLevel === 4 ? 'bg-red-500/10 text-red-500 border-red-500/30' :
+                                'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                            }`}>
+                                Risk Lvl {log.riskLevel || 2}
+                            </span>
                         </div>
                         <p className={`text-[10px] font-bold mt-1 ${UI.textMuted}`}>
-                            {log.assetType} · mở lúc {formatDateTime(log.openedAt)}
+                            {log.assetType} · Mở: {formatDateTime(log.openedAt)}
+                            {log.closedAt && ` · Đóng: ${formatDateTime(log.closedAt)}`}
                         </p>
                     </div>
                 </div>
