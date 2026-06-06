@@ -558,7 +558,7 @@ BÁO CÁO PHẢI XUẤT RA THEO ĐÚNG CẤU TRÚC MARKDOWN SAU:
 - **Bóc tách bảng dữ liệu tài chính:** [Liệt kê chính xác các con số ROE, NIM, Nợ xấu trích xuất từ bảng Markdown. Đánh giá xu hướng tăng trưởng rõ ràng qua từng giai đoạn]
 - **Tác động ngầm của tài liệu:** [Tài liệu này cho thấy doanh nghiệp đang tốt lên thực sự hay chỉ là bánh vẽ tài chính?]
 - Phân tích, cực sâu vào các chỉ số Cơ bản (P/E, P/B) và Dòng tiền (Mua/Bán chủ động). Nếu không thấy báo cáo TCBS, dồn lực phân tích dữ liệu đang có. Đánh giá P/E và P/B.
-- **Biểu đồ Hành vi Giá (Price Action):** Dùng khối mã \`\`\`text ... \`\`\` để vẽ sơ đồ ASCII trực quan mô phỏng đường đi của giá và Volume.
+- **Biểu đồ Hành vi Giá (Price Action):** Vẽ sơ đồ ASCII trực quan mô phỏng đường đi của giá và Volume bằng thẻ HTML sau (BẮT BUỘC dùng đúng thẻ này, KHÔNG dùng code block markdown): <pre style="background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:12px;padding:16px;font-family:monospace;font-size:12px;line-height:1.6;overflow-x:auto;white-space:pre">[nội dung ASCII chart ở đây]</pre>
 - Nhận định Tay To: Lực mua/bán này đang "tố cáo" âm mưu gì của tạo lập?
 
 ## 🌐 PHẦN 2: PHÂN TÍCH VĨ MÔ & CHẤT XÚC TÁC (MACRO & CATALYSTS)
@@ -572,12 +572,12 @@ ${debateSection}
 QUY TẮC TÔ MÀU (KỶ LUẬT THÉP - TIẾT CHẾ TỐI ĐA):
 - BẠN BỊ CẤM tô màu tràn lan. Báo cáo tĩnh lặng mới là báo cáo nguy hiểm. Không bọc $số liệu$ trong thẻ $$, sử dụng thẻ in đậm, in nghiêng chuẩn quy tắc markdown để làm nổi bật.
 - Trong toàn bộ báo cáo, CHỈ ĐƯỢC PHÉP tô màu TỐI ĐA 5 TỪ KHÓA TÍCH CỰC và 5 TỪ KHÓA TIÊU CỰC mang tính quyết định nhất (ví dụ: MUA MẠNH, SẬP GÃY, VƯỢT ĐỈNH, DÒNG TIỀN RÚT).
-- Tích cực: bọc trong <span className="text-emerald-500 font-black uppercase">từ khóa</span>
-- Tiêu cực: bọc trong <span className="text-red-500 font-black uppercase">từ khóa</span>
+- Tích cực: bọc trong <span style="color:#10b981;font-weight:900;text-transform:uppercase">từ khóa</span>
+- Tiêu cực: bọc trong <span style="color:#ef4444;font-weight:900;text-transform:uppercase">từ khóa</span>
  
 ## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
 Dựa trên mục tiêu lợi nhuận, ( giả định cả đang nắm giữ cho mục tiêu bán) đây là kịch bản chuẩn xác:
-- <span className="text-yellow-500 font-black text-lg">RATING: [MUA / NẮM GIỮ / BÁN]</span>
+- <span style="color:#f59e0b;font-weight:900;font-size:1.125rem">RATING: [MUA / NẮM GIỮ / BÁN]</span>
 - **Vùng Mua (Entry):** [Mức giá]
 - **Cắt Lỗ (Stoploss):** [Mức giá]
 - **Chốt Lời Ngắn Hạn (Target):** [Mức giá]
