@@ -43,10 +43,10 @@ export function renderCryptoMarket(coins) {
         return;
     }
 
-    // ── Header ─────────────────────────────────────────────────────────────
+    //── Header ─────────────────────────────────────────────────────────────
     console.log('\n' + sectionHeader('🪙', 'CRYPTO GLOBAL MARKET — TOP 20 BY MARKET CAP'));
 
-    // ── Market Summary ─────────────────────────────────────────────────────
+    //── Market Summary ─────────────────────────────────────────────────────
     const top20 = coins.slice(0, 20);
     const gainers = top20.filter(c => parseFloat(c.change24h) > 0).length;
     const losers  = top20.filter(c => parseFloat(c.change24h) < 0).length;
@@ -58,7 +58,7 @@ export function renderCryptoMarket(coins) {
 
     console.log(`\n  ${chalk.dim('Xu hướng thị trường:')} ${sentimentColor.bold(sentimentText + ` (avg ${avgChange}%)`)}   ${chalk.green(`▲ ${gainers} mã`)}  ${chalk.red(`▼ ${losers} mã`)}   ${chalk.dim('Tổng vốn hóa top 20:')} ${chalk.cyan(formatVolume(totalMktCap))}\n`);
 
-    // ── Main Table ─────────────────────────────────────────────────────────
+    //── Main Table ─────────────────────────────────────────────────────────
     const table = new Table({
         head: [
             chalk.cyan.bold('#'),
@@ -100,7 +100,7 @@ export function renderCryptoMarket(coins) {
 
     console.log(table.toString());
 
-    // ── Top Movers Summary ─────────────────────────────────────────────────
+    //── Top Movers Summary ─────────────────────────────────────────────────
     const sorted   = [...top20].sort((a, b) => parseFloat(b.change24h) - parseFloat(a.change24h));
     const topGain  = sorted.slice(0, 3);
     const topLoss  = sorted.slice(-3).reverse();
