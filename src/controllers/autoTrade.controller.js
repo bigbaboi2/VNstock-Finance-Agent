@@ -7,8 +7,11 @@ import { runAutoTradePipeline, verifyOrderFeasibility } from '../services/autoTr
 //Get the entire automatic transaction history of the system with advanced quantitative statistics
 export const getSystemTradeLogs = async (req, res) => {
     try {
-        const logs = await AutoTrade.find({}).sort({ openedAt: -1 }).limit(100);
-        
+        const openLogs = await AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 });
+        const closedLogs = await AutoTrade.find({ status: { $nin: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 }).limit(100);
+
+        const logs = [...openLogs, ...closedLogs];
+
         // Calculate performance statistics using MongoDB Aggregation for all CLOSED trades
         const stats = await AutoTrade.aggregate([
             { $match: { status: 'CLOSED' } },
