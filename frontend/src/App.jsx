@@ -1316,7 +1316,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
       console.log('📈 technicalData (30 nến):', aiPayload.technicalData);
       console.log('🌐 marketContext (VN-INDEX 5 ngày):', aiPayload.marketContext);
       console.log('📰 news (20 tin):', aiPayload.news);
-      console.log('📦 Full JSON (copy để test):', JSON.stringify(aiPayload, null, 2));
+      console.log('📦 Full JSON ( ):', JSON.stringify(aiPayload, null, 2));
       console.groupEnd();
     }
 
