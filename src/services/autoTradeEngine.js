@@ -19,6 +19,7 @@ import {
     buildMarketRadarMessage,
     buildVolatilityAlertMessage,
     buildDailyPnLReportMessage,
+    buildStatusMessage,
     sendTelegramMessage,
 } from './telegramService.js';
 import axios from 'axios';
@@ -31,6 +32,13 @@ const AI_OVERRIDE_SCORE_THRESHOLD = 85;
 let autoTradePipelineRunning = false;
 let exitPipelineRunning = false;
 const volatilityAlertCooldown = new Map();
+
+// ── NEWS CACHE
+// Crypto news được fetch từ Google News RSS mỗi lần scan → nếu universe có 50 coin
+// và pipeline chạy mỗi 15 phút thì sẽ có ~200 request/giờ ra Google News, dễ bị rate-limit.
+// Cache 30 phút per symbol để tái sử dụng kết quả giữa các chu kỳ scan.
+const cryptoNewsCacheMap = new Map(); // symbol → { data: NewsContext, fetchedAt: number }
+const CRYPTO_NEWS_CACHE_TTL_MS = 30 * 60 * 1000; // 30 phút
 
 export const isVNMarketOpen = () => {
     const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
@@ -305,6 +313,14 @@ const summarizeNewsItems = (items = []) => {
 };
 
 const fetchCryptoNewsContext = async (symbol) => {
+    // ── FIX: Cache 30 phút per symbol — tránh gọi Google News RSS lặp lại
+    // mỗi chu kỳ scan với 50 coin (~200 req/giờ trước đây)
+    const cached = cryptoNewsCacheMap.get(symbol);
+    if (cached && Date.now() - cached.fetchedAt < CRYPTO_NEWS_CACHE_TTL_MS) {
+        console.log(chalk.gray(`[NEWS] Cache hit crypto news: ${symbol} (còn ${Math.round((CRYPTO_NEWS_CACHE_TTL_MS - (Date.now() - cached.fetchedAt)) / 60000)}p)`));
+        return cached.data;
+    }
+
     const baseSymbol = String(symbol).replace(/USDT$/i, '');
     const items = [];
 
@@ -323,16 +339,42 @@ const fetchCryptoNewsContext = async (symbol) => {
         }
     } catch (err) {
         console.log(chalk.gray(`[NEWS] Không lấy được crypto news cho ${symbol}: ${err.message}`));
+        // Nếu fetch lỗi nhưng có cache cũ (dù hết hạn) → vẫn dùng cache cũ thay vì trả về rỗng
+        if (cached) {
+            console.log(chalk.yellow(`[NEWS] Dùng lại crypto news cache cũ cho ${symbol} do lỗi fetch`));
+            return cached.data;
+        }
     }
 
-    return summarizeNewsItems(items);
+    const result = summarizeNewsItems(items);
+    // Chỉ lưu cache khi fetch thành công (có items)
+    if (items.length > 0) {
+        cryptoNewsCacheMap.set(symbol, { data: result, fetchedAt: Date.now() });
+    }
+    return result;
 };
 
 const getNewsContextForAsset = async (asset, symbol) => {
     try {
         if (asset === 'VN_STOCK') {
             const stock = await Stock.findOne({ symbol }, { deepNewsData: { $slice: -10 } }).lean();
-            return summarizeNewsItems((stock?.deepNewsData || []).slice().reverse());
+            const newsItems = (stock?.deepNewsData || []).slice().reverse();
+
+            // ── FIX: Cảnh báo khi tin tức VN_STOCK quá cũ (job cập nhật có thể bị chậm)
+            if (newsItems.length > 0) {
+                const latestNews = newsItems[0];
+                const newsTs = latestNews?.publishedAt || latestNews?.timestamp || latestNews?.date;
+                if (newsTs) {
+                    const ageHours = (Date.now() - new Date(newsTs).getTime()) / 3_600_000;
+                    if (ageHours > 48) {
+                        console.log(chalk.yellow(`[NEWS] ⚠️ ${symbol}: tin tức cũ ${ageHours.toFixed(0)}h — deepNewsData có thể chưa được cập nhật`));
+                    }
+                }
+            } else {
+                console.log(chalk.gray(`[NEWS] ${symbol}: không có deepNewsData trong DB`));
+            }
+
+            return summarizeNewsItems(newsItems);
         }
 
         if (asset === 'DERIVATIVES') {
@@ -1250,9 +1292,21 @@ const isUserOrderCompatibleWithTrade = (userOrder, tradePlan) => {
 
 const compactContextForPrompt = (context = {}) => {
     if (!context || Object.keys(context).length === 0) return 'Không có context bổ sung.';
-    const newsLine = context.news
-        ? `\nNews sentiment: ${context.news.bias || 'neutral'} | score ${context.news.sentimentScore ?? 0} | ${context.news.topTitle || 'Không có headline nổi bật'}`
-        : '';
+
+    // ── FIX: Truyền đủ top-3 headlines thay vì chỉ topTitle một dòng
+    // Trước đây AI chỉ thấy: "News sentiment: positive | score 2 | [topTitle]"
+    // Nếu topTitle là tin cũ/ít liên quan, AI mất toàn bộ thông tin tin tức còn lại
+    const buildNewsBlock = (news) => {
+        if (!news) return '';
+        const headlineLines = (news.items || [])
+            .slice(0, 3)
+            .map((n, i) => `  ${i + 1}. [${n.sentiment}] ${n.title}`)
+            .join('\n');
+        const base = `\nNews: ${news.bias || 'neutral'} | score ${news.sentimentScore ?? 0} | +${news.counts?.positive ?? 0}/-${news.counts?.negative ?? 0}/=${news.counts?.neutral ?? 0}`;
+        return headlineLines ? `${base}\n${headlineLines}` : base;
+    };
+
+    const newsBlock = buildNewsBlock(context.news);
 
     if (context.orderbook || context.derivatives) {
         return [
@@ -1260,7 +1314,7 @@ const compactContextForPrompt = (context = {}) => {
             `24h change: ${Number(context.change24h || 0).toFixed(2)}%`,
             `Orderbook bid/ask: ${context.orderbook?.bidPct ?? 'N/A'}%/${context.orderbook?.askPct ?? 'N/A'}% | ratio ${context.orderbook?.ratio ?? 'N/A'} | spread ${context.orderbook?.spread ?? 'N/A'}`,
             `Funding: ${Number(context.derivatives?.fundingRatePct || 0).toFixed(4)}% | OI: ${context.derivatives?.openInterest || 'N/A'} | Long/Short: ${context.derivatives?.longShortRatio || 'N/A'}`,
-        ].join('\n') + newsLine;
+        ].join('\n') + newsBlock;
     }
 
     if (context.vn30f1m || context.basis !== undefined) {
@@ -1268,10 +1322,10 @@ const compactContextForPrompt = (context = {}) => {
             `Nguồn: ${context.source || 'N/A'}`,
             `VN30F1M: ${context.vn30f1m || 'N/A'} | VN30: ${context.vn30 || 'N/A'} | Basis: ${context.basis ?? 'N/A'}`,
             `Change: ${context.changePct ?? 'N/A'}% | Volume: ${context.volume || 'N/A'} | OI: ${context.oi || 'N/A'} (${context.oiTrend || 'N/A'}) | Foreign net: ${context.foreignNet || 'N/A'}`,
-        ].join('\n') + newsLine;
+        ].join('\n') + newsBlock;
     }
 
-    return `Nguồn: ${context.source || 'N/A'} | fetchedAt: ${context.fetchedAt || 'N/A'}${newsLine}`;
+    return `Nguồn: ${context.source || 'N/A'} | fetchedAt: ${context.fetchedAt || 'N/A'}${newsBlock}`;
 };
 
 const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc, executionContext = {}, config = getRiskConfig(2)) => {
@@ -2279,4 +2333,147 @@ export const calculateSignalScore = (aiScore, sentimentType, breadthRatio, isVol
     return Math.min(100, Math.max(0, Math.round(
         (aiScore * 0.5) + (sentimentScore * 0.2) + (breadthRatio * 0.15) + (volWeight * 0.15)
     )));
+};
+
+// ── TELEGRAM COMMAND HANDLER ─────────────────────────────────────────────────
+
+/**
+ * getSystemStatus()
+ * Thu thập toàn bộ dữ liệu cần thiết cho dashboard /check:
+ *   - Vốn tổng / đang dùng / còn lại
+ *   - Danh sách lệnh đang OPEN/PENDING (kèm giá thực tế hiện tại nếu lấy được)
+ *   - Thống kê 30 ngày (winRate, avgPnl, totalPnl, ...)
+ *
+ * Hàm này được tách riêng để dễ tái sử dụng từ REST API hoặc lên lịch định kỳ.
+ */
+export const getSystemStatus = async () => {
+    // 1. Cài đặt vốn
+    const settingsRaw = await Setting.find({
+        key: { $in: ['autoTradeTotalCapital', 'autoTradeMaxConcurrent', 'autoTradeRiskLevel'] },
+    }).lean();
+    const settingsMap = settingsRaw.reduce((acc, s) => { acc[s.key] = s.value; return acc; }, {});
+    const totalCapital       = Number(settingsMap.autoTradeTotalCapital)  || 5_000_000_000;
+    const maxConcurrent      = Number(settingsMap.autoTradeMaxConcurrent) || 10;
+    const currentRiskLevel   = Number(settingsMap.autoTradeRiskLevel)     || 2;
+    const riskConfig         = getRiskConfig(currentRiskLevel);
+
+    // 2. Lệnh đang mở
+    const rawOpenTrades = await AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } }).lean();
+    const allocatedCapital = rawOpenTrades.reduce((sum, t) => sum + (Number(t.investedAmount) || 0), 0);
+
+    // 3. Lấy giá thực tế hiện tại cho từng lệnh (best-effort, không throw)
+    const openTrades = await Promise.all(rawOpenTrades.map(async (t) => {
+        try {
+            const price = await fetchCurrentPrice(t.symbol, t.assetType);
+            return { ...t, currentPrice: Number.isFinite(price) ? price : null };
+        } catch {
+            return { ...t, currentPrice: null };
+        }
+    }));
+
+    // 4. Thống kê 30 ngày — tái dụng getTradeAnalytics đã có
+    let stats30d = {};
+    try {
+        const analytics = await getTradeAnalytics({ days: 30 });
+        if (!analytics.error) {
+            stats30d = {
+                totalTrades:  analytics.totalTrades,
+                wins:         analytics.wins,
+                losses:       analytics.losses,
+                winRate:      analytics.winRate,
+                avgWinPnl:    analytics.avgWinPnl,
+                avgLossPnl:   analytics.avgLossPnl,
+                totalPnlPct:  analytics.totalPnlPct,
+            };
+        }
+    } catch (err) {
+        console.log(chalk.yellow(`[STATUS] Không lấy được analytics 30 ngày: ${err.message}`));
+    }
+
+    return {
+        totalCapital,
+        allocatedCapital,
+        freeCapital: totalCapital - allocatedCapital,
+        utilizationPct: totalCapital > 0 ? (allocatedCapital / totalCapital * 100) : 0,
+        openCount:    openTrades.filter(t => t.status === 'OPEN').length,
+        pendingCount: openTrades.filter(t => t.status === 'PENDING').length,
+        maxConcurrent,
+        riskLevel:    currentRiskLevel,
+        riskName:     riskConfig.name,
+        openTrades,
+        stats30d,
+        generatedAt:  new Date().toISOString(),
+    };
+};
+
+/**
+ * handleTelegramCommand(text)
+ * Xử lý các lệnh gõ từ Telegram webhook.
+ * Gọi hàm này từ route nhận webhook của bot Telegram.
+ *
+ * Lệnh hỗ trợ:
+ *   /check  (hoặc "check") — Dashboard tổng hợp
+ *   /stop                  — Tắt auto-trade pipeline
+ *   /start                 — Bật lại auto-trade pipeline
+ *   /help                  — Danh sách lệnh
+ *
+ * @param {string} text — Nội dung tin nhắn từ Telegram
+ * @returns {Promise<string>} — Tin nhắn trả về (đã gửi qua Telegram)
+ */
+export const handleTelegramCommand = async (text = '') => {
+    const cmd = String(text).trim().toLowerCase().replace(/^\//, '');
+
+    // ── /check ────────────────────────────────────────────────
+    if (cmd === 'check' || cmd === 'status') {
+        console.log(chalk.cyan(`[TELEGRAM CMD] /check — Đang thu thập dữ liệu dashboard...`));
+        try {
+            const statusData = await getSystemStatus();
+            const message    = buildStatusMessage(statusData);
+            await sendTelegramMessage(message);
+            console.log(chalk.green(`[TELEGRAM CMD] /check — Đã gửi dashboard (${statusData.openCount} lệnh mở)`));
+            return message;
+        } catch (err) {
+            const errMsg = `❌ Lỗi khi lấy dữ liệu: ${err.message}`;
+            await sendTelegramMessage(errMsg).catch(() => {});
+            console.log(chalk.red(`[TELEGRAM CMD] /check lỗi: ${err.message}`));
+            return errMsg;
+        }
+    }
+
+    // ── /stop ─────────────────────────────────────────────────
+    if (cmd === 'stop') {
+        autoTradePipelineRunning = true; // Khoá pipeline, không cho chu kỳ mới chạy
+        const msg = `⏸ *Auto\\-trade đã TẮT* \\— Gõ /start để bật lại\\.`;
+        await sendTelegramMessage(msg).catch(() => {});
+        console.log(chalk.yellow(`[TELEGRAM CMD] /stop — Pipeline đã bị khoá thủ công`));
+        return msg;
+    }
+
+    // ── /start ────────────────────────────────────────────────
+    if (cmd === 'start') {
+        autoTradePipelineRunning = false; // Mở khoá
+        const msg = `▶️ *Auto\\-trade đã BẬT* \\— Pipeline sẽ chạy chu kỳ tiếp theo\\.`;
+        await sendTelegramMessage(msg).catch(() => {});
+        console.log(chalk.green(`[TELEGRAM CMD] /start — Pipeline đã được mở khoá`));
+        return msg;
+    }
+
+    // ── /help ─────────────────────────────────────────────────
+    if (cmd === 'help' || cmd === '') {
+        const msg = [
+            `🦆 *OMNI DUCK — LỆNH TELEGRAM*`,
+            `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+            `/check  — Dashboard: lệnh mở, vốn, win rate`,
+            `/stop   — Tắt auto\\-trade pipeline`,
+            `/start  — Bật lại auto\\-trade pipeline`,
+            `/help   — Danh sách lệnh này`,
+        ].join('\n');
+        await sendTelegramMessage(msg).catch(() => {});
+        return msg;
+    }
+
+    // ── Lệnh không nhận dạng được ─────────────────────────────
+    const unknown = `❓ Lệnh không hợp lệ\\: \`${String(text).slice(0, 30)}\`\nGõ /help để xem danh sách lệnh\\.`;
+    await sendTelegramMessage(unknown).catch(() => {});
+    return unknown;
 };

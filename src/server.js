@@ -18,6 +18,7 @@ import aiRoutes from './routes/ai.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import cryptoRoutes from './routes/crypto.routes.js';
 import autoTradeRoutes from './routes/autoTrade.routes.js'; 
+import telegramRoutes from './routes/telegram.routes.js';
 
 // Import Jobs & Services
 import { updateSymbolsDatabase } from './services/symbolUpdater.js';
@@ -25,7 +26,7 @@ import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import { startPortfolioMatcher } from './jobs/portfolioMatcher.js';
 import { startDerivUpdater } from './jobs/derivUpdater.js';
 import { startCronJobs } from './jobs/newsCron.js';
-import { startAutoDuckScheduler } from './services/autoTradeEngine.js';
+import { startAutoDuckScheduler, handleTelegramCommand } from './services/autoTradeEngine.js';
 
 const app = express();
 const PORT = 3001;
@@ -56,6 +57,7 @@ app.use('/api/market',       marketRoutes);
 app.use('/api/ai',           aiRoutes);
 app.use('/api/history',      historyRoutes);
 app.use('/api/auto-trade', autoTradeRoutes);
+app.use('/api/telegram',  telegramRoutes);
 
 // ─── Flat alias routes  ────────────────────────
 
