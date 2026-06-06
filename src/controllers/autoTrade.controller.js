@@ -67,8 +67,17 @@ export const getSystemTradeLogs = async (req, res) => {
 
 export const getAutoTradeSettings = async (req, res) => {
     try {
-        const setting = await Setting.findOne({ key: 'autoTradeTotalCapital' });
-        return res.json({ success: true, data: setting });
+        const settings = await Setting.find({ key: { $in: ['autoTradeTotalCapital', 'autoTradeMaxConcurrent', 'autoTradeRiskLevel'] } });
+        const data = settings.reduce((acc, s) => {
+            acc[s.key] = s.value;
+            return acc;
+        }, {});
+
+        if (!data.autoTradeTotalCapital) data.autoTradeTotalCapital = 5_000_000_000;
+        if (!data.autoTradeMaxConcurrent) data.autoTradeMaxConcurrent = 10;
+        if (!data.autoTradeRiskLevel) data.autoTradeRiskLevel = 2;
+
+        return res.json({ success: true, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -76,16 +85,37 @@ export const getAutoTradeSettings = async (req, res) => {
 
 export const updateAutoTradeSettings = async (req, res) => {
     try {
-        const { totalCapital } = req.body;
-        if (!totalCapital || isNaN(Number(totalCapital))) {
-            return res.status(400).json({ success: false, message: 'Vốn không hợp lệ.' });
+        const { totalCapital, maxConcurrent, riskLevel } = req.body;
+        const updates = [];
+
+        if (totalCapital && !isNaN(Number(totalCapital))) {
+            updates.push(Setting.findOneAndUpdate(
+                { key: 'autoTradeTotalCapital' },
+                { value: Number(totalCapital) },
+                { upsert: true, new: true }
+            ));
         }
-        const updatedSetting = await Setting.findOneAndUpdate(
-            { key: 'autoTradeTotalCapital' },
-            { value: Number(totalCapital) },
-            { upsert: true, new: true }
-        );
-        return res.json({ success: true, data: updatedSetting });
+        if (maxConcurrent && !isNaN(Number(maxConcurrent))) {
+            updates.push(Setting.findOneAndUpdate(
+                { key: 'autoTradeMaxConcurrent' },
+                { value: Number(maxConcurrent) },
+                { upsert: true, new: true }
+            ));
+        }
+        if (riskLevel && !isNaN(Number(riskLevel))) {
+            updates.push(Setting.findOneAndUpdate(
+                { key: 'autoTradeRiskLevel' },
+                { value: Number(riskLevel) },
+                { upsert: true, new: true }
+            ));
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ success: false, message: 'Không có dữ liệu hợp lệ để cập nhật.' });
+        }
+
+        await Promise.all(updates);
+        return res.json({ success: true, message: 'Cấu hình đã được cập nhật.' });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }

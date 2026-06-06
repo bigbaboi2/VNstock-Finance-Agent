@@ -15,9 +15,9 @@ const VN_OHLCV_CACHE_TTL = 15 * 60 * 1000;
 
 const memoryCache = new Map();
 
-const getMemory = (key) => {
+const getMemory = (key, customTTL = MEMORY_TTL) => {
     const cached = memoryCache.get(key);
-    if (!cached || Date.now() - cached.updatedAt > MEMORY_TTL) return null;
+    if (!cached || Date.now() - cached.updatedAt > customTTL) return null;
     return cached.data;
 };
 
@@ -103,6 +103,12 @@ const scoreVnCandidate = (symbol, candles, marketContext) => {
         ? avgVol20Base.reduce((sum, v) => sum + v, 0) / avgVol20Base.length
         : last.volume;
     const changePct = ((last.close - prev.close) / prev.close) * 100;
+    
+    // Bỏ qua các mã đã tăng trần hoặc giảm sàn (biên độ >= 6.8%) vì không còn khả năng giao dịch
+    if (Math.abs(changePct) >= 6.8) {
+        return null;
+    }
+
     const momentum5Base = candles.at(-6)?.close || prev.close;
     const momentum5d = momentum5Base ? ((last.close - momentum5Base) / momentum5Base) * 100 : changePct;
     const volSurge = avgVol20 > 0 ? last.volume / avgVol20 : 1;
@@ -208,7 +214,7 @@ export const runVnBatchSymbolScanner = async ({
 
 export const getVnMarketContext = async ({ forceRefresh = false } = {}) => {
     if (!forceRefresh) {
-        const inMemory = getMemory('VN_MARKET_CONTEXT');
+        const inMemory = getMemory('VN_MARKET_CONTEXT', 14 * 60 * 1000); // 14 mins TTL
         if (inMemory) return inMemory;
 
         const cached = await Stock.findOne({ symbol: 'VNINDEX' }).lean();
@@ -252,12 +258,12 @@ export const getVnMarketContext = async ({ forceRefresh = false } = {}) => {
     });
 };
 
-export const buildVnStockScanUniverse = async (marketContext, limit = 18) => {
+export const buildVnStockScanUniverse = async (marketContext, limit = 25) => {
     try {
         const batchRanking = await runVnBatchSymbolScanner({
             marketContext,
-            chunkSize: 12,
-            topLimit: Math.max(limit, 20),
+            chunkSize: 15,
+            topLimit: Math.max(limit, 40),
         });
 
         const batchSymbols = uniqSymbols(batchRanking.top || []);
@@ -295,15 +301,29 @@ export const buildVnStockScanUniverse = async (marketContext, limit = 18) => {
 };
 
 const calcRSI = (closes, period = 14) => {
+    // BUG FIX #5: dùng Wilder smoothing (giống autoTradeEngine) thay vì simple average cắt cụt
     if (closes.length < period + 1) return 50;
+
     let gains = 0, losses = 0;
-    for (let i = closes.length - period; i < closes.length; i++) {
+    for (let i = 1; i <= period; i++) {
         const diff = closes[i] - closes[i - 1];
         if (diff > 0) gains += diff;
-        else losses += Math.abs(diff);
+        else losses -= diff;
     }
-    if (losses === 0) return 100;
-    const rs = gains / losses;
+
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+
+    for (let i = period + 1; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        const gain = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? -diff : 0;
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+    }
+
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
     return 100 - (100 / (1 + rs));
 };
 
@@ -453,7 +473,7 @@ export const getCryptoTradeContext = async (symbol = 'BTCUSDT') => {
 };
 
 export const getDerivativesTradeContext = async () => {
-    const cached = getMemory('DERIV_CONTEXT');
+    const cached = getMemory('DERIV_CONTEXT', 60 * 1000); // 1 phút TTL cho phái sinh
     if (cached) return cached;
 
     const [f1mCandles, vn30Candles] = await Promise.all([
