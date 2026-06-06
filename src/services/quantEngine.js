@@ -55,7 +55,8 @@ const calcTopStocks = (activeVolumeStocks) => {
             changePct:   +s.changePct.toFixed(2),
             price:       s.currentPrice,
             volume:      s.volume,
-            valueTraded: Math.round(s.volume * s.currentPrice), 
+            // FIX #3: currentPrice đơn vị nghìn đồng → nhân 1000 để ra VNĐ thực
+            valueTraded: Math.round(s.volume * s.currentPrice * 1000),
             sector:      s.sector || null,
         }));
 
@@ -110,8 +111,9 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
                 success: true,
                 _dataQuality: 'breadth_only',
                 intelligence: {
-                    indexChangePct: indexChangePct.toFixed(2),
-                    breadthRatio:   breadthRatio.toFixed(1),
+                    // FIX #1: number, không phải string
+                    indexChangePct: Math.round(indexChangePct * 100) / 100,
+                    breadthRatio:   Math.round(breadthRatio * 10) / 10,
                     breadthSource,
                     foreignNetValue: foreignFlow?.netValue || 0,
                     marketStatus,
@@ -274,8 +276,9 @@ export const analyzeMarketIntelligence = (vnIndexData, scrapedData, symbolsDatab
         return {
             success: true,
             intelligence: {
-                indexChangePct:  indexChangePct.toFixed(2),
-                breadthRatio:    breadthRatio.toFixed(1),
+                // FIX #1: trả về number thay vì string — tránh NaN khi dùng trong score engine
+                indexChangePct:  Math.round(indexChangePct * 100) / 100,
+                breadthRatio:    Math.round(breadthRatio * 10) / 10,
                 breadthSource,
                 foreignNetValue: foreignFlow.netValue || 0,
                 spsThreshold:    +spsThreshold.toFixed(2),
@@ -303,8 +306,15 @@ function buildScenario(indexChangePct, breadthRatio, strongSectors, weakSectors,
     let statusType   = "neutral";
     let diagnosticDesc = "Dòng tiền phân hóa, không có xu hướng rõ ràng.";
 
-    const foreignBias = foreignNetValue > 200_000_000_000 ? ' Khối ngoại mua ròng mạnh hỗ trợ.'
-                      : foreignNetValue < -200_000_000_000 ? ' Khối ngoại bán ròng gây áp lực.'
+    // FIX #2: normalize đơn vị foreignNetValue
+    // Nếu scraper CafeF trả về đơn vị tỷ đồng (abs < 100_000 → chắc chắn không phải VNĐ thô)
+    // thì nhân 1_000_000_000 để ra VNĐ trước khi so ngưỡng
+    const fv = Number.isFinite(foreignNetValue) ? foreignNetValue : 0;
+    const foreignNetVND = Math.abs(fv) < 100_000 ? fv * 1_000_000_000 : fv;
+    const FOREIGN_THRESHOLD = 200_000_000_000; // 200 tỷ VNĐ
+
+    const foreignBias = foreignNetVND > FOREIGN_THRESHOLD ? ' Khối ngoại mua ròng mạnh hỗ trợ.'
+                      : foreignNetVND < -FOREIGN_THRESHOLD ? ' Khối ngoại bán ròng gây áp lực.'
                       : '';
 
     if (indexChangePct > 0.5) {
