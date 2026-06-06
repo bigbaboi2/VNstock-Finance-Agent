@@ -3,7 +3,7 @@ chcp 65001 >nul
 title OMNI DUCK — BẢNG ĐIỀU KHIỂN
 color 0A
 
-:: Khử dấu gạch chéo (\) ở cuối thư mục gốc để chống lỗi nháy kép (Escape Quote Bug)
+
 set "ROOT_DIR=%~dp0"
 if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 

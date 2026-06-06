@@ -28,7 +28,7 @@ const escapeMarkdownV2 = (text = '') =>
         .replace(/\./g, '\\.')
         .replace(/!/g, '\\!');
 
-//── Formatters ──────────────────────────────────────────────
+
 
 const formatNumber = (value, digits = 2) => {
     const n = Number(value);
@@ -51,12 +51,7 @@ const formatPct = (value, digits = 2) => {
     return `${n >= 0 ? '+' : ''}${n.toFixed(digits)}%`;
 };
 
-/**
- *FIX #2: Format prices by asset type with clear units
- *-VN_STOCK : thousand dong → "87.5 kVND"
- *-CRYPTO : USD, automatically selects decimals according to magnitude
- *-DERIVATIVES: points → "1,250.0 VND/share"
- */
+
 const formatPrice = (value, assetType = '') => {
     const n = Number(value);
     if (!Number.isFinite(n) || n <= 0) return '--';
@@ -73,10 +68,7 @@ const formatPrice = (value, assetType = '') => {
     return n.toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-/**
- *FIX #3 helper: Format large VND into an easy-to-read format
- *1,500,000,000 → "1.5 billion" | 250,000,000 → "250 million" | 50,000 → "50,000"
- */
+
 const formatVND = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '--';
@@ -87,13 +79,13 @@ const formatVND = (value) => {
     return `${sign}${abs.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`;
 };
 
-/**FIX #1: Add '...' ONLY when actually cut */
+
 const truncate = (text, maxLen = 300) => {
     const s = String(text || '').trim();
     return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 };
 
-/**Format command hold time from openedAt to current */
+
 const formatHoldDuration = (openedAt) => {
     if (!openedAt) return null;
     const ms = Date.now() - new Date(openedAt).getTime();
@@ -105,17 +97,14 @@ const formatHoldDuration = (openedAt) => {
     return `${m}m`;
 };
 
-//── Core sender ──────────────────────────────────────────────
+
 
 const isTelegramConfigured = () => {
     const { botToken, chatId } = getTelegramConfig();
     return Boolean(botToken && chatId);
 };
 
-/**
- *FIX #5 & #7: Retry once every 2 seconds if network error occurs.
- *FIX #7: If Telegram returns 400 (markdown error), automatically fallback to plain text.
- */
+
 const sendTelegramMessage = async (message, { parseMode = 'MarkdownV2', _isRetry = false } = {}) => {
     if (!isTelegramConfigured()) {
         return { ok: false, skipped: true, reason: 'Telegram chưa được cấu hình' };
@@ -136,17 +125,17 @@ const sendTelegramMessage = async (message, { parseMode = 'MarkdownV2', _isRetry
     } catch (error) {
         const status = error?.response?.status;
 
-        //FIX #7: Telegram 400 = markdown parse error → fallback plain text (1 lần)
+        
         if (status === 400 && parseMode !== 'none' && !_isRetry) {
             console.log(chalk.yellow(`[TELEGRAM] Markdown lỗi (400), thử lại plain text...`));
-            //Strip markdown symbols for plain fallback
+            
             const plain = message
                 .replace(/\\/g, '')
                 .replace(/[*_~`]/g, '');
             return sendTelegramMessage(plain, { parseMode: 'none', _isRetry: true });
         }
 
-        //FIX #5: Network error → retry once every 2 seconds
+        
         if (!_isRetry && !status) {
             console.log(chalk.yellow(`[TELEGRAM] Lỗi mạng, thử lại sau 2s: ${error.message}`));
             await new Promise(r => setTimeout(r, 2000));
@@ -158,11 +147,9 @@ const sendTelegramMessage = async (message, { parseMode = 'MarkdownV2', _isRetry
     }
 };
 
-//── Message builders ─────────────────────────────────────────
 
-/**
- *FIX #2 + #3: Show price in correct units, add Capital & Volume, R:R highlights
- */
+
+
 const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {}, plan = null) => {
     const assetType = trade.assetType || '';
     const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
@@ -185,7 +172,7 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
         ? `${(rewardPct / riskPct).toFixed(2)}:1`
         : '--';
 
-    //FIX #3: show capital & volume
+    
     const investedVND  = Number(trade.investedAmount) || 0;
     const capitalLine  = investedVND > 0
         ? `💼 *Vốn:* ${escapeMarkdownV2(formatVND(investedVND))} VNĐ`
@@ -240,7 +227,7 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
             const symbol   = escapeMarkdownV2(item.symbol || 'N/A');
             const score    = escapeMarkdownV2(`${item.score ?? '--'}/100`);
 
-            //FIX #2: use formatPrice with correct units
+            
             const entry  = escapeMarkdownV2(formatPrice(item.entryPrice, asset));
             const tp     = escapeMarkdownV2(formatPrice(item.takeProfitPrice, asset));
             const sl     = escapeMarkdownV2(formatPrice(item.stopLossPrice, asset));
@@ -248,7 +235,7 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
             const risk   = escapeMarkdownV2(formatPct(-Math.abs(Number(item.riskPct) || 0), 2));
             const ai     = item.aiConfirmed === true ? '✅ AI duyệt' : item.aiConfirmed === false ? '❌ AI hủy' : '⏳ Chờ AI';
 
-            //FIX #1: only add '...' if cut off
+            
             const rawReason = item.reason || item.news?.topTitle || '';
             const reason    = escapeMarkdownV2(truncate(rawReason, 120));
 
@@ -271,9 +258,7 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
     return packed.join('\n');
 };
 
-/**
- *FIX #4: Add asset icon, hold duration, and VND PnL in VND format
- */
+
 const buildAutoTradeCloseMessage = (trade, exitReason) => {
     const assetType = trade.assetType || '';
     const assetIcon = assetType === 'CRYPTO' ? '🪙' : assetType === 'DERIVATIVES' ? '📊' : '🏢';
@@ -291,7 +276,7 @@ const buildAutoTradeCloseMessage = (trade, exitReason) => {
     const pnlVND   = escapeMarkdownV2(formatVND(trade.pnl));
     const reason   = escapeMarkdownV2(truncate(exitReason || '', 300));
 
-    //FIX #4: order hold time
+    
     const holdDur  = formatHoldDuration(trade.openedAt);
     const holdLine = holdDur ? `⏱ *Giữ:* ${escapeMarkdownV2(holdDur)}` : null;
 
@@ -372,9 +357,7 @@ const buildSystemAlertMessage = (moduleName, issue, details) => {
     ].join('\n');
 };
 
-/**
- *FIX #3 + display upgrade: clear win/loss summary, PnL in VND format
- */
+
 const buildDailyPnLReportMessage = (trades, date = new Date()) => {
     const totalTrades   = trades.length;
     const winningTrades = trades.filter(t => t.pnl > 0).length;
@@ -419,6 +402,132 @@ const buildDailyPnLReportMessage = (trades, date = new Date()) => {
     return lines.join('\n');
 };
 
+
+const buildStatusMessage = (data = {}) => {
+    const now = escapeMarkdownV2(new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }));
+
+    
+    const lines = [
+        `🦆 *OMNI DUCK — DASHBOARD*`,
+        `🕒 ${now}`,
+        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+    ];
+
+    
+    const totalCap    = Number(data.totalCapital   || 0);
+    const allocCap    = Number(data.allocatedCapital || 0);
+    const freeCap     = totalCap - allocCap;
+    const utilPct     = totalCap > 0 ? (allocCap / totalCap * 100) : 0;
+    const utilBar     = buildProgressBar(utilPct, 10);
+
+    lines.push(`💰 *VỐN*`);
+    lines.push(`  Tổng:     ${escapeMarkdownV2(formatVND(totalCap))} VNĐ`);
+    lines.push(`  Đang dùng: ${escapeMarkdownV2(formatVND(allocCap))} VNĐ \\(${escapeMarkdownV2(utilPct.toFixed(1))}%\\)`);
+    lines.push(`  Còn lại:  ${escapeMarkdownV2(formatVND(freeCap))} VNĐ`);
+    lines.push(`  ${escapeMarkdownV2(utilBar)}`);
+    lines.push(`\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
+
+    
+    const stats = data.stats30d || {};
+    if (stats.totalTrades > 0) {
+        const winRateNum = parseFloat(stats.winRate) || 0;
+        const winBar     = buildProgressBar(winRateNum, 10);
+        const pnlSign    = (stats.totalPnlPct || 0) >= 0 ? '\\+' : '';
+
+        lines.push(`📊 *THỐNG KÊ 30 NGÀY*`);
+        lines.push(`  Tổng lệnh: ${stats.totalTrades} \\(✅ ${stats.wins} thắng \\| ❌ ${stats.losses} thua\\)`);
+        lines.push(`  Win Rate:  ${escapeMarkdownV2(stats.winRate)} ${escapeMarkdownV2(winBar)}`);
+        lines.push(`  Avg thắng: ${escapeMarkdownV2(`+${stats.avgWinPnl}%`)} \\| Avg thua: ${escapeMarkdownV2(`${stats.avgLossPnl}%`)}`);
+        lines.push(`  Tổng PnL:  ${pnlSign}${escapeMarkdownV2(`${stats.totalPnlPct}%`)}`);
+    } else {
+        lines.push(`📊 *THỐNG KÊ 30 NGÀY*`);
+        lines.push(`  Chưa có lệnh đóng trong 30 ngày`);
+    }
+    lines.push(`\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
+
+    
+    const openTrades = Array.isArray(data.openTrades) ? data.openTrades : [];
+    const pendingCount = openTrades.filter(t => t.status === 'PENDING').length;
+    const openCount    = openTrades.filter(t => t.status === 'OPEN').length;
+
+    lines.push(`📋 *LỆNH ĐANG MỞ: ${openTrades.length}* \\(🟢 ${openCount} OPEN \\| ⏳ ${pendingCount} PENDING\\)`);
+
+    if (openTrades.length === 0) {
+        lines.push(`  Không có lệnh nào đang chạy`);
+    } else {
+        
+        const byAsset = { CRYPTO: [], VN_STOCK: [], DERIVATIVES: [] };
+        for (const t of openTrades) {
+            (byAsset[t.assetType] || byAsset.CRYPTO).push(t);
+        }
+
+        const assetIcon = { CRYPTO: '🪙', VN_STOCK: '🏢', DERIVATIVES: '📊' };
+        const assetLabel = { CRYPTO: 'Crypto', VN_STOCK: 'Cổ phiếu', DERIVATIVES: 'Phái sinh' };
+
+        for (const [asset, trades] of Object.entries(byAsset)) {
+            if (trades.length === 0) continue;
+            lines.push(``);
+            lines.push(`${assetIcon[asset]} *${escapeMarkdownV2(assetLabel[asset])}* \\(${trades.length}\\)`);
+
+            for (const t of trades) {
+                const isLong      = t.direction === 'LONG' || t.direction === 'MUA';
+                const dirIcon     = isLong ? '📈' : '📉';
+                const sym         = escapeMarkdownV2(t.symbol);
+                const dir         = escapeMarkdownV2(t.direction);
+                const entry       = escapeMarkdownV2(formatPrice(t.entryPrice, asset));
+                const tp          = escapeMarkdownV2(formatPrice(t.takeProfitPrice, asset));
+                const sl          = escapeMarkdownV2(formatPrice(t.stopLossPrice, asset));
+                const score       = escapeMarkdownV2(`${t.aiScore ?? '--'}/100`);
+                const invested    = escapeMarkdownV2(formatVND(t.investedAmount));
+                const statusEmoji = t.status === 'PENDING' ? '⏳' : '🟢';
+
+                
+                let unrealizedLine = null;
+                if (Number.isFinite(t.currentPrice) && t.currentPrice > 0 && t.entryPrice > 0) {
+                    const pct = isLong
+                        ? ((t.currentPrice - t.entryPrice) / t.entryPrice * 100)
+                        : ((t.entryPrice - t.currentPrice) / t.entryPrice * 100);
+                    const pctStr  = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+                    const pnlIcon = pct >= 0 ? '🟢' : '🔴';
+                    unrealizedLine = `  ${pnlIcon} PnL tạm: ${escapeMarkdownV2(pctStr)} \\| Giá: ${escapeMarkdownV2(formatPrice(t.currentPrice, asset))}`;
+                }
+
+                const holdDur = formatHoldDuration(t.openedAt);
+
+                lines.push(`  ${statusEmoji} *${sym}* ${dirIcon} ${dir} \\| 🤖 ${score}`);
+                lines.push(`  📍 E: ${entry} \\| ✅ TP: ${tp} \\| ❌ SL: ${sl}`);
+                lines.push(`  💼 Vốn: ${invested} VNĐ${holdDur ? ` \\| ⏱ ${escapeMarkdownV2(holdDur)}` : ''}`);
+                if (unrealizedLine) lines.push(unrealizedLine);
+                lines.push(`  \\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
+            }
+        }
+    }
+
+    
+    lines.push(``);
+    lines.push(`💡 _Gõ /check để làm mới \\| /stop để tắt auto\\-trade_`);
+
+    
+    const packed = [];
+    let total = 0;
+    for (const line of lines) {
+        if (total + line.length + 1 > 3900) {
+            packed.push(escapeMarkdownV2(`... (còn ${lines.length - packed.length} dòng bị cắt)`));
+            break;
+        }
+        packed.push(line);
+        total += line.length + 1;
+    }
+
+    return packed.join('\n');
+};
+
+
+const buildProgressBar = (pct, width = 10) => {
+    const filled = Math.round(Math.min(100, Math.max(0, pct)) / 100 * width);
+    return `[${'█'.repeat(filled)}${'░'.repeat(width - filled)}] ${pct.toFixed(1)}%`;
+};
+
 export {
     isTelegramConfigured,
     sendTelegramMessage,
@@ -429,4 +538,5 @@ export {
     buildVolatilityAlertMessage,
     buildSystemAlertMessage,
     buildDailyPnLReportMessage,
+    buildStatusMessage,
 };
