@@ -9,7 +9,6 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb)](https://mongodb.com)
 [![Gemini](https://img.shields.io/badge/AI-Multi--Provider-4285F4?style=flat-square&logo=google)](https://aistudio.google.com)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen?style=flat-square)]()
 
 **AI-Powered Trading & Analysis Platform for Vietnamese Stocks, Derivatives & Cryptocurrency**
@@ -34,7 +33,8 @@ The platform combines real-time data scraping from 10+ Vietnamese financial sour
 | 🔴 Derivatives | ✅ Working | VN30F1M, macro news, AI analysis |
 | 🎮 Paper Trading | ✅ Working | Virtual 10B VND, LO/ATO/ATC orders, P&L |
 | 🪙 Crypto | ⚠️ Developing | Basic CoinGecko/Binance data, limited signals |
-| 📊 Charts | ⚠️ Enhancing | KlineCharts + Lightweight Charts, UX improvements ongoing |
+| 📊 Charts | ⚠️ Developing | KlineCharts + Lightweight Charts, UX improvements ongoing |
+| 🔄 AutoTrading | ⚠️ Improving | Winrate improvements, AI |
 
 ---
 
@@ -62,7 +62,7 @@ The news system abandoned Google News RSS as the primary source due to stale red
 
 **FireAnt social sentiment** — tiered in-memory cache (ticker vs. market-wide), TTL-aware ( Systems use real user account for scrapping so use clone account to get Bearer in env).
 
-### PDF Docling System
+### ![PDF](https://img.shields.io/badge/PDF-Docling-EC1C24?logo=adobeacrobatreader&logoColor=white) PDF Docling System
 The system uses a PDF data extraction method that utilizes local docking, employing a technique to read the AI-generated PDF as a fallback. With 4 mode for this 
 | Mode | OCR | ML | Speed | Use Case | Notes |
 |------|-----|----|--------|----------|-------|
