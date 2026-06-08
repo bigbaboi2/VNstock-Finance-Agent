@@ -73,6 +73,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     const [filterAsset, setFilterAsset] = useState('ALL');
     const [sortTime, setSortTime] = useState('DESC');
     const [riskLevel, setRiskLevel] = useState(2);
+    const [isEngineEnabled, setIsEngineEnabled] = useState(true);
 
     // State cho quản lý vốn
     const [totalCapital, setTotalCapital] = useState(5_000_000_000);
@@ -163,6 +164,9 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 if (resSettings.data.data.autoTradeRiskLevel) {
                     setRiskLevel(Number(resSettings.data.data.autoTradeRiskLevel));
                 }
+                if (resSettings.data.data.autoTradeEnabled !== undefined) {
+                    setIsEngineEnabled(resSettings.data.data.autoTradeEnabled);
+                }
             }
         } catch (err) {
             setActionMessage({ text: 'Không tải được dữ liệu AutoTrade. Kiểm tra backend/API.', isError: true });
@@ -203,6 +207,20 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             setActionMessage({ text: `Đã chuyển hệ thống AI sang nhóm rủi ro mức ${level}.`, isError: false });
         } catch (err) {
             setActionMessage({ text: 'Lỗi khi cập nhật cấp độ rủi ro.', isError: true });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleToggleEngine = async () => {
+        setLoading(true);
+        const newState = !isEngineEnabled;
+        try {
+            await axios.post('/api/auto-trade/settings', { isEnabled: newState });
+            setIsEngineEnabled(newState);
+            setActionMessage({ text: `Đã ${newState ? 'bật' : 'tắt'} chế độ AutoTrade tự động.`, isError: false });
+        } catch (err) {
+            setActionMessage({ text: 'Lỗi kết nối khi thay đổi trạng thái engine.', isError: true });
         } finally {
             setLoading(false);
         }
@@ -300,9 +318,30 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                             AI Capital & Risk Manager
                         </h3>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Khẩu vị Rủi ro:</span>
-                        <select 
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Trạng thái:</span>
+                            <button
+                                onClick={handleToggleEngine}
+                                disabled={loading}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors outline-none focus:ring-2 focus:ring-offset-1 focus:ring-cyan-500 ${
+                                    isEngineEnabled ? 'bg-emerald-500' : 'bg-slate-400'
+                                }`}
+                            >
+                                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                                    isEngineEnabled ? 'translate-x-5' : 'translate-x-1'
+                                }`} />
+                            </button>
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${isEngineEnabled ? 'text-emerald-500' : 'text-slate-500'}`}>
+                                {isEngineEnabled ? 'BẬT' : 'TẮT'}
+                            </span>
+                        </div>
+
+                        <div className={`w-px h-4 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Khẩu vị Rủi ro:</span>
+                            <select 
                             value={riskLevel}
                             onChange={handleRiskLevelChange}
                             disabled={loading}
@@ -318,6 +357,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                             <option value={3} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>3 - CHUYÊN GIA (ƯA RỦI RO)</option>
                             <option value={4} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>4 - DEGEN (MAX PROFIT)</option>
                         </select>
+                    </div>
                     </div>
                 </div>
                 
