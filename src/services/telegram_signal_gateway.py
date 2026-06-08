@@ -31,6 +31,7 @@ NODE_SECRET_KEY = os.getenv('EXTERNAL_SIGNAL_SECRET')
 # >> ĐÂY LÀ NƠI BẠN THÊM ID CÁC KÊNH/NHÓM TELEGRAM CẦN THEO DÕI <<
 # ==============================================================================
 TARGET_CHAT_IDS = [
+    # Add Telegram channel/group IDs here (as integers). Example:
     'chungkhoanUG',
     'fantom_signal',
     'ByBit_OKX_Bitget',
