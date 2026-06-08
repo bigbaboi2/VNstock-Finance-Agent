@@ -65,24 +65,24 @@ The platform combines real-time data scraping from 10+ Vietnamese financial sour
 ┌──────────────────┬────────────────┬────────────────────────────────────────────┐
 │ Module           │ Status         │ Notes                                      │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 📰 VN News       │ ✅ Strong      │ 5 direct RSS + Google News multi-query,   │
-│    Scraping      │               │ Vietnamese sentiment NLP                    │
+│ 📰 VN News       │ ✅ Strong     │ 5 direct RSS + Google News multi-query,    │
+│    Scraping      │                │ Vietnamese sentiment NLP                   │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 📈 VN Stock      │ ✅ Strong      │ VNDirect, TCBS, CafeF, VNstock-py,        │
-│    Analysis      │               │ FireAnt social                              │
+│ 📈 VN Stock      │ ✅ Strong     │ VNDirect, TCBS, CafeF, VNstock-py,         │
+│    Analysis      │                │ FireAnt social                             │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 🤖 AI Debate     │ ✅ Strong      │ Multi-phase Bull/Bear/PM decision engine  │
-│    Pipeline      │               │                                             │
+│ 🤖 AI Debate     │ ✅ Strong     │ Multi-phase Bull/Bear/PM decision engine   │
+│    Pipeline      │                │                                            │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 🔴 Derivatives   │ ✅ Working     │ VN30F1M, macro news, AI analysis          │
+│ 🔴 Derivatives   │ ✅ Working    │ VN30F1M, macro news, AI analysis           │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 🎮 Paper Trading │ ✅ Working     │ Virtual 10B VND, LO/ATO/ATC orders, P&L   │
+│ 🎮 Paper Trading │ ✅ Working    │ Virtual 10B VND, LO/ATO/ATC orders, P&L    │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
 │ 🪙 Crypto        │ ⚠️ Developing │ Basic CoinGecko/Binance data,              │
-│                  │               │ limited signals                             │
+│                  │                │ limited signals                            │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
 │ 📊 Charts        │ ⚠️ Developing │ KlineCharts + Lightweight Charts,          │
-│                  │               │ UX improvements ongoing                     │
+│                  │                │ UX improvements ongoing                    │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
 │ 🔄 AutoTrading   │ ⚠️ Improving  │ Winrate improvements, AI                   │
 └──────────────────┴────────────────┴────────────────────────────────────────────┘
