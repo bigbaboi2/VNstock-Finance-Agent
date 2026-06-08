@@ -24,32 +24,32 @@
 │                        TABLE OF CONTENTS                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  1. 🎯 Overview & Module Status                                 │
-│  2. ✨ Core Features                                             │
-│     2a. 📰 Vietnamese News Intelligence                          │
-│     2b. 📄 PDF Docling System                                    │
-│  3. 🗂️  Tabs                                                     │
-│     3a. 📈 VN Stock Market                                       │
-│     3b. 🔴 Derivatives & Futures                                 │
+│  2. ✨ Core Features                                            │
+│     2a. 📰 Vietnamese News Intelligence                         │
+│     2b. 📄 PDF Docling System                                   │
+│  3. 🗂️  Tabs                                                    │
+│     3a. 📈 VN Stock Market                                      │
+│     3b. 🔴 Derivatives & Futures                                │
 │     3c. 🤖 AI System (→ Section 5)                              │
-│     3d. 🎮 Paper Trading & Portfolio                             │
-│     3e. 🪙 Cryptocurrency                                        │
+│     3d. 🎮 Paper Trading & Portfolio                            │
+│     3e. 🪙 Cryptocurrency                                       │
 │     3f. 🤖 Autotrading                                          │
-│     3g. ✈️  Telegram connection                                  │
-│  4. 🤖 AI System (Deep Dive)                                     │
+│     3g. ✈️  Telegram connection                                 │
+│  4. 🤖 AI System (Deep Dive)                                    │
 │     4a. Multi-Provider Router                                    │
-│     4b. 🏦 Debate Pipeline                                       │
-│     4c. 📊 Market Intelligence Engine                            │
-│  5. 🏗️  System Architecture                                      │
-│  6. 🛠️  Technology Stack                                         │
-│  7. 📦 Installation & Setup                                      │
-│  8. ⚙️  Environment Configuration                                │
-│  9. 🚀 Quick Start                                               │
-│  10. 📡 API Endpoints                                            │
-│  11. 💪 Strengths                                                │
-│  12. 🗺️  Roadmap                                                  │
-│  13. 📁 Project Structure                                        │
-│  14. 💻 Optional CLI UI                                          │
-│  15. ⚠️  Disclaimer                                              │
+│     4b. 🏦 Debate Pipeline                                      │
+│     4c. 📊 Market Intelligence Engine                           │
+│  5. 🏗️  System Architecture                                     │
+│  6. 🛠️  Technology Stack                                        │
+│  7. 📦 Installation & Setup                                     │
+│  8. ⚙️  Environment Configuration                               │
+│  9. 🚀 Quick Start                                              │
+│  10. 📡 API Endpoints                                           │
+│  11. 💪 Strengths                                               │
+│  12. 🗺️  Roadmap                                                │
+│  13. 📁 Project Structure                                       │
+│  14. 💻 Optional CLI UI                                         │
+│  15. ⚠️  Disclaimer                                             │
 └─────────────────────────────────────────────────────────────────┘
 -->
 
@@ -65,16 +65,16 @@ The platform combines real-time data scraping from 10+ Vietnamese financial sour
 ┌──────────────────┬────────────────┬────────────────────────────────────────────┐
 │ Module           │ Status         │ Notes                                      │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 📰 VN News       │ ✅ Strong      │ 5 direct RSS + Google News multi-query,    │
+│ 📰 VN News       │ ✅ Strong      │ 5 direct RSS + Google News multi-query,   │
 │    Scraping      │               │ Vietnamese sentiment NLP                    │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
 │ 📈 VN Stock      │ ✅ Strong      │ VNDirect, TCBS, CafeF, VNstock-py,        │
 │    Analysis      │               │ FireAnt social                              │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 🤖 AI Debate     │ ✅ Strong      │ Multi-phase Bull/Bear/PM decision engine   │
+│ 🤖 AI Debate     │ ✅ Strong      │ Multi-phase Bull/Bear/PM decision engine  │
 │    Pipeline      │               │                                             │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
-│ 🔴 Derivatives   │ ✅ Working     │ VN30F1M, macro news, AI analysis           │
+│ 🔴 Derivatives   │ ✅ Working     │ VN30F1M, macro news, AI analysis          │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
 │ 🎮 Paper Trading │ ✅ Working     │ Virtual 10B VND, LO/ATO/ATC orders, P&L   │
 ├──────────────────┼────────────────┼────────────────────────────────────────────┤
@@ -117,25 +117,25 @@ The news system abandoned Google News RSS as the primary source due to stale red
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  🧠 Vietnamese Sentiment Analysis Tool                           │
+│  🧠 Vietnamese Sentiment Analysis Tool                          │
 ├──────────────────────────────────────────────────────────────────┤
 │  • Customizable keyword dictionary                               │
 │  • Negative detection (45-character review window)               │
 │  • Scores positive/negative catalysts                            │
-│  • No reliance on English-only tools like VADER                 │
+│  • No reliance on English-only tools like VADER                  │
 │  • Built-in AI-based sentiment recognition                       │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🏷️  Ticker Alias Expansion                                       │
+│  🏷️  Ticker Alias Expansion                                      │
 ├──────────────────────────────────────────────────────────────────┤
-│  TCB → "Techcombank" OR "Ngân hàng Kỹ Thương" OR TCB            │
+│  TCB → "Techcombank" OR "Ngân hàng Kỹ Thương" OR TCB             │
 │  100+ stocks: banking, real estate, steel, utilities sectors     │
 │  (can be added more in source)                                   │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🔥 FireAnt Social Sentiment                                      │
+│  🔥 FireAnt Social Sentiment                                     │
 ├──────────────────────────────────────────────────────────────────┤
 │  • Tiered in-memory cache (ticker vs. market-wide)               │
 │  • TTL-aware                                                     │
@@ -196,7 +196,7 @@ The system uses a PDF data extraction method that utilizes local docking, employ
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  📡 Telegram Integration                                          │
+│  📡 Telegram Integration                                         │
 ├──────────────────────────────────────────────────────────────────┤
 │  • Connected to Telegram news sources, groups, and channels      │
 │    as an additional independent news source                      │
@@ -338,7 +338,7 @@ OMNI DUCK does **not** rely on a single AI provider. The `multiProviderRouter.js
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  ⚡ Rate Limit Handling                                           │
+│  ⚡ Rate Limit Handling                                          │
 ├──────────────────────────────────────────────────────────────────┤
 │  • Each provider has a cooldown tracker in memory                │
 │  • On 429/503 → provider blocked with exponential backoff        │
@@ -347,12 +347,12 @@ OMNI DUCK does **not** rely on a single AI provider. The `multiProviderRouter.js
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🔄 Gemini Dynamic Model Selection  (at startup)                 │
+│  🔄 Gemini Dynamic Model Selection  (at startup)                │
 ├──────────────────────────────────────────────────────────────────┤
-│  gemini-2.5-pro → gemini-2.5-flash → gemini-2.0-flash           │
-│               → gemini-1.5-flash → gemini-1.5-pro               │
+│  gemini-2.5-pro → gemini-2.5-flash → gemini-2.0-flash            │
+│               → gemini-1.5-flash → gemini-1.5-pro                │
 │                                                                  │
-│  Automatic updates based on the API can be supported,           │
+│  Automatic updates based on the API can be supported,            │
 │  not fixed — always uses latest available model without          │
 │  code changes when Google releases updates.                      │
 └──────────────────────────────────────────────────────────────────┘
@@ -393,7 +393,7 @@ The flagship analysis feature. For any Vietnamese stock ticker, the pipeline run
 │  Identifies: What market is pricing correctly vs. incorrectly    │
 │                                                                  │
 │  Output: RATING                                                  │
-│    MUA MẠNH / MUA / NẮM GIỮ / GIẢM / BÁN / TRÁNH               │
+│    MUA MẠNH / MUA / NẮM GIỮ / GIẢM / BÁN / TRÁNH                 │
 │   (Strong Buying / Buying / Holding / Selling Off / Selling /    │
 │    Avoiding)                                                     │
 │    + Entry zone, Stop-loss, Target 1, Target 2,                  │
@@ -550,8 +550,8 @@ All configuration is contained in **a single `.env` file in the root directory**
 
 ```env
 # ╔══════════════════════════════════════════════════════════════╗
-# ║               OMNI DUCK — ENVIRONMENT VARIABLES             ║
-# ║                    (root .env )                   ║
+# ║               OMNI DUCK — ENVIRONMENT VARIABLES              ║
+# ║                    (root .env )                              ║
 # ╚══════════════════════════════════════════════════════════════╝
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 🎯 REQUIRED — Main AI & Database
@@ -698,7 +698,7 @@ python Convertpdf.py
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  📈 Market Data                                                   │
+│  📈 Market Data                                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │  GET  /api/market/symbols    Vietnamese stock list               │
 │  GET  /api/market/heatmap    Sector heatmap                      │
@@ -707,7 +707,7 @@ python Convertpdf.py
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🔬 Stock Analysis                                                │
+│  🔬 Stock Analysis                                               │
 ├──────────────────────────────────────────────────────────────────┤
 │  GET  /api/stock/:ticker     Stock quote + fundamentals          │
 │  POST /api/ai/analyze        AI analysis (single pass,           │
@@ -717,28 +717,28 @@ python Convertpdf.py
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  📰 News                                                          │
+│  📰 News                                                         │
 ├──────────────────────────────────────────────────────────────────┤
 │  GET  /api/news/:ticker      Stock-specific news + sentiment     │
 │  GET  /api/news/market       Market-wide news feed               │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🪙 Crypto                                                        │
+│  🪙 Crypto                                                       │
 ├──────────────────────────────────────────────────────────────────┤
 │  GET  /api/crypto/symbols    Cryptocurrency list                 │
 │  GET  /api/crypto/:symbol    Crypto quote + AI signal            │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🔴 Derivatives                                                   │
+│  🔴 Derivatives                                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │  GET  /api/deriv/symbols     Derivatives list                    │
 │  GET  /api/deriv/macro       Macro news feed                     │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🎮 Paper Trading                                                 │
+│  🎮 Paper Trading                                                │
 ├──────────────────────────────────────────────────────────────────┤
 │  GET  /api/portfolio/:userId Portfolio snapshot                  │
 │  POST /api/portfolio/buy     Place buy order                     │
@@ -755,22 +755,22 @@ python Convertpdf.py
 ┌──────────────────────────┬───────────────────────────────────────────────────┐
 │ Area                     │ Detail                                            │
 ├──────────────────────────┼───────────────────────────────────────────────────┤
-│ 📰 VN News Pipeline      │ Direct RSS + multi-mode Google search,            │
-│                          │ URL decoding, full Vietnamese NLP sentiment        │
+│  VN News Pipeline        │ Direct RSS + multi-mode Google search,            │
+│                          │ URL decoding, full Vietnamese NLP sentiment       │
 │                          │ scoring                                           │
 ├──────────────────────────┼───────────────────────────────────────────────────┤
-│ 🏦 Debate AI             │ Multi-phase Bull/Bear/PM pipeline with            │
+│  Debate AI               │ Multi-phase Bull/Bear/PM pipeline with            │
 │                          │ role-specific prompts,                            │
 │                          │ anti-generic-commentary rules                     │
 ├──────────────────────────┼───────────────────────────────────────────────────┤
-│ 🔄 AI Resilience         │ 5+ providers, per-role priority chains,           │
+│  AI Resilience           │ 5+ providers, per-role priority chains,           │
 │                          │ exponential backoff,                              │
 │                          │ Telegram alerts on failures                       │
 ├──────────────────────────┼───────────────────────────────────────────────────┤
-│ 📊 Quant Engine          │ Real foreign flow, dynamic SPS thresholds,        │
+│  Quant Engine            │ Real foreign flow, dynamic SPS thresholds,        │
 │                          │ multi-source breadth fallback                     │
 ├──────────────────────────┼───────────────────────────────────────────────────┤
-│ 🗣️ VN Market Depth       │ 100+ ticker alias expansions,                     │
+│  VN Market Depth         │ 100+ ticker alias expansions,                     │
 │                          │ VN-specific terminology,                          │
 │                          │ local sentiment dictionary                        │
 └──────────────────────────┴───────────────────────────────────────────────────┘
@@ -782,7 +782,7 @@ python Convertpdf.py
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  🔴 High Priority                                                 │
+│  🔴 High Priority 🔴                                            │
 ├──────────────────────────────────────────────────────────────────┤
 │  [ ] Chart performance — reduce render latency, smoother         │
 │      KlineCharts updates, fix drag/freeze edge cases             │
@@ -795,7 +795,7 @@ python Convertpdf.py
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🟡 Medium Priority                                               │
+│  🟡 Medium Priority 🟡                                          │
 ├──────────────────────────────────────────────────────────────────┤
 │  [ ] Redis caching layer (replace in-memory TTL maps)            │
 │  [ ] Database indexing for news and trade history collections    │
@@ -805,7 +805,7 @@ python Convertpdf.py
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🟢 Planned                                                       │
+│  🟢 Planned 🟢                                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │  [ ] E2E tests (Playwright/Cypress)                              │
 │  [ ] Docker Compose production config                            │
@@ -887,26 +887,26 @@ All market analysis, trading signals, AI-generated reports, technical scores, fo
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  ⚠️  Important Notice                                             │
+│  ⚠️  Important Notice     ⚠️                                    │
 │  By using this project, you acknowledge and agree that:          │
 ├──────────────────────────────────────────────────────────────────┤
-│  📉 The authors and contributors are NOT LIABLE for any          │
+│  📉📉 The authors and contributors are NOT LIABLE for any       │
 │     financial losses or damages resulting from use               │
-│  📊 Market data, AI analysis, and trading signals may contain    │
+│  📊📊 Market data, AI analysis, and trading signals may contain │
 │     errors, delays, inaccuracies, or incomplete information      │
-│  🤖 AI-generated insights are probabilistic in nature and        │
+│  🤖🤖 AI-generated insights are probabilistic in nature and     │
 │     should not be considered professional financial advice       │
-│  🏦 This project does NOT provide brokerage, investment          │
+│  🏦🏦 This project does NOT provide brokerage, investment       │
 │     advisory, portfolio management, or asset management          │
-│  ⚖️  Users are solely responsible for all trading decisions      │
+│  ⚖️⚖️  Users are solely responsible for all trading decisions   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  🚨 Risk Warning                                                  │
+│  🚨 Risk Warning  🚨                                            │
 │  Trading and investing in:                                       │
-│    📈 Stocks  │  📉 Derivatives & Futures  │  ₿ Cryptocurrencies │
+│    📈 Stocks  │  📉 Derivatives & Futures  │  ₿ Cryptocurrencies│
 │  involves substantial risk and may result in the loss            │
 │  of part or all invested capital.                                │
 ├──────────────────────────────────────────────────────────────────┤
