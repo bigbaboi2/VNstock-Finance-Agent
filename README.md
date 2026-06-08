@@ -19,7 +19,7 @@
 
 ---
 
-<!--
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        TABLE OF CONTENTS                        │
 ├─────────────────────────────────────────────────────────────────┤
@@ -36,9 +36,9 @@
 │     3f. 🤖 Autotrading                                          │
 │     3g. ✈️  Telegram connection                                 │
 │  4. 🤖 AI System (Deep Dive)                                    │
-│     4a. Multi-Provider Router                                    │
-│     4b. 🏦 Debate Pipeline                                      │
-│     4c. 📊 Market Intelligence Engine                           │
+│     4a. Multi-Provider Router                                   │
+│     4b. Debate Pipeline                                         │
+│     4c. Market Intelligence Engine                              │
 │  5. 🏗️  System Architecture                                     │
 │  6. 🛠️  Technology Stack                                        │
 │  7. 📦 Installation & Setup                                     │
@@ -51,7 +51,7 @@
 │  14. 💻 Optional CLI UI                                         │
 │  15. ⚠️  Disclaimer                                             │
 └─────────────────────────────────────────────────────────────────┘
--->
+```
 
 ---
 
