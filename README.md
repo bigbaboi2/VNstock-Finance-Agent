@@ -19,39 +19,35 @@
 
 ---
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        TABLE OF CONTENTS                        │
-├─────────────────────────────────────────────────────────────────┤
-│  1. 🎯 Overview & Module Status                                 │
-│  2. ✨ Core Features                                            │
-│     2a. 📰 Vietnamese News Intelligence                         │
-│     2b. 📄 PDF Docling System                                   │
-│  3. 🗂️  Tabs                                                    │
-│     3a. 📈 VN Stock Market                                      │
-│     3b. 🔴 Derivatives & Futures                                │
-│     3c. 🤖 AI System (→ Section 5)                              │
-│     3d. 🎮 Paper Trading & Portfolio                            │
-│     3e. 🪙 Cryptocurrency                                       │
-│     3f. 🤖 Autotrading                                          │
-│     3g. ✈️  Telegram connection                                 │
-│  4. 🤖 AI System (Deep Dive)                                    │
-│     4a. Multi-Provider Router                                   │
-│     4b. Debate Pipeline                                         │
-│     4c. Market Intelligence Engine                              │
-│  5. 🏗️  System Architecture                                     │
-│  6. 🛠️  Technology Stack                                        │
-│  7. 📦 Installation & Setup                                     │
-│  8. ⚙️  Environment Configuration                               │
-│  9. 🚀 Quick Start                                              │
-│  10. 📡 API Endpoints                                           │
-│  11. 💪 Strengths                                               │
-│  12. 🗺️  Roadmap                                                │
-│  13. 📁 Project Structure                                       │
-│  14. 💻 Optional CLI UI                                         │
-│  15. ⚠️  Disclaimer                                             │
-└─────────────────────────────────────────────────────────────────┘
-```
+**📋 Table of Contents**
+ 
+1. [Overview & Module Status](#overview)
+2. [Core Features](#core-features)
+   - [Vietnamese News Intelligence](#vietnamese-news-intelligence-strongest-module)
+   - [PDF Docling System](#pdf-docling-system)
+   - [Telegram Connection](#telegram-connection)
+3. [🗂️ Tabs](#tabs)
+   - [VN Stock Market](#vietnamese-stock-market)
+   - [Derivatives & Futures](#derivatives--futures)
+   - [Paper Trading & Portfolio](#paper-trading--portfolio)
+   - [Cryptocurrency](#cryptocurrency-developing)
+   - [Autotrading](#autotrading-developing)
+4. [AI System](#ai-system)
+   - [Multi-Provider Router](#multi-provider-router)
+   - [Debate Pipeline](#debate-pipeline-hedgefundenginejs)
+   - [Market Intelligence Engine](#market-intelligence-engine-quantenginejs)
+5. [System Architecture](#system-architecture)
+6. [Technology Stack](#technology-stack)
+7. [Installation & Setup](#installation--setup)
+8. [Environment Configuration](#environment-configuration)
+9. [Quick Start](#quick-start)
+10. [API Endpoints](#api-endpoints)
+11. [Strengths](#strengths)
+12. [Roadmap](#roadmap)
+13. [📁 Project Structure](#project-structure)
+14. [Optional CLI UI](#optional-cli-ui)
+15. [⚠️ Disclaimer](#disclaimer)
+
 
 ---
 
