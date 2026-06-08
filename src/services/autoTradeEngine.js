@@ -1596,6 +1596,16 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
 };
 
 export const runAutoTradePipeline = async (forcedAssetType = null) => {
+    try {
+        const enabledSetting = await Setting.findOne({ key: 'autoTradeEnabled' });
+        if (enabledSetting && enabledSetting.value === false) {
+            console.log(chalk.gray(`[AUTODUCK] Đã tắt tự động quét theo cấu hình từ giao diện.`));
+            return { skipped: true, reason: 'disabled_by_user' };
+        }
+    } catch (err) {
+        console.log(chalk.yellow(`[AUTODUCK] Lỗi check autoTradeEnabled: ${err.message}`));
+    }
+
     if (forcedAssetType === 'ALL') forcedAssetType = null;
     if (autoTradePipelineRunning) {
         console.log(chalk.gray(`[AUTODUCK] Bỏ qua chu kỳ ${forcedAssetType || 'ALL'}: pipeline trước vẫn đang chạy.`));

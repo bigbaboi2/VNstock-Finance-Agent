@@ -70,7 +70,7 @@ export const getSystemTradeLogs = async (req, res) => {
 
 export const getAutoTradeSettings = async (req, res) => {
     try {
-        const settings = await Setting.find({ key: { $in: ['autoTradeTotalCapital', 'autoTradeMaxConcurrent', 'autoTradeRiskLevel'] } });
+        const settings = await Setting.find({ key: { $in: ['autoTradeTotalCapital', 'autoTradeMaxConcurrent', 'autoTradeRiskLevel', 'autoTradeEnabled'] } });
         const data = settings.reduce((acc, s) => {
             acc[s.key] = s.value;
             return acc;
@@ -79,6 +79,7 @@ export const getAutoTradeSettings = async (req, res) => {
         if (!data.autoTradeTotalCapital) data.autoTradeTotalCapital = 5_000_000_000;
         if (!data.autoTradeMaxConcurrent) data.autoTradeMaxConcurrent = 10;
         if (!data.autoTradeRiskLevel) data.autoTradeRiskLevel = 2;
+        if (data.autoTradeEnabled === undefined) data.autoTradeEnabled = true;
 
         return res.json({ success: true, data });
     } catch (error) {
@@ -88,7 +89,7 @@ export const getAutoTradeSettings = async (req, res) => {
 
 export const updateAutoTradeSettings = async (req, res) => {
     try {
-        const { totalCapital, maxConcurrent, riskLevel } = req.body;
+        const { totalCapital, maxConcurrent, riskLevel, isEnabled } = req.body;
         const updates = [];
 
         if (totalCapital && !isNaN(Number(totalCapital))) {
@@ -109,6 +110,13 @@ export const updateAutoTradeSettings = async (req, res) => {
             updates.push(Setting.findOneAndUpdate(
                 { key: 'autoTradeRiskLevel' },
                 { value: Number(riskLevel) },
+                { upsert: true, new: true }
+            ));
+        }
+        if (isEnabled !== undefined) {
+            updates.push(Setting.findOneAndUpdate(
+                { key: 'autoTradeEnabled' },
+                { value: isEnabled },
                 { upsert: true, new: true }
             ));
         }
