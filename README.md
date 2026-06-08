@@ -19,22 +19,74 @@
 
 ---
 
+<!--
+┌─────────────────────────────────────────────────────────────────┐
+│                        TABLE OF CONTENTS                        │
+├─────────────────────────────────────────────────────────────────┤
+│  1. 🎯 Overview & Module Status                                 │
+│  2. ✨ Core Features                                             │
+│     2a. 📰 Vietnamese News Intelligence                          │
+│     2b. 📄 PDF Docling System                                    │
+│  3. 🗂️  Tabs                                                     │
+│     3a. 📈 VN Stock Market                                       │
+│     3b. 🔴 Derivatives & Futures                                 │
+│     3c. 🤖 AI System (→ Section 5)                              │
+│     3d. 🎮 Paper Trading & Portfolio                             │
+│     3e. 🪙 Cryptocurrency                                        │
+│     3f. 🤖 Autotrading                                          │
+│     3g. ✈️  Telegram connection                                  │
+│  4. 🤖 AI System (Deep Dive)                                     │
+│     4a. Multi-Provider Router                                    │
+│     4b. 🏦 Debate Pipeline                                       │
+│     4c. 📊 Market Intelligence Engine                            │
+│  5. 🏗️  System Architecture                                      │
+│  6. 🛠️  Technology Stack                                         │
+│  7. 📦 Installation & Setup                                      │
+│  8. ⚙️  Environment Configuration                                │
+│  9. 🚀 Quick Start                                               │
+│  10. 📡 API Endpoints                                            │
+│  11. 💪 Strengths                                                │
+│  12. 🗺️  Roadmap                                                  │
+│  13. 📁 Project Structure                                        │
+│  14. 💻 Optional CLI UI                                          │
+│  15. ⚠️  Disclaimer                                              │
+└─────────────────────────────────────────────────────────────────┘
+-->
+
+---
+
 ## 🎯 Overview
 
 **OMNI DUCK** is a full-stack AI-powered quantitative finance terminal built specifically for the Vietnamese market, with global crypto and derivatives coverage.
 
 The platform combines real-time data scraping from 10+ Vietnamese financial sources, a multi-provider AI routing engine (Gemini, Groq, Cerebras, SambaNova), a multi-phase debate analysis pipeline, automated trading with technical indicators, and a React dashboard — all in a unified self-hosted stack.
 
-| Module | Status | Notes |
-|--------|--------|-------|
-| 📰 VN News Scraping | ✅ Strong | 5 direct RSS + Google News multi-query, Vietnamese sentiment NLP |
-| 📈 VN Stock Analysis | ✅ Strong | VNDirect, TCBS, CafeF, VNstock-py, FireAnt social |
-| 🤖 AI Debate Pipeline | ✅ Strong | Multi-phase Bull/Bear/PM decision engine |
-| 🔴 Derivatives | ✅ Working | VN30F1M, macro news, AI analysis |
-| 🎮 Paper Trading | ✅ Working | Virtual 10B VND, LO/ATO/ATC orders, P&L |
-| 🪙 Crypto | ⚠️ Developing | Basic CoinGecko/Binance data, limited signals |
-| 📊 Charts | ⚠️ Developing | KlineCharts + Lightweight Charts, UX improvements ongoing |
-| 🔄 AutoTrading | ⚠️ Improving | Winrate improvements, AI |
+```
+┌──────────────────┬────────────────┬────────────────────────────────────────────┐
+│ Module           │ Status         │ Notes                                      │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 📰 VN News       │ ✅ Strong      │ 5 direct RSS + Google News multi-query,    │
+│    Scraping      │               │ Vietnamese sentiment NLP                    │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 📈 VN Stock      │ ✅ Strong      │ VNDirect, TCBS, CafeF, VNstock-py,        │
+│    Analysis      │               │ FireAnt social                              │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 🤖 AI Debate     │ ✅ Strong      │ Multi-phase Bull/Bear/PM decision engine   │
+│    Pipeline      │               │                                             │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 🔴 Derivatives   │ ✅ Working     │ VN30F1M, macro news, AI analysis           │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 🎮 Paper Trading │ ✅ Working     │ Virtual 10B VND, LO/ATO/ATC orders, P&L   │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 🪙 Crypto        │ ⚠️ Developing │ Basic CoinGecko/Binance data,              │
+│                  │               │ limited signals                             │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 📊 Charts        │ ⚠️ Developing │ KlineCharts + Lightweight Charts,          │
+│                  │               │ UX improvements ongoing                     │
+├──────────────────┼────────────────┼────────────────────────────────────────────┤
+│ 🔄 AutoTrading   │ ⚠️ Improving  │ Winrate improvements, AI                   │
+└──────────────────┴────────────────┴────────────────────────────────────────────┘
+```
 
 ---
 
@@ -44,8 +96,15 @@ The platform combines real-time data scraping from 10+ Vietnamese financial sour
 
 The news system abandoned Google News RSS as the primary source due to stale redirect URLs stored in MongoDB. It now uses **direct RSS + multi-mode Google search** for maximum freshness:
 
-**5 Direct RSS sources** (always-on, market-hours-aware TTL):
-- VietStock, CafeF, VnEconomy, BaoDauTu, TinNhanhChungKhoan
+```
+┌─────────────────────────────────────────────────────┐
+│          5 Direct RSS Sources  (always-on)          │
+│         market-hours-aware TTL                      │
+├─────────────────────────────────────────────────────┤
+│  • VietStock          • CafeF        • VnEconomy    │
+│  • BaoDauTu           • TinNhanhChungKhoan          │
+└─────────────────────────────────────────────────────┘
+```
 
 **Multi-mode Google News search** (per ticker):
 
@@ -56,14 +115,47 @@ The news system abandoned Google News RSS as the primary source due to stale red
 | `negative` | 30 days | Sell-offs, margin calls, violations |
 | `rumor` | 21 days | Unusual volume, insider activity |
 
-**Vietnamese Sentiment Analysis Tool** — a customizable keyword dictionary with negative detection (45-character review window), scoring of positive/negative catalysts without relying on English-only tools like VADER, and also features built-in AI-based sentiment recognition.
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🧠 Vietnamese Sentiment Analysis Tool                           │
+├──────────────────────────────────────────────────────────────────┤
+│  • Customizable keyword dictionary                               │
+│  • Negative detection (45-character review window)               │
+│  • Scores positive/negative catalysts                            │
+│  • No reliance on English-only tools like VADER                 │
+│  • Built-in AI-based sentiment recognition                       │
+└──────────────────────────────────────────────────────────────────┘
 
-**Ticker alias expansion** — `TCB` → `"Techcombank" OR "Ngân hàng Kỹ Thương" OR TCB` for 100+ Vietnamese stocks across banking, real estate, steel, utilities sectors (can be added more in source) .
+┌──────────────────────────────────────────────────────────────────┐
+│  🏷️  Ticker Alias Expansion                                       │
+├──────────────────────────────────────────────────────────────────┤
+│  TCB → "Techcombank" OR "Ngân hàng Kỹ Thương" OR TCB            │
+│  100+ stocks: banking, real estate, steel, utilities sectors     │
+│  (can be added more in source)                                   │
+└──────────────────────────────────────────────────────────────────┘
 
-**FireAnt social sentiment** — tiered in-memory cache (ticker vs. market-wide), TTL-aware ( Systems use real user account for scrapping so use clone account to get Bearer in env).
+┌──────────────────────────────────────────────────────────────────┐
+│  🔥 FireAnt Social Sentiment                                      │
+├──────────────────────────────────────────────────────────────────┤
+│  • Tiered in-memory cache (ticker vs. market-wide)               │
+│  • TTL-aware                                                     │
+│  • Systems use real user account for scrapping                   │
+│    → use clone account to get Bearer in env                      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### <img src="https://cdn.simpleicons.org/googlegemini" width="18"> AI System
+
+See [full section below](#-ai-system) for the complete Multi-Provider Router and Debate Pipeline architecture.
+
+---
 
 ### ![PDF](https://img.shields.io/badge/PDF-Docling-EC1C24?logo=adobeacrobatreader&logoColor=white) PDF Docling System
-The system uses a PDF data extraction method that utilizes local docking, employing a technique to read the AI-generated PDF as a fallback. With 4 mode for this 
+
+The system uses a PDF data extraction method that utilizes local docking, employing a technique to read the AI-generated PDF as a fallback. With 4 modes:
+
 | Mode | OCR | ML | Speed | Use Case | Notes |
 |------|-----|----|--------|----------|-------|
 | **turbo** (default) | ❌ | ❌ | ~3–8s | DEFAULT | PDF text-based (TCBS, SSI, VPS...) — sufficient for 99% of reports |
@@ -72,21 +164,66 @@ The system uses a PDF data extraction method that utilizes local docking, employ
 | **full** | ✅ | ✅ | ~150–200s | ACCURATE | PDF scan / photo |
 
 *By default, the system is calling the API to retrieve the daily updated financial report PDF file for the stock code from the TCBS source:*
+
 ```
-VnStocksTab (user request) 
-↓
-Node.js ai.controller.js 
-↓ download PDF from: https://static.tcbs.com.vn/oneclick/{TICKER}.pdf
-aiService.getMarkdownFromTcbsPdf() 
-↓ POST multipart/form-data
-Python FastAPI :8000/parse-pdf?mode=turbo 
-↓ Docling → Markdown
-Node.js receives Markdown → clean → cache RAM + MongoDB (TTL 4h) 
-↓
-hedgeFundEngine.js — Fundamental Analyst uses
+┌─────────────────────────────────────────────────────────────┐
+│                  PDF PROCESSING FLOW                        │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+          VnStocksTab (user request)
+                       │
+                       ▼
+          Node.js  ai.controller.js
+                       │  download PDF from:
+                       │  https://static.tcbs.com.vn/oneclick/{TICKER}.pdf
+                       ▼
+          aiService.getMarkdownFromTcbsPdf()
+                       │  POST multipart/form-data
+                       ▼
+          Python FastAPI  :8000/parse-pdf?mode=turbo
+                       │  Docling → Markdown
+                       ▼
+          Node.js receives Markdown
+                       │  clean → cache RAM + MongoDB (TTL 4h)
+                       ▼
+          hedgeFundEngine.js — Fundamental Analyst uses
 ```
+
 ---
-## Tabs
+
+### <img src="https://cdn.simpleicons.org/telegram/26A5E4" width="18"> Telegram Connection
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  📡 Telegram Integration                                          │
+├──────────────────────────────────────────────────────────────────┤
+│  • Connected to Telegram news sources, groups, and channels      │
+│    as an additional independent news source                      │
+│  • Filtered by AI before sending to autotradetab                 │
+│  • Admin can manage system & monitor market via channel          │
+│  • System updates: highly volatile stocks, order results, etc.   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Available commands:**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Command  │  Description                                         │
+├───────────┼──────────────────────────────────────────────────────┤
+│  /check   │  Dashboard: Total capital / in use, open orders,     │
+│           │  30-day win rate                                     │
+│  /stop    │  Lock pipeline (no new orders, old orders monitored) │
+│  /start   │  Unlock pipeline                                     │
+│  /help    │  Order list                                          │
+└───────────┴──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🗂️ Tabs
+
 ### 📈 Vietnamese Stock Market
 
 - Real-time quotes: VNDirect, TCBS, CafeF
@@ -106,12 +243,6 @@ hedgeFundEngine.js — Fundamental Analyst uses
 - Pre-AI mechanical signal section with confluence score system and ATR-derived SL/TP
 - AI derivatives analysis with live macro data: DXY, Dow Futures, USD/VND
 - Sticky chart with action panel and AI debounce logic
-
----
-
-### <img src="https://cdn.simpleicons.org/googlegemini" width="18"> AI System
-
-See [full section below](#-ai-system) for the complete Multi-Provider Router and Debate Pipeline architecture.
 
 ---
 
@@ -135,7 +266,10 @@ See [full section below](#-ai-system) for the complete Multi-Provider Router and
 
 > **Note:** The crypto module is functional but less mature than the VN stock module. Signal quality and cross-exchange integration are ongoing improvement areas
 
-### 🎮 Autotrading *(Developing)*
+---
+
+### 🤖 Autotrading *(Developing)*
+
 ```
          ┌────────────────────────────┐
          │  startAutoDuckScheduler()  │
@@ -172,18 +306,11 @@ See [full section below](#-ai-system) for the complete Multi-Provider Router and
            ├─ Reversal Detection
            ├─ Record PnL
            └─ AI Trade Learning
-  ```
-> **Note:**The automated trading system is in a state of active development, Win rate is improving through ADX Wilder smoothing, Trading History, AI lessons, VWAP accuracy, and short-term hold logic (VN stocks: cap 5 days). currently offering only a system-wide perspective and employing virtual order matching based on actual fetched trade values. There are four selectable AI order entry modes.
+```
+> **Note:** The automated trading system is in a state of active development, Win rate is improving through ADX Wilder smoothing, Trading History, AI lessons, VWAP accuracy, and short-term hold logic (VN stocks: cap 5 days). currently offering only a system-wide perspective and employing virtual order matching based on actual fetched trade values. There are four selectable AI order entry modes.
 > *Can be turned on/off in UI.
+
 ---
-### <img src="https://cdn.simpleicons.org/telegram/26A5E4" width="18"> Telegram connection
-- The system is connected to Telegram news sources, groups, and channels as an additional independent news source and filtered by AI before sending for autotradetab (currently serving the automatic order placement tab).
-- In addition, administrators can manage the system and monitor the market through this Telegram channel. The system will update the market with highly volatile stocks during the session, automatic order matching results, etc.
-- The following commands can be used to check:
-> /check → Dashboard: Total capital / currently in use, open orders, 30-day win rate
-> /stop → Lock pipeline (no new orders opened, old orders are still monitored)
-> /start → Unlock pipeline
-> /help → Order list
 
 ## <img src="https://cdn.simpleicons.org/googlegemini" width="18"> AI System
 
@@ -192,28 +319,44 @@ See [full section below](#-ai-system) for the complete Multi-Provider Router and
 OMNI DUCK does **not** rely on a single AI provider. The `multiProviderRouter.js` assigns each analytical role to a priority chain of providers, automatically falling back with exponential backoff when rate limits or errors occur.
 
 ```
-ROLE MAP (priority order → fallback chain)
-─────────────────────────────────────────
-main         → Gemini Pro → Gemini Flash → Groq
-tech         → Groq → Cerebras → SambaNova → Gemini Flash
-fundamental  → Cerebras → SambaNova → Groq → Gemini Flash
-news         → SambaNova → Groq → DeepInfra → Gemini Flash
-bull         → Groq → Cerebras → OpenRouter → Gemini Flash
-bear         → Cerebras → SambaNova → Groq → Gemini Flash
-pm           → Groq → Cerebras → Gemini Flash → Gemini Pro
-derivatives  → Gemini Pro → Gemini Flash → Groq
-crypto       → Groq → Gemini Flash → Cerebras
-json         → Gemini Flash → Groq → Cerebras
-chat         → Groq → Gemini Flash → Cerebras
+┌──────────────────────────────────────────────────────────────────┐
+│           ROLE MAP  (priority order → fallback chain)            │
+├─────────────┬────────────────────────────────────────────────────┤
+│ main        │ Gemini Pro → Gemini Flash → Groq                   │
+│ tech        │ Groq → Cerebras → SambaNova → Gemini Flash         │
+│ fundamental │ Cerebras → SambaNova → Groq → Gemini Flash         │
+│ news        │ SambaNova → Groq → DeepInfra → Gemini Flash        │
+│ bull        │ Groq → Cerebras → OpenRouter → Gemini Flash        │
+│ bear        │ Cerebras → SambaNova → Groq → Gemini Flash         │
+│ pm          │ Groq → Cerebras → Gemini Flash → Gemini Pro        │
+│ derivatives │ Gemini Pro → Gemini Flash → Groq                   │
+│ crypto      │ Groq → Gemini Flash → Cerebras                     │
+│ json        │ Gemini Flash → Groq → Cerebras                     │
+│ chat        │ Groq → Gemini Flash → Cerebras                     │
+└─────────────┴────────────────────────────────────────────────────┘
 ```
 
-**Rate limit handling:** Each provider has a cooldown tracker in memory. On 429/503, the provider is blocked with exponential backoff (up to 5 min). A Telegram alert fires on first and every 10th consecutive failure.
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  ⚡ Rate Limit Handling                                           │
+├──────────────────────────────────────────────────────────────────┤
+│  • Each provider has a cooldown tracker in memory                │
+│  • On 429/503 → provider blocked with exponential backoff        │
+│    (up to 5 min)                                                 │
+│  • Telegram alert fires on 1st and every 10th consecutive fail   │
+└──────────────────────────────────────────────────────────────────┘
 
-**Gemini dynamic model selection:** At startup, available Gemini models are fetched from the API and ranked:
+┌──────────────────────────────────────────────────────────────────┐
+│  🔄 Gemini Dynamic Model Selection  (at startup)                 │
+├──────────────────────────────────────────────────────────────────┤
+│  gemini-2.5-pro → gemini-2.5-flash → gemini-2.0-flash           │
+│               → gemini-1.5-flash → gemini-1.5-pro               │
+│                                                                  │
+│  Automatic updates based on the API can be supported,           │
+│  not fixed — always uses latest available model without          │
+│  code changes when Google releases updates.                      │
+└──────────────────────────────────────────────────────────────────┘
 ```
-gemini-2.5-pro → gemini-2.5-flash → gemini-2.0-flash → gemini-1.5-flash → gemini-1.5-pro (Automatic updates based on the API can be supported, not fixed)
-```
-This ensures the system always uses the latest available model without code changes when Google releases updates.
 
 ---
 
@@ -222,36 +365,49 @@ This ensures the system always uses the latest available model without code chan
 The flagship analysis feature. For any Vietnamese stock ticker, the pipeline runs a structured multi-phase investment debate using specialized AI personas.
 
 ```
-Phase 1 — Independent Analysis (Parallel)
-──────────────────────────────────────────
-  [Tech Analyst]       →  15-year VN market expert
-  [Fundamental Analyst]→ Credit risk + institutional fund PM
-  [Sentiment Analyst]  → Market psychology + macro strategy
-
-         ↓ (all 3 complete)
-
-Phase 2 — Bull vs Bear Debate
-──────────────────────────────
-  [Bull Opening]       → Max 200 words, data-backed upside case
-  [Bear Rebuttal]      → Direct counter to each Bull point, downside price levels
-  [Bull Final Defense] → Rebuts Bear using provided data only
-
-         ↓
-
-Phase 3 — Portfolio Manager Decision
-──────────────────────────────────────
-  [Chief PM — OMNI DUCK]
-  Evaluates: Tech credibility × Fundamental credibility × Sentiment credibility
-  Identifies: What market is pricing correctly vs. incorrectly
-  Output: RATING (MUA MẠNH / MUA / NẮM GIỮ / GIẢM / BÁN / TRÁNH) (Strong Buying / Buying / Holding / Selling Off / Selling / Avoiding)
-          + Entry zone, Stop-loss, Target 1, Target 2, Time horizon, Conviction
-
-         ↓
-
-Action Panel Extraction
-────────────────────────
-  Gemini Flash extracts structured JSON from PM report:
-  { action, entry, stoploss, target1, target2, horizon, conviction, reason }
+┌──────────────────────────────────────────────────────────────────┐
+│  Phase 1 — Independent Analysis  (Parallel)                      │
+├──────────────────────────────────────────────────────────────────┤
+│  [Tech Analyst]        →  15-year VN market expert               │
+│  [Fundamental Analyst] →  Credit risk + institutional fund PM    │
+│  [Sentiment Analyst]   →  Market psychology + macro strategy     │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │  (all 3 complete)
+                           ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Phase 2 — Bull vs Bear Debate                                   │
+├──────────────────────────────────────────────────────────────────┤
+│  [Bull Opening]        →  Max 200 words, data-backed upside case │
+│  [Bear Rebuttal]       →  Direct counter to each Bull point,     │
+│                           downside price levels                  │
+│  [Bull Final Defense]  →  Rebuts Bear using provided data only   │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Phase 3 — Portfolio Manager Decision                            │
+├──────────────────────────────────────────────────────────────────┤
+│  [Chief PM — OMNI DUCK]                                          │
+│  Evaluates: Tech credibility × Fundamental credibility           │
+│             × Sentiment credibility                              │
+│  Identifies: What market is pricing correctly vs. incorrectly    │
+│                                                                  │
+│  Output: RATING                                                  │
+│    MUA MẠNH / MUA / NẮM GIỮ / GIẢM / BÁN / TRÁNH               │
+│   (Strong Buying / Buying / Holding / Selling Off / Selling /    │
+│    Avoiding)                                                     │
+│    + Entry zone, Stop-loss, Target 1, Target 2,                  │
+│      Time horizon, Conviction                                    │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Action Panel Extraction                                         │
+├──────────────────────────────────────────────────────────────────┤
+│  Gemini Flash extracts structured JSON from PM report:           │
+│  { action, entry, stoploss, target1, target2,                    │
+│    horizon, conviction, reason }                                 │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 Each analyst persona is prompted with strict rules: no generic commentary, cite specific data, call out contradictions, no neutral verdict when data allows a conclusion.
@@ -260,13 +416,21 @@ Each analyst persona is prompted with strict rules: no generic commentary, cite 
 
 ### 📊 Market Intelligence Engine (`quantEngine.js`)
 
-Proprietary calculations for automatic market diagnosis:
-
-- **Market Breadth** — advancing vs. declining ratio (Entrade → TCBS fallback)
-- **Sector Power Score (SPS)** — dynamic thresholds per sector, weighted breadth
-- **Foreign flow data** — real-time from CafeF market scraper
-- **Verdict classification** — Bull / Bear / Trap detection / Accumulation vs. Distribution
-- **CLI display** — sector pulse tables, breadth bars, box-drawing layouts
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Proprietary calculations for automatic market diagnosis         │
+├──────────────────────────────────────────────────────────────────┤
+│  • Market Breadth     — advancing vs. declining ratio            │
+│                         (Entrade → TCBS fallback)                │
+│  • Sector Power Score — dynamic thresholds per sector,           │
+│    (SPS)                weighted breadth                         │
+│  • Foreign flow data  — real-time from CafeF market scraper      │
+│  • Verdict            — Bull / Bear / Trap detection /           │
+│                         Accumulation vs. Distribution            │
+│  • CLI display        — sector pulse tables, breadth bars,       │
+│                         box-drawing layouts                      │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -319,20 +483,24 @@ Proprietary calculations for automatic market diagnosis:
 
 ## 🛠️ Technology Stack
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| **Frontend** | React + Vite | 19.2.5 / 8.0.10 |
-| **Styling** | Tailwind CSS | 3.4.19 |
-| **Charting** | KlineCharts + Lightweight Charts | 9.8.5 / 4.2.1 |
-| **Backend** | Node.js + Express | 18.0.0+ / 5.2.1 |
-| **Database** | MongoDB + Mongoose | Atlas / 9.6.2 |
-| **AI — Primary** | Google Gemini (dynamic model) | gemini-2.5-pro/flash |
-| **AI — Fast** | Groq (llama/mixtral) | latest |
-| **AI — Reasoning** | Cerebras + SambaNova | latest |
-| **Scraping** | Axios + Cheerio + Puppeteer | — |
-| **RSS Parsing** | fast-xml-parser + rss-parser | — |
-| **Process** | PM2 + nodemon | — |
-| **Notifications** | Telegram Bot API | — |
+```
+┌──────────────────┬────────────────────────────────────┬───────────────────────┐
+│ Layer            │ Technology                         │ Version               │
+├──────────────────┼────────────────────────────────────┼───────────────────────┤
+│ Frontend         │ React + Vite                       │ 19.2.5 / 8.0.10       │
+│ Styling          │ Tailwind CSS                       │ 3.4.19                │
+│ Charting         │ KlineCharts + Lightweight Charts   │ 9.8.5 / 4.2.1         │
+│ Backend          │ Node.js + Express                  │ 18.0.0+ / 5.2.1       │
+│ Database         │ MongoDB + Mongoose                 │ Atlas / 9.6.2         │
+│ AI — Primary     │ Google Gemini (dynamic model)      │ gemini-2.5-pro/flash  │
+│ AI — Fast        │ Groq (llama/mixtral)               │ latest                │
+│ AI — Reasoning   │ Cerebras + SambaNova               │ latest                │
+│ Scraping         │ Axios + Cheerio + Puppeteer        │ —                     │
+│ RSS Parsing      │ fast-xml-parser + rss-parser       │ —                     │
+│ Process          │ PM2 + nodemon                      │ —                     │
+│ Notifications    │ Telegram Bot API                   │ —                     │
+└──────────────────┴────────────────────────────────────┴───────────────────────┘
+```
 
 ---
 
@@ -379,6 +547,7 @@ cd frontend && npm run dev
 ## ⚙️ Environment Configuration
 
 All configuration is contained in **a single `.env` file in the root directory** (Vite proxies through `localhost:3001`, no separate `.env` file needed in `/frontend`).
+
 ```env
 # ╔══════════════════════════════════════════════════════════════╗
 # ║               OMNI DUCK — ENVIRONMENT VARIABLES             ║
@@ -434,6 +603,7 @@ APP_URL=http://localhost:3001
 # FireAnt — Social sentiment for VN stocks
 # Get your token from: https://fireant.vn (login → DevTools → cookie/header)
 FIREANT_TOKEN=your_fireant_token
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 🪙 CRYPTOCURRENCY
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -527,73 +697,123 @@ python Convertpdf.py
 ## 📡 API Endpoints
 
 ```
-# Market data
-GET    /api/market/symbols           Vietnamese stock list
-GET    /api/market/heatmap           Sector heatmap
-GET    /api/market/quant             Market intelligence (breadth, SPS, verdict)
+┌──────────────────────────────────────────────────────────────────┐
+│  📈 Market Data                                                   │
+├──────────────────────────────────────────────────────────────────┤
+│  GET  /api/market/symbols    Vietnamese stock list               │
+│  GET  /api/market/heatmap    Sector heatmap                      │
+│  GET  /api/market/quant      Market intelligence                 │
+│                              (breadth, SPS, verdict)             │
+└──────────────────────────────────────────────────────────────────┘
 
-# Stock analysis
-GET    /api/stock/:ticker            Stock quote + fundamentals
-POST   /api/ai/analyze               AI analysis (single pass, auto provider)
-POST   /api/ai/debate                Full hedge fund debate pipeline (SSE stream)
+┌──────────────────────────────────────────────────────────────────┐
+│  🔬 Stock Analysis                                                │
+├──────────────────────────────────────────────────────────────────┤
+│  GET  /api/stock/:ticker     Stock quote + fundamentals          │
+│  POST /api/ai/analyze        AI analysis (single pass,           │
+│                              auto provider)                      │
+│  POST /api/ai/debate         Full hedge fund debate pipeline     │
+│                              (SSE stream)                        │
+└──────────────────────────────────────────────────────────────────┘
 
-# News
-GET    /api/news/:ticker             Stock-specific news + sentiment
-GET    /api/news/market              Market-wide news feed
+┌──────────────────────────────────────────────────────────────────┐
+│  📰 News                                                          │
+├──────────────────────────────────────────────────────────────────┤
+│  GET  /api/news/:ticker      Stock-specific news + sentiment     │
+│  GET  /api/news/market       Market-wide news feed               │
+└──────────────────────────────────────────────────────────────────┘
 
-# Crypto
-GET    /api/crypto/symbols           Cryptocurrency list
-GET    /api/crypto/:symbol           Crypto quote + AI signal
+┌──────────────────────────────────────────────────────────────────┐
+│  🪙 Crypto                                                        │
+├──────────────────────────────────────────────────────────────────┤
+│  GET  /api/crypto/symbols    Cryptocurrency list                 │
+│  GET  /api/crypto/:symbol    Crypto quote + AI signal            │
+└──────────────────────────────────────────────────────────────────┘
 
-# Derivatives
-GET    /api/deriv/symbols            Derivatives list
-GET    /api/deriv/macro              Macro news feed
+┌──────────────────────────────────────────────────────────────────┐
+│  🔴 Derivatives                                                   │
+├──────────────────────────────────────────────────────────────────┤
+│  GET  /api/deriv/symbols     Derivatives list                    │
+│  GET  /api/deriv/macro       Macro news feed                     │
+└──────────────────────────────────────────────────────────────────┘
 
-# Paper trading
-GET    /api/portfolio/:userId        Portfolio snapshot
-POST   /api/portfolio/buy            Place buy order
-POST   /api/portfolio/sell           Place sell order
-GET    /api/portfolio/history        Trade history
+┌──────────────────────────────────────────────────────────────────┐
+│  🎮 Paper Trading                                                 │
+├──────────────────────────────────────────────────────────────────┤
+│  GET  /api/portfolio/:userId Portfolio snapshot                  │
+│  POST /api/portfolio/buy     Place buy order                     │
+│  POST /api/portfolio/sell    Place sell order                    │
+│  GET  /api/portfolio/history Trade history                       │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 💪 Strengths
 
-| Area | Detail |
-|------|--------|
-| 📰 **VN News Pipeline** | Direct RSS + multi-mode Google search, URL decoding, full Vietnamese NLP sentiment scoring |
-| 🏦 **Debate AI** | Multi-phase Bull/Bear/PM pipeline with role-specific prompts, anti-generic-commentary rules |
-| 🔄 **AI Resilience** | 5+ providers, per-role priority chains, exponential backoff, Telegram alerts on failures |
-| 📊 **Quant Engine** | Real foreign flow, dynamic SPS thresholds, multi-source breadth fallback |
-| 🗣️ **VN Market Depth** | 100+ ticker alias expansions, VN-specific terminology, local sentiment dictionary |
+```
+┌──────────────────────────┬───────────────────────────────────────────────────┐
+│ Area                     │ Detail                                            │
+├──────────────────────────┼───────────────────────────────────────────────────┤
+│ 📰 VN News Pipeline      │ Direct RSS + multi-mode Google search,            │
+│                          │ URL decoding, full Vietnamese NLP sentiment        │
+│                          │ scoring                                           │
+├──────────────────────────┼───────────────────────────────────────────────────┤
+│ 🏦 Debate AI             │ Multi-phase Bull/Bear/PM pipeline with            │
+│                          │ role-specific prompts,                            │
+│                          │ anti-generic-commentary rules                     │
+├──────────────────────────┼───────────────────────────────────────────────────┤
+│ 🔄 AI Resilience         │ 5+ providers, per-role priority chains,           │
+│                          │ exponential backoff,                              │
+│                          │ Telegram alerts on failures                       │
+├──────────────────────────┼───────────────────────────────────────────────────┤
+│ 📊 Quant Engine          │ Real foreign flow, dynamic SPS thresholds,        │
+│                          │ multi-source breadth fallback                     │
+├──────────────────────────┼───────────────────────────────────────────────────┤
+│ 🗣️ VN Market Depth       │ 100+ ticker alias expansions,                     │
+│                          │ VN-specific terminology,                          │
+│                          │ local sentiment dictionary                        │
+└──────────────────────────┴───────────────────────────────────────────────────┘
+```
 
 ---
 
 ## 🗺️ Roadmap
 
-### 🔴 High Priority
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🔴 High Priority                                                 │
+├──────────────────────────────────────────────────────────────────┤
+│  [ ] Chart performance — reduce render latency, smoother         │
+│      KlineCharts updates, fix drag/freeze edge cases             │
+│  [ ] Crypto module — stronger signals, cross-exchange            │
+│      arbitrage detection, on-chain data integration              │
+│  [ ] UI/UX polish — loading skeleton states, mobile              │
+│      responsiveness, chart toolbar improvements                  │
+│  [ ] Auto-trade win rate — ADX Wilder smoothing,                 │
+│      VWAP/OBV/Stochastic RSI accuracy improvements               │
+└──────────────────────────────────────────────────────────────────┘
 
-- [ ] **Chart performance** — reduce render latency, smoother KlineCharts updates, fix drag/freeze edge cases
-- [ ] **Crypto module** — stronger signals, cross-exchange arbitrage detection, on-chain data integration
-- [ ] **UI/UX polish** — loading skeleton states, mobile responsiveness, chart toolbar improvements
-- [ ] **Auto-trade win rate** — ADX Wilder smoothing, VWAP/OBV/Stochastic RSI accuracy improvements
+┌──────────────────────────────────────────────────────────────────┐
+│  🟡 Medium Priority                                               │
+├──────────────────────────────────────────────────────────────────┤
+│  [ ] Redis caching layer (replace in-memory TTL maps)            │
+│  [ ] Database indexing for news and trade history collections    │
+│  [ ] bcrypt password hashing                                     │
+│  [ ] Unit tests (Jest) for quantEngine and sentiment scoring     │
+│  [ ] WebSocket for real-time price pushes (replace polling)      │
+└──────────────────────────────────────────────────────────────────┘
 
-### 🟡 Medium Priority
-
-- [ ] Redis caching layer (replace in-memory TTL maps)
-- [ ] Database indexing for news and trade history collections
-- [ ] bcrypt password hashing
-- [ ] Unit tests (Jest) for quantEngine and sentiment scoring
-- [ ] WebSocket for real-time price pushes (replace polling)
-
-### 🟢 Planned
-
-- [ ] E2E tests (Playwright/Cypress)
-- [ ] Docker Compose production config
-- [ ] Horizontal scaling support
-- [ ] Public watchlist sharing
-- [ ] Mobile app (React Native)
+┌──────────────────────────────────────────────────────────────────┐
+│  🟢 Planned                                                       │
+├──────────────────────────────────────────────────────────────────┤
+│  [ ] E2E tests (Playwright/Cypress)                              │
+│  [ ] Docker Compose production config                            │
+│  [ ] Horizontal scaling support                                  │
+│  [ ] Public watchlist sharing                                    │
+│  [ ] Mobile app (React Native)                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -645,12 +865,19 @@ VNstock-Finance-Agent-main/
 ```
 
 ---
-### Optional UI
+
+### 💻 Optional CLI UI
+
 Users can use the CLI interface, replacing the complex frontend setup. This display style is being improved and currently supports 3 tabs: Vietnamese stocks, Vietnamese derivatives, and cryptocurrencies.
+
 It's simple to use; just open the terminal in the root directory.*
-> cd cli
-> node cli/omni-cli.js
-> node cli/omni-cli.js
+```bash
+cd cli
+node cli/omni-cli.js
+node cli/omni-cli.js
+```
+
+---
 
 ## ⚠️ Disclaimer
 
@@ -658,35 +885,41 @@ It's simple to use; just open the terminal in the root directory.*
 
 All market analysis, trading signals, AI-generated reports, technical scores, forecasts, and recommendations provided by this system are intended **solely for informational and learning purposes**.
 
-### Important Notice
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  ⚠️  Important Notice                                             │
+│  By using this project, you acknowledge and agree that:          │
+├──────────────────────────────────────────────────────────────────┤
+│  📉 The authors and contributors are NOT LIABLE for any          │
+│     financial losses or damages resulting from use               │
+│  📊 Market data, AI analysis, and trading signals may contain    │
+│     errors, delays, inaccuracies, or incomplete information      │
+│  🤖 AI-generated insights are probabilistic in nature and        │
+│     should not be considered professional financial advice       │
+│  🏦 This project does NOT provide brokerage, investment          │
+│     advisory, portfolio management, or asset management          │
+│  ⚖️  Users are solely responsible for all trading decisions      │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-By using this project, you acknowledge and agree that:
-
-- 📉 The authors and contributors are **not liable for any financial losses or damages** resulting from the use of this software.
-- 📊 Market data, AI analysis, and trading signals may contain errors, delays, inaccuracies, or incomplete information.
-- 🤖 AI-generated insights are probabilistic in nature and should not be considered professional financial advice.
-- 🏦 This project does **not provide brokerage, investment advisory, portfolio management, or asset management services**.
-- ⚖️ Users are solely responsible for all trading and investment decisions made using information generated by this system.
-
-### Risk Warning
-
-Trading and investing in:
-
-- 📈 Stocks
-- 📉 Derivatives & Futures
-- ₿ Cryptocurrencies
-
-involves substantial risk and may result in the loss of part or all invested capital.
-
-> Past performance does not guarantee future results.
->
-> Asset values can be highly volatile and may decline to zero.
-
-### Professional Advice
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🚨 Risk Warning                                                  │
+│  Trading and investing in:                                       │
+│    📈 Stocks  │  📉 Derivatives & Futures  │  ₿ Cryptocurrencies │
+│  involves substantial risk and may result in the loss            │
+│  of part or all invested capital.                                │
+├──────────────────────────────────────────────────────────────────┤
+│  ▸ Past performance does not guarantee future results.           │
+│  ▸ Asset values can be highly volatile and may decline to zero.  │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 Before making any investment decision, consider consulting a qualified and licensed financial professional.
 
 **Use this software entirely at your own risk.**
+
+---
 
 <div align="center">
 
