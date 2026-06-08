@@ -18,7 +18,6 @@
 </div>
 
 ---
-
 **📋 Table of Contents**
  
 1. [Overview & Module Status](#overview)
@@ -47,7 +46,6 @@
 13. [📁 Project Structure](#project-structure)
 14. [Optional CLI UI](#optional-cli-ui)
 15. [⚠️ Disclaimer](#disclaimer)
-
 
 ---
 
