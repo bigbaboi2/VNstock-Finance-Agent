@@ -54,9 +54,8 @@
 ## 🎯 Overview
 
 **OMNI DUCK** is a full-stack AI-powered quantitative finance terminal built specifically for the Vietnamese market, with global crypto and derivatives coverage.
-
 The platform combines real-time data scraping from 10+ Vietnamese financial sources, a multi-provider AI routing engine (Gemini, Groq, Cerebras, SambaNova), a multi-phase debate analysis pipeline, automated trading with technical indicators, and a React dashboard — all in a unified self-hosted stack.
-
+*This personalized system, created by one person, is inevitably flawed; please leave feedback if needed. The system primarily serves immediate personal investment needs, so we welcome your contributions.*
 ```
 ┌──────────────────┬────────────────┬────────────────────────────────────────────┐
 │ Module           │ Status         │ Notes                                      │
@@ -864,7 +863,7 @@ VNstock-Finance-Agent-main/
 
 ### 💻 Optional CLI UI
 
-Users can use the CLI interface, replacing the complex frontend setup. This display style is being improved and currently supports 3 tabs: Vietnamese stocks, Vietnamese derivatives, and cryptocurrencies.
++ Users can use the CLI interface, replacing the complex frontend setup. This display style is being improved and currently supports 3 tabs: Vietnamese stocks, Vietnamese derivatives, and cryptocurrencies.
 
 It's simple to use; just open the terminal in the root directory.*
 ```bash
@@ -872,7 +871,7 @@ cd cli
 node cli/omni-cli.js
 node cli/omni-cli.js
 ```
-
++ You can double-click in file omni-manager.bat, to quick launcher with options for server.
 ---
 
 ## ⚠️ Disclaimer
