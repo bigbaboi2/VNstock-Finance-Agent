@@ -74,7 +74,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     const [filterAsset, setFilterAsset] = useState('ALL');
     const [sortTime, setSortTime] = useState('DESC');
     const [riskLevel, setRiskLevel] = useState(2);
-    const [isEngineEnabled, setIsEngineEnabled] = useState(true);
+    const [isEngineEnabled, setIsEngineEnabled] = useState(null); // null = chưa load xong từ server
 
     // State cho quản lý vốn
     const [totalCapital, setTotalCapital] = useState(5_000_000_000);
@@ -167,7 +167,9 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                     setRiskLevel(Number(resSettings.data.data.autoTradeRiskLevel));
                 }
                 if (resSettings.data.data.autoTradeEnabled !== undefined) {
-                    setIsEngineEnabled(resSettings.data.data.autoTradeEnabled);
+                    // Ép Boolean: bắt cả string "false" / number 0 từ MongoDB
+                    const raw = resSettings.data.data.autoTradeEnabled;
+                    setIsEngineEnabled(raw === true || raw === 'true' || raw === 1);
                 }
             }
         } catch (err) {
@@ -350,17 +352,18 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                             <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Trạng thái:</span>
                             <button
                                 onClick={handleToggleEngine}
-                                disabled={loading || (!isAdmin && !adminCode)}
+                                disabled={loading || isEngineEnabled === null || (!isAdmin && !adminCode)}
                                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors outline-none focus:ring-2 focus:ring-offset-1 focus:ring-cyan-500 ${
+                                    isEngineEnabled === null ? 'bg-slate-600 animate-pulse' :
                                     isEngineEnabled ? 'bg-emerald-500' : 'bg-slate-400'
-                                } ${!isAdmin && !adminCode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                } ${(isEngineEnabled === null || !isAdmin && !adminCode) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
                                     isEngineEnabled ? 'translate-x-5' : 'translate-x-1'
                                 }`} />
                             </button>
                             <span className={`text-[10px] font-black uppercase tracking-widest ${isEngineEnabled ? 'text-emerald-500' : 'text-slate-500'}`}>
-                                {isEngineEnabled ? 'BẬT' : 'TẮT'}
+                                {isEngineEnabled === null ? '···' : isEngineEnabled ? 'BẬT' : 'TẮT'}
                             </span>
                         </div>
 
