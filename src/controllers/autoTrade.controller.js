@@ -89,7 +89,18 @@ export const getAutoTradeSettings = async (req, res) => {
 
 export const updateAutoTradeSettings = async (req, res) => {
     try {
-        const { totalCapital, maxConcurrent, riskLevel, isEnabled } = req.body;
+        const { totalCapital, maxConcurrent, riskLevel, isEnabled, username, adminCode } = req.body;
+        
+        if (username !== 'admin') {
+            const validAdminCode = process.env.ADMIN_CODE;
+            if (!validAdminCode) {
+                return res.status(403).json({ success: false, message: 'Hệ thống chưa cấu hình mã Admin (ADMIN_CODE trong .env).' });
+            }
+            if (!adminCode || adminCode !== validAdminCode) {
+                return res.status(403).json({ success: false, message: 'Sai mã Admin, bạn không có quyền thực hiện!' });
+            }
+        }
+
         const updates = [];
 
         if (totalCapital && !isNaN(Number(totalCapital))) {
@@ -198,6 +209,17 @@ export const getAiLessons = async (req, res) => {
 export const forceTriggerPipeline = async (req, res) => {
     try {
         const targetAsset = req.body.assetType === 'ALL' ? null : req.body.assetType;
+        const { username, adminCode } = req.body;
+        
+        if (username !== 'admin') {
+            const validAdminCode = process.env.ADMIN_CODE;
+            if (!validAdminCode) {
+                return res.status(403).json({ success: false, message: 'Hệ thống chưa cấu hình mã Admin (ADMIN_CODE trong .env).' });
+            }
+            if (!adminCode || adminCode !== validAdminCode) {
+                return res.status(403).json({ success: false, message: 'Sai mã Admin, bạn không có quyền thực hiện!' });
+            }
+        }
         
         await runAutoTradePipeline(targetAsset);
         
