@@ -949,6 +949,17 @@ export default function VnStocksTab({
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const aiError = aiReportError;
+  const [isRightColOpen, setIsRightColOpen] = useState(true);
+  // isRightColVisible trễ hơn isRightColOpen 300ms để col3 fade out trước khi unmount
+  const [isRightColVisible, setIsRightColVisible] = useState(true);
+  useEffect(() => {
+    if (isRightColOpen) {
+      setIsRightColVisible(true); // mount ngay khi mở
+    } else {
+      const t = setTimeout(() => setIsRightColVisible(false), 300); // unmount sau khi fade xong
+      return () => clearTimeout(t);
+    }
+  }, [isRightColOpen]);
 
   const [elapsedTime, setElapsedTime] = useState(0);
   const scrollContainerRef = useRef(null);
@@ -964,8 +975,8 @@ export default function VnStocksTab({
   const [showNewsScroll, setShowNewsScroll] = useState(false);
   const [showFullReportModal, setShowFullReportModal] = useState(false);
   // ─── STATE ĐIỀU KHIỂN THU GỌN KHỐI PDF VÀ NEWS ────────────────────
-  const [isPdfConfigOpen, setIsPdfConfigOpen] = useState(true);
-  const [isNewsConfigOpen, setIsNewsConfigOpen] = useState(true);
+  const [isPdfConfigOpen, setIsPdfConfigOpen] = useState(false);
+  const [isNewsConfigOpen, setIsNewsConfigOpen] = useState(false);
   // Format chart data for price chart component
   const priceChartData = useMemo(() => {
        if (!Array.isArray(chartData) || chartData.length === 0) return [];
@@ -1157,14 +1168,14 @@ export default function VnStocksTab({
   const [quizSelected, setQuizSelected] = useState(null);
   const [cardFlip, setCardFlip] = useState(false);
 
-  const advanceCard = (nextCard) => {
+  const advanceCard = useCallback((nextCard) => {
     setCardFlip(true);
     setTimeout(() => {
       setLoadingCard(nextCard);
       setQuizSelected(null);
       setCardFlip(false);
     }, 350);
-  };
+  }, []);
 
   useEffect(() => {
     if (!analyzing) {
@@ -1198,7 +1209,83 @@ export default function VnStocksTab({
         <button onClick={() => setMobileTab('radar')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'radar' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Radar</button>
       </div>
 
-      <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden relative">
+      <div className="flex-1 flex flex-row w-full min-h-0 relative">
+
+      {/* ── BOOKMARK TOGGLE COL 3 (desktop only) ──
+           Khi col3 MỞ  → nút nằm ở cạnh TRÁI col3 (giữa col2 & col3), rounded-l
+           Khi col3 ĐÓNG → nút trượt sang RIGHT edge màn hình, rounded-l, vàng nổi bật
+           Transition: right + opacity đồng thời → hiệu ứng trượt + fade
+      ── */}
+      <button
+        onClick={() => setIsRightColOpen(v => !v)}
+        title={isRightColOpen ? 'Thu gọn bảng Radar & PDF' : 'Mở bảng Radar & PDF'}
+        className="fixed z-[200] hidden lg:flex flex-col items-center justify-center"
+        style={{
+          top: '50%',
+          transform: 'translateY(-50%)',
+          /* Khi mở: right = độ rộng col3 (350px lg / 450px xl)
+             Khi đóng: right = 0 (sát mép phải màn hình)
+             CSS transition trên right tạo hiệu ứng trượt mượt */
+          right: isRightColOpen ? 'clamp(350px, 27.5vw, 450px)' : '0px',
+          opacity: 1,
+          transition: 'right 300ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease',
+        }}
+      >
+        <div
+          className="flex flex-col items-center justify-center gap-1.5 px-2 py-5 rounded-l-2xl active:scale-95"
+          style={{
+            transition: 'background 200ms, box-shadow 200ms, transform 100ms',
+            borderTopWidth: '1px',
+            borderBottomWidth: '1px',
+            borderLeftWidth: '1px',
+            borderRightWidth: '0px',
+            borderStyle: 'solid',
+            ...(isDark
+              ? isRightColOpen
+                ? {
+                    background: '#0d1219',
+                    borderColor: 'rgba(250,204,21,0.22)',
+                    color: '#facc15',
+                    boxShadow: '-4px 0 18px rgba(250,204,21,0.10)',
+                  }
+                : {
+                    background: '#facc15',
+                    borderColor: '#fde047',
+                    color: '#000',
+                    boxShadow: '-4px 0 28px rgba(250,204,21,0.55)',
+                  }
+              : isRightColOpen
+                ? {
+                    background: '#fff',
+                    borderColor: '#cbd5e1',
+                    color: '#475569',
+                    boxShadow: '-4px 0 12px rgba(0,0,0,0.10)',
+                  }
+                : {
+                    background: '#facc15',
+                    borderColor: '#fde047',
+                    color: '#000',
+                    boxShadow: '-4px 0 20px rgba(250,204,21,0.45)',
+                  }
+            ),
+          }}
+        >
+          <Activity size={13} />
+          <span
+            className="text-[9px] font-black uppercase tracking-[0.18em] leading-none"
+            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+          >
+            {isRightColOpen ? 'Đóng' : 'Radar'}
+          </span>
+          <ChevronRight
+            size={11}
+            style={{
+              transition: 'transform 300ms',
+              transform: isRightColOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+            }}
+          />
+        </div>
+      </button>
       {/* ========================================================= */}
       {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
       {/* ========================================================= */}
@@ -1589,7 +1676,8 @@ export default function VnStocksTab({
                     return (
                       <div className={`flex flex-col gap-3 mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
                         <button onClick={() => { 
-                            handleAiAnalysis(false); 
+                            handleAiAnalysis(false);
+                            setIsRightColOpen(false);
                             setMobileTab('ai'); // Tự động nhảy sang tab AI khi bắt đầu phân tích
                         }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
                           <BrainCircuit size={18} className={analyzing ? 'animate-pulse' : ''} />
@@ -1612,7 +1700,8 @@ export default function VnStocksTab({
                           </span>
                           {lastAiVnTime && (
                             <button onClick={() => { 
-                                handleAiAnalysis(true); 
+                                handleAiAnalysis(true);
+                                setIsRightColOpen(false);
                                 setMobileTab('ai'); 
                             }} disabled={analyzing} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'}`} title="Bỏ qua thời gian làm mát và ép AI quét lại">
                               ↻ Quét lại ngay
@@ -1738,14 +1827,14 @@ export default function VnStocksTab({
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* GRID COLUMN 2: CHART + AI ANALYSIS */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-colors duration-300 ${UI.rightCol} border-r ${UI.border}`}>
+      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-all duration-300 ${UI.rightCol} ${isRightColOpen ? `border-r ${isDark ? 'border-white/10' : 'border-slate-200'}` : ''}`}>
 
         {/* ── CHART (PINNED) ── */}
         {marketData && (
           <div className="px-2 pt-2 shrink-0">
             <div className={`w-full relative flex flex-col border rounded-2xl transition-all duration-300 overflow-hidden ${
               isDark
-                ? 'bg-[#0a0f18] border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.25),_0_0_60px_rgba(34,197,94,0.1)]'
+                ? 'bg-[#0a0f18] border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.1),_0_0_60px_rgba(34,197,94,0.05)]'
                 : 'bg-white border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
             }`}>
               <div ref={chartWrapperRef} className={`w-full shrink-0 relative flex flex-col h-[260px] sm:h-[320px] lg:h-[600px] lg:basis-[600px] ${isDark ? 'bg-[#0a0f18]' : 'bg-white'}`}>
@@ -2451,7 +2540,21 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 3: INDEX RADAR & TCBS PDF         */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'radar' ? 'block' : 'hidden'} lg:flex w-full lg:w-[350px] xl:w-[450px] lg:flex-col border-l transition-colors duration-300 ${UI.leftCol} pb-10 lg:pb-0 overflow-y-auto lg:overflow-hidden custom-scrollbar`}>
+      <div className={`
+        ${mobileTab === 'radar' ? 'flex' : 'hidden'}
+        ${isRightColVisible ? 'lg:flex' : 'lg:hidden'}
+        flex-col border-l
+        w-full lg:w-[350px] xl:w-[450px]
+        ${UI.leftCol}
+        pb-10 lg:pb-0 overflow-y-auto lg:overflow-hidden custom-scrollbar
+      `}
+        style={{
+          transition: 'opacity 280ms ease, transform 280ms cubic-bezier(0.4,0,0.2,1)',
+          opacity: isRightColOpen ? 1 : 0,
+          transform: isRightColOpen ? 'translateX(0)' : 'translateX(24px)',
+          pointerEvents: isRightColOpen ? 'auto' : 'none',
+        }}
+      >
         <div className="h-auto lg:h-1/2 flex flex-col border-b border-white/10 shrink-0">
           <div className="h-auto lg:h-2/5 flex flex-col sm:flex-row border-b border-white/10">
             <div className="flex-1 border-b sm:border-b-0 sm:border-r border-white/10 p-3 flex flex-col min-h-[180px] lg:min-h-0">
