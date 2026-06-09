@@ -875,8 +875,7 @@ export async function chatWithStockAI(ticker, question, history = [], aiReport =
           history.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n')
         : '';
  
-    const prompt = `Bạn là OMNI DUCK — Trợ lý phân tích tài chính cho TTCK Việt Nam.
-Nhiệm vụ: Trả lời câu hỏi về mã ${ticker.toUpperCase()} dựa trên báo cáo phân tích đã lưu bên dưới.
+    const prompt = `Nhiệm vụ: Trả lời câu hỏi về mã ${ticker.toUpperCase()} dựa trên báo cáo phân tích đã lưu bên dưới.
  
 NGUYÊN TẮC:
 1. Ưu tiên tuyệt đối thông tin từ BÁO CÁO ĐÃ LƯU.
@@ -884,7 +883,8 @@ NGUYÊN TẮC:
 3. Nếu báo cáo chưa đề cập → nói rõ "Báo cáo hiện tại chưa đề cập điểm này." và trả lời dựa trên kiến thức chung về thị trường Việt Nam có thể tra cứu internet, tránh suy đoán vô căn cứ.
 4. Dùng **bold** cho số liệu quan trọng, bullet points khi liệt kê.
 5. KHÔNG bịa số liệu. KHÔNG đưa lời khuyên đầu tư tuyệt đối.
-6. Tối đa 300 từ (trừ khi câu hỏi yêu cầu chi tiết hơn).
+6. KHÔNG tự giới thiệu tên, không nói "Tôi là..." — đi thẳng vào câu trả lời.
+7. Tối đa 300 từ (trừ khi câu hỏi yêu cầu chi tiết hơn).
 ${reportContext}${historyText}
  
 [CÂU HỎI]

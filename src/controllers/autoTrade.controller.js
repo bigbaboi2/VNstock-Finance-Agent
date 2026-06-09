@@ -125,9 +125,11 @@ export const updateAutoTradeSettings = async (req, res) => {
             ));
         }
         if (isEnabled !== undefined) {
+            // Ép Boolean tường minh để tránh MongoDB lưu string "false" / number 0
+            const enabledBool = isEnabled === true || isEnabled === 'true' || isEnabled === 1;
             updates.push(Setting.findOneAndUpdate(
                 { key: 'autoTradeEnabled' },
-                { value: isEnabled },
+                { value: enabledBool },
                 { upsert: true, new: true }
             ));
         }
