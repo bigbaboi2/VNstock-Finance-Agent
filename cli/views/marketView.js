@@ -19,7 +19,7 @@ export function buildMarketBuffer(apiResponse) {
     const intel  = intelData.intelligence;
     const isLive = apiResponse?.isLive ?? true;
 
-    //── Header ────────────────────────────────────────────────────────────────
+    // ── Header ────────────────────────────────────────────────────────────────
     buf.sectionHeader('📡', 'MA TRẬN RADAR THỊ TRƯỜNG — VN-INDEX', chalk.cyan, W);
 
     const liveTag = isLive
@@ -29,7 +29,7 @@ export function buildMarketBuffer(apiResponse) {
        .line(`  ${liveTag}  ${chalk.dim('Cập nhật: ' + new Date().toLocaleTimeString('vi-VN'))}`)
        .blank();
 
-    //── Market Status Card ─────────────────────────────────────────────────────
+    // ── Market Status Card ─────────────────────────────────────────────────────
     let statusBg = chalk.bgYellow.black;
     if (intel.statusType === 'bullish')  statusBg = chalk.bgGreen.black;
     if (intel.statusType === 'bearish')  statusBg = chalk.bgRed.white;
@@ -59,7 +59,7 @@ export function buildMarketBuffer(apiResponse) {
        .line(chalk.cyan('  └' + '─'.repeat(W - 4) + '┘'))
        .blank();
 
-    //── Key Metrics ───────────────────────────────────────────────────────────
+    // ── Key Metrics ───────────────────────────────────────────────────────────
     const metricsTable = new Table({
         head: [
             chalk.cyan.bold('Biến Động Index'),
@@ -73,7 +73,7 @@ export function buildMarketBuffer(apiResponse) {
     metricsTable.push([changeText, breadthText, foreignText, chalk.dim(intel.breadthSource || 'N/A')]);
     metricsTable.toString().split('\n').forEach(l => buf.line(l));
 
-    //── Sector Analysis ───────────────────────────────────────────────────────
+    // ── Sector Analysis ───────────────────────────────────────────────────────
     buf.blank().line(chalk.bold('  📊 PHÂN TÍCH NGÀNH:'));
 
     const sectorTable = new Table({
@@ -97,7 +97,7 @@ export function buildMarketBuffer(apiResponse) {
     }
     sectorTable.toString().split('\n').forEach(l => buf.line(l));
 
-    //── Top Movers ─────────────────────────────────────────────────────────────
+    // ── Top Movers ─────────────────────────────────────────────────────────────
     const topGainers = intel.topGainers || [];
     const topLosers  = intel.topLosers  || [];
     const topVolume  = intel.topVolume  || [];
@@ -129,7 +129,7 @@ export function buildMarketBuffer(apiResponse) {
     return buf;
 }
 
-/**Legacy: render directly to the console (used in pause mode) */
+/** Legacy: render trực tiếp ra console (dùng trong pause mode) */
 export function renderMarketRadar(apiResponse) {
     buildMarketBuffer(apiResponse).lines.forEach(l => console.log(l));
 }

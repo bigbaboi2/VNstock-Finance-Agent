@@ -149,6 +149,7 @@ export default function StockAiChat({
   aiReport,
   isDark,
   currentUser,
+  assetType = 'stock',   // 'stock' | 'crypto' | 'derivative'
 }) {
   const [messages, setMessages]             = useState([]);
   const [input, setInput]                   = useState('');
@@ -158,7 +159,7 @@ export default function StockAiChat({
   const [showWarning, setShowWarning]       = useState(true);
   const [hasRestoredHistory, setHasRestoredHistory] = useState(false);
 
-  // ─── DYNAMIC QUICK PROMPTS (TỰ ĐỘNG ĐỔI THEO MÃ) ────────
+  // ─── DYNAMIC QUICK PROMPTS — tự động đổi theo loại tài sản ────────────
   const suggestedQuestions = ticker?.startsWith('VN30F')
     ? [
         "Đánh giá xung lực (Momentum) ngắn hạn hiện tại?",
@@ -167,6 +168,15 @@ export default function StockAiChat({
         "OI (Vị thế mở) và Khối ngoại đang tác động thế nào?",
         "Lực kéo/xả của 10 Trụ VN30 đang ra sao?",
         "Khuyến nghị chiến lược Scalping 1-3 nhịp tới?"
+      ]
+    : assetType === 'crypto'
+    ? [
+        "Xu hướng kỹ thuật ngắn hạn (1D/4H) hiện tại?",
+        "Vùng hỗ trợ / kháng cự quan trọng nhất?",
+        "Sentiment thị trường Crypto toàn cầu đang nghiêng về đâu?",
+        "Rủi ro vĩ mô (Fed, thanh khoản) ảnh hưởng thế nào?",
+        "So sánh sức mạnh tương đối với BTC?",
+        "Chiến lược DCA hay chờ breakout?"
       ]
     : [
         "Tóm tắt điểm mạnh và điểm yếu chính của doanh nghiệp?",
@@ -257,20 +267,26 @@ export default function StockAiChat({
     if (isOpen && !isMinimized) setTimeout(() => inputRef.current?.focus(), 150);
   }, [isOpen, isMinimized]);
 
-  // ── SAVE  ──────────────────
+  // ── SAVE — only save when ticker matches the loaded session ──────────────
   useEffect(() => {
-    if (ticker && messages.length > 1) {
-       saveChatHistory(ticker, messages);
+    // Guard: don't save if we're mid-load (ticker just changed, messages not yet reset)
+    if (ticker && messages.length > 1 && loadingTickerRef.current === ticker) {
+      saveChatHistory(ticker, messages);
     }
   }, [messages, ticker]);
 
-//[FIX] Track current ticker with ref to avoid stale closure in API calls
+// Track ticker & messages via refs to avoid stale closure bugs
   const currentTickerRef = useRef(ticker);
-  useEffect(() => { currentTickerRef.current = ticker; }, [ticker]);
+  const messagesRef      = useRef([]);
+  const loadingTickerRef = useRef(null);   // which ticker is currently being loaded
 
-//── Load /reset chat when opening or redeeming code ─────────────────
+  useEffect(() => { currentTickerRef.current = ticker; }, [ticker]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+//── Load /reset chat when opening or switching ticker ─────────────────
   useEffect(() => {
     if (isOpen && ticker) {
+      loadingTickerRef.current = null;   // block save until load settles
       setInput('');
       setLoading(false);
       setShowWarning(true);
@@ -285,12 +301,12 @@ export default function StockAiChat({
       };
 
       if (savedMsgs.length > 1) {
-         const separator = {
+        const separator = {
           role: 'system-separator',
           content: `— Lịch sử trò chuyện cũ về ${ticker} (${savedMsgs.length - 1} tin nhắn) —`,
           time: '',
         };
-         const resumeMsg = {
+        const resumeMsg = {
           role: 'assistant',
           content: aiReport
             ? `✅ Đã khôi phục lịch sử chat **${ticker}**. Báo cáo mới đã được nạp — tôi sẵn sàng tiếp tục tư vấn!`
@@ -301,12 +317,14 @@ export default function StockAiChat({
         setHasRestoredHistory(true);
         setShowQuickPrompts(false);
       } else {
-         setMessages([greetingMsg]);
+        setMessages([greetingMsg]);
         setHasRestoredHistory(false);
         setShowQuickPrompts(true);
       }
+      // Allow save effect to run now that messages belong to this ticker
+      loadingTickerRef.current = ticker;
     }
-   }, [isOpen, ticker]); 
+  }, [isOpen, ticker]); 
    const handleSend = useCallback(async (textOverride) => {
     const text = (textOverride ?? input).trim();
     if (!text || loading) return;
@@ -323,7 +341,8 @@ export default function StockAiChat({
     setLoading(true);
 
     try {
-       const history = messages
+      // Read from ref to always get fresh messages (avoids stale closure cross-ticker bug)
+      const history = messagesRef.current
         .filter(m => m.role !== 'system-separator')
         .slice(1)
         .map(m => ({ role: m.role, content: m.content }));
@@ -349,7 +368,7 @@ export default function StockAiChat({
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, messages, ticker, aiReport, currentUser]);
+  }, [input, loading, aiReport, currentUser]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }

@@ -1598,7 +1598,13 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
 export const runAutoTradePipeline = async (forcedAssetType = null) => {
     try {
         const enabledSetting = await Setting.findOne({ key: 'autoTradeEnabled' });
-        if (enabledSetting && enabledSetting.value === false) {
+        // Dùng loose check: bắt cả boolean false, string "false", number 0
+        const isDisabled = enabledSetting && (
+            enabledSetting.value === false ||
+            enabledSetting.value === 'false' ||
+            enabledSetting.value === 0
+        );
+        if (isDisabled) {
             console.log(chalk.gray(`[AUTODUCK] Đã tắt tự động quét theo cấu hình từ giao diện.`));
             return { skipped: true, reason: 'disabled_by_user' };
         }
@@ -2038,6 +2044,21 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 // ── EXIT & AI LEARNING PIPELINE
 
 async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {}, isFastCheck = false) {
+    // Guard: nếu autoTrade bị tắt, không chạy exit/learning pipeline
+    try {
+        const enabledSetting = await Setting.findOne({ key: 'autoTradeEnabled' });
+        const isDisabled = enabledSetting && (
+            enabledSetting.value === false ||
+            enabledSetting.value === 'false' ||
+            enabledSetting.value === 0
+        );
+        if (isDisabled) {
+            return;
+        }
+    } catch (err) {
+        console.log(chalk.yellow(`[EXIT PIPELINE] Lỗi check autoTradeEnabled: ${err.message}`));
+    }
+
     if (exitPipelineRunning) return;
     exitPipelineRunning = true;
 
