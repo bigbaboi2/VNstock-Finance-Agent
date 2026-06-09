@@ -139,16 +139,7 @@ export const getLiveNews = async (req, res) => {
 
 console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`));
 
-        //─── ENHANCED PAGING LOOP ─────────────────────────────────────────────────
-        // Keeps fetching pages until we satisfy the per-mode minimum OR exhaust
-        // MAX_PAGES. Each mode has its own TARGET derived from MIN_COUNT_BY_MODE.
-        //
-        // Stop condition (ANY of):
-        //  (a) uniqueNew.length >= TARGET_FOR_MODE — enough new articles found
-        //  (b) currentPage > MAX_PAGES            — page budget exhausted
-        //  (c) currentBatch is empty              — server has no more results
-        //  (d) isClientDisconnected               — frontend closed the stream
-        // ─────────────────────────────────────────────────────────────────────────
+        //─── // === paging loop ===. ───
         const seenLinks      = new Set(cachedNews.map(n => n.link));
         let uniqueNew        = [];
         let currentPage      = 1;
