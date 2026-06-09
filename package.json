@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev:backend": "nodemon src/server.js",
-    "dev:tunnel": "npx ngrok http --domain=finalize-rasping-decency.ngrok-free.dev 3001",
+    "dev:tunnel": "cross-env npx ngrok http --domain=%NGROK_DOMAIN% 3001",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:tunnel\""
   },
   "keywords": [],
