@@ -4,7 +4,7 @@ import clear from 'clear';
 
 import apiClient from './apiClient.js';
 import { buildMarketBuffer }     from './views/marketView.js';
-import { renderStockDetail, renderAiReport } from './views/stockView.js';
+import { buildStockBuffer, buildAiReportLines } from './views/stockView.js';
 import { buildDerivBuffer }      from './views/derivView.js';
 import { buildCryptoBuffer }     from './views/cryptoView.js';
 import {
@@ -200,14 +200,9 @@ const handleStockAnalysis = async () => {
             logs.forEach(l => console.log(chalk.dim('  · ' + l)));
         }
 
-        // Build stock lines vào buffer rồi dùng pager
-        const stockLines = [];
-        const origLog    = console.log;
-        console.log      = (...args) => stockLines.push(args.join(' '));
-        renderStockDetail(marketData, chartData, actionData);
-        console.log      = origLog;
-
-        await pager(stockLines, `🏢 ${symbol} — Chi tiết cổ phiếu`);
+        // Build stock buffer trực tiếp → pager
+        const stockBuf = buildStockBuffer(marketData, chartData, actionData);
+        await pager(stockBuf.lines, `🏢 ${symbol} — Chi tiết cổ phiếu`);
 
         // AI report
         const { useAi } = await inquirer.prompt([{
@@ -219,20 +214,15 @@ const handleStockAnalysis = async () => {
 
         if (useAi) {
             const payload = {
-                stockInfo:       marketData.stockInfo,
-                companyProfile:  marketData.companyProfile,
-                technicalData:   chartData.slice(-30),
+                stockInfo:      marketData.stockInfo,
+                companyProfile: marketData.companyProfile,
+                technicalData:  chartData.slice(-30),
             };
             try {
-                const aiRes  = await ui.spinner('AI Engine đang xử lý báo cáo định lượng...', () =>
+                const aiRes = await ui.spinner('AI Engine đang xử lý báo cáo định lượng...', () =>
                     apiClient.post(`/analyze/${symbol}`, payload)
                 );
-                const aiLines = [];
-                console.log   = (...args) => aiLines.push(args.join(' '));
-                renderAiReport(aiRes.data?.aiReport, symbol);
-                console.log   = origLog;
-
-                await pager(aiLines, `🦆 AI REPORT — ${symbol}`);
+                await pager(buildAiReportLines(aiRes.data?.aiReport, symbol), `🦆 AI REPORT — ${symbol}`);
             } catch(aiErr) {
                 console.log('\n' + chalk.bgRed.white(' LỖI AI ') + ' ' + chalk.red(aiErr.message));
                 await pause();
