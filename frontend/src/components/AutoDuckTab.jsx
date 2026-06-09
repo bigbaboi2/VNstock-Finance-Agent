@@ -58,6 +58,7 @@ const getRewardRiskPct = (log) => {
 const getSignalBreakdown = (log) => log.signalBreakdown || {};
 
 export default function AutoDuckTab({ username, isDark, UI }) {
+    const isAdmin = username === 'admin';
     const [systemLogs, setSystemLogs] = useState([]);
     const [userOrders, setUserOrders] = useState([]);
     const [aiLessons, setAiLessons] = useState([]);
@@ -77,6 +78,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
     // State cho quản lý vốn
     const [totalCapital, setTotalCapital] = useState(5_000_000_000);
+    const [adminCode, setAdminCode] = useState('');
     const [isEditingCapital, setIsEditingCapital] = useState(false);
     const [capitalInput, setCapitalInput] = useState('5,000,000,000');
     
@@ -185,14 +187,18 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             setActionMessage({ text: 'Vốn phải là số và tối thiểu 100,000,000 đ.', isError: true });
             return;
         }
+        if (!isAdmin) {
+            setActionMessage({ text: 'Chỉ admin mới có quyền cấu hình hệ thống!', isError: true });
+            return;
+        }
         setLoading(true);
         try {
-            await axios.post('/api/auto-trade/settings', { totalCapital: numericValue });
+            await axios.post('/api/auto-trade/settings', { totalCapital: numericValue, username });
             setTotalCapital(numericValue);
             setIsEditingCapital(false);
             setActionMessage({ text: 'Đã cập nhật tổng vốn cho AI thành công!', isError: false });
         } catch (err) {
-            setActionMessage({ text: 'Lỗi khi cập nhật vốn.', isError: true });
+            setActionMessage({ text: err.response?.data?.message || 'Lỗi khi cập nhật vốn.', isError: true });
         } finally {
             setLoading(false);
         }
@@ -200,27 +206,35 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
     const handleRiskLevelChange = async (e) => {
         const level = Number(e.target.value);
+        if (!isAdmin) {
+            setActionMessage({ text: 'Chỉ admin mới có quyền đổi khẩu vị rủi ro!', isError: true });
+            return;
+        }
         setLoading(true);
         try {
-            await axios.post('/api/auto-trade/settings', { riskLevel: level });
+            await axios.post('/api/auto-trade/settings', { riskLevel: level, username });
             setRiskLevel(level);
             setActionMessage({ text: `Đã chuyển hệ thống AI sang nhóm rủi ro mức ${level}.`, isError: false });
         } catch (err) {
-            setActionMessage({ text: 'Lỗi khi cập nhật cấp độ rủi ro.', isError: true });
+            setActionMessage({ text: err.response?.data?.message || 'Lỗi khi cập nhật cấp độ rủi ro.', isError: true });
         } finally {
             setLoading(false);
         }
     };
 
     const handleToggleEngine = async () => {
+        if (!isAdmin && !adminCode) {
+            setActionMessage({ text: 'Cần mã Admin để bật/tắt hệ thống!', isError: true });
+            return;
+        }
         setLoading(true);
         const newState = !isEngineEnabled;
         try {
-            await axios.post('/api/auto-trade/settings', { isEnabled: newState });
+            await axios.post('/api/auto-trade/settings', { isEnabled: newState, username, adminCode });
             setIsEngineEnabled(newState);
             setActionMessage({ text: `Đã ${newState ? 'bật' : 'tắt'} chế độ AutoTrade tự động.`, isError: false });
         } catch (err) {
-            setActionMessage({ text: 'Lỗi kết nối khi thay đổi trạng thái engine.', isError: true });
+            setActionMessage({ text: err.response?.data?.message || 'Lỗi kết nối khi thay đổi trạng thái engine.', isError: true });
         } finally {
             setLoading(false);
         }
@@ -254,18 +268,22 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     };
 
     const handleForceTrigger = async () => {
+        if (!isAdmin) {
+            setActionMessage({ text: 'Chỉ admin mới có quyền kích hoạt quét tín hiệu!', isError: true });
+            return;
+        }
         setLoading(true);
         setActionMessage({ text: '', isError: false });
 
         try {
-            await axios.post('/api/auto-trade/force-trigger', { assetType: formData.assetType });
+            await axios.post('/api/auto-trade/force-trigger', { assetType: formData.assetType, username });
             setActionMessage({
                 text: 'Đã kích hoạt engine quét tín hiệu theo dữ liệu thị trường hiện có.',
                 isError: false,
             });
             setTimeout(fetchAllData, 2000);
         } catch (err) {
-            setActionMessage({ text: 'Không kích hoạt được engine quét lệnh.', isError: true });
+            setActionMessage({ text: err.response?.data?.message || 'Không kích hoạt được engine quét lệnh.', isError: true });
         } finally {
             setLoading(false);
         }
@@ -319,14 +337,23 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         </h3>
                     </div>
                     <div className="flex items-center gap-4">
+                        {!isAdmin && (
+                            <input 
+                                type="password" 
+                                placeholder="Nhập mã Admin..." 
+                                value={adminCode}
+                                onChange={e => setAdminCode(e.target.value)}
+                                className={`w-32 text-[10px] font-bold tracking-widest px-2 py-1.5 rounded outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700 focus:border-cyan-500' : 'bg-white text-slate-600 border-slate-300 focus:border-cyan-500'}`}
+                            />
+                        )}
                         <div className="flex items-center gap-2">
                             <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Trạng thái:</span>
                             <button
                                 onClick={handleToggleEngine}
-                                disabled={loading}
+                                disabled={loading || (!isAdmin && !adminCode)}
                                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors outline-none focus:ring-2 focus:ring-offset-1 focus:ring-cyan-500 ${
                                     isEngineEnabled ? 'bg-emerald-500' : 'bg-slate-400'
-                                }`}
+                                } ${!isAdmin && !adminCode ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
                                     isEngineEnabled ? 'translate-x-5' : 'translate-x-1'
@@ -344,13 +371,13 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                             <select 
                             value={riskLevel}
                             onChange={handleRiskLevelChange}
-                            disabled={loading}
+                            disabled={loading || !isAdmin}
                             className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded outline-none border transition-colors cursor-pointer ${
                                 riskLevel === 1 ? 'bg-blue-500/10 text-blue-500 border-blue-500/30' :
                                 riskLevel === 3 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
                                 riskLevel === 4 ? 'bg-red-500/10 text-red-500 border-red-500/30' :
                                 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-                            }`}
+                            } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <option value={1} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>1 - RẤT THẬN TRỌNG</option>
                             <option value={2} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>2 - CÂN BẰNG (CHUẨN)</option>

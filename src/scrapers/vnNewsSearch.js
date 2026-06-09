@@ -988,10 +988,10 @@ const filterByMode = (articles, mode) => {
             .filter(a => !primarySet.has(a.link))
             .sort((a, b) => hotScore(b, mode) - hotScore(a, mode));
         const combined = [...primary, ...extras];
-        console.log(
+        console.log(chalk.gray(
             `[filterByMode][${mode}] primary=${primary.length} → filled to ${Math.min(combined.length, minCount)} ` +
             `(extras=${extras.length}, min=${minCount})`
-        );
+        ));
         return combined.slice(0, Math.max(combined.length, minCount));
     };
 
@@ -1131,13 +1131,13 @@ export async function searchVnNewsDirectly(
         negative: allResults.filter(a => a.sentiment === 'negative').length,
         neutral:  allResults.filter(a => a.sentiment === 'neutral').length,
         };
-        console.log(
+        console.log(chalk.gray(
         `[vnNewsSearch] ${clean} | mode=${mode} | ${allResults.length} tin`
         + ` | +${sentimentSummary.positive}`
         + ` -${sentimentSummary.negative}`
         + ` ~${sentimentSummary.neutral}`
         + ` | TTL=${ttl / 1000}s`
-    );
+    ));
 
     return allResults.slice(offset, offset + limit);
 }
