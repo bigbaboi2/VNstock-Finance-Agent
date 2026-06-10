@@ -17,6 +17,104 @@ import MarketRadar from './MarketRadar';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import StockAiChat from './StockAiChat';
 import AtomLoader from './AtomLoader';
+import MarketInsightPanel from './MarketInsightPanel';
+// =====================================================================
+// SHARED SUB-COMPONENTS (đồng bộ với DerivativesTab)
+// =====================================================================
+
+// ─── Tooltip nhỏ gọn, dùng lại ───────────────────────────────────────────────
+function Tip({ text, children, side = 'top' }) {
+  const [show, setShow] = useState(false);
+  const posClass = side === 'top'
+    ? 'bottom-full mb-2 left-0'
+    : side === 'bottom'
+    ? 'top-full mt-2 left-0'
+    : 'bottom-full mb-2 right-0';
+  return (
+    <span className="relative inline-flex items-center" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      {show && (
+        <span className={`absolute ${posClass} w-56 p-2.5 rounded-xl shadow-2xl text-[10px] font-semibold leading-relaxed z-[200] bg-[#1a222e] text-slate-300 border border-slate-700 pointer-events-none`}>
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ─── Label section nhỏ ───────────────────────────────────────────────────────
+function SectionLabel({ icon: Icon, label, color = 'text-slate-400', tip, action }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        {Icon && <Icon size={13} className={color} />}
+        <span className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</span>
+        {tip && (
+          <Tip text={tip}>
+            <HelpCircle size={12} className="text-slate-500 hover:text-yellow-400 transition-colors cursor-default" />
+          </Tip>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+// ─── Stat item: label + value ─────────────────────────────────────────────────
+function StatRow({ label, value, valueClass = '', tip }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-white/4 last:border-0">
+      <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+        {label}
+        {tip && (
+          <Tip text={tip}>
+            <HelpCircle size={11} className="text-slate-500 hover:text-yellow-400 transition-colors cursor-default" />
+          </Tip>
+        )}
+      </span>
+      <span className={`text-[11px] font-black tabular-nums ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// ─── Mini stat box ────────────────────────────────────────────────────────────
+function MiniStat({ label, value, valueClass = '', isDark }) {
+  return (
+    <div className={`rounded-xl p-3 flex flex-col items-center gap-0.5 ${isDark ? 'bg-black/30 border border-white/5' : 'bg-slate-50 border border-slate-200'}`}>
+      <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">{label}</span>
+      <span className={`text-sm font-black ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// ─── Mobile Tab Button (icon + label, đồng bộ DerivativesTab) ────────────────
+function MobileTabBtn({ active, onClick, icon: Icon, label, isDark }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 ${
+        active
+          ? 'border-yellow-500 text-yellow-500'
+          : `border-transparent ${isDark ? 'text-slate-500 hover:text-slate-400' : 'text-slate-400 hover:text-slate-500'}`
+      }`}
+    >
+      <Icon size={15} />
+      {label}
+    </button>
+  );
+}
+
+// ─── Card wrapper (đồng bộ DerivativesTab) ────────────────────────────────────
+function DataCard({ children, className = '', isDark, accent = false, noPad = false }) {
+  const base = isDark
+    ? accent ? 'bg-[#0f1520] border-yellow-500/25' : 'bg-[#131922] border-white/6'
+    : accent ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-slate-200';
+  return (
+    <div className={`rounded-2xl border ${noPad ? '' : 'p-4'} ${base} ${className}`}>
+      {children}
+    </div>
+  );
+}
 
 // =====================================================================
 // COMPONENT: COMPANY OVERVIEW 
@@ -27,10 +125,10 @@ const CompanyOverview = React.memo(function CompanyOverview({ profile, isDark, U
   const hasDetail = p?.industry || p?.address;
 
   return (
-    <div className={`rounded-xl border mb-5 overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+    <div className={`rounded-2xl border mb-5 overflow-hidden ${isDark ? 'bg-[#131922] border-white/6' : 'bg-white border-slate-200'}`}>
       <button
         onClick={() => setExpanded(v => !v)}
-        className={`w-full flex items-center justify-between px-4 pt-4 pb-2 transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-100'}`}
+        className={`w-full flex items-center justify-between px-4 pt-4 pb-2 transition-colors ${isDark ? 'hover:bg-white/3' : 'hover:bg-slate-50'}`}
       >
         <p className="text-[10px] uppercase tracking-widest text-yellow-500 font-black flex items-center gap-2">
           <Activity size={12} /> Tổng quan doanh nghiệp
@@ -125,7 +223,7 @@ const LiveDebatePreview = React.memo(({ liveDebate, isDark }) => {
     } ${isDebating && isCollapsed ? 'shadow-[0_0_20px_rgba(234,179,8,0.2)] border-yellow-500/50 animate-pulse' : ''}`}>
       
       {/* Header (Bấm để đóng/mở) */}
-      <button onClick={() => setIsCollapsed(!isCollapsed)} className={`px-4 py-3 flex items-center justify-between border-b shrink-0 transition-colors ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-100'}`}>
+      <button onClick={() => setIsCollapsed(!isCollapsed)} className={`px-4 py-3 flex items-center justify-between border-b shrink-0 transition-colors ${isDark ? 'border-white/6 hover:bg-white/3' : 'border-slate-200 hover:bg-slate-100'}`}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <span className="text-yellow-400 text-sm">⚔️</span>
@@ -150,8 +248,8 @@ const LiveDebatePreview = React.memo(({ liveDebate, isDark }) => {
 
       {/* Content */}
       {!isCollapsed && (
-        <div className="border-t border-white/5 bg-black/20">
-          <div className="flex gap-1 p-2 overflow-x-auto shrink-0 custom-scrollbar border-b border-white/5">
+        <div className="border-t border-white/6 bg-black/20">
+          <div className="flex gap-1 p-2 overflow-x-auto shrink-0 custom-scrollbar border-b border-white/6">
             {steps.map(s => (
               <button key={s.key} onClick={() => liveDebate[s.key] && setActiveKey(s.key)} disabled={!liveDebate[s.key]} className={`shrink-0 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all ${getTabStyle(s)}`}>
                 {s.icon} {s.label}
@@ -240,9 +338,9 @@ const DebatePanel = React.memo(({ debateResult, isDark, UI }) => {
       </button>
 
       {open && (
-        <div className={`border-t animate-in slide-in-from-top-2 duration-300 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+        <div className={`border-t animate-in slide-in-from-top-2 duration-300 ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
           {/* Tabs */}
-          <div className={`flex gap-1 p-3 overflow-x-auto border-b custom-scrollbar ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+          <div className={`flex gap-1 p-3 overflow-x-auto border-b custom-scrollbar ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
             {tabs.map(tab => (
               <button
                 key={tab.id}
@@ -1203,10 +1301,10 @@ export default function VnStocksTab({
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
       {/* MOBILE TABS */}
-      <div className={`lg:hidden flex w-full border-b shrink-0 ${isDark ? 'bg-[#080C11] border-white/10' : 'bg-slate-50 border-slate-200'} z-50`}>
-        <button onClick={() => setMobileTab('market')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'market' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Dữ liệu</button>
-        <button onClick={() => setMobileTab('ai')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'ai' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Omni AI</button>
-        <button onClick={() => setMobileTab('radar')} className={`flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest border-b-[3px] transition-colors ${mobileTab === 'radar' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-transparent text-slate-500 hover:text-slate-400'}`}>Radar</button>
+      <div className={`lg:hidden flex w-full border-b shrink-0 ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'} z-50`}>
+        <MobileTabBtn isDark={isDark} active={mobileTab === 'market'} onClick={() => setMobileTab('market')} icon={Database} label="Dữ liệu" />
+        <MobileTabBtn isDark={isDark} active={mobileTab === 'ai'} onClick={() => setMobileTab('ai')} icon={BrainCircuit} label="Omni AI" />
+        <MobileTabBtn isDark={isDark} active={mobileTab === 'radar'} onClick={() => setMobileTab('radar')} icon={Activity} label="Radar" />
       </div>
 
       <div className="flex-1 flex flex-row w-full min-h-0 relative">
@@ -1289,7 +1387,7 @@ export default function VnStocksTab({
       {/* ========================================================= */}
       {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 relative h-full min-h-0 transition-colors duration-300 ${UI.leftCol}`}>
+      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 relative h-full min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'}`}>
           
         {/* Loading bar */}
         <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
@@ -1300,16 +1398,20 @@ export default function VnStocksTab({
             />
           )}
         </div>
-        
         {!marketData ? (
-          <div className={`flex-1 flex flex-col items-center justify-center opacity-50 ${UI.textMuted}`}>
-            <Database size={48} className="mb-4" />
-            <p className="text-xs font-black uppercase">Waiting for Command</p>
+          /* ── IDLE STATE: Hiển thị Market Insight Panel ── */
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+            <MarketInsightPanel
+              isDark={isDark}
+              UI={UI}
+              setInput={setInput}
+              fetchMarketData={fetchMarketData}
+            />
           </div>
         ) : (
           <div className="flex-1 flex flex-col min-h-0 relative">
             {/* HEADER: STOCK INFO */}
-            <div className={`shrink-0 p-5 border-b shadow-sm z-20 relative ${isDark ? 'bg-[#080C11] border-white/5' : 'bg-white border-slate-200'}`}>
+            <div className={`shrink-0 px-5 py-4 border-b shrink-0 z-20 relative ${isDark ? 'bg-black/30 border-white/8' : 'bg-white border-slate-200'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <div className="flex items-end gap-2">
@@ -1354,11 +1456,11 @@ export default function VnStocksTab({
             <div
               ref={newsScrollRef}
               onScroll={handleNewsScroll}
-              className={`flex-1 flex flex-col overflow-y-auto min-h-0 custom-scrollbar relative ${isDark ? 'bg-[#0d1219]' : 'bg-slate-50'}`}
+              className={`flex-1 flex flex-col overflow-y-auto min-h-0 custom-scrollbar relative ${isDark ? 'bg-[#0a0f18]' : 'bg-slate-50'}`}
             >
               {/* MODULE 1: CHỈ SỐ TÀI CHÍNH */}
-              <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0d1219]/90 hover:bg-white/5' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
+              <details className={`group shrink-0 border-b ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
+                <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0a0f18]/90 hover:bg-white/3' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
                   <div className="flex items-center gap-2">
                     <BarChart3 size={16} className="text-emerald-400" />
                     <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Chỉ số & Tổng quan</span>
@@ -1368,19 +1470,19 @@ export default function VnStocksTab({
                 
                 <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 text-center mb-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
+                    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
                       <p className={`text-[9px] mb-1.5 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>VỐN HÓA</p>
                       <p className="font-black text-sm leading-none whitespace-nowrap">{marketData.stockInfo.marketCap}</p>
                     </div>
-                    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
+                    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
                       <p className={`text-[9px] mb-1.5 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>P/E</p>
                       <p className="font-black text-sm leading-none text-yellow-500 whitespace-nowrap">{marketData.stockInfo.pe}</p>
                     </div>
-                    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
+                    <div className={`p-2.5 rounded-xl border flex flex-col items-center justify-center ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
                       <p className={`text-[9px] mb-1.5 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>TỔNG KL</p>
                       <p className="font-black text-sm leading-none whitespace-nowrap">{marketData.stockInfo.totalVolume}</p>
                     </div>
-                    <div className={`p-2.5 px-3 rounded-xl border flex flex-col justify-center gap-1.5 ${isDark ? 'bg-[#1a1f2e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
+                    <div className={`p-2.5 px-3 rounded-xl border flex flex-col justify-center gap-1.5 ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
                       <div className="flex justify-between items-center text-[11px] font-black text-emerald-500 leading-none">
                         <span className={`text-[6px] uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Mua</span>
                         <span className="whitespace-nowrap">{marketData.stockInfo.buyVolume}</span>
@@ -1397,13 +1499,13 @@ export default function VnStocksTab({
                   </div>
 
                   <div className="flex justify-center mb-3">
-                    <button onClick={() => setShowExtraStats(!showExtraStats)} className={`flex items-center gap-1 text-[9px] font-black tracking-widest uppercase px-3 py-1 rounded-full border transition-all ${isDark ? 'text-gray-400 border-gray-700 hover:bg-gray-800' : 'text-gray-500 border-gray-300 hover:bg-yellow-50'}`}>
+                    <button onClick={() => setShowExtraStats(!showExtraStats)} className={`flex items-center gap-1 text-[9px] font-black tracking-widest uppercase px-3 py-1 rounded-full border transition-all ${isDark ? 'text-slate-400 border-white/6 hover:bg-white/5 hover:border-white/12' : 'text-gray-500 border-gray-300 hover:bg-yellow-50'}`}>
                       {showExtraStats ? <><ChevronUp size={12} /> THU GỌN</> : <><ChevronDown size={12} /> XEM THÊM CHỈ SỐ</>}
                     </button>
                   </div>
 
                   {showExtraStats && (
-                    <div className={`grid grid-cols-3 gap-3 text-center mb-4 p-3 rounded-xl border animate-in slide-in-from-top-2 fade-in duration-200 ${isDark ? 'bg-[#0f141e] border-gray-700' : 'bg-white border-gray-200 shadow-sm'}`}>
+                    <div className={`grid grid-cols-3 gap-3 text-center mb-4 p-3 rounded-2xl border animate-in slide-in-from-top-2 fade-in duration-200 ${isDark ? 'bg-[#0f1520] border-white/6' : 'bg-white border-gray-200 shadow-sm'}`}>
                       <div>
                         <p className={`text-[9px] mb-1 font-black tracking-widest uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>EPS (Nghìn)</p>
                         <p className="font-black text-sm">{marketData.stockInfo.eps}</p>
@@ -1426,7 +1528,7 @@ export default function VnStocksTab({
               </details>
 
               {/* MODULE 2: AI CONFIG & EXPORT */}
-              <details className={`group shrink-0 border-b ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+              <details className={`group shrink-0 border-b ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
                 <summary className={`relative flex items-center justify-between p-4 cursor-pointer select-none transition-all sticky top-0 z-10 border-l-4 overflow-hidden ${
                   isDark
                     ? 'bg-yellow-500 border-yellow-200 shadow-[0_0_25px_rgba(234,179,8,0.4)] hover:bg-yellow-400'
@@ -1444,7 +1546,7 @@ export default function VnStocksTab({
 
                   {/* ─── KHỐI 1: CHẾ ĐỘ ĐỌC PDF  ──────────────────── */}
                   {setPdfMode && (
-                    <div className={`rounded-xl p-3 mb-3 border ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm mt-4'}`}>
+                    <div className={`rounded-2xl p-3 mb-3 border ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200 shadow-sm mt-4'}`}>
                       <button 
                         onClick={() => setIsPdfConfigOpen(!isPdfConfigOpen)}
                         className="w-full flex items-center justify-between focus:outline-none mb-1.5"
@@ -1465,7 +1567,7 @@ export default function VnStocksTab({
                           ].map(({ key, label, icon, desc, pros, cons }) => {
                             const isActive = pdfMode === key;
                             return (
-                              <button key={key} onClick={() => setPdfMode(key)} className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${isActive ? (isDark ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' : 'bg-yellow-100 border-yellow-500 text-yellow-700') : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100')}`}>
+                              <button key={key} onClick={() => setPdfMode(key)} className={`rounded-xl border p-2.5 text-left transition-all active:scale-95 flex flex-col gap-1.5 ${isActive ? (isDark ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' : 'bg-yellow-100 border-yellow-500 text-yellow-700') : (isDark ? 'bg-black/30 border-white/6 text-slate-400 hover:border-white/12 hover:bg-black/40' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100')}`}>
                                 <div className="flex items-center justify-between w-full">
                                   <div className="flex items-center gap-1.5">
                                     <span className="text-sm">{icon}</span>
@@ -1487,7 +1589,7 @@ export default function VnStocksTab({
                   )}
                   {/* ─── KHỐI 2: CHẾ ĐỘ TÌM KIẾM TIN TỨC (COLLAPSE & AUTO-REFRESH UX) ─── */}
                   {setNewsMode && (
-                    <div className={`rounded-xl p-3 mb-3 border ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white border-slate-200 shadow-sm'}`}>
+                    <div className={`rounded-2xl p-3 mb-3 border ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200 shadow-sm'}`}>
                       <button 
                         onClick={() => setIsNewsConfigOpen(!isNewsConfigOpen)}
                         className="w-full flex items-center justify-between focus:outline-none mb-1.5"
@@ -1529,7 +1631,7 @@ export default function VnStocksTab({
                                 ? (isDark ? 'bg-sky-400/15 border-sky-400 text-sky-300' : 'bg-sky-50 border-sky-500 text-sky-700')
                                 : (isDark ? 'bg-yellow-400/15 border-yellow-400 text-yellow-300' : 'bg-yellow-50 border-yellow-500 text-yellow-700');
                               const inactiveStyle = isDark
-                                ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
+                                ? 'bg-black/30 border-white/6 text-slate-400 hover:border-white/12 hover:bg-black/40'
                                 : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-100';
                               return (
                                 <button
@@ -1595,10 +1697,10 @@ export default function VnStocksTab({
                               const colorMap = {
                                 emerald: isActive
                                   ? (isDark ? 'bg-emerald-500/15 border-emerald-400 text-emerald-300' : 'bg-emerald-50 border-emerald-500 text-emerald-700')
-                                  : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400'),
+                                  : (isDark ? 'bg-black/30 border-white/6 text-slate-400 hover:border-white/12 hover:bg-black/40' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400'),
                                 purple: isActive
                                   ? (isDark ? 'bg-purple-500/15 border-purple-400 text-purple-300' : 'bg-purple-50 border-purple-500 text-purple-700')
-                                  : (isDark ? 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400'),
+                                  : (isDark ? 'bg-black/30 border-white/6 text-slate-400 hover:border-white/12 hover:bg-black/40' : 'bg-slate-50 border-slate-300 text-slate-500 hover:border-slate-400'),
                               };
                               return (
                                 <button
@@ -1674,12 +1776,12 @@ export default function VnStocksTab({
                     const remainSecStr = String(remainSec % 60).padStart(2, '0');
 
                     return (
-                      <div className={`flex flex-col gap-3 mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                      <div className={`flex flex-col gap-3 mt-4 pt-4 border-t ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
                         <button onClick={() => { 
                             handleAiAnalysis(false);
                             setIsRightColOpen(false);
                             setMobileTab('ai'); // Tự động nhảy sang tab AI khi bắt đầu phân tích
-                        }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
+                        }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-black/40 text-slate-500 cursor-not-allowed border border-white/6' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
                           <BrainCircuit size={18} className={analyzing ? 'animate-pulse' : ''} />
                           {analyzing ? 'OMNI DUCK ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
                         </button>
@@ -1716,10 +1818,10 @@ export default function VnStocksTab({
 
               {/* MODULE 3: LIVE NEWS STREAM */}
               <details
-                className={`group flex flex-col border-b ${isDark ? 'border-white/5' : 'border-slate-200'} ${isNewsOpen ? 'flex-1 min-h-0' : 'shrink-0'}`}
+                className={`group flex flex-col border-b ${isDark ? 'border-white/6' : 'border-slate-200'} ${isNewsOpen ? 'flex-1 min-h-0' : 'shrink-0'}`}
                 onToggle={(e) => setIsNewsOpen(e.target.open)}
               >
-                <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0d1219]/90 hover:bg-white/5' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
+                <summary className={`flex items-center justify-between p-4 cursor-pointer select-none transition-colors sticky top-0 z-10 backdrop-blur-md ${isDark ? 'bg-[#0a0f18]/90 hover:bg-white/3' : 'bg-slate-50/90 hover:bg-slate-100'}`}>
                   <div className="flex items-center gap-2">
                     <Newspaper size={16} className="text-purple-400" />
                     <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Live News Stream</span>
@@ -1771,7 +1873,7 @@ export default function VnStocksTab({
                       else if (news.isAiGenerated) cardStyle = isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
                       else if (news.sentiment === 'negative') cardStyle = isDark ? 'bg-[#130c0c] border-red-900/40' : 'bg-red-50/50 border-red-200';
                       else if (news.sentiment === 'positive') cardStyle = isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
-                      else cardStyle = isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-200 shadow-sm';
+                      else cardStyle = isDark ? 'bg-[#131922] border-white/6' : 'bg-white border-slate-200 shadow-sm';
 
                       const titleColor = news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : news.sentiment === 'negative' ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}` : news.sentiment === 'positive' ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}` : `group-hover:text-yellow-500 ${UI.textNormal}`;
                       const dateColor = news.isAiGenerated ? 'text-purple-300' : news.sentiment === 'positive' ? 'text-emerald-400' : 'text-yellow-500';
@@ -1810,7 +1912,7 @@ export default function VnStocksTab({
 
             {/* Scroll to top button - news panel */}
             {showNewsScroll && (
-              <button onClick={() => newsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })} className={`absolute bottom-6 right-6 z-50 p-3 rounded-full backdrop-blur-md transition-all duration-300 opacity-50 hover:opacity-100 hover:-translate-y-1 border shadow-lg ${isDark ? 'bg-slate-800/60 text-purple-400 border-purple-500/30 hover:bg-slate-800' : 'bg-white/80 text-purple-600 border-purple-300 hover:bg-white'}`} title="Cuộn lên đầu tin tức">
+              <button onClick={() => newsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })} className={`absolute bottom-6 right-6 z-50 p-3 rounded-full backdrop-blur-md transition-all duration-300 opacity-50 hover:opacity-100 hover:-translate-y-1 border shadow-lg ${isDark ? 'bg-[#0a0f18]/80 text-yellow-400 border-yellow-500/30 hover:bg-[#0a0f18]' : 'bg-white/80 text-yellow-600 border-yellow-300 hover:bg-white'}`} title="Cuộn lên đầu tin tức">
                 <ChevronUp size={22} strokeWidth={3} />
                 {loadingMarket && (<><span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping opacity-75" /><span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full" /></>)}
               </button>
@@ -1819,7 +1921,7 @@ export default function VnStocksTab({
         )}
 
         {/* MarketOverview pinned bottom */}
-        <div className={`shrink-0 border-t z-20 ${isDark ? 'bg-[#080C11] border-white/5' : 'bg-[#F1F5F9] border-slate-300'}`}>
+        <div className={`shrink-0 border-t z-20 ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-[#F1F5F9] border-slate-300'}`}>
           <MarketOverview isDark={isDark} UI={UI} marketIntel={marketIntel} vnIndexData={vnIndexData} />
         </div>
       </div>
@@ -1827,7 +1929,7 @@ export default function VnStocksTab({
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* GRID COLUMN 2: CHART + AI ANALYSIS */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-all duration-300 ${UI.rightCol} ${isRightColOpen ? `border-r ${isDark ? 'border-white/10' : 'border-slate-200'}` : ''}`}>
+      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-all duration-300 ${isDark ? 'bg-[#0a0f18]' : 'bg-white'} ${isRightColOpen ? `border-r ${isDark ? 'border-white/8' : 'border-slate-200'}` : ''}`}>
 
         {/* ── CHART (PINNED) ── */}
         {marketData && (
@@ -1893,7 +1995,7 @@ export default function VnStocksTab({
           {/* ── HOME SCREEN: History + Heatmap ── */}
           {!analyzing && !aiReport && (
             <div className="flex flex-col gap-5 lg:gap-6 animate-in fade-in duration-700 pt-4 lg:pt-5">
-              {/* Recent stocks */}
+              {/* AI Market Intelligence moved to the left column (idle state) */}
               <div>
                 <h2 className={`text-2xl font-black tracking-tight ${UI.textBold}`}>CÁC MÃ GẦN ĐÂY</h2>
                 <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-yellow-500 mt-1">Personal Intelligence Feed</p>
@@ -1902,7 +2004,7 @@ export default function VnStocksTab({
                 <select
                   value={historySortMode}
                   onChange={(e) => setHistorySortMode(e.target.value)}
-                  className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}
+                  className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded-xl cursor-pointer outline-none border transition-colors ${isDark ? 'bg-black/30 text-slate-300 border-white/6' : 'bg-white text-slate-600 border-slate-300'}`}
                 >
                   <option value="time_desc">⏱ Mới nhất</option>
                   <option value="time_asc">⏳ Cũ nhất</option>
@@ -1920,8 +2022,8 @@ export default function VnStocksTab({
                     return (
                       <div key={idx}
                         onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
-                        className={`group relative flex flex-row items-center justify-between p-4 rounded-xl border transition-all cursor-pointer w-full min-h-[75px]
-                          ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/5' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
+                        className={`group relative flex flex-row items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer w-full min-h-[75px]
+                          ${isDark ? 'bg-[#131922] border-white/6 hover:bg-white/3' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
                       >
                         <div className={`absolute left-0 top-1/4 bottom-1/4 w-1 rounded-r-full ${
                           item.lastAction?.includes('MUA') ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' :
@@ -2015,13 +2117,13 @@ export default function VnStocksTab({
 
                 return (
                   <>
-                    <div className="mt-8 border-t pt-6 border-white/10">
+                    <div className="mt-8 border-t pt-6 border-white/8">
                       <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between mb-4 gap-3">
                         <div className="flex items-center gap-3">
                           {heatmapView === 'stocks' && (
                             <button
                               onClick={() => { setHeatmapView('sectors'); setHeatmapSector(null); }}
-                              className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded border transition-all ${isDark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'}`}
+                              className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all ${isDark ? 'bg-black/30 border-white/6 hover:bg-white/5' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'}`}
                             >
                               <ArrowLeft size={14} /> QUAY LẠI
                             </button>
@@ -2036,17 +2138,17 @@ export default function VnStocksTab({
                           )}
                         </div>
                         <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
-                          <select value={hmMetric} onChange={e => setHmMetric(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                          <select value={hmMetric} onChange={e => setHmMetric(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded-xl cursor-pointer outline-none border transition-colors ${isDark ? 'bg-black/30 text-slate-300 border-white/6' : 'bg-white text-slate-600 border-slate-300'}`}>
                             <option value="volume">📊 Tỷ lệ: Khối lượng GD</option>
                             <option value="value">💰 Tỷ lệ: Giá trị GD</option>
                             <option value="marketcap">🏢 Tỷ lệ: Vốn hóa</option>
                           </select>
-                          <select value={hmShape} onChange={e => setHmShape(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                          <select value={hmShape} onChange={e => setHmShape(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded-xl cursor-pointer outline-none border transition-colors ${isDark ? 'bg-black/30 text-slate-300 border-white/6' : 'bg-white text-slate-600 border-slate-300'}`}>
                             <option value="rectangle">🟩 Dạng: Chữ nhật</option>
                             <option value="polygon">⬟ Dạng: Đa giác</option>
                             <option value="circle">⏺ Dạng: Hình tròn</option>
                           </select>
-                          <select value={hmColor} onChange={e => setHmColor(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded cursor-pointer outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                          <select value={hmColor} onChange={e => setHmColor(e.target.value)} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1.5 rounded-xl cursor-pointer outline-none border transition-colors ${isDark ? 'bg-black/30 text-slate-300 border-white/6' : 'bg-white text-slate-600 border-slate-300'}`}>
                             <option value="redGreen">🔴 Màu Cơ bản (+/-)</option>
                             <option value="monochrome">🔵 Đơn sắc (Vol)</option>
                           </select>
@@ -2310,8 +2412,8 @@ export default function VnStocksTab({
                             {heatmapWatchlist.map((s, i) => (
                                 <div key={i}
                                   onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
-                                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]
-                                    ${isDark ? 'bg-[#10151C] border-white/5 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
+                                  className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02]
+                                    ${isDark ? 'bg-[#131922] border-white/6 hover:bg-white/3' : 'bg-white border-slate-200 hover:bg-gray-50'}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <span className="text-yellow-400 font-black text-lg w-10">{s.sym}</span>
@@ -2340,8 +2442,8 @@ export default function VnStocksTab({
                             {heatmapDroplist.map((s, i) => (
                                 <div key={i}
                                   onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
-                                  className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]
-                                    ${isDark ? 'bg-[#10151C] border-red-500/10 hover:bg-red-500/5' : 'bg-white border-red-200 hover:bg-red-50'}`}
+                                  className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02]
+                                    ${isDark ? 'bg-[#131922] border-red-500/10 hover:bg-red-500/5' : 'bg-white border-red-200 hover:bg-red-50'}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <span className="text-red-400 font-black text-lg w-10">{s.sym}</span>
@@ -2368,7 +2470,7 @@ export default function VnStocksTab({
                         ref={tooltipRef}
                         style={{
                           position: 'fixed', zIndex: 9999, pointerEvents: 'none',
-                          background: isDark ? '#1a1f2e' : '#fff',
+                          background: isDark ? '#0f1520' : '#fff',
                           border: '1px solid rgba(250,204,21,0.4)',
                           borderRadius: 10, padding: '8px 14px',
                           boxShadow: '0 8px 32px rgba(0,0,0,0.35)', maxWidth: 240,
@@ -2412,7 +2514,7 @@ export default function VnStocksTab({
           {aiReport && (
                 <div className="w-full flex flex-col gap-0 mt-4 relative">
 
-                   <div className={`lg:sticky lg:top-0 z-40 pt-2 pb-1 -mt-2 backdrop-blur-2xl ${isDark ? 'bg-[#0d1219]/95' : 'bg-slate-50/95'}`}>
+                   <div className={`lg:sticky lg:top-0 z-40 pt-2 pb-1 -mt-2 backdrop-blur-2xl ${isDark ? 'bg-[#0a0f18]/95' : 'bg-slate-50/95'}`}>
                     {/* 1. Meta Header & Quick Actions */}
                     <AiReportHeader
                       isDark={isDark}
@@ -2440,18 +2542,18 @@ export default function VnStocksTab({
                       UI={UI}
                     />
                     
-                     <div className={`absolute -bottom-4 left-0 right-0 h-4 bg-gradient-to-b ${isDark ? 'from-[#0d1219]/95' : 'from-slate-50/95'} to-transparent pointer-events-none`} />
+                     <div className={`absolute -bottom-4 left-0 right-0 h-4 bg-gradient-to-b ${isDark ? 'from-[#0a0f18]/95' : 'from-slate-50/95'} to-transparent pointer-events-none`} />
                   </div>
 
                   {/* 4. Main Report Content */}
                   <div className={`w-full border rounded-2xl lg:rounded-[32px] p-4 sm:p-6 lg:p-10 shadow-2xl transition-all duration-300 relative overflow-hidden mb-6 mt-4 ${
-                    isDark ? 'bg-[#0d1219] border-yellow-400/15' : 'bg-white border-yellow-400/20'
+                    isDark ? 'bg-[#0a0e14] border-yellow-400/15' : 'bg-white border-yellow-400/20'
                   }`}>
                 {/* Subtle top border glow */}
                 <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-yellow-400/30 to-transparent" />
 
                 {/* Report label */}
-                <div className="relative mb-8 pb-4 border-b border-white/10 mt-2">
+                <div className="relative mb-8 pb-4 border-b border-white/6 mt-2">
                   <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500/20 to-orange-500/10 blur-xl opacity-50"></div>
                   <h2 className="relative flex items-center gap-3 text-xl sm:text-2xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 drop-shadow-[0_0_10px_rgba(250,204,21,0.3)]">
                     <Sparkles className="text-yellow-400" size={24} />
@@ -2480,7 +2582,7 @@ export default function VnStocksTab({
                       pre: ({node, ...props}) => (
                         <pre className={`rounded-xl border p-4 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre my-4 ${
                           isDark
-                            ? 'bg-[#0d1117] text-slate-300 border-white/10'
+                            ? 'bg-[#0a0e14] text-slate-300 border-white/6'
                             : 'bg-slate-50 text-slate-800 border-slate-200'
                         }`} {...props} />
                       ),
@@ -2545,7 +2647,7 @@ export default function VnStocksTab({
         ${isRightColVisible ? 'lg:flex' : 'lg:hidden'}
         flex-col border-l
         w-full lg:w-[350px] xl:w-[450px]
-        ${UI.leftCol}
+        ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'}
         pb-10 lg:pb-0 overflow-y-auto lg:overflow-hidden custom-scrollbar
       `}
         style={{
@@ -2555,9 +2657,9 @@ export default function VnStocksTab({
           pointerEvents: isRightColOpen ? 'auto' : 'none',
         }}
       >
-        <div className="h-auto lg:h-1/2 flex flex-col border-b border-white/10 shrink-0">
-          <div className="h-auto lg:h-2/5 flex flex-col sm:flex-row border-b border-white/10">
-            <div className="flex-1 border-b sm:border-b-0 sm:border-r border-white/10 p-3 flex flex-col min-h-[180px] lg:min-h-0">
+        <div className="h-auto lg:h-1/2 flex flex-col border-b border-white/8 shrink-0">
+          <div className="h-auto lg:h-2/5 flex flex-col sm:flex-row border-b border-white/8">
+            <div className="flex-1 border-b sm:border-b-0 sm:border-r border-white/8 p-3 flex flex-col min-h-[180px] lg:min-h-0">
               <span className="text-[9px] font-black text-yellow-500 mb-1">VN-INDEX</span>
               <div className="flex-1 min-h-[150px] lg:min-h-0"><MarketRadar data={vnIndexData} theme={isDark ? 'dark' : 'light'} color="#facc15" /></div>
             </div>
@@ -2571,14 +2673,14 @@ export default function VnStocksTab({
               <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">VN30 Premium</span>
               <Activity size={14} className="text-emerald-500" />
             </div>
-            <div className="flex-1 min-h-[180px] lg:min-h-0 rounded-xl bg-black/20 border border-white/5 overflow-hidden">
+            <div className="flex-1 min-h-[180px] lg:min-h-0 rounded-2xl bg-black/20 border border-white/6 overflow-hidden">
               <MarketRadar data={vn30Data} theme={isDark ? 'dark' : 'light'} color="#10b981" />
             </div>
           </div>
         </div>
 
         <div className="h-[400px] lg:h-1/2 flex flex-col overflow-hidden shrink-0">
-          <div className={`h-10 border-b flex items-center justify-between px-4 shrink-0 ${UI.header}`}>
+          <div className={`h-10 border-b flex items-center justify-between px-4 shrink-0 ${isDark ? 'bg-black/30 border-white/8' : 'bg-white border-slate-200'}`}>
             <div className="flex items-center gap-2">
               <FileText size={14} className="text-yellow-500" />
               <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold}`}>TCBS Analysis</span>
@@ -2608,8 +2710,8 @@ export default function VnStocksTab({
       {showFullReportModal && (
          <div className="fixed inset-0 flex items-center justify-center p-6 lg:p-12 pt-24" style={{ zIndex: 999999 }}>
            <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowFullReportModal(false)} />
-           <div className={`relative w-full max-w-5xl h-full flex flex-col rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border ${isDark ? 'bg-[#0d1219] border-white/10' : 'bg-white border-slate-300'} animate-in zoom-in-95 duration-200`}>
-             <div className={`h-14 flex items-center justify-between px-6 border-b shrink-0 ${isDark ? 'bg-[#121212] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+           <div className={`relative w-full max-w-5xl h-full flex flex-col rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border ${isDark ? 'bg-[#0a0e14] border-white/8' : 'bg-white border-slate-300'} animate-in zoom-in-95 duration-200`}>
+             <div className={`h-14 flex items-center justify-between px-6 border-b shrink-0 ${isDark ? 'bg-black/30 border-white/8' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="flex items-center gap-3">
                     <Sparkles size={18} className="text-yellow-400" />
                     <h3 className={`font-black tracking-widest uppercase text-sm ${UI.textBold}`}>
@@ -2647,7 +2749,7 @@ export default function VnStocksTab({
                       pre: ({node, ...props}) => (
                         <pre className={`rounded-xl border p-4 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre my-4 ${
                           isDark
-                            ? 'bg-[#0d1117] text-slate-300 border-white/10'
+                            ? 'bg-[#0a0e14] text-slate-300 border-white/6'
                             : 'bg-slate-50 text-slate-800 border-slate-200'
                         }`} {...props} />
                       ),
