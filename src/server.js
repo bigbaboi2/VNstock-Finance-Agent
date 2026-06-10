@@ -19,6 +19,7 @@ import historyRoutes from './routes/history.routes.js';
 import cryptoRoutes from './routes/crypto.routes.js';
 import autoTradeRoutes from './routes/autoTrade.routes.js'; 
 import telegramRoutes from './routes/telegram.routes.js';
+import marketInsightRouter from './routes/marketInsightRoutes.js';
 
 // Import Jobs & Services
 import { updateSymbolsDatabase } from './services/symbolUpdater.js';
@@ -27,6 +28,7 @@ import { startPortfolioMatcher } from './jobs/portfolioMatcher.js';
 import { startDerivUpdater } from './jobs/derivUpdater.js';
 import { startCronJobs } from './jobs/newsCron.js';
 import { startAutoDuckScheduler, handleTelegramCommand } from './services/autoTradeEngine.js';
+import { scheduleMarketInsight } from './services/marketInsightService.js';
 
 const app = express();
 const PORT = 3001;
@@ -59,7 +61,7 @@ app.use('/api/symbols',        (req, res, next) => { req.url = '/symbols';      
 app.use('/api/market-heatmap', (req, res, next) => { req.url = '/heatmap';          marketRoutes(req, res, next); });
 app.use('/api/market-radar',   (req, res, next) => { req.url = '/radar';            marketRoutes(req, res, next); });
 app.use('/api/info',           (req, res, next) => { req.url = '/info' + req.path;  marketRoutes(req, res, next); });
-
+app.use('/api/market-insight', marketInsightRouter);
 // AI aliases
 app.use('/api/user-history',       (req, res, next) => { req.url = '/user-history' + req.path;    aiRoutes(req, res, next); });
 app.use('/api/analyze',            (req, res, next) => { req.url = '/analyze' + req.path;         aiRoutes(req, res, next); });
@@ -87,6 +89,7 @@ startDerivUpdater();
 app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.italic(`\n OMNI DUCK SERVER MONGODB READY (local test: http://localhost:${PORT}) `));
     startAutoDuckScheduler();
+    scheduleMarketInsight();
     try {
         await updateSymbolsDatabase();
         await updateCryptoSymbols();
