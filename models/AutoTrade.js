@@ -22,6 +22,10 @@ const AutoTradeSchema = new mongoose.Schema({
         contextSource: { type: String, default: null },
         fetchedAt: { type: Date, default: null }
     },
+    // ── LIVE EXECUTION (kết nối sàn thực) ──
+    executionMode: { type: String, enum: ['SIMULATED', 'LIVE'], default: 'SIMULATED' },
+    exchangeConnectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExchangeConnection', default: null },
+    externalOrderId: { type: String, default: null },
     status: { type: String, default: 'OPEN', enum: ['OPEN', 'CLOSED', 'WATCH', 'SKIP'] },
     openedAt: { type: Date, default: Date.now },
     closedAt: { type: Date, default: null },

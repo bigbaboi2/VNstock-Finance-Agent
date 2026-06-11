@@ -11,8 +11,13 @@ import AuthScreen from './components/AuthScreen';
 import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
 import AutoDuckTab from './components/AutoDuckTab';
+import BrokerConnectionTab from './components/BrokerConnectionTab';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+// Khi chạy dev (Vite): để baseURL rỗng → request đi qua proxy '/api' (same-origin, không dính CORS).
+// Khi build production: dùng VITE_API_BASE_URL (URL backend đã deploy).
+export const API_BASE_URL = import.meta.env.DEV
+    ? ''
+    : (import.meta.env.VITE_API_BASE_URL || "http://localhost:3001");
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
@@ -1152,7 +1157,7 @@ useEffect(() => {
         .catch(() => {});
 
       await new Promise((resolve) => {
-  const newsUrl = `${API_BASE_URL}${API_BASE_URL.endsWith('/') ? '' : '/'}api/news/${symbol}?newsMode=${currentNewsMode}`;
+  const newsUrl = `${API_BASE_URL}${API_BASE_URL && !API_BASE_URL.endsWith('/') ? '/' : ''}api/news/${symbol}?newsMode=${currentNewsMode}`;
   const controller = new AbortController();
   eventSourceRef.current = controller;
 
@@ -1321,7 +1326,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     }
 
     try {
-        const baseUrl = API_BASE_URL || "http://localhost:3001";
+        const baseUrl = API_BASE_URL; // dev: '' → relative qua proxy; prod: URL backend
         const streamUrl = `${baseUrl}/api/ai/analyze/${marketData.stockInfo.symbol}/stream`.replace(/([^:]\/)\/+/g, "$1");
 
         const response = await fetch(streamUrl, {
@@ -1800,6 +1805,16 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         {/*========================================================= */}
         {activeMode === 'AUTO_TRADE' && (
             <AutoDuckTab 
+                username={currentUser}
+                isDark={isDark}    
+                UI={UI}
+            />
+        )}
+        {/*========================================================= */}
+        {/*MODE 7: KẾT NỐI SÀN / BROKER */}
+        {/*========================================================= */}
+        {activeMode === 'BROKER_CONNECTION' && (
+            <BrokerConnectionTab 
                 username={currentUser}
                 isDark={isDark}    
                 UI={UI}
