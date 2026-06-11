@@ -19,6 +19,7 @@ import historyRoutes from './routes/history.routes.js';
 import cryptoRoutes from './routes/crypto.routes.js';
 import autoTradeRoutes from './routes/autoTrade.routes.js'; 
 import telegramRoutes from './routes/telegram.routes.js';
+import exchangeConnectionRoutes from './routes/exchangeConnection.routes.js';
 import marketInsightRouter from './routes/marketInsightRoutes.js';
 
 // Import Jobs & Services
@@ -53,6 +54,7 @@ app.use('/api/ai',           aiRoutes);
 app.use('/api/history',      historyRoutes);
 app.use('/api/auto-trade', autoTradeRoutes);
 app.use('/api/telegram',  telegramRoutes);
+app.use('/api/exchange-connections', exchangeConnectionRoutes);
 
 // ─── Flat alias routes  ────────────────────────
 

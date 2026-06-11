@@ -3,6 +3,7 @@ import AutoTrade from '../../models/AutoTrade.js';
 import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Setting from '../../models/Setting.js';
+import ExchangeOrder from '../../models/ExchangeOrder.js';
 import Stock from '../../models/Stock.js';
 import DerivNews from '../../models/DerivNews.js';
 import { generateWithRole } from './multiProviderRouter.js';
@@ -23,6 +24,13 @@ import {
     sendTelegramMessage,
 } from './telegramService.js';
 import axios from 'axios';
+import { executeLiveEntry, executeLiveExit } from './exchangeBrokerService.js';
+import {
+    calculatePositionSize,
+    canAcceptNewTrade,
+    recordAllocation,
+    releaseAllocation,
+} from './portfolioManager.js';
 
 // ── CONSTANTS & HELPERS
 
@@ -1596,6 +1604,11 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
 };
 
 export const runAutoTradePipeline = async (forcedAssetType = null) => {
+    // ── CHẾ ĐỘ HOẠT ĐỘNG ──
+    // Engine BẬT  → quét full: mô phỏng (training AI nền) + live
+    // Engine TẮT  → LIVE-ONLY: dừng triển khai mô phỏng, chỉ quét để phục vụ
+    //               các gói lệnh LIVE đang chờ (lệnh live vẫn tính toán bình thường)
+    let liveOnlyMode = false;
     try {
         const enabledSetting = await Setting.findOne({ key: 'autoTradeEnabled' });
         // Dùng loose check: bắt cả boolean false, string "false", number 0
@@ -1605,8 +1618,16 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             enabledSetting.value === 0
         );
         if (isDisabled) {
-            console.log(chalk.gray(`[AUTODUCK] Đã tắt tự động quét theo cấu hình từ giao diện.`));
-            return { skipped: true, reason: 'disabled_by_user' };
+            const liveOrdersWaiting = await UserOrder.countDocuments({
+                status: { $in: ['PENDING', 'ACTIVE'] },
+                executionMode: 'LIVE',
+            });
+            if (liveOrdersWaiting === 0) {
+                console.log(chalk.gray(`[AUTODUCK] Engine TẮT + không có gói LIVE chờ → bỏ qua chu kỳ.`));
+                return { skipped: true, reason: 'disabled_by_user' };
+            }
+            liveOnlyMode = true;
+            console.log(chalk.yellow(`[AUTODUCK] Engine TẮT → chạy chế độ LIVE-ONLY (${liveOrdersWaiting} gói LIVE đang chờ, mô phỏng tạm dừng).`));
         }
     } catch (err) {
         console.log(chalk.yellow(`[AUTODUCK] Lỗi check autoTradeEnabled: ${err.message}`));
@@ -1619,7 +1640,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
     }
 
     autoTradePipelineRunning = true;
-    console.log(chalk.bgMagenta.black(`\n[AUTODUCK ENGINE v2] Khởi chạy chu kỳ rà soát thị trường thực tế...`));
+    if (liveOnlyMode) {
+        console.log(chalk.gray(`[AUTODUCK LIVE-ONLY] Quét thị trường phục vụ gói lệnh LIVE...`));
+    } else {
+        console.log(chalk.bgMagenta.black(`\n[AUTODUCK ENGINE v2] Khởi chạy chu kỳ rà soát thị trường thực tế...`));
+    }
 
     try {
         // 1. Macro data
@@ -1894,6 +1919,19 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         investedAmount = Math.round(notionalVND);
                     }
                     
+                    // ── LIVE-ONLY MODE: engine tắt → chỉ mở lệnh nếu có gói LIVE chờ khớp asset này ──
+                    if (liveOnlyMode) {
+                        const liveCandidates = await UserOrder.countDocuments({
+                            status: { $in: ['PENDING', 'ACTIVE'] },
+                            executionMode: 'LIVE',
+                            $or: [{ assetType: 'ALL' }, { assetType: asset }],
+                        });
+                        if (liveCandidates === 0) {
+                            stats.skipRisk++;
+                            continue;
+                        }
+                    }
+
                     currentAllocatedCapital += investedAmount;
                     currentOpenCount++;
 
@@ -1944,27 +1982,29 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                     });
                     await newTrade.save();
 
-                    const telegramOpenMessage = buildAutoTradeOpenMessage(
-                        newTrade,
-                        aiConfirm,
-                        quote,
-                        executionContext,
-                        tradePlan
-                    );
-                    await sendTelegramMessage(telegramOpenMessage).catch(() => {});
-
-                    console.log(chalk.green.bold(
-                        `  [LỆNH ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | Vốn: ${(investedAmount/1e6).toFixed(2)}Tr VNĐ | Volume: ${volume} | Score: ${techSignal.score}`
+                    // Log mở lệnh: gọn cho mô phỏng (training nền), nổi bật khi có LIVE
+                    console.log(chalk.gray(
+                        `  [SIM ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | ${(investedAmount/1e6).toFixed(2)}Tr | Score: ${techSignal.score}`
                     ));
                     stats.matched++;
 
-                    // 8. Match user orders
-                    const pendingUserOrders = await UserOrder.find({
-                        status: 'PENDING',
-                        $or: [{ assetType: 'ALL' }, { assetType: asset }]
-                    });
+                    // 8. Match user orders (FIXED 'PENDING' + PORTFOLIO 'ACTIVE'/'PENDING')
+                    //    LIVE-ONLY mode (engine tắt) → chỉ xét các gói LIVE
+                    const userOrderQuery = {
+                        status: { $in: ['PENDING', 'ACTIVE'] },
+                        $or: [{ assetType: 'ALL' }, { assetType: asset }],
+                    };
+                    if (liveOnlyMode) userOrderQuery.executionMode = 'LIVE';
+                    const pendingUserOrders = await UserOrder.find(userOrderQuery);
+
+                    let liveMatched = false;
 
                     for (const userOrder of pendingUserOrders) {
+                        const isPortfolio = userOrder.allocationMode === 'PORTFOLIO';
+
+                        // FIXED đã MATCHED rồi thì không xét lại; PORTFOLIO ACTIVE vẫn nhận thêm lệnh
+                        if (!isPortfolio && userOrder.status !== 'PENDING') continue;
+
                         const validation = verifyOrderFeasibility(asset, userOrder.targetPct);
                         if (!validation.feasible) {
                             userOrder.status = 'REJECTED';
@@ -1973,23 +2013,91 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                             continue;
                         }
 
-                        const compatibility = isUserOrderCompatibleWithTrade(userOrder, {
-                            entryPrice,
-                            takeProfitPrice,
-                            stopLossPrice,
-                            direction: directionLabel,
-                        });
-                        if (!compatibility.compatible) {
-                            userOrder.result.message = `Đang chờ lệnh phù hợp hơn: ${compatibility.reason}`;
-                            await userOrder.save();
-                            continue;
+                        // PORTFOLIO: bot tự quyết — bỏ qua compatibility chặt theo target user,
+                        // chỉ check slot + tính position size. FIXED: giữ check cũ.
+                        let allocatedCapital = Number(userOrder.capital) || 0;
+                        let matchNote = '';
+
+                        if (isPortfolio) {
+                            const hasSlot = await canAcceptNewTrade(userOrder);
+                            if (!hasSlot) continue; // đầy slot → đợi lệnh hiện tại đóng
+
+                            const sizing = calculatePositionSize(userOrder, {
+                                entryPrice, stopLossPrice, direction: directionLabel,
+                            }, techSignal.score);
+                            if (sizing.size <= 0) {
+                                userOrder.result.message = `[PORTFOLIO] Bỏ qua ${symbol}: ${sizing.reason}`;
+                                await userOrder.save();
+                                continue;
+                            }
+                            allocatedCapital = sizing.size;
+                            matchNote = ` | Sizing: ${sizing.reason}`;
+                        } else {
+                            const compatibility = isUserOrderCompatibleWithTrade(userOrder, {
+                                entryPrice,
+                                takeProfitPrice,
+                                stopLossPrice,
+                                direction: directionLabel,
+                            });
+                            if (!compatibility.compatible) {
+                                userOrder.result.message = `Đang chờ lệnh phù hợp hơn: ${compatibility.reason}`;
+                                await userOrder.save();
+                                continue;
+                            }
+                            matchNote = ` Reward/Risk: +${compatibility.rewardPct}%/-${compatibility.riskPct}%.`;
                         }
 
-                        userOrder.assignedTrade = newTrade._id;
-                        userOrder.status        = 'MATCHED';
-                        userOrder.result.message = `[${directionLabel}] Đã khớp vào ${symbol} @ ${entryPrice}. TP: ${takeProfitPrice} | SL: ${stopLossPrice}. Reward/Risk: +${compatibility.rewardPct}%/-${compatibility.riskPct}%.`;
+                        // ── NHÁNH LIVE EXECUTION trước (để biết executionMode chính xác) ──
+                        let liveMsg = '';
+                        if (userOrder.executionMode === 'LIVE' && userOrder.exchangeConnectionId && asset === 'CRYPTO') {
+                            const liveResult = await executeLiveEntry({
+                                userOrder,
+                                trade: newTrade,
+                                usdVndRate: currentUsdRate,
+                                capitalVnd: allocatedCapital, // PORTFOLIO: dùng size bot tính; FIXED: = capital
+                            });
+                            if (liveResult.success) {
+                                liveMatched = true;
+                                newTrade.executionMode = 'LIVE';
+                                newTrade.exchangeConnectionId = liveResult.exchangeConnectionId;
+                                newTrade.externalOrderId = liveResult.externalOrderId;
+                                await newTrade.save();
+                                liveMsg = ` 🔴 LIVE: ${liveResult.message}`;
+                                console.log(chalk.bgMagenta.white(`  [LIVE ENTRY] User ${userOrder.username} → ${symbol} | ${(allocatedCapital/1e6).toFixed(2)}Tr | OrderID: ${liveResult.externalOrderId}`));
+                            } else {
+                                liveMsg = ` ⚠️ Live order KHÔNG gửi được (chạy simulated): ${liveResult.message}`;
+                                console.log(chalk.yellow(`  [LIVE ENTRY FAIL] ${userOrder.username}: ${liveResult.message}`));
+                            }
+                        }
+
+                        // ── Ghi nhận khớp (sau live → executionMode đã đúng) ──
+                        const modeTag = newTrade.executionMode === 'LIVE' ? '🔴 LIVE' : 'SIM';
+                        if (isPortfolio) {
+                            recordAllocation(userOrder, newTrade, allocatedCapital);
+                            userOrder.result.message = `[PORTFOLIO ${directionLabel} · ${modeTag}] Bot phân bổ ${(allocatedCapital/1e6).toFixed(2)}Tr vào ${symbol} @ ${entryPrice}. Quỹ đang dùng: ${(userOrder.usedCapital/1e6).toFixed(1)}/${(userOrder.totalCapital/1e6).toFixed(1)}Tr.${matchNote}${liveMsg}`;
+                        } else {
+                            userOrder.assignedTrade = newTrade._id;
+                            userOrder.status        = 'MATCHED';
+                            userOrder.result.message = `[${directionLabel} · ${modeTag}] Đã khớp vào ${symbol} @ ${entryPrice}. TP: ${takeProfitPrice} | SL: ${stopLossPrice}.${matchNote}${liveMsg}`;
+                        }
+
                         await userOrder.save();
-                        console.log(chalk.bgGreen.black(`  [AUTO-MATCH] User ${userOrder.username} → lệnh ${newTrade._id}`));
+                    }
+
+                    // 9. Telegram MỞ LỆNH: chỉ thông báo khi là lệnh LIVE.
+                    //    Mô phỏng chạy nền training AI → im lặng, xem qua /sim.
+                    if (liveMatched) {
+                        const telegramOpenMessage = buildAutoTradeOpenMessage(
+                            newTrade,
+                            aiConfirm,
+                            quote,
+                            executionContext,
+                            tradePlan
+                        );
+                        await sendTelegramMessage(telegramOpenMessage).catch(() => {});
+                        console.log(chalk.green.bold(
+                            `  [LỆNH LIVE ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | Score: ${techSignal.score}`
+                        ));
                     }
 
                 } catch (symbolErr) {
@@ -2015,7 +2123,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 
         const hasRadarCandidates = Object.values(radarCandidates).some(items => items.length > 0);
         const shouldSendEmptyRadar = Boolean(forcedAssetType);
-        if (hasRadarCandidates || shouldSendEmptyRadar) {
+        if (!liveOnlyMode && (hasRadarCandidates || shouldSendEmptyRadar)) {
             await sendTelegramMessage(buildMarketRadarMessage(radarCandidates, {
                 generatedAt: new Date(),
                 marketStatus,
@@ -2044,7 +2152,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 // ── EXIT & AI LEARNING PIPELINE
 
 async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {}, isFastCheck = false) {
-    // Guard: nếu autoTrade bị tắt, không chạy exit/learning pipeline
+    // Engine TẮT → vẫn chạy nhưng CHỈ giám sát lệnh LIVE (lệnh thực trên sàn
+    // không bao giờ bị bỏ rơi). Lệnh mô phỏng tạm đóng băng đến khi bật lại.
+    let monitorLiveOnly = false;
     try {
         const enabledSetting = await Setting.findOne({ key: 'autoTradeEnabled' });
         const isDisabled = enabledSetting && (
@@ -2053,7 +2163,7 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
             enabledSetting.value === 0
         );
         if (isDisabled) {
-            return;
+            monitorLiveOnly = true;
         }
     } catch (err) {
         console.log(chalk.yellow(`[EXIT PIPELINE] Lỗi check autoTradeEnabled: ${err.message}`));
@@ -2063,11 +2173,13 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
     exitPipelineRunning = true;
 
     try {
-        const openTrades = await AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } });
+        const tradeQuery = { status: { $in: ['OPEN', 'PENDING'] } };
+        if (monitorLiveOnly) tradeQuery.executionMode = 'LIVE';
+        const openTrades = await AutoTrade.find(tradeQuery);
         if (openTrades.length === 0) return;
 
         if (!isFastCheck) {
-            console.log(chalk.gray(`\n[EXIT PIPELINE] Kiểm tra ${openTrades.length} lệnh đang mở/chờ...`));
+            console.log(chalk.gray(`\n[EXIT PIPELINE${monitorLiveOnly ? ' · LIVE-ONLY' : ''}] Kiểm tra ${openTrades.length} lệnh đang mở/chờ...`));
         }
 
         for (const trade of openTrades) {
@@ -2123,19 +2235,59 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                 
                 await trade.save();
 
-                await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
+                // ── NHÁNH LIVE EXIT: đóng vị thế thực trên sàn nếu lệnh này là LIVE ──
+                if (trade.executionMode === 'LIVE') {
+                    const liveExitResult = await executeLiveExit({ trade, exitReason }).catch(err => ({ success: false, message: err.message }));
+                    if (!liveExitResult.success) {
+                        console.log(chalk.bgRed.white(`  [LIVE EXIT FAIL] ${trade.symbol}: ${liveExitResult.message} — CẦN KIỂM TRA THỦ CÔNG TRÊN SÀN!`));
+                        await sendTelegramMessage(
+                            `🚨 <b>[LIVE EXIT FAIL]</b> Không đóng được vị thế thực ${trade.symbol}.\nLý do: ${liveExitResult.message}\n⚠️ Vui lòng kiểm tra và đóng thủ công trên sàn!`
+                        ).catch(() => {});
+                    }
+                }
 
-                const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
-                console.log(chalk.bgYellow.black(
-                    `[ĐÓNG LỆNH] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason}`
-                ));
+                // ── THÔNG BÁO ĐÓNG LỆNH ──
+                // LIVE: Telegram + log nổi bật. Mô phỏng (training nền): log gọn, không Telegram.
+                if (trade.executionMode === 'LIVE') {
+                    await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
+                    const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
+                    console.log(chalk.bgYellow.black(
+                        `[ĐÓNG LỆNH LIVE] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason}`
+                    ));
+                } else {
+                    console.log(chalk.gray(
+                        `  [SIM CLOSE] ${trade.symbol} @ ${currentPrice} | PnL: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% | ${exitReason}`
+                    ));
+                }
 
+                // ── Hoàn tất gói FIXED đã match ──
                 const boundUserOrders = await UserOrder.find({ assignedTrade: trade._id, status: 'MATCHED' });
                 for (const uOrder of boundUserOrders) {
                     uOrder.status          = 'COMPLETED';
                     uOrder.result.finalPnl = Math.round(uOrder.capital * (trade.pnlPercent / 100));
                     uOrder.result.message  = `Vị thế đã đóng. PnL thực tế: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%. Lý do: ${exitReason}`;
                     await uOrder.save();
+                }
+
+                // ── Giải phóng vốn gói PORTFOLIO: hoàn allocation + cộng dồn PnL, gói tiếp tục chạy ──
+                const portfolioOrders = await UserOrder.find({
+                    allocationMode: 'PORTFOLIO',
+                    'tradeAllocations.trade': trade._id,
+                    status: { $in: ['ACTIVE', 'STOPPED'] },
+                });
+                for (const pOrder of portfolioOrders) {
+                    const released = releaseAllocation(pOrder, trade._id, trade.pnlPercent);
+                    if (released) {
+                        pOrder.result.finalPnl = pOrder.realizedPnl;
+                        pOrder.result.message = `[PORTFOLIO] ${trade.symbol} đóng: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% (${released.pnl >= 0 ? '+' : ''}${Math.round(released.pnl / 1000)}k). Quỹ: ${(pOrder.totalCapital / 1e6).toFixed(2)}Tr | PnL tích lũy: ${pOrder.realizedPnl >= 0 ? '+' : ''}${Math.round(pOrder.realizedPnl / 1000)}k.`;
+                        await pOrder.save();
+                        if (trade.executionMode === 'LIVE') {
+                            await sendTelegramMessage(
+                                `💼 <b>[PORTFOLIO ${pOrder.username}]</b> ${trade.symbol} đóng ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%\nQuỹ hiện tại: ${(pOrder.totalCapital / 1e6).toFixed(2)}Tr VNĐ | PnL tích lũy: ${pOrder.realizedPnl >= 0 ? '+' : ''}${Math.round(pOrder.realizedPnl / 1000)}k\nVốn đang dùng: ${(pOrder.usedCapital / 1e6).toFixed(2)}Tr`,
+                                { parseMode: 'HTML' }
+                            ).catch(() => {});
+                        }
+                    }
                 }
 
                 try {
@@ -2489,17 +2641,114 @@ export const handleTelegramCommand = async (text = '') => {
         return msg;
     }
 
+    // ── /sim — Xem lệnh MÔ PHỎNG đang mở (training AI nền) ────
+    if (cmd === 'sim') {
+        try {
+            const sims = await AutoTrade.find({
+                status: { $in: ['OPEN', 'PENDING'] },
+                executionMode: { $ne: 'LIVE' },
+            }).sort({ openedAt: -1 }).limit(15).lean();
+
+            if (sims.length === 0) {
+                const msg = `🧪 Không có lệnh mô phỏng nào đang mở.`;
+                await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
+                return msg;
+            }
+            const lines = sims.map(t => {
+                const holdH = Math.round((Date.now() - new Date(t.openedAt).getTime()) / 3600000);
+                return `${t.direction === 'LONG' || t.direction === 'MUA' ? '🟢' : '🔴'} ${t.symbol} [${t.assetType}] @ ${t.entryPrice}\n   TP ${t.takeProfitPrice} | SL ${t.stopLossPrice} | Score ${t.aiScore} | ${holdH}h`;
+            });
+            const msg = `🧪 LỆNH MÔ PHỎNG — TRAINING AI NỀN (${sims.length})\n━━━━━━━━━━━━━━━━━\n${lines.join('\n')}`;
+            await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
+            return msg;
+        } catch (err) {
+            const errMsg = `❌ Lỗi /sim: ${err.message}`;
+            await sendTelegramMessage(errMsg, { parseMode: 'none' }).catch(() => {});
+            return errMsg;
+        }
+    }
+
+    // ── /live — Xem lệnh LIVE trên sàn + log gần nhất ─────────
+    if (cmd === 'live') {
+        try {
+            const [liveTrades, recentOrders] = await Promise.all([
+                AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] }, executionMode: 'LIVE' })
+                    .sort({ openedAt: -1 }).limit(10).lean(),
+                ExchangeOrder.find({}).sort({ sentAt: -1 }).limit(5).lean(),
+            ]);
+
+            let msg = `🔴 VỊ THẾ LIVE ĐANG MỞ (${liveTrades.length})\n━━━━━━━━━━━━━━━━━\n`;
+            if (liveTrades.length === 0) {
+                msg += `(không có vị thế live nào)\n`;
+            } else {
+                msg += liveTrades.map(t => {
+                    const holdH = Math.round((Date.now() - new Date(t.openedAt).getTime()) / 3600000);
+                    return `🟢 ${t.symbol} @ ${t.entryPrice}\n   TP ${t.takeProfitPrice} | SL ${t.stopLossPrice} | Vốn ${(t.investedAmount / 1e6).toFixed(1)}Tr | ${holdH}h`;
+                }).join('\n') + '\n';
+            }
+            msg += `\n📋 5 LỆNH SÀN GẦN NHẤT\n━━━━━━━━━━━━━━━━━\n`;
+            msg += recentOrders.length === 0
+                ? `(chưa có lệnh nào gửi ra sàn)`
+                : recentOrders.map(o =>
+                    `${o.status === 'FILLED' ? '✅' : o.status === 'FAILED' ? '❌' : '⏳'} ${o.side} ${o.symbol} [${o.exchangeName}/${o.environment}] ${o.status}${o.errorMessage ? ` — ${o.errorMessage.slice(0, 50)}` : ''}`
+                ).join('\n');
+
+            await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
+            return msg;
+        } catch (err) {
+            const errMsg = `❌ Lỗi /live: ${err.message}`;
+            await sendTelegramMessage(errMsg, { parseMode: 'none' }).catch(() => {});
+            return errMsg;
+        }
+    }
+
+    // ── /portfolio — Trạng thái các gói quỹ ủy thác bot tự quản lý ──
+    if (cmd === 'portfolio' || cmd === 'pf') {
+        try {
+            const portfolios = await UserOrder.find({
+                allocationMode: 'PORTFOLIO',
+                status: { $in: ['ACTIVE', 'PENDING'] },
+            }).lean();
+
+            if (portfolios.length === 0) {
+                const msg = `💼 Không có gói portfolio nào đang chạy.`;
+                await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
+                return msg;
+            }
+            const lines = await Promise.all(portfolios.map(async (p) => {
+                const openAllocs = (p.tradeAllocations || []).filter(a => !a.closedAt).length;
+                const closedAllocs = (p.tradeAllocations || []).filter(a => a.closedAt);
+                const wins = closedAllocs.filter(a => a.pnl > 0).length;
+                const winRate = closedAllocs.length > 0 ? Math.round(wins / closedAllocs.length * 100) : 0;
+                return `💼 ${p.username} [${p.executionMode}${p.executionMode === 'LIVE' ? ' 🔴' : ''}]\n` +
+                    `   Quỹ: ${(p.totalCapital / 1e6).toFixed(2)}Tr | Đang dùng: ${(p.usedCapital / 1e6).toFixed(2)}Tr (${openAllocs} lệnh mở)\n` +
+                    `   PnL tích lũy: ${p.realizedPnl >= 0 ? '+' : ''}${Math.round(p.realizedPnl / 1000)}k | Win rate: ${winRate}% (${closedAllocs.length} lệnh đóng)\n` +
+                    `   Cấu hình: ${p.allocationPercent}%/lệnh | Max ${p.maxConcurrentOrders} lệnh | Dynamic: ${p.dynamicSizing ? 'BẬT' : 'TẮT'}`;
+            }));
+            const msg = `💼 GÓI PORTFOLIO ĐANG CHẠY (${portfolios.length})\n━━━━━━━━━━━━━━━━━\n${lines.join('\n\n')}`;
+            await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
+            return msg;
+        } catch (err) {
+            const errMsg = `❌ Lỗi /portfolio: ${err.message}`;
+            await sendTelegramMessage(errMsg, { parseMode: 'none' }).catch(() => {});
+            return errMsg;
+        }
+    }
+
     // ── /help ─────────────────────────────────────────────────
     if (cmd === 'help' || cmd === '') {
         const msg = [
-            `🦆 *OMNI DUCK — LỆNH TELEGRAM*`,
-            `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
-            `/check  — Dashboard: lệnh mở, vốn, win rate`,
-            `/stop   — Tắt auto\\-trade pipeline`,
-            `/start  — Bật lại auto\\-trade pipeline`,
-            `/help   — Danh sách lệnh này`,
+            `🦆 OMNI DUCK — LỆNH TELEGRAM`,
+            `━━━━━━━━━━━━━━━━━━━━━━`,
+            `/check     — Dashboard: lệnh mở, vốn, win rate`,
+            `/live      — Vị thế LIVE trên sàn + log lệnh thực`,
+            `/sim       — Lệnh mô phỏng (training AI nền)`,
+            `/portfolio — Trạng thái gói quỹ bot tự quản lý`,
+            `/stop      — Tắt auto-trade pipeline`,
+            `/start     — Bật lại auto-trade pipeline`,
+            `/help      — Danh sách lệnh này`,
         ].join('\n');
-        await sendTelegramMessage(msg).catch(() => {});
+        await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
         return msg;
     }
 
