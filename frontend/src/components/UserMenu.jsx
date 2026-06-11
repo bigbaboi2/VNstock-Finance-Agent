@@ -1,4 +1,4 @@
-import { Activity, Globe, Database, Zap, X, User, Bot } from 'lucide-react';
+import { Activity, Globe, Database, Zap, X, User, Bot, Plug } from 'lucide-react';
 
 export default function UserMenu({ 
   isDark, UI, currentUser, activeMode, 
@@ -57,6 +57,16 @@ export default function UserMenu({
                     : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
                 }`}>
                 <Bot size={16} /> 6. Tự động vào lệnh AI
+            </button>
+
+            {/* TAB KẾT NỐI SÀN / BROKER */}
+            <button onClick={() => { setActiveMode('BROKER_CONNECTION'); setShowUserMenu(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
+                    activeMode === 'BROKER_CONNECTION' 
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                    : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                }`}>
+                <Plug size={16} /> 7. Kết nối sàn / Broker
             </button>
         </div>
 

@@ -2,7 +2,7 @@ import AutoTrade from '../../models/AutoTrade.js';
 import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Setting from '../../models/Setting.js';
-import { runAutoTradePipeline, verifyOrderFeasibility } from '../services/autoTradeEngine.js';
+import { runAutoTradePipeline, verifyOrderFeasibility, getUsdVndRate } from '../services/autoTradeEngine.js';
 
 //Get the entire automatic transaction history of the system with advanced quantitative statistics
 export const getSystemTradeLogs = async (req, res) => {
@@ -147,9 +147,15 @@ export const updateAutoTradeSettings = async (req, res) => {
 
 //User sends capital package with expected risk rate to the system
 export const createUserExpectationOrder = async (req, res) => {
-    const { username, capital, targetPct, stopLossPct, assetType } = req.body;
+    const {
+        username, capital, targetPct, stopLossPct, assetType,
+        executionMode, exchangeConnectionId,
+        allocationMode, totalCapital, allocationPercent, maxConcurrentOrders, dynamicSizing,
+    } = req.body;
 
-    if (!username || !capital || !targetPct) {
+    const isPortfolio = allocationMode === 'PORTFOLIO';
+
+    if (!username || !targetPct || (!isPortfolio && !capital) || (isPortfolio && !totalCapital)) {
         return res.status(400).json({ success: false, message: 'Thiếu tham số cấu hình gói lệnh rủi ro!' });
     }
 
@@ -164,22 +170,156 @@ export const createUserExpectationOrder = async (req, res) => {
             });
         }
 
+        // ── VALIDATE PORTFOLIO MODE ──
+        let portfolioFields = {};
+        if (isPortfolio) {
+            const total = parseFloat(totalCapital);
+            const pct = Math.min(50, Math.max(1, parseFloat(allocationPercent) || 10));
+            const maxOrders = Math.min(20, Math.max(1, parseInt(maxConcurrentOrders) || 5));
+            if (!Number.isFinite(total) || total < 2_000_000) {
+                return res.json({ success: false, isFeasible: false, message: 'Gói PORTFOLIO yêu cầu tổng quỹ tối thiểu 2,000,000 VNĐ.' });
+            }
+            if (total * (pct / 100) < 500_000) {
+                return res.json({ success: false, isFeasible: false, message: `Với quỹ ${ (total/1e6).toFixed(1)}Tr và phân bổ ${pct}%/lệnh, mỗi lệnh chỉ ~${Math.round(total * pct / 100 / 1000)}k — quá nhỏ. Hãy tăng quỹ hoặc % phân bổ.` });
+            }
+            portfolioFields = {
+                allocationMode: 'PORTFOLIO',
+                totalCapital: total,
+                allocationPercent: pct,
+                maxConcurrentOrders: maxOrders,
+                dynamicSizing: dynamicSizing !== false,
+                usedCapital: 0,
+                realizedPnl: 0,
+            };
+        }
+
+        // ── VALIDATE LIVE MODE ──
+        let finalExecutionMode = 'SIMULATED';
+        let finalConnectionId = null;
+        let liveWarning = null;
+
+        if (executionMode === 'LIVE') {
+            if (assetType !== 'CRYPTO') {
+                return res.json({ success: false, isFeasible: false, message: 'Chế độ LIVE hiện chỉ hỗ trợ thị trường CRYPTO. Chứng khoán VN sẽ cập nhật sau.' });
+            }
+            if (!exchangeConnectionId) {
+                return res.json({ success: false, isFeasible: false, message: 'Chế độ LIVE yêu cầu chọn một kết nối sàn (exchangeConnectionId).' });
+            }
+            const { default: ExchangeConnection } = await import('../../models/ExchangeConnection.js');
+            const conn = await ExchangeConnection.findById(exchangeConnectionId);
+            if (!conn) {
+                return res.json({ success: false, isFeasible: false, message: 'Không tìm thấy kết nối sàn đã chọn.' });
+            }
+            if (conn.username !== username) {
+                return res.status(403).json({ success: false, message: 'Kết nối sàn này không thuộc về bạn.' });
+            }
+            if (!conn.isActive) {
+                return res.json({ success: false, isFeasible: false, message: 'Kết nối sàn đang bị TẮT. Hãy bật lại trong tab Kết nối sàn.' });
+            }
+            if (!conn.permissions?.includes('TRADE')) {
+                return res.json({ success: false, isFeasible: false, message: 'API key của kết nối này không có quyền TRADE. Hãy test lại kết nối.' });
+            }
+
+            // ── CHỐT CHẶN VỐN: tránh vượt số dư & tránh tạo gói LIVE trùng vượt quỹ ──
+            const STABLE = ['USDT', 'USDC', 'BUSD', 'FDUSD', 'DAI'];
+            const balanceUSDT = Object.entries(conn.balanceSnapshot || {})
+                .filter(([a]) => STABLE.includes(a))
+                .reduce((s, [, v]) => s + (Number(v) || 0), 0);
+
+            if (balanceUSDT <= 0) {
+                return res.json({ success: false, isFeasible: false, message: 'Kết nối này chưa có số dư USDT (hoặc chưa cập nhật). Hãy bấm "Test"/"Balance" ở tab Broker để làm mới số dư trước khi tạo gói LIVE.' });
+            }
+
+            const rate = await getUsdVndRate().catch(() => 25400);
+            const newCommitVND = isPortfolio ? parseFloat(totalCapital) : parseFloat(capital);
+            const newCommitUSDT = newCommitVND / rate;
+
+            // Vốn đã bị "claim" bởi các gói LIVE đang hoạt động khác TRÊN CÙNG kết nối
+            const otherLive = await UserOrder.find({
+                username,
+                executionMode: 'LIVE',
+                exchangeConnectionId: conn._id,
+                status: { $in: ['PENDING', 'ACTIVE', 'MATCHED'] },
+            }).lean();
+            const committedVND = otherLive.reduce(
+                (s, o) => s + (o.allocationMode === 'PORTFOLIO' ? (o.totalCapital || 0) : (o.capital || 0)),
+                0
+            );
+            const committedUSDT = committedVND / rate;
+            const freeUSDT = balanceUSDT - committedUSDT;
+
+            if (newCommitUSDT > freeUSDT * 1.001) {
+                const fmt = (v) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+                return res.json({
+                    success: false,
+                    isFeasible: false,
+                    message: `Vượt số dư khả dụng trên ${conn.exchangeName}. ` +
+                        `Số dư: ${fmt(balanceUSDT)} USDT` +
+                        (committedUSDT > 0 ? ` · Đã cam kết bởi ${otherLive.length} gói LIVE khác: ${fmt(committedUSDT)} USDT · Còn trống: ${fmt(freeUSDT)} USDT.` : '.') +
+                        ` Gói này cần ~${fmt(newCommitUSDT)} USDT (${(newCommitVND / 1e6).toFixed(1)}Tr VNĐ @ ${rate.toLocaleString('vi-VN')}). ` +
+                        `Hãy giảm vốn, hoặc dừng/xóa gói LIVE cũ trước.`,
+                });
+            }
+
+            finalExecutionMode = 'LIVE';
+            finalConnectionId = conn._id;
+            if (conn.environment === 'LIVE') {
+                liveWarning = '⚠️ CẢNH BÁO: Kết nối đang ở môi trường LIVE — lệnh sẽ dùng TIỀN THẬT trên sàn!';
+            }
+        }
+
         const newOrder = new UserOrder({
             username,
-            capital: parseFloat(capital),
+            // FIXED: capital = vốn/lệnh. PORTFOLIO: capital chỉ là tham chiếu (= phân bổ cơ sở)
+            capital: isPortfolio
+                ? Math.round(parseFloat(totalCapital) * ((portfolioFields.allocationPercent || 10) / 100))
+                : parseFloat(capital),
             targetPct: parseFloat(targetPct),
             stopLossPct: parseFloat(stopLossPct || 7),
             assetType,
-            status: 'PENDING'
+            executionMode: finalExecutionMode,
+            exchangeConnectionId: finalConnectionId,
+            ...portfolioFields,
+            status: isPortfolio ? 'ACTIVE' : 'PENDING'
         });
 
         await newOrder.save();
+
+        const successMessage = isPortfolio
+            ? `Đã kích hoạt gói PORTFOLIO ${(parseFloat(totalCapital)/1e6).toFixed(1)}Tr VNĐ! Bot sẽ tự chia vốn (~${portfolioFields.allocationPercent}%/lệnh, tối đa ${portfolioFields.maxConcurrentOrders} lệnh đồng thời${portfolioFields.dynamicSizing ? ', dynamic sizing BẬT' : ''}) và liên tục khớp tín hiệu tốt nhất. ${finalExecutionMode === 'LIVE' ? (liveWarning || '🔴 LIVE Testnet — lệnh sẽ gửi thực ra sàn.') : ''}`
+            : (finalExecutionMode === 'LIVE'
+                ? `Đăng ký gói lệnh LIVE thành công! Khi AutoDuck tìm được tín hiệu phù hợp, lệnh sẽ được gửi THỰC ra sàn. ${liveWarning || '(Đang ở Testnet — an toàn)'}`
+                : 'Đăng ký mục tiêu kỳ vọng thành công! Hệ thống AutoDuck đang quét luồng lệnh thích hợp để khớp tự động.');
+
         return res.json({ 
             success: true, 
             isFeasible: true, 
             data: newOrder, 
-            message: 'Đăng ký mục tiêu kỳ vọng thành công! Hệ thống AutoDuck đang quét luồng lệnh thích hợp để khớp tự động.' 
+            warning: liveWarning,
+            message: successMessage,
         });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Dừng gói portfolio: không nhận lệnh mới, lệnh đang mở vẫn được giám sát đến khi đóng
+export const stopUserOrder = async (req, res) => {
+    try {
+        const { username } = req.body;
+        const order = await UserOrder.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Không tìm thấy gói lệnh.' });
+        if (order.username !== username) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác gói lệnh này.' });
+        }
+        if (!['ACTIVE', 'PENDING'].includes(order.status)) {
+            return res.json({ success: false, message: `Gói đang ở trạng thái ${order.status}, không thể dừng.` });
+        }
+        order.status = 'STOPPED';
+        const openCount = (order.tradeAllocations || []).filter(a => !a.closedAt).length;
+        order.result.message = `Gói đã DỪNG theo yêu cầu. ${openCount > 0 ? `${openCount} lệnh đang mở vẫn được giám sát đến khi đóng (vốn + PnL sẽ tự hoàn về quỹ).` : 'Không còn lệnh nào đang mở.'}`;
+        await order.save();
+        return res.json({ success: true, data: order, message: order.result.message });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -231,5 +371,14 @@ export const forceTriggerPipeline = async (req, res) => {
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
+    }
+};
+// GET /api/auto-trade/usd-rate — tỷ giá USD→VND realtime (cache 1h, nguồn Vietcombank)
+export const getUsdRate = async (req, res) => {
+    try {
+        const rate = await getUsdVndRate();
+        return res.json({ success: true, rate, source: 'Vietcombank', cachedAt: new Date() });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message, rate: 25400 });
     }
 };
