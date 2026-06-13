@@ -24,9 +24,11 @@ const AutoTradeSchema = new mongoose.Schema({
     },
     // ── LIVE EXECUTION (kết nối sàn thực) ──
     executionMode: { type: String, enum: ['SIMULATED', 'LIVE'], default: 'SIMULATED' },
+    marketType: { type: String, enum: ['SPOT', 'FUTURES'], default: 'SPOT' },
+    leverage: { type: Number, default: 1 },
     exchangeConnectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExchangeConnection', default: null },
     externalOrderId: { type: String, default: null },
-    status: { type: String, default: 'OPEN', enum: ['OPEN', 'CLOSED', 'WATCH', 'SKIP'] },
+    status: { type: String, default: 'OPEN', enum: ['OPEN', 'PENDING', 'CLOSED', 'WATCH', 'SKIP'] },
     openedAt: { type: Date, default: Date.now },
     closedAt: { type: Date, default: null },
     marketCondition: { type: String, default: 'NORMAL' },

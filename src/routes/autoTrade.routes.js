@@ -8,6 +8,7 @@ import {
     getAutoTradeSettings,
     updateAutoTradeSettings,
     stopUserOrder,
+    deleteUserOrder,
     getUsdRate
 } from '../controllers/autoTrade.controller.js';
 
@@ -17,6 +18,7 @@ router.get('/logs', getSystemTradeLogs);
 router.post('/user-order', createUserExpectationOrder);
 router.get('/user-order/:username', getUserOrders);
 router.post('/user-order/:id/stop', stopUserOrder);
+router.delete('/user-order/:id', deleteUserOrder);
 router.get('/ai-lessons', getAiLessons);
 router.post('/force-trigger', forceTriggerPipeline);
 router.get('/settings', getAutoTradeSettings);
