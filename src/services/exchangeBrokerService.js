@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import ExchangeConnection from '../../models/ExchangeConnection.js';
 import ExchangeOrder from '../../models/ExchangeOrder.js';
+import Setting from '../../models/Setting.js';
 import { getAdapter } from './exchangeAdapters/index.js';
 import { decrypt } from './encryptionService.js';
 import { sendTelegramMessage } from './telegramService.js';
@@ -69,8 +70,8 @@ export const testConnection = async (connectionDoc) => {
 };
 
 /** Lấy balance realtime từ sàn (không dùng cache) */
-export const getBalance = async (connectionDoc) => {
-    const adapter = getAdapter(connectionDoc.exchangeName);
+export const getBalance = async (connectionDoc, marketType = 'SPOT') => {
+    const adapter = getAdapter(connectionDoc.exchangeName, marketType);
     const creds = getCredentials(connectionDoc);
     const balances = await adapter.getBalance(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment);
     connectionDoc.balanceSnapshot = balances;
@@ -86,9 +87,11 @@ export const getBalance = async (connectionDoc) => {
 export const placeOrder = async ({
     connectionDoc, symbol, side, qty, orderType = 'MARKET', price = null,
     estimatedPrice = 0, purpose = 'ENTRY', autoTradeId = null, userOrderId = null,
+    marketType = 'SPOT', reduceOnly = false, leverage = null, marginType = 'ISOLATED',
 }) => {
     const limits = getSafetyLimits();
     const normalizedSymbol = normalizeCryptoSymbol(symbol);
+    const isFutures = String(marketType).toUpperCase() === 'FUTURES';
 
     const logOrder = async (fields) => {
         const doc = new ExchangeOrder({
@@ -120,8 +123,18 @@ export const placeOrder = async ({
         console.log(chalk.bgRed.white(`  [LIVE ⚠️] Đang gửi lệnh THẬT ra ${connectionDoc.exchangeName} cho user ${connectionDoc.username}`));
     }
 
-    const adapter = getAdapter(connectionDoc.exchangeName);
+    const adapter = getAdapter(connectionDoc.exchangeName, marketType);
     const creds = getCredentials(connectionDoc);
+
+    // ── FUTURES: đặt chế độ ký quỹ + đòn bẩy trước khi MỞ vị thế (bỏ qua khi đóng/reduceOnly) ──
+    if (isFutures && !reduceOnly && typeof adapter.setLeverage === 'function') {
+        await adapter.setMarginType?.(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment, { symbol: normalizedSymbol, marginType }).catch(() => {});
+        const levRes = await adapter.setLeverage(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment, { symbol: normalizedSymbol, leverage: leverage || 1 });
+        if (!levRes.success) {
+            const doc = await logOrder({ status: 'FAILED', errorMessage: `Không đặt được đòn bẩy ${leverage}x: ${levRes.message}` });
+            return { success: false, reason: 'LEVERAGE_FAILED', exchangeOrderDoc: doc };
+        }
+    }
 
     // ── Symbol info: tồn tại? min qty? step size? ──
     const symbolInfo = await adapter.getSymbolInfo(normalizedSymbol, connectionDoc.environment);
@@ -173,7 +186,18 @@ export const placeOrder = async ({
         connectionDoc.balanceUpdatedAt = new Date();
         await connectionDoc.save();
 
-        if (side === 'BUY') {
+        if (isFutures) {
+            // FUTURES: cả BUY/SELL mở vị thế đều dùng ký quỹ USDT = notional / đòn bẩy.
+            // Lệnh đóng (reduceOnly) không cần ký quỹ thêm → bỏ qua check.
+            if (!reduceOnly) {
+                const usdtMargin = balances.USDT || 0;
+                const requiredMargin = (notionalUSDT / Math.max(1, leverage || 1)) * 1.02; // buffer phí + funding
+                if (usdtMargin < requiredMargin) {
+                    const doc = await logOrder({ status: 'FAILED', notionalUSDT, errorMessage: `Ký quỹ Futures USDT (${usdtMargin.toFixed(2)}) không đủ — cần ~${requiredMargin.toFixed(2)} cho ${notionalUSDT.toFixed(2)} USDT @ ${leverage || 1}x.` });
+                    return { success: false, reason: 'INSUFFICIENT_MARGIN', exchangeOrderDoc: doc };
+                }
+            }
+        } else if (side === 'BUY') {
             const usdtBalance = balances.USDT || 0;
             if (usdtBalance < notionalUSDT * 1.001) { // buffer phí
                 const doc = await logOrder({ status: 'FAILED', notionalUSDT, errorMessage: `Số dư USDT (${usdtBalance.toFixed(2)}) không đủ cho lệnh ~${notionalUSDT.toFixed(2)} USDT.` });
@@ -198,7 +222,7 @@ export const placeOrder = async ({
 
     // ── GỬI LỆNH ──
     const result = await adapter.placeOrder(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment, {
-        symbol: normalizedSymbol, side, qty: finalQty, orderType, price,
+        symbol: normalizedSymbol, side, qty: finalQty, orderType, price, reduceOnly,
     });
 
     if (!result.success) {
@@ -282,19 +306,33 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             return { success: false, message: 'Live execution hiện chỉ hỗ trợ CRYPTO.' };
         }
         const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
-        if (!isLong) {
-            return { success: false, message: 'Spot không hỗ trợ SHORT — lệnh live bị bỏ qua, vẫn theo dõi simulated.' };
-        }
 
         const connectionDoc = await ExchangeConnection.findById(userOrder.exchangeConnectionId);
         if (!connectionDoc || connectionDoc.username !== userOrder.username) {
             return { success: false, message: 'Không tìm thấy kết nối sàn hợp lệ của user.' };
         }
 
+        // SHORT auto: cần FUTURES + flag bật (MẶC ĐỊNH TẮT để an toàn — engine chưa có edge).
+        let marketType = 'SPOT';
+        let leverage = 1;
+        let orderSide = 'BUY';
+        if (!isLong) {
+            const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
+            const enabled = flag && (flag.value === true || flag.value === 'true' || flag.value === 1);
+            if (!enabled) {
+                return { success: false, message: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false) — theo dõi simulated.' };
+            }
+            if (String(connectionDoc.exchangeName).toUpperCase() !== 'BINANCE') {
+                return { success: false, message: 'SHORT auto chỉ hỗ trợ Binance Futures.' };
+            }
+            marketType = 'FUTURES';
+            leverage = Number(process.env.AUTO_FUTURES_LEVERAGE) || 3;
+            orderSide = 'SELL';
+        }
+
         // Giới hạn số lệnh LIVE đang mở của user (đếm trên AutoTrade gắn user)
         const limits = getSafetyLimits();
-        const ExchangeOrderModel = ExchangeOrder;
-        const openLiveEntries = await ExchangeOrderModel.countDocuments({
+        const openLiveEntries = await ExchangeOrder.countDocuments({
             username: userOrder.username, purpose: 'ENTRY',
             status: { $in: ['PENDING', 'PARTIAL'] },
         });
@@ -302,8 +340,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             return { success: false, message: `Đã chạm giới hạn ${limits.maxLiveOrdersPerUser} lệnh live đang chờ.` };
         }
 
-        // Tính qty từ vốn (VND) → USDT → coin
-        // capitalVnd: PORTFOLIO mode truyền size bot đã tính; FIXED dùng userOrder.capital
+        // Tính qty từ vốn (VND) → USDT → coin. Notional giữ = vốn (đòn bẩy chỉ giảm ký quỹ).
         const effectiveCapital = Number(capitalVnd) > 0 ? Number(capitalVnd) : Number(userOrder.capital);
         const capitalUSDT = effectiveCapital / (usdVndRate || 25400);
         const qty = capitalUSDT / Number(trade.entryPrice);
@@ -311,13 +348,14 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         const result = await placeOrder({
             connectionDoc,
             symbol: trade.symbol,
-            side: 'BUY',
+            side: orderSide,
             qty,
             orderType: 'MARKET',
             estimatedPrice: Number(trade.entryPrice),
             purpose: 'ENTRY',
             autoTradeId: trade._id,
             userOrderId: userOrder._id,
+            marketType, leverage,
         });
 
         if (!result.success) {
@@ -325,7 +363,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         }
 
         sendTelegramMessage(
-            `🟢 <b>[LIVE ${connectionDoc.environment}] Đã vào lệnh thực</b>\nUser: ${userOrder.username} | Sàn: ${connectionDoc.exchangeName}\nBUY ${result.finalQty} ${normalizeCryptoSymbol(trade.symbol)} @ ~${trade.entryPrice}\nOrderID: ${result.externalOrderId}`
+            `${isLong ? '🟢' : '🔴'} <b>[LIVE ${connectionDoc.environment}${marketType === 'FUTURES' ? ' · FUTURES ' + leverage + 'x' : ''}] Đã vào lệnh thực</b>\nUser: ${userOrder.username} | Sàn: ${connectionDoc.exchangeName}\n${orderSide} ${result.finalQty} ${normalizeCryptoSymbol(trade.symbol)} @ ~${trade.entryPrice}\nOrderID: ${result.externalOrderId}`
         ).catch(() => {});
 
         return {
@@ -335,6 +373,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             filledPrice: result.filledPrice,
             finalQty: result.finalQty,
             exchangeConnectionId: connectionDoc._id,
+            marketType, leverage,
         };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLiveEntry lỗi: ${err.message}`));
@@ -348,10 +387,15 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
  */
 export const executeLiveExit = async ({ trade, exitReason }) => {
     try {
+        const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+        const isFut = trade.marketType === 'FUTURES' || !isLong; // short luôn futures
+        const exitSide = isLong ? 'SELL' : 'BUY';                 // đóng vị thế = chiều ngược
+
+        // Entry side: long mở bằng BUY, short mở bằng SELL.
         const entryOrders = await ExchangeOrder.find({
             autoTradeId: trade._id,
             purpose: 'ENTRY',
-            side: 'BUY',
+            side: isLong ? 'BUY' : 'SELL',
             status: { $in: ['FILLED', 'PARTIAL', 'PENDING'] },
         });
         if (entryOrders.length === 0) return { success: true, message: 'Không có lệnh live nào cần đóng.' };
@@ -366,25 +410,28 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
                 await getOrderStatus({ connectionDoc, externalOrderId: entry.externalOrderId, symbol: entry.symbol }).catch(() => {});
             }
             const freshEntry = await ExchangeOrder.findById(entry._id);
-            const qtyToSell = freshEntry.filledQuantity > 0 ? freshEntry.filledQuantity : freshEntry.quantity;
-            if (qtyToSell <= 0) continue;
+            const qtyToClose = freshEntry.filledQuantity > 0 ? freshEntry.filledQuantity : freshEntry.quantity;
+            if (qtyToClose <= 0) continue;
 
             const result = await placeOrder({
                 connectionDoc,
                 symbol: entry.symbol,
-                side: 'SELL',
-                qty: qtyToSell,
+                side: exitSide,
+                qty: qtyToClose,
                 orderType: 'MARKET',
                 estimatedPrice: Number(trade.exitPrice) || Number(trade.entryPrice),
                 purpose: 'EXIT',
                 autoTradeId: trade._id,
                 userOrderId: entry.userOrderId,
+                marketType: isFut ? 'FUTURES' : 'SPOT',
+                reduceOnly: isFut,
+                leverage: trade.leverage || 1,
             });
             results.push(result);
 
             if (result.success) {
                 sendTelegramMessage(
-                    `🟡 <b>[LIVE ${connectionDoc.environment}] Đã đóng vị thế thực</b>\nUser: ${entry.username} | Sàn: ${entry.exchangeName}\nSELL ${result.finalQty} ${entry.symbol}\nLý do: ${exitReason}`
+                    `🟡 <b>[LIVE ${connectionDoc.environment}] Đã đóng vị thế thực</b>\nUser: ${entry.username} | Sàn: ${entry.exchangeName}\n${exitSide} ${result.finalQty} ${entry.symbol}\nLý do: ${exitReason}`
                 ).catch(() => {});
             }
         }

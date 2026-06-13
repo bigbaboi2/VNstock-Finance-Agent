@@ -389,7 +389,7 @@ export const runCryptoBatchSymbolScanner = async ({ forceRefresh = false, chunkS
     }
 
     // Lấy top 200 coin có vốn hóa tốt nhất từ DB
-    const coinsDb = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI', 'TUSD', 'USDD'] } })
+    const coinsDb = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI', 'TUSD', 'USDD', 'USDE', 'FRAX', 'PYUSD', 'USDP', 'GUSD', 'LUSD', 'SUSD', 'USDJ', 'CRVUSD'] } })
         .sort({ marketCap: -1 }).limit(200).lean();
 
     let symbols = uniqSymbols(coinsDb.map(c => c.symbol.toUpperCase() + 'USDT'));
@@ -423,7 +423,7 @@ export const buildCryptoScanUniverse = async (limit = 200) => {
     } catch (err) {
         console.log(chalk.yellow(`[CRYPTO BATCH SCANNER] Fallback sang universe nhanh: ${err.message}`));
     }
-    const dbCandidates = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI'] } })
+    const dbCandidates = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI', 'TUSD', 'USDD', 'USDE', 'FRAX', 'PYUSD', 'USDP', 'GUSD', 'LUSD', 'SUSD', 'USDJ', 'CRVUSD'] } })
         .sort({ change24h: -1 }).limit(20).lean().catch(() => []);
     const fromDb = uniqSymbols(dbCandidates.map(c => c.symbol + 'USDT'));
     const fallback = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT'];
