@@ -25,6 +25,7 @@ import {
 } from './telegramService.js';
 import axios from 'axios';
 import { executeLiveEntry, executeLiveExit } from './exchangeBrokerService.js';
+import { createManualTrade, closeManualTrade, listOpenManualTrades, monitorManualTrades } from './manualTradeService.js';
 import {
     calculatePositionSize,
     canAcceptNewTrade,
@@ -35,7 +36,7 @@ import {
 // ── CONSTANTS & HELPERS
 
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
-const REVERSAL_EXIT_THRESHOLD = 55;
+const REVERSAL_EXIT_THRESHOLD = 70;
 const AI_OVERRIDE_SCORE_THRESHOLD = 85;
 let autoTradePipelineRunning = false;
 let exitPipelineRunning = false;
@@ -111,7 +112,7 @@ export const getRiskConfig = (level) => {
             scoreThreshold: 72, edge: 25,
             volSurge: { VN_STOCK: 1.6, CRYPTO: 1.5, DERIVATIVES: 1.3 },
             maxRisk: { VN_STOCK: 0.04, CRYPTO: 0.03, DERIVATIVES: 0.015 },
-            allocationMultiplier: 0.6, trailingActivation: 0.15,
+            allocationMultiplier: 0.6, trailingActivation: 0.30,
             prompt: `CHIẾN LƯỢC (THẬN TRỌNG – LEVEL 1):
 Mục tiêu ưu tiên là bảo toàn vốn. Yêu cầu ít nhất 3 trong 4 điều kiện đồng thuận: xu hướng EMA rõ, MACD dương, volume surge xác nhận, không có phân phối đỉnh rõ ràng.
 Nếu score kỹ thuật >= 72 VÀ edge >= 25 VÀ không có tín hiệu phân phối rõ → XÁC NHẬN.
@@ -120,13 +121,13 @@ Chỉ BÁC BỎ khi: (1) score < 72, hoặc (2) có tín hiệu phân phối/đ�
         };
         case 2: return {
             level: 2, name: 'CÂN BẰNG (BALANCED)',
-            scoreThreshold: 68, edge: 20,
+            scoreThreshold: 80, edge: 25,
             volSurge: { VN_STOCK: 1.4, CRYPTO: 1.5, DERIVATIVES: 1.1 },
             maxRisk: { VN_STOCK: 0.055, CRYPTO: 0.04, DERIVATIVES: 0.025 },
-            allocationMultiplier: 1.0, trailingActivation: 0.25,
+            allocationMultiplier: 1.0, trailingActivation: 0.40,
             prompt: `CHIẾN LƯỢC (CÂN BẰNG – LEVEL 2):
 Mục tiêu tối ưu Risk/Reward. Đánh giá khách quan kết hợp kỹ thuật, dòng tiền và vĩ mô.
-Nếu score >= 68 VÀ edge >= 20 → XÁC NHẬN, trừ khi có mâu thuẫn tín hiệu rõ ràng (ví dụ: trend tăng nhưng OBV giảm mạnh + news rất tiêu cực).
+Nếu score >= 80 VÀ edge >= 25 → XÁC NHẬN, trừ khi có mâu thuẫn tín hiệu rõ ràng (ví dụ: trend tăng nhưng OBV giảm mạnh + news rất tiêu cực).
 Một hoặc hai điểm yếu nhỏ về indicator phụ (ví dụ VWAP dưới nhẹ, StochRSI chưa lý tưởng) không phải lý do BÁC BỎ nếu tín hiệu chính (EMA, MACD, volume) đang ủng hộ.
 BÁC BỎ khi: tín hiệu kỹ thuật chính mâu thuẫn nhau, hoặc context thị trường bearish rõ rệt.`
         };
@@ -135,7 +136,7 @@ BÁC BỎ khi: tín hiệu kỹ thuật chính mâu thuẫn nhau, hoặc context
             scoreThreshold: 64, edge: 15,
             volSurge: { VN_STOCK: 1.1, CRYPTO: 1.3, DERIVATIVES: 0.9 },
             maxRisk: { VN_STOCK: 0.07, CRYPTO: 0.05, DERIVATIVES: 0.035 },
-            allocationMultiplier: 1.3, trailingActivation: 0.35,
+            allocationMultiplier: 1.3, trailingActivation: 0.50,
             prompt: `CHIẾN LƯỢC (CHUYÊN GIA – LEVEL 3):
 Ưu tiên nắm bắt cơ hội, chấp nhận rủi ro có tính toán. Phân tích tập trung vào dòng tiền thông minh và momentum ngắn hạn.
 Nếu score >= 64 VÀ edge >= 15 → THIÊN VỀ XÁC NHẬN. Các điểm yếu kỹ thuật phụ (VWAP, StochRSI chưa cực đoan, ADX trung bình) KHÔNG đủ để BÁC BỎ.
@@ -147,7 +148,7 @@ Chỉ BÁC BỎ khi: (1) tín hiệu đảo chiều rất rõ (engulfing ngượ
             scoreThreshold: 60, edge: 10,
             volSurge: { VN_STOCK: 0.9, CRYPTO: 1.0, DERIVATIVES: 0.8 },
             maxRisk: { VN_STOCK: 0.10, CRYPTO: 0.08, DERIVATIVES: 0.05 },
-            allocationMultiplier: 1.6, trailingActivation: 0.45,
+            allocationMultiplier: 1.6, trailingActivation: 0.55,
             prompt: `CHIẾN LƯỢC (DEGEN – LEVEL 4 – HIGH RISK):
 Mục tiêu tối đa hóa lợi nhuận. Score >= 60 với edge >= 10 là đủ điều kiện kỹ thuật — MẶC ĐỊNH XÁC NHẬN nếu không có lý do BÁC BỎ rõ ràng.
 Rủi ro là chi phí của cơ hội. Chấp nhận: volume surge thấp, trend chưa hoàn toàn rõ, một vài chỉ báo phụ chưa lý tưởng.
@@ -156,13 +157,13 @@ Chỉ BÁC BỎ khi CÓ ÍT NHẤT 2 TRONG 3: (1) Phân phối đỉnh rõ trong
         };
         default: return {
             level: 2, name: 'CÂN BẰNG (BALANCED)',
-            scoreThreshold: 68, edge: 20,
+            scoreThreshold: 80, edge: 25,
             volSurge: { VN_STOCK: 1.4, CRYPTO: 1.5, DERIVATIVES: 1.1 },
             maxRisk: { VN_STOCK: 0.055, CRYPTO: 0.04, DERIVATIVES: 0.025 },
-            allocationMultiplier: 1.0, trailingActivation: 0.25,
+            allocationMultiplier: 1.0, trailingActivation: 0.40,
             prompt: `CHIẾN LƯỢC (CÂN BẰNG – LEVEL 2):
 Mục tiêu tối ưu Risk/Reward. Đánh giá khách quan kết hợp kỹ thuật, dòng tiền và vĩ mô.
-Nếu score >= 68 VÀ edge >= 20 → XÁC NHẬN, trừ khi có mâu thuẫn tín hiệu rõ ràng.
+Nếu score >= 80 VÀ edge >= 25 → XÁC NHẬN, trừ khi có mâu thuẫn tín hiệu rõ ràng.
 Một hoặc hai điểm yếu nhỏ về indicator phụ không phải lý do BÁC BỎ nếu tín hiệu chính đang ủng hộ.
 BÁC BỎ khi: tín hiệu kỹ thuật chính mâu thuẫn nhau, hoặc context thị trường bearish rõ rệt.`
         };
@@ -488,11 +489,15 @@ const calcMACD = (closes) => {
 };
 
 const calcVolumeSurge = (volumes) => {
-    if (volumes.length < 5) return 1;
-    const baseline = volumes.slice(-21, -1);
+    // Dùng nến vừa ĐÓNG (volumes[-2]), KHÔNG dùng nến hiện tại đang hình thành (volumes[-1]):
+    // nến live mới tích một phần volume → surge bị tính thấp giả tạo, lọc oan setup volume cao.
+    if (volumes.length < 3) return 1;
+    const last = volumes[volumes.length - 2];
+    const baseline = volumes.slice(-22, -2);
+    if (!baseline.length) return 1;
     const avg = baseline.reduce((a, b) => a + b, 0) / baseline.length;
     if (avg === 0) return 1;
-    return volumes[volumes.length - 1] / avg;
+    return last / avg;
 };
 
 const calcOBV = (candles) => {
@@ -1084,9 +1089,16 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
     const atr = techSignal.atr || entryPrice * 0.02;
     
     const volPct = (atr / entryPrice) * 100;
+
+    // Chặn tài sản gần như không biến động (stablecoin USDE/FRAX/TUSD..., coin chết):
+    // ATR/giá quá thấp → TP/SL nằm trong vùng nhiễu, ăn không đủ bù phí 0.2% → chỉ churn lỗ.
+    if (asset === 'CRYPTO' && volPct < 0.6) {
+        return null;
+    }
+
     let adaptiveScale = 1.0;
-    if (volPct > 5) adaptiveScale = 1.3; 
-    else if (volPct < 1.5) adaptiveScale = 0.8; 
+    if (volPct > 5) adaptiveScale = 1.3;
+    else if (volPct < 1.5) adaptiveScale = 0.8;
 
     let atrMultiplierTP, atrMultiplierSL;
     if (asset === 'VN_STOCK') {
@@ -1296,6 +1308,68 @@ const isUserOrderCompatibleWithTrade = (userOrder, tradePlan) => {
     return { compatible: true, rewardPct, riskPct };
 };
 
+// ── HYBRID ENTRY FILTER (đa khung + anti-chase + trend/mean-reversion) ──
+// Bằng chứng thực tế: crypto long-only thua 29% WR vì (a) long ngược xu hướng khung lớn,
+// (b) mua đỉnh nhịp pump. Bộ lọc này chặn 2 lỗi đó và chỉ cho vào khi có setup rõ.
+
+/** Xu hướng khung 1h cho crypto: UP / DOWN / NEUTRAL (EMA20 vs EMA50 + vị trí giá). */
+const getCryptoHtfTrend = async (symbol) => {
+    try {
+        const c = await fetchCryptoOHLCV(symbol, '1h', 120);
+        const closes = c.map(x => x.close);
+        const ema20 = calcEMA(closes, 20);
+        const ema50 = calcEMA(closes, 50);
+        if (!ema20 || !ema50) return 'NEUTRAL';
+        const price = closes[closes.length - 1];
+        if (ema20 > ema50 && price > ema50) return 'UP';
+        if (ema20 < ema50 && price < ema50) return 'DOWN';
+        return 'NEUTRAL';
+    } catch (_) {
+        return 'NEUTRAL';
+    }
+};
+
+/**
+ * Phân loại setup vào lệnh. Chỉ siết chặt cho CRYPTO LONG (96% lệnh & nơi thua nặng).
+ * @returns {{ valid: boolean, type: string, note: string }}
+ */
+const classifyEntrySetup = (asset, signal, htfTrend) => {
+    if (asset !== 'CRYPTO' || signal.direction !== 'LONG') {
+        return { valid: true, type: signal.direction || 'DEFAULT', note: '' };
+    }
+
+    const rsi = signal.rsi ?? 50;
+    const k = signal.stochRSI?.k ?? 50;
+    const price = signal.entryPrice;
+    const vwap = signal.vwap;
+    const boll = signal.bollinger;
+
+    // 1) Không long ngược xu hướng khung lớn đang giảm.
+    if (htfTrend === 'DOWN') {
+        return { valid: false, type: 'BLOCK_HTF_DOWN', note: 'HTF 1h giảm — không long ngược xu hướng lớn' };
+    }
+
+    // 2) Anti-chase: không mua khi quá căng (đu đỉnh nhịp pump).
+    const extendedAboveVwap = vwap ? price > vwap * 1.04 : false;
+    if (rsi > 72 || k > 88 || extendedAboveVwap) {
+        return { valid: false, type: 'BLOCK_EXTENDED', note: `Quá căng (RSI ${rsi}, K ${k}${extendedAboveVwap ? ', xa VWAP' : ''}) — tránh đu đỉnh` };
+    }
+
+    // 3) Setup TREND-PULLBACK: HTF tăng + chưa quá nóng → vào theo xu hướng.
+    if (htfTrend === 'UP') {
+        return { valid: true, type: 'TREND_PULLBACK', note: 'HTF 1h tăng, theo xu hướng' };
+    }
+
+    // 4) Setup MEAN-REVERSION: HTF trung tính + quá bán gần đáy Bollinger → mua hồi.
+    const nearLowerBand = boll ? price <= boll.lower * 1.01 : false;
+    if ((rsi < 35 || k < 25) && (nearLowerBand || rsi < 30)) {
+        return { valid: true, type: 'MEAN_REVERSION', note: 'Quá bán gần đáy band, mua hồi' };
+    }
+
+    // HTF trung tính nhưng không có setup rõ → bỏ qua cho chắc.
+    return { valid: false, type: 'NO_CLEAR_SETUP', note: 'HTF trung tính, không setup trend/reversal rõ' };
+};
+
 // ── AI SIGNAL CONFIRMATION
 
 const compactContextForPrompt = (context = {}) => {
@@ -1464,14 +1538,14 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
 
         if (isLong) {
             const reward = trade.takeProfitPrice - trade.entryPrice;
-            if (reward > 0) {
-                // Trailing kích hoạt sớm hơn
-                const activationPrice = trade.entryPrice + reward * config.trailingActivation;
-                if (currentPrice >= activationPrice) {
-                    let newSL = trade.entryPrice + reward * 0.05; // breakeven sớm
-                    if (currentPrice >= trade.entryPrice + reward * 0.60) {
-                        newSL = trade.entryPrice + reward * 0.35;
-                    }
+            if (reward > 0 && currentPrice > trade.entryPrice) {
+                // Trailing CHANDELIER theo % reward: chỉ kích hoạt khi giá đã đi đủ xa (config.trailingActivation),
+                // và khoá lời CÁCH đỉnh tiến độ 35% reward → đủ rộng để nhịp hồi bình thường KHÔNG quét mất winner.
+                // (Trước đây kéo SL về breakeven ngay tại ~25% tiến độ → cắt cụt lệnh thắng, gây bất đối xứng lời/lỗ.)
+                const progress = (currentPrice - trade.entryPrice) / reward;
+                if (progress >= config.trailingActivation) {
+                    const lockFraction = Math.max(0, progress - 0.35);
+                    const newSL = trade.entryPrice + reward * lockFraction;
                     if (newSL > trade.stopLossPrice) {
                         trade.stopLossPrice = roundPrice(newSL);
                         trailingUpdated = true;
@@ -1488,13 +1562,11 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
             }
         } else if (isShort) {
             const reward = trade.entryPrice - trade.takeProfitPrice;
-            if (reward > 0) {
-                const activationPrice = trade.entryPrice - reward * config.trailingActivation; 
-                if (currentPrice <= activationPrice) {
-                    let newSL = trade.entryPrice - reward * 0.05;
-                    if (currentPrice <= trade.entryPrice - reward * 0.60) {
-                        newSL = trade.entryPrice - reward * 0.35;
-                    }
+            if (reward > 0 && currentPrice < trade.entryPrice) {
+                const progress = (trade.entryPrice - currentPrice) / reward;
+                if (progress >= config.trailingActivation) {
+                    const lockFraction = Math.max(0, progress - 0.35);
+                    const newSL = trade.entryPrice - reward * lockFraction;
                     if (newSL < trade.stopLossPrice) {
                         trade.stopLossPrice = roundPrice(newSL);
                         trailingUpdated = true;
@@ -1521,7 +1593,7 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
                     : 30 * 24 * 3600_000; // Lệnh cũ: giữ nguyên 30 ngày
                 break;
             case 'CRYPTO':
-                maxHoldMs = 6 * 3600_000;
+                maxHoldMs = 18 * 3600_000;
                 break;
             default: // DERIVATIVES
                 maxHoldMs = 2 * 24 * 3600_000;
@@ -1529,8 +1601,15 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
 
         const holdMs    = Date.now() - new Date(trade.openedAt).getTime();
         if (!shouldClose && holdMs > maxHoldMs) {
-            shouldClose = true;
-            exitReason  = `Timeout: Lệnh quá thời hạn giữ tối đa (${Math.round(holdMs / 3600000)}h). Đóng để quản lý rủi ro.`;
+            // Timeout THÔNG MINH: nếu lệnh đang lãi đáng kể (>0.5%), KHÔNG cắt cụt — để trailing/TP
+            // xử lý (winner cần thời gian chạy). Chỉ ép đóng khi đang lỗ/đi ngang, hoặc đã vượt hard-cap 2x.
+            const profitPct = isLong
+                ? (currentPrice - trade.entryPrice) / trade.entryPrice
+                : (trade.entryPrice - currentPrice) / trade.entryPrice;
+            if (profitPct < 0.005 || holdMs > maxHoldMs * 2) {
+                shouldClose = true;
+                exitReason  = `Timeout: Lệnh quá thời hạn giữ tối đa (${Math.round(holdMs / 3600000)}h). Đóng để quản lý rủi ro.`;
+            }
         }
 
         const minHoldForSignalExitMs = trade.assetType === 'CRYPTO' ? 30 * 60_000 : 60 * 60_000;
@@ -1559,6 +1638,54 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
     } catch (err) {
         console.log(chalk.yellow(`[EXIT CHECK] Không fetch được giá realtime cho ${trade.symbol}: ${err.message}`));
         return { shouldClose: false, currentPrice: null, exitReason: '', trailingUpdated: false };
+    }
+};
+
+// ── ADAPTIVE LEARNING LOOP ──────────────────────────────────────────
+// "Học thật": dùng KẾT QUẢ THỰC TẾ (AutoTrade đã đóng, PnL ròng) để tự điều chỉnh
+// ngưỡng điểm vào lệnh + size theo từng phân khúc. Đây là vòng phản hồi định lượng
+// thay cho việc chỉ lưu bài học dạng text (AiBehavior) vốn KHÔNG phản hồi vào logic.
+const adaptiveGuards = {
+    CRYPTO:      { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+    VN_STOCK:    { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+    DERIVATIVES: { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+};
+
+const recomputeAdaptiveGuards = async () => {
+    try {
+        const since = new Date(Date.now() - 30 * 24 * 3600_000);
+        const trades = await AutoTrade.find({ status: 'CLOSED', closedAt: { $gte: since } })
+            .select('assetType aiScore pnlPercent').lean();
+
+        for (const asset of Object.keys(adaptiveGuards)) {
+            const list = trades.filter(t => t.assetType === asset);
+            let scoreFloor = 0;
+            let sizeMult = 1.0;
+
+            // Cần đủ mẫu mới dám điều chỉnh — tránh phản ứng với nhiễu thống kê.
+            if (list.length >= 12) {
+                const winRate = list.filter(t => t.pnlPercent > 0).length / list.length;
+                const totalPnl = list.reduce((s, t) => s + (t.pnlPercent || 0), 0);
+
+                // Phân khúc đang yếu (win rate < 50% HOẶC tổng PnL âm) → siết.
+                if (winRate < 0.5 || totalPnl < 0) {
+                    // Tìm ngưỡng điểm THẤP NHẤT mà phía trên nó win rate >= 55% (mẫu >= 6).
+                    for (const cut of [72, 74, 76, 78, 80]) {
+                        const above = list.filter(t => (t.aiScore || 0) >= cut);
+                        if (above.length >= 6) {
+                            const wAbove = above.filter(t => t.pnlPercent > 0).length / above.length;
+                            if (wAbove >= 0.55) { scoreFloor = cut; break; }
+                        }
+                    }
+                    if (scoreFloor === 0) scoreFloor = 76; // không vùng nào đủ tốt → siết mặc định
+                    sizeMult = 0.7;                        // giảm size 30% khi phân khúc đang yếu
+                }
+            }
+            adaptiveGuards[asset] = { scoreFloor, sizeMult, sample: list.length };
+        }
+        console.log(chalk.magenta(`[ADAPTIVE] ${Object.entries(adaptiveGuards).map(([a, g]) => `${a}:floor${g.scoreFloor}/×${g.sizeMult}(n=${g.sample})`).join(' | ')}`));
+    } catch (err) {
+        console.log(chalk.yellow(`[ADAPTIVE] Lỗi tính guard học máy: ${err.message}`));
     }
 };
 
@@ -1710,13 +1837,27 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
         let currentOpenCount = openTradesList.length;
 
         const utilizationRate = currentAllocatedCapital / TOTAL_CAPITAL;
-        const dynamicScoreThreshold = utilizationRate < 0.40 
-            ? currentRiskConfig.scoreThreshold - 3 
-            : currentRiskConfig.scoreThreshold;
+        // KHÔNG hạ ngưỡng khi thừa vốn nữa: bằng chứng thực tế cho thấy bucket điểm thấp
+        // (<80) thua nặng → "vào thêm cho đủ vốn" chỉ làm tăng lỗ. Giữ ngưỡng cố định.
+        const dynamicScoreThreshold = currentRiskConfig.scoreThreshold;
+
+        // Cập nhật guard học máy từ kết quả thực tế trước khi quét (vòng phản hồi định lượng).
+        await recomputeAdaptiveGuards();
 
         // 3. Scan loop
         for (const asset of targetAssets) {
             console.log(chalk.cyan(`\n[AUTODUCK] ═══ Quét phân khúc: ${asset} ═══`));
+
+            // Guard học máy: nâng ngưỡng điểm + giảm size nếu phân khúc này đang hiệu suất kém.
+            const guard = adaptiveGuards[asset] || {};
+            // LIVE: ngưỡng nghiêm ngặt theo risk level (+ adaptive floor khi hiệu suất yếu) — bảo vệ tiền thật.
+            const liveScoreThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0);
+            // SIM (training nền): ngưỡng thấp hơn để engine sinh đủ dữ liệu học. KHÔNG áp adaptive floor.
+            const simScoreThreshold = Math.max(60, dynamicScoreThreshold - 8);
+            // Phễu quét dùng ngưỡng SIM (thấp) để lọt nhiều ứng viên → tạo lệnh SIM; LIVE chặn riêng bên dưới.
+            const effectiveThreshold = simScoreThreshold;
+            const adaptiveSizeMult = guard.sizeMult || 1.0;
+            console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} (training) · LIVE≥${liveScoreThreshold} (size ×${adaptiveSizeMult}, n=${guard.sample}).`));
 
             const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, aiRejected: 0, matched: 0 };
             let symbolsToScan = [];
@@ -1762,11 +1903,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         ...baseExecutionContext,
                         news: newsContext,
                     };
-                    let techSignal = analyzeTechnicalSignal(candles, breadthRatio, statusType, dynamicScoreThreshold, currentRiskConfig);
-                    techSignal = applyExecutionContextBias(techSignal, asset, executionContext, dynamicScoreThreshold, currentRiskConfig);
+                    let techSignal = analyzeTechnicalSignal(candles, breadthRatio, statusType, effectiveThreshold, currentRiskConfig);
+                    techSignal = applyExecutionContextBias(techSignal, asset, executionContext, effectiveThreshold, currentRiskConfig);
                     techSignal.symbol = symbol;
 
-                    if (techSignal.direction === 'NEUTRAL' || techSignal.score < dynamicScoreThreshold) {
+                    if (techSignal.direction === 'NEUTRAL' || techSignal.score < effectiveThreshold) {
                         stats.skipScore++;
                         continue;
                     }
@@ -1781,6 +1922,19 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         stats.skipVolume = (stats.skipVolume || 0) + 1;
                         console.log(chalk.gray(`  [VOL FILTER] ${symbol}: volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x (score=${techSignal.score})`));
                         continue;
+                    }
+
+                    // ── HYBRID ENTRY FILTER: lọc đa khung + anti-chase + phân loại setup (crypto LONG) ──
+                    let entrySetup = { valid: true, type: techSignal.direction, note: '' };
+                    if (asset === 'CRYPTO' && techSignal.direction === 'LONG') {
+                        const htfTrend = await getCryptoHtfTrend(symbol);
+                        entrySetup = classifyEntrySetup(asset, techSignal, htfTrend);
+                        if (!entrySetup.valid) {
+                            stats.skipSetup = (stats.skipSetup || 0) + 1;
+                            console.log(chalk.gray(`  [SETUP FILTER] ${symbol}: ${entrySetup.type} — ${entrySetup.note}`));
+                            continue;
+                        }
+                        console.log(chalk.cyan(`  [SETUP ✓] ${symbol}: ${entrySetup.type} (HTF ${htfTrend}) — ${entrySetup.note}`));
                     }
 
                     if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
@@ -1862,7 +2016,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         else baseAlloc = 0.10;
                         allocationPct = Math.min(0.40, (baseAlloc * currentRiskConfig.allocationMultiplier) + utilizationBonus);
                     }
-                    let idealInvestedAmount = TOTAL_CAPITAL * allocationPct;
+                    let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * adaptiveSizeMult;
                     
                     let maxVolumeByRisk = Infinity;
                     const riskUnit = Math.abs(entryPrice - stopLossPrice);
@@ -1966,13 +2120,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         aiScore: techSignal.score,
                         confidence: techSignal.score,
                         reason: aiConfirm.reason,
-                        aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; longScore=${techSignal.breakdown.longScore}; shortScore=${techSignal.breakdown.shortScore}; edge=${techSignal.breakdown.edge}; news=${newsContext.summary}`,
+                        aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; setup=${entrySetup.type}; longScore=${techSignal.breakdown.longScore}; shortScore=${techSignal.breakdown.shortScore}; edge=${techSignal.breakdown.edge}; news=${newsContext.summary}`,
                         status: tradeStatus,
                         marketCondition: marketStatus,
                         riskLevel: currentRiskLevel,
                         signalBreakdown: {
                             ...techSignal.breakdown,
-                            originalSL: stopLossPrice
+                            originalSL: stopLossPrice,
+                            entrySetup: entrySetup.type,
                         },
                         executionMeta: {
                             priceSource: quote.source,
@@ -2004,6 +2159,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 
                         // FIXED đã MATCHED rồi thì không xét lại; PORTFOLIO ACTIVE vẫn nhận thêm lệnh
                         if (!isPortfolio && userOrder.status !== 'PENDING') continue;
+
+                        // LIVE chỉ khớp ứng viên đạt ngưỡng nghiêm ngặt (bảo vệ tiền thật).
+                        // Ứng viên điểm thấp (SIM≤score<LIVE) vẫn được giữ làm lệnh training,
+                        // nhưng KHÔNG kích hoạt/chiếm vốn gói LIVE — gói LIVE tiếp tục chờ.
+                        if (userOrder.executionMode === 'LIVE' && techSignal.score < liveScoreThreshold) {
+                            continue;
+                        }
 
                         const validation = verifyOrderFeasibility(asset, userOrder.targetPct);
                         if (!validation.feasible) {
@@ -2059,6 +2221,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                             if (liveResult.success) {
                                 liveMatched = true;
                                 newTrade.executionMode = 'LIVE';
+                                newTrade.marketType = liveResult.marketType || 'SPOT';
+                                newTrade.leverage = liveResult.leverage || 1;
                                 newTrade.exchangeConnectionId = liveResult.exchangeConnectionId;
                                 newTrade.externalOrderId = liveResult.externalOrderId;
                                 await newTrade.save();
@@ -2108,7 +2272,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             
             if (stats.scanned > 0) {
                 const volSkip = stats.skipVolume || 0;
-                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | Volume surge: ${volSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected}] | Đã vào: ${stats.matched} lệnh.`));
+                const setupSkip = stats.skipSetup || 0;
+                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | Volume surge: ${volSkip} | Setup/HTF: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected}] | Đã vào: ${stats.matched} lệnh.`));
             }
         }
 
@@ -2121,10 +2286,19 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             });
         }
 
-        const hasRadarCandidates = Object.values(radarCandidates).some(items => items.length > 0);
-        const shouldSendEmptyRadar = Boolean(forcedAssetType);
-        if (!liveOnlyMode && (hasRadarCandidates || shouldSendEmptyRadar)) {
-            await sendTelegramMessage(buildMarketRadarMessage(radarCandidates, {
+        // ── RADAR THROTTLE: chỉ gửi khi có tín hiệu MẠNH (AI duyệt + score >= 80) ──
+        // Trước đây gửi gần như mỗi chu kỳ → spam. Giờ chỉ báo cơ hội đáng giá.
+        const RADAR_MIN_SCORE = 80;
+        const isStrong = (c) => c.aiConfirmed === true && (c.score || 0) >= RADAR_MIN_SCORE;
+        const strongRadar = {};
+        let hasStrongSignal = false;
+        for (const [asset, items] of Object.entries(radarCandidates)) {
+            const strong = (items || []).filter(isStrong);
+            strongRadar[asset] = strong;
+            if (strong.length) hasStrongSignal = true;
+        }
+        if (!liveOnlyMode && hasStrongSignal) {
+            await sendTelegramMessage(buildMarketRadarMessage(strongRadar, {
                 generatedAt: new Date(),
                 marketStatus,
             })).catch(() => {});
@@ -2214,8 +2388,14 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                 trade.exitPrice  = currentPrice;
                 trade.status     = 'CLOSED';
                 trade.closedAt   = new Date();
-                trade.pnlPercent = Math.round((priceDiff / trade.entryPrice) * 100 * 100) / 100;
-                
+                // PnL RÒNG sau phí round-trip (trước đây tính gộp → sim lạc quan hơn live, training sai lệch).
+                // Crypto MARKET taker ~0.1%×2 = 0.2%; VN_STOCK phí+thuế bán ~0.4%; phái sinh ~0.1%.
+                const ROUND_TRIP_FEE_PCT = trade.assetType === 'CRYPTO' ? 0.2
+                    : trade.assetType === 'VN_STOCK' ? 0.4
+                    : 0.1;
+                const grossPnlPercent = (priceDiff / trade.entryPrice) * 100;
+                trade.pnlPercent = Math.round((grossPnlPercent - ROUND_TRIP_FEE_PCT) * 100) / 100;
+
                 const isWin = trade.pnlPercent > 0;
                 const exitTag = exitReason.includes('TP HIT') ? 'TP_HIT'
                     : exitReason.includes('SL HIT') ? 'SL_HIT'
@@ -2492,6 +2672,11 @@ export const startAutoDuckScheduler = () => {
         }
     }, 30 * 1000);
 
+    // Giám sát lệnh MANUAL (/trade): fill entry, scale-out TP, SL, dời breakeven.
+    setInterval(async () => {
+        await monitorManualTrades().catch(err => console.log(chalk.yellow(`[MANUAL MONITOR] ${err.message}`)));
+    }, 20 * 1000);
+
     let dailyReportSentForDay = -1;
     setInterval(async () => {
         const nowInVN = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
@@ -2603,8 +2788,84 @@ export const getSystemStatus = async () => {
  * @param {string} text — Nội dung tin nhắn từ Telegram
  * @returns {Promise<string>} — Tin nhắn trả về (đã gửi qua Telegram)
  */
-export const handleTelegramCommand = async (text = '') => {
-    const cmd = String(text).trim().toLowerCase().replace(/^\//, '');
+export const handleTelegramCommand = async (text = '', meta = {}) => {
+    const raw = String(text).trim();
+    const cmd = raw.toLowerCase().replace(/^\//, '');
+    const firstWord = cmd.split(/\s+/)[0];
+    const username = meta.username || 'unknown';
+
+    // ── /trade — Lệnh manual khớp thẳng ra sàn LIVE (tag người yêu cầu) ──
+    if (firstWord === 'trade') {
+        const result = await createManualTrade({ rawCommand: raw, requestedBy: username });
+        // createManualTrade tự gửi Telegram khi thành công; chỉ cần gửi khi lỗi.
+        if (!result.success) await sendTelegramMessage(result.message, { parseMode: 'none' }).catch(() => {});
+        return result.message;
+    }
+
+    // ── /close <mã> — đóng lệnh manual đang mở ──
+    if (firstWord === 'close') {
+        const arg = cmd.split(/\s+/)[1];
+        if (!arg) {
+            const m = `❌ Cú pháp: /close <mã> (vd: /close gmx)`;
+            await sendTelegramMessage(m, { parseMode: 'none' }).catch(() => {});
+            return m;
+        }
+        const result = await closeManualTrade(arg, username);
+        await sendTelegramMessage(result.message, { parseMode: 'none' }).catch(() => {});
+        return result.message;
+    }
+
+    // ── /manual (/mtrade) — danh sách lệnh manual đang mở ──
+    if (firstWord === 'manual' || firstWord === 'mtrade') {
+        try {
+            const list = await listOpenManualTrades();
+            if (!list.length) {
+                const m = `🙋 Không có lệnh manual nào đang mở.`;
+                await sendTelegramMessage(m, { parseMode: 'none' }).catch(() => {});
+                return m;
+            }
+            const lines = list.map(t => {
+                const tpDone = (t.tpFills || []).length;
+                const st = t.status === 'PENDING_ENTRY' ? '⏳ chờ khớp' : '🟢 đang chạy';
+                return `${st} ${t.symbol} @ ${t.entryPrice} [@${t.requestedBy}]\n   TP ${t.tpLevels.join('/')} (chốt ${tpDone}/${t.tpLevels.length}) | SL ${t.slPrice} | còn ${Number(t.remainingQty || 0).toFixed(6)}`;
+            });
+            const m = `🙋 LỆNH MANUAL ĐANG MỞ (${list.length})\n━━━━━━━━━━━━━━━━━\n${lines.join('\n')}`;
+            await sendTelegramMessage(m, { parseMode: 'none' }).catch(() => {});
+            return m;
+        } catch (err) {
+            const m = `❌ Lỗi /manual: ${err.message}`;
+            await sendTelegramMessage(m, { parseMode: 'none' }).catch(() => {});
+            return m;
+        }
+    }
+
+    // ── /market (/mkt) — tổng quan thị trường nhanh ──
+    if (firstWord === 'market' || firstWord === 'mkt') {
+        try {
+            const vn = await getVnMarketContext().catch(() => null);
+            const intel = vn?.intelligence;
+            let btc = 'N/A', eth = 'N/A';
+            try {
+                const [b, e] = await Promise.all([
+                    axios.get('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', { timeout: 6000 }),
+                    axios.get('https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT', { timeout: 6000 }),
+                ]);
+                btc = `${Number(b.data.lastPrice).toLocaleString('en-US')} (${Number(b.data.priceChangePercent).toFixed(2)}%)`;
+                eth = `${Number(e.data.lastPrice).toLocaleString('en-US')} (${Number(e.data.priceChangePercent).toFixed(2)}%)`;
+            } catch (_) {}
+            const m = `🌐 TỔNG QUAN THỊ TRƯỜNG\n━━━━━━━━━━━━━━━━━\n`
+                + `🏢 VN: ${intel?.marketStatus || 'N/A'} | Breadth ${intel?.breadthRatio ?? 'N/A'}%\n`
+                + `   ${intel?.diagnosticDesc || ''}\n`
+                + `🪙 BTC: ${btc}\n🪙 ETH: ${eth}\n`
+                + `📈 VN mở cửa: ${isVNMarketOpen() ? 'CÓ' : 'KHÔNG'}`;
+            await sendTelegramMessage(m, { parseMode: 'none' }).catch(() => {});
+            return m;
+        } catch (err) {
+            const m = `❌ Lỗi /market: ${err.message}`;
+            await sendTelegramMessage(m, { parseMode: 'none' }).catch(() => {});
+            return m;
+        }
+    }
 
     // ── /check ────────────────────────────────────────────────
     if (cmd === 'check' || cmd === 'status') {
@@ -2740,13 +3001,25 @@ export const handleTelegramCommand = async (text = '') => {
         const msg = [
             `🦆 OMNI DUCK — LỆNH TELEGRAM`,
             `━━━━━━━━━━━━━━━━━━━━━━`,
+            `📊 THỊ TRƯỜNG & GIÁM SÁT`,
+            `/market    — Tổng quan thị trường (VN + BTC/ETH)`,
             `/check     — Dashboard: lệnh mở, vốn, win rate`,
-            `/live      — Vị thế LIVE trên sàn + log lệnh thực`,
+            `/live      — Vị thế LIVE auto-engine + log sàn`,
             `/sim       — Lệnh mô phỏng (training AI nền)`,
-            `/portfolio — Trạng thái gói quỹ bot tự quản lý`,
-            `/stop      — Tắt auto-trade pipeline`,
-            `/start     — Bật lại auto-trade pipeline`,
-            `/help      — Danh sách lệnh này`,
+            `/portfolio — Gói quỹ bot tự quản lý`,
+            ``,
+            `🙋 LỆNH THỦ CÔNG (khớp thẳng ra sàn)`,
+            `/trade <mã> <long|short> <giá vào> <tp1,tp2,..> <sl> <số tiền|allbal> [option]`,
+            `   LONG spot:  /trade gmx long 5.552 5.609,5.715,6.115 5.273 100`,
+            `   SHORT (futures): /trade btc short 60565 59500,60100 61253 250 lev=5`,
+            `   Options: tp1 (dời SL→giá vào sau TP1) | allbal (vào hết số dư) | lev=N (đòn bẩy, short bắt buộc futures) | fut (long bằng futures)`,
+            `   ⚠️ short = futures = đòn bẩy + rủi ro thanh lý. Số tiền = vốn ký quỹ; notional = vốn × lev.`,
+            `/close <mã> — đóng lệnh manual đang mở`,
+            `/manual    — danh sách lệnh manual đang mở`,
+            ``,
+            `⚙️ ĐIỀU KHIỂN`,
+            `/stop /start — Tắt/bật auto-trade pipeline`,
+            `/help        — Danh sách lệnh này`,
         ].join('\n');
         await sendTelegramMessage(msg, { parseMode: 'none' }).catch(() => {});
         return msg;

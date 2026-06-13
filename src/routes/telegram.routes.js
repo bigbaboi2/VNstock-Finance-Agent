@@ -38,7 +38,7 @@ const router = express.Router();
             return;
         }
 
-         await handleTelegramCommand(text);
+         await handleTelegramCommand(text, { username, chatId });
 
     } catch (err) {
          console.log(chalk.red(`[TELEGRAM ROUTE] Lỗi xử lý webhook: ${err.message}`));

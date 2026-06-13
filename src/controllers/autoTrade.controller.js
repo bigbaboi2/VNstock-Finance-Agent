@@ -325,6 +325,30 @@ export const stopUserOrder = async (req, res) => {
     }
 };
 
+// Xóa hẳn một gói lệnh khỏi danh sách (chỉ cho gói đã kết thúc, không còn lệnh mở).
+export const deleteUserOrder = async (req, res) => {
+    try {
+        const username = req.body?.username || req.query?.username;
+        const order = await UserOrder.findById(req.params.id);
+        if (!order) return res.status(404).json({ success: false, message: 'Không tìm thấy gói lệnh.' });
+        if (order.username !== username) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xóa gói lệnh này.' });
+        }
+        // Không cho xóa gói đang chạy — phải DỪNG trước để các lệnh mở được giám sát đóng an toàn.
+        if (['ACTIVE', 'PENDING'].includes(order.status)) {
+            return res.status(400).json({ success: false, message: `Gói đang ${order.status} — hãy DỪNG gói trước khi xóa.` });
+        }
+        const hasOpenAlloc = (order.tradeAllocations || []).some(a => !a.closedAt);
+        if (hasOpenAlloc) {
+            return res.status(400).json({ success: false, message: 'Gói vẫn còn lệnh đang mở — chờ đóng hết rồi mới xóa được.' });
+        }
+        await order.deleteOne();
+        return res.json({ success: true, message: 'Đã xóa gói lệnh khỏi danh sách.' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 //Get a list of commands according to a specific individual's expectations
 export const getUserOrders = async (req, res) => {
     try {
