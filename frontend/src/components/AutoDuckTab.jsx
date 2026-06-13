@@ -279,6 +279,20 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         }
     };
 
+    const handleDeleteOrder = async (order) => {
+        const capLabel = order.allocationMode === 'PORTFOLIO'
+            ? `${(Number(order.totalCapital) / 1e6).toFixed(1)}Tr`
+            : `${(Number(order.capital) / 1e6).toFixed(1)}Tr`;
+        if (!window.confirm(`Xóa hẳn gói ${capLabel} (${order.status}) khỏi danh sách?\nLịch sử lệnh của gói này sẽ không còn hiển thị.`)) return;
+        try {
+            const res = await axios.delete(`/api/auto-trade/user-order/${order._id}`, { data: { username } });
+            setActionMessage({ text: res.data.message, isError: !res.data.success });
+            fetchAllData();
+        } catch (err) {
+            setActionMessage({ text: err.response?.data?.message || 'Lỗi xóa gói lệnh.', isError: true });
+        }
+    };
+
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -882,7 +896,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                 Chưa có gói lệnh nào. Tạo gói lệnh để AutoDuck tự khớp tín hiệu tối ưu cho bạn.
                             </p>
                         ) : (
-                            userOrders.map(order => <UserOrderCard key={order._id} order={order} isDark={isDark} UI={UI} onStop={handleStopOrder} />)
+                            userOrders.map(order => <UserOrderCard key={order._id} order={order} isDark={isDark} UI={UI} onStop={handleStopOrder} onDelete={handleDeleteOrder} />)
                         )}
                     </div>
                 </section>
@@ -1152,7 +1166,7 @@ function ScoreBlock({ label, value, tone }) {
     );
 }
 
-function UserOrderCard({ order, isDark, UI, onStop }) {
+function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
     const statusClass =
         order.status === 'MATCHED' ? 'bg-cyan-500/10 text-cyan-500 border-cyan-500/30' :
         order.status === 'ACTIVE' ? 'bg-violet-500/10 text-violet-400 border-violet-500/30' :
@@ -1256,6 +1270,15 @@ function UserOrderCard({ order, isDark, UI, onStop }) {
                     onClick={() => onStop(order)}
                     className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-orange-500/40 text-orange-500 hover:bg-orange-500/10 transition-colors">
                     ⏹ Dừng gói (lệnh mở vẫn được giám sát đến khi đóng)
+                </button>
+            )}
+
+            {/* ── Nút xóa gói đã kết thúc (COMPLETED / STOPPED / REJECTED) ── */}
+            {!['ACTIVE', 'PENDING'].includes(order.status) && openAllocs === 0 && onDelete && (
+                <button
+                    onClick={() => onDelete(order)}
+                    className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-500/40 text-red-500 hover:bg-red-500/10 transition-colors">
+                    🗑 Xóa gói khỏi danh sách
                 </button>
             )}
         </div>

@@ -61,6 +61,8 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
                     )
                 );
             }
+            // Chỉ ghi đè danh sách khi fetch THÀNH CÔNG → tránh xoá trắng card đã hiển thị
+            // khi một chu kỳ refresh bị lỗi (vd: 429). Lỗi tạm thời sẽ giữ nguyên dữ liệu cũ.
             if (connRes.data.success) setConnections(connRes.data.data || []);
             if (orderRes.data.success) {
                 setOrders(orderRes.data.data || []);
@@ -80,9 +82,11 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
     const activeCount = connections.filter(c => c.isActive).length;
 
     return (
-        <div className="flex flex-col gap-6 p-4 lg:p-6 max-w-[1400px] mx-auto w-full">
+        <div className="flex flex-col gap-6 p-4 lg:p-6 max-w-[1400px] mx-auto w-full h-full overflow-y-auto">
             {/* ═══════════ HEADER + DASHBOARD ═══════════ */}
-            <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#080c14] border-emerald-500/20' : 'bg-white border-emerald-300 shadow-sm'}`}>
+            {/* shrink-0: bắt buộc — khối này có overflow-hidden nên trong flex-col có
+                chiều cao cố định (h-full root) sẽ bị flex bóp về ~0px nếu không khoá. */}
+            <div className={`shrink-0 rounded-2xl border overflow-hidden ${isDark ? 'bg-[#080c14] border-emerald-500/20' : 'bg-white border-emerald-300 shadow-sm'}`}>
                 <div className="h-0.5 w-full bg-emerald-500" />
                 <div className="px-5 py-4 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                     <div className="flex items-center gap-3">

@@ -23,8 +23,13 @@ export const corsOptions = {
 
 export const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 250, 
-    message: 'Wait some minutes, server crashing!'
+    // Dashboard polling nhiều endpoint + nhiều interval (20–30s) + reload khi dev
+    // → 250/15p quá thấp, dễ tự trip 429 cho TOÀN BỘ app. Nâng lên mức an toàn cho
+    // vài user nội bộ. Có thể siết lại nếu mở public.
+    max: 2000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Quá nhiều request — vui lòng chờ ít phút.' },
 });
 
 export const setupMiddlewares = (app) => {
