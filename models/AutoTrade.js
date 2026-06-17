@@ -17,6 +17,16 @@ const AutoTradeSchema = new mongoose.Schema({
     reason: { type: String, required: true },  
     aiReportSnapshot: { type: String },  
     signalBreakdown: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // ── PARTIAL SCALE-OUT (Policy E) ──
+    // Chốt `tp1Fraction` vị thế ở takeProfit1Price, dời SL phần còn lại về breakeven,
+    // để phần còn lại chạy theo chandelier ATR. Bằng chứng backtest: expectancy ÂM→DƯƠNG.
+    entryAtr: { type: Number, default: null },           // ATR tại lúc vào (cho chandelier trailing)
+    peakPrice: { type: Number, default: null },          // giá thuận lợi nhất đạt được (cho chandelier)
+    takeProfit1Price: { type: Number, default: null },   // mốc chốt lời từng phần (TP1)
+    tp1Fraction: { type: Number, default: 0 },           // tỷ lệ vị thế chốt ở TP1 (0 = không partial)
+    tp1Filled: { type: Boolean, default: false },        // đã chốt phần TP1 chưa
+    tp1FillPrice: { type: Number, default: null },       // giá thực tế chốt TP1
+    realizedPartialPnl: { type: Number, default: 0 },    // PnL (VND) đã hiện thực hoá từ TP1
     executionMeta: {
         priceSource: { type: String, default: null },
         contextSource: { type: String, default: null },
