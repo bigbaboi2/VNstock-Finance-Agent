@@ -442,3 +442,69 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
         return { success: false, message: err.message };
     }
 };
+
+/**
+ * Chốt MỘT PHẦN vị thế LIVE (Policy E — partial scale-out tại TP1).
+ * Bán `fraction` × khối lượng đã khớp của các ENTRY orders gắn autoTradeId.
+ * An toàn: spot dùng guard "bán tối đa số dư"; futures dùng reduceOnly (không lật vị thế).
+ * Lưu ý: nếu phần bán < minQty/minNotional của sàn, lệnh sẽ FAILED → caller cảnh báo.
+ */
+export const executeLivePartialExit = async ({ trade, fraction, exitReason }) => {
+    try {
+        const frac = Number(fraction);
+        if (!(frac > 0 && frac < 1)) return { success: false, message: `fraction không hợp lệ: ${fraction}` };
+
+        const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+        const isFut = trade.marketType === 'FUTURES' || !isLong;
+        const exitSide = isLong ? 'SELL' : 'BUY';
+
+        const entryOrders = await ExchangeOrder.find({
+            autoTradeId: trade._id,
+            purpose: 'ENTRY',
+            side: isLong ? 'BUY' : 'SELL',
+            status: { $in: ['FILLED', 'PARTIAL', 'PENDING'] },
+        });
+        if (entryOrders.length === 0) return { success: true, message: 'Không có vị thế live để chốt một phần.' };
+
+        const results = [];
+        for (const entry of entryOrders) {
+            const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
+            if (!connectionDoc) continue;
+
+            if (entry.externalOrderId && entry.status !== 'FILLED') {
+                await getOrderStatus({ connectionDoc, externalOrderId: entry.externalOrderId, symbol: entry.symbol }).catch(() => {});
+            }
+            const freshEntry = await ExchangeOrder.findById(entry._id);
+            const entryQty = freshEntry.filledQuantity > 0 ? freshEntry.filledQuantity : freshEntry.quantity;
+            const partialQty = entryQty * frac;
+            if (partialQty <= 0) continue;
+
+            const result = await placeOrder({
+                connectionDoc,
+                symbol: entry.symbol,
+                side: exitSide,
+                qty: partialQty,
+                orderType: 'MARKET',
+                estimatedPrice: Number(trade.tp1FillPrice) || Number(trade.entryPrice),
+                purpose: 'EXIT',
+                autoTradeId: trade._id,
+                userOrderId: entry.userOrderId,
+                marketType: isFut ? 'FUTURES' : 'SPOT',
+                reduceOnly: isFut,
+                leverage: trade.leverage || 1,
+            });
+            results.push(result);
+
+            if (result.success) {
+                sendTelegramMessage(
+                    `🎯 <b>[LIVE ${connectionDoc.environment}] Chốt một phần (TP1)</b>\nUser: ${entry.username} | ${exitSide} ${result.finalQty} ${entry.symbol}\nLý do: ${exitReason}`
+                ).catch(() => {});
+            }
+        }
+        const allOk = results.length > 0 && results.every(r => r.success);
+        return { success: allOk, message: allOk ? `Đã chốt ${Math.round(frac * 100)}% vị thế live.` : 'Một phần lệnh chốt TP1 thất bại — kiểm tra ExchangeOrder log.' };
+    } catch (err) {
+        console.log(chalk.red(`  [BROKER] executeLivePartialExit lỗi: ${err.message}`));
+        return { success: false, message: err.message };
+    }
+};
