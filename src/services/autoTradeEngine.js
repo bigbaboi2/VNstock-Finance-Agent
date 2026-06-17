@@ -24,7 +24,7 @@ import {
     sendTelegramMessage,
 } from './telegramService.js';
 import axios from 'axios';
-import { executeLiveEntry, executeLiveExit } from './exchangeBrokerService.js';
+import { executeLiveEntry, executeLiveExit, executeLivePartialExit } from './exchangeBrokerService.js';
 import { createManualTrade, closeManualTrade, listOpenManualTrades, monitorManualTrades } from './manualTradeService.js';
 import {
     calculatePositionSize,
@@ -38,6 +38,14 @@ import {
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
 const REVERSAL_EXIT_THRESHOLD = 70;
 const AI_OVERRIDE_SCORE_THRESHOLD = 85;
+
+// ── EXIT POLICY E (partial scale-out) — tham số rút ra từ backtest klines giá thật ──
+// Chốt EXIT_TP1_FRACTION vị thế ở TP1 = EXIT_TP1_ATR_MULT×ATR (ăn chắc), dời phần còn lại
+// về breakeven, để chạy với chandelier = peak − CHANDELIER_ATR_MULT×ATR. TP2/SL theo asset.
+// Bằng chứng: biến expectancy crypto từ −0.35%/lệnh (baseline) → +0.18~0.28%/lệnh.
+const EXIT_TP1_FRACTION = { CRYPTO: 0.6, VN_STOCK: 0.5, DERIVATIVES: 0.5 };
+const EXIT_TP1_ATR_MULT = { CRYPTO: 1.5, VN_STOCK: 1.2, DERIVATIVES: 1.2 };
+const CHANDELIER_ATR_MULT = { CRYPTO: 3.0, VN_STOCK: 3.0, DERIVATIVES: 3.0 };
 let autoTradePipelineRunning = false;
 let exitPipelineRunning = false;
 const volatilityAlertCooldown = new Map();
@@ -1100,13 +1108,14 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
     if (volPct > 5) adaptiveScale = 1.3;
     else if (volPct < 1.5) adaptiveScale = 0.8;
 
+    // ── TP2 (runner) / SL theo Policy E ──
+    // Crypto: TP2 4.0→3.0 (gần hơn, dễ đạt), SL giữ 2.0. Phần lời chính đến từ TP1 + để runner chạy.
     let atrMultiplierTP, atrMultiplierSL;
     if (asset === 'VN_STOCK') {
-        // Thắt chặt risk và cân bằng R/R
         atrMultiplierTP = 2.5 * adaptiveScale;
         atrMultiplierSL = 1.5 * adaptiveScale;
     } else {
-        atrMultiplierTP = (asset === 'CRYPTO' ? 4.0 : (asset === 'DERIVATIVES' ? 3.0 : 3.5)) * adaptiveScale;
+        atrMultiplierTP = (asset === 'CRYPTO' ? 3.0 : (asset === 'DERIVATIVES' ? 2.5 : 2.5)) * adaptiveScale;
         atrMultiplierSL = (asset === 'CRYPTO' ? 2.0 : (asset === 'DERIVATIVES' ? 1.5 : 2.0)) * adaptiveScale;
     }
 
@@ -1131,6 +1140,13 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
         ? entryPrice - atr * atrMultiplierSL
         : entryPrice + atr * atrMultiplierSL);
 
+    // ── TP1 (chốt lời từng phần) — mốc gần, dễ đạt để "ăn chắc" một phần & nâng win rate ──
+    const tp1AtrMult = (EXIT_TP1_ATR_MULT[asset] || 1.5) * adaptiveScale;
+    const takeProfit1Price = roundPrice(isLong
+        ? entryPrice + atr * tp1AtrMult
+        : entryPrice - atr * tp1AtrMult);
+    const tp1Fraction = EXIT_TP1_FRACTION[asset] ?? 0.5;
+
     const directionLabel = (asset === 'VN_STOCK' && isLong) ? 'MUA' : techSignal.direction;
     const { rewardPct, riskPct } = getTradeRewardRiskPct(
         entryPrice,
@@ -1144,6 +1160,8 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
         entryPrice,
         takeProfitPrice,
         stopLossPrice,
+        takeProfit1Price,
+        tp1Fraction,
         rewardPct,
         riskPct,
         atr,
@@ -1510,6 +1528,59 @@ Phân tích xác nhận hoặc bác bỏ tín hiệu trong 2-3 câu ngắn gọn
     }
 };
 
+// ── EXIT DECISION (thuần, test được) ──
+// Policy E: cập nhật đỉnh (favorable excursion) → chandelier SL (đỉnh − k×ATR) + sàn breakeven
+// sau TP1 → quyết định TP2 (đóng hẳn) / SL-trail (đóng hẳn) / TP1 (chốt một phần).
+// MUTATES: trade.peakPrice & trade.stopLossPrice. Trả về quyết định cho 1 mức giá hiện tại.
+export const evaluateExitDecision = (trade, currentPrice) => {
+    const isLong  = trade.direction === 'LONG' || trade.direction === 'MUA';
+    const isShort = trade.direction === 'SHORT' || trade.direction === 'BÁN';
+    const dir = isLong ? 1 : -1;
+    const roundPrice = (p) => {
+        if (trade.assetType === 'VN_STOCK') return Math.round(p * 20) / 20;
+        if (trade.assetType === 'DERIVATIVES') return Math.round(p * 10) / 10;
+        return p;
+    };
+    let trailingUpdated = false, shouldClose = false, partialFill = false, partialPrice = null, exitReason = '';
+
+    const atrAtEntry = Number(trade.entryAtr) > 0
+        ? Number(trade.entryAtr)
+        : (Math.abs(trade.takeProfitPrice - trade.entryPrice) / 3) || (trade.entryPrice * 0.01);
+    const chandK = CHANDELIER_ATR_MULT[trade.assetType] || 3.0;
+
+    // 1) Đỉnh tiến độ
+    const prevPeak = Number.isFinite(trade.peakPrice) ? trade.peakPrice : trade.entryPrice;
+    const newPeak = isLong ? Math.max(prevPeak, currentPrice) : Math.min(prevPeak, currentPrice);
+    if (newPeak !== prevPeak) { trade.peakPrice = newPeak; trailingUpdated = true; }
+
+    // 2) Chandelier + sàn breakeven (sau TP1)
+    let candSL = trade.peakPrice - dir * chandK * atrAtEntry;
+    if (trade.tp1Filled) candSL = isLong ? Math.max(candSL, trade.entryPrice) : Math.min(candSL, trade.entryPrice);
+    if (isLong ? candSL > trade.stopLossPrice : candSL < trade.stopLossPrice) {
+        trade.stopLossPrice = roundPrice(candSL);
+        trailingUpdated = true;
+    }
+
+    // 3) Quyết định thoát: TP2 → SL/trail → TP1 (partial)
+    const hitTP2 = isLong ? currentPrice >= trade.takeProfitPrice : currentPrice <= trade.takeProfitPrice;
+    const hitSL  = isLong ? currentPrice <= trade.stopLossPrice  : currentPrice >= trade.stopLossPrice;
+    if (hitTP2) {
+        shouldClose = true;
+        exitReason  = `TP HIT${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm mục tiêu ${trade.takeProfitPrice}`;
+    } else if (hitSL) {
+        shouldClose = true;
+        exitReason  = `${trade.tp1Filled ? 'TRAIL/BE HIT' : 'SL HIT'}${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm cắt lỗ ${trade.stopLossPrice}`;
+    } else if (!trade.tp1Filled && Number(trade.tp1Fraction) > 0 && Number(trade.takeProfit1Price) > 0) {
+        const hitTP1 = isLong ? currentPrice >= trade.takeProfit1Price : currentPrice <= trade.takeProfit1Price;
+        if (hitTP1) {
+            partialFill  = true;
+            partialPrice = currentPrice;
+            exitReason   = `TP1 PARTIAL${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm mốc chốt một phần ${trade.takeProfit1Price}`;
+        }
+    }
+    return { shouldClose, exitReason, trailingUpdated, partialFill, partialPrice };
+};
+
 // ── REALTIME EXIT CHECK
 
 const checkExitConditions = async (trade, marketContext = {}, isFastCheck = false) => {
@@ -1530,58 +1601,22 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
         let shouldClose = false;
         let exitReason  = '';
         let trailingUpdated = false;
+        let partialFill = false;     // chạm TP1 → chốt một phần (KHÔNG đóng hẳn)
+        let partialPrice = null;
 
         if (trade.assetType === 'VN_STOCK' && isShort) {
             console.log(chalk.red.bold(`[DATA INTEGRITY ERROR] Found an open 'BÁN' (short) trade for VN_STOCK: ${trade.symbol} (${trade._id}). This is invalid. Forcing close.`));
             return { shouldClose: true, currentPrice: trade.entryPrice, exitReason: 'Lỗi dữ liệu: Đóng lệnh BÁN không hợp lệ cho VN_STOCK.', trailingUpdated: false };
         }
 
-        if (isLong) {
-            const reward = trade.takeProfitPrice - trade.entryPrice;
-            if (reward > 0 && currentPrice > trade.entryPrice) {
-                // Trailing CHANDELIER theo % reward: chỉ kích hoạt khi giá đã đi đủ xa (config.trailingActivation),
-                // và khoá lời CÁCH đỉnh tiến độ 35% reward → đủ rộng để nhịp hồi bình thường KHÔNG quét mất winner.
-                // (Trước đây kéo SL về breakeven ngay tại ~25% tiến độ → cắt cụt lệnh thắng, gây bất đối xứng lời/lỗ.)
-                const progress = (currentPrice - trade.entryPrice) / reward;
-                if (progress >= config.trailingActivation) {
-                    const lockFraction = Math.max(0, progress - 0.35);
-                    const newSL = trade.entryPrice + reward * lockFraction;
-                    if (newSL > trade.stopLossPrice) {
-                        trade.stopLossPrice = roundPrice(newSL);
-                        trailingUpdated = true;
-                    }
-                }
-            }
-
-            if (currentPrice >= trade.takeProfitPrice) {
-                shouldClose = true;
-                exitReason  = `TP HIT: Giá ${currentPrice} chạm mục tiêu ${trade.takeProfitPrice}`;
-            } else if (currentPrice <= trade.stopLossPrice) {
-                shouldClose = true;
-                exitReason  = `SL HIT: Giá ${currentPrice} phá đáy cắt lỗ ${trade.stopLossPrice}`;
-            }
-        } else if (isShort) {
-            const reward = trade.entryPrice - trade.takeProfitPrice;
-            if (reward > 0 && currentPrice < trade.entryPrice) {
-                const progress = (trade.entryPrice - currentPrice) / reward;
-                if (progress >= config.trailingActivation) {
-                    const lockFraction = Math.max(0, progress - 0.35);
-                    const newSL = trade.entryPrice - reward * lockFraction;
-                    if (newSL < trade.stopLossPrice) {
-                        trade.stopLossPrice = roundPrice(newSL);
-                        trailingUpdated = true;
-                    }
-                }
-            }
-
-            if (currentPrice <= trade.takeProfitPrice) {
-                shouldClose = true;
-                exitReason  = `TP HIT (SHORT): Giá ${currentPrice} rơi đến mục tiêu ${trade.takeProfitPrice}`;
-            } else if (currentPrice >= trade.stopLossPrice) {
-                shouldClose = true;
-                exitReason  = `SL HIT (SHORT): Giá ${currentPrice} bật lên phá cắt lỗ ${trade.stopLossPrice}`;
-            }
-        }
+        // ── EXIT POLICY E: chandelier trailing + chốt lời từng phần (TP1) ──
+        // Logic thuần đã tách sang evaluateExitDecision() để test độc lập (một nguồn sự thật).
+        const decision = evaluateExitDecision(trade, currentPrice);
+        shouldClose  = decision.shouldClose;
+        exitReason   = decision.exitReason;
+        partialFill  = decision.partialFill;
+        partialPrice = decision.partialPrice;
+        if (decision.trailingUpdated) trailingUpdated = true;
 
         let maxHoldMs;
         const SHORT_TERM_CUTOFF_MS = new Date('2025-06-05T00:00:00+07:00').getTime();
@@ -1593,7 +1628,7 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
                     : 30 * 24 * 3600_000; // Lệnh cũ: giữ nguyên 30 ngày
                 break;
             case 'CRYPTO':
-                maxHoldMs = 18 * 3600_000;
+                maxHoldMs = 24 * 3600_000;   // Policy E: nới 18→24h để runner đủ thời gian chạy tới TP2
                 break;
             default: // DERIVATIVES
                 maxHoldMs = 2 * 24 * 3600_000;
@@ -1612,8 +1647,15 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
             }
         }
 
+        // ── Reversal exit AN TOÀN: chỉ cắt khi vị thế ĐANG LỖ & chưa chốt TP1.
+        // "Để winner chạy": lệnh đang lời được bảo vệ bằng chandelier/breakeven, KHÔNG để
+        // tín hiệu đảo chiều cắt cụt (đây là một nguồn cắt cụt winner trước đây).
+        const curProfitPct = isLong
+            ? (currentPrice - trade.entryPrice) / trade.entryPrice
+            : (trade.entryPrice - currentPrice) / trade.entryPrice;
         const minHoldForSignalExitMs = trade.assetType === 'CRYPTO' ? 30 * 60_000 : 60 * 60_000;
-        if (!shouldClose && !isFastCheck && holdMs > minHoldForSignalExitMs) {
+        if (!shouldClose && !partialFill && !trade.tp1Filled && curProfitPct < 0.003
+            && !isFastCheck && holdMs > minHoldForSignalExitMs) {
             try {
                 const candles = await fetchAnalysisCandles(trade.symbol, trade.assetType);
                 const signal = analyzeTechnicalSignal(
@@ -1634,10 +1676,10 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
             }
         }
 
-        return { shouldClose, currentPrice, exitReason, trailingUpdated };
+        return { shouldClose, currentPrice, exitReason, trailingUpdated, partialFill, partialPrice };
     } catch (err) {
         console.log(chalk.yellow(`[EXIT CHECK] Không fetch được giá realtime cho ${trade.symbol}: ${err.message}`));
-        return { shouldClose: false, currentPrice: null, exitReason: '', trailingUpdated: false };
+        return { shouldClose: false, currentPrice: null, exitReason: '', trailingUpdated: false, partialFill: false, partialPrice: null };
     }
 };
 
@@ -1853,7 +1895,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             // LIVE: ngưỡng nghiêm ngặt theo risk level (+ adaptive floor khi hiệu suất yếu) — bảo vệ tiền thật.
             const liveScoreThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0);
             // SIM (training nền): ngưỡng thấp hơn để engine sinh đủ dữ liệu học. KHÔNG áp adaptive floor.
-            const simScoreThreshold = Math.max(60, dynamicScoreThreshold - 8);
+            // Nâng nhẹ floor 60→65 và biên -8→-5 (L2: 72→75) — bằng chứng cho thấy bucket điểm rất thấp
+            // chỉ sinh lệnh rác (WR ~26%, exp −2.5%), không có giá trị training.
+            const simScoreThreshold = Math.max(65, dynamicScoreThreshold - 5);
             // Phễu quét dùng ngưỡng SIM (thấp) để lọt nhiều ứng viên → tạo lệnh SIM; LIVE chặn riêng bên dưới.
             const effectiveThreshold = simScoreThreshold;
             const adaptiveSizeMult = guard.sizeMult || 1.0;
@@ -1990,6 +2034,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         entryPrice,
                         takeProfitPrice,
                         stopLossPrice,
+                        takeProfit1Price,
+                        tp1Fraction,
                     } = tradePlan;
 
                     // 7. Allocation
@@ -2016,6 +2062,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         else baseAlloc = 0.10;
                         allocationPct = Math.min(0.40, (baseAlloc * currentRiskConfig.allocationMultiplier) + utilizationBonus);
                     }
+                    // ── CONVICTION SIZING (quyết đoán hơn) ──
+                    // Setup VÀNG = TREND_PULLBACK + score≥80 (vùng WR cao nhất theo data thật) → tăng size.
+                    // Score≥80 nói chung → tăng nhẹ. Cap tổng vẫn ≤ 40% vốn.
+                    const goldenSetup = entrySetup.type === 'TREND_PULLBACK' && techSignal.score >= 80;
+                    const convictionMult = goldenSetup ? 1.25 : (techSignal.score >= 80 ? 1.1 : 1.0);
+                    allocationPct = Math.min(0.40, allocationPct * convictionMult);
+
                     let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * adaptiveSizeMult;
                     
                     let maxVolumeByRisk = Infinity;
@@ -2115,6 +2168,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                         entryPrice,
                         takeProfitPrice,
                         stopLossPrice,
+                        takeProfit1Price,
+                        tp1Fraction,
+                        entryAtr: tradePlan.atr,
+                        peakPrice: entryPrice,
                         investedAmount,
                         volume,
                         aiScore: techSignal.score,
@@ -2323,6 +2380,55 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
     }
 };
 
+// ── PARTIAL TP1 HANDLER (Policy E) ──
+// Chốt `tp1Fraction` vị thế tại TP1, hiện thực hoá PnL phần đó, dời SL phần còn lại về
+// breakeven và GIỮ lệnh mở (runner) để chạy tiếp theo chandelier. LIVE: bán phần đó trên sàn.
+const handlePartialFill = async (trade, partialPrice) => {
+    try {
+        const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+        const fraction = Number(trade.tp1Fraction) || 0;
+        if (fraction <= 0 || trade.tp1Filled) return;
+
+        const fee = trade.assetType === 'CRYPTO' ? 0.2 : trade.assetType === 'VN_STOCK' ? 0.4 : 0.1;
+        const tp1PnlPct = ((isLong ? (partialPrice - trade.entryPrice) : (trade.entryPrice - partialPrice)) / trade.entryPrice) * 100 - fee;
+        const investedVND = Number(trade.investedAmount) || 0;
+        const realizedVnd = investedVND > 0
+            ? investedVND * fraction * (tp1PnlPct / 100)
+            : (() => {
+                let raw = trade.volume * fraction * (isLong ? (partialPrice - trade.entryPrice) : (trade.entryPrice - partialPrice));
+                if (trade.assetType === 'CRYPTO') raw *= cachedUsdVndRate;
+                return raw;
+            })();
+
+        trade.realizedPartialPnl = Math.round((Number(trade.realizedPartialPnl) || 0) + realizedVnd);
+        trade.tp1Filled = true;
+        trade.tp1FillPrice = partialPrice;
+        // Dời SL phần còn lại về breakeven (không bao giờ tệ hơn giá vào).
+        trade.stopLossPrice = isLong
+            ? Math.max(trade.stopLossPrice, trade.entryPrice)
+            : Math.min(trade.stopLossPrice, trade.entryPrice);
+
+        // LIVE: bán phần TP1 thực trên sàn (best-effort; thất bại không chặn logic SIM).
+        if (trade.executionMode === 'LIVE') {
+            const r = await executeLivePartialExit({ trade, fraction, exitReason: `TP1 partial @ ${partialPrice}` })
+                .catch(err => ({ success: false, message: err.message }));
+            if (!r.success) {
+                console.log(chalk.bgRed.white(`  [LIVE PARTIAL FAIL] ${trade.symbol}: ${r.message} — kiểm tra sàn!`));
+                await sendTelegramMessage(`🚨 <b>[LIVE PARTIAL FAIL]</b> ${trade.symbol}: ${r.message}\n⚠️ Kiểm tra & chốt một phần thủ công.`).catch(() => {});
+            } else {
+                await sendTelegramMessage(`🎯 <b>[LIVE TP1]</b> ${trade.symbol}: chốt ${Math.round(fraction * 100)}% @ ${partialPrice} (+${tp1PnlPct.toFixed(2)}%), dời SL → breakeven ${trade.entryPrice}. Phần còn lại chạy tiếp.`).catch(() => {});
+            }
+        }
+
+        await trade.save();
+        console.log(chalk.green(
+            `  [TP1 PARTIAL ${trade.executionMode === 'LIVE' ? '🔴 LIVE' : 'SIM'}] ${trade.symbol}: chốt ${Math.round(fraction * 100)}% @ ${partialPrice} (+${tp1PnlPct.toFixed(2)}%) | SL→BE ${trade.entryPrice} | runner ${Math.round((1 - fraction) * 100)}% chạy tiếp`
+        ));
+    } catch (err) {
+        console.log(chalk.yellow(`  [TP1 PARTIAL] Lỗi xử lý ${trade.symbol}: ${err.message}`));
+    }
+};
+
 // ── EXIT & AI LEARNING PIPELINE
 
 async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {}, isFastCheck = false) {
@@ -2358,7 +2464,13 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
 
         for (const trade of openTrades) {
             try {
-                const { shouldClose, currentPrice, exitReason, trailingUpdated } = await checkExitConditions(trade, marketContext, isFastCheck);
+                const { shouldClose, currentPrice, exitReason, trailingUpdated, partialFill, partialPrice } = await checkExitConditions(trade, marketContext, isFastCheck);
+
+                // ── PARTIAL TP1: chốt một phần, dời SL phần còn lại về breakeven, GIỮ lệnh mở ──
+                if (partialFill && !shouldClose) {
+                    await handlePartialFill(trade, partialPrice);
+                    continue;
+                }
 
                 if (trailingUpdated && !shouldClose) {
                     await trade.save();
@@ -2394,25 +2506,43 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                     : trade.assetType === 'VN_STOCK' ? 0.4
                     : 0.1;
                 const grossPnlPercent = (priceDiff / trade.entryPrice) * 100;
-                trade.pnlPercent = Math.round((grossPnlPercent - ROUND_TRIP_FEE_PCT) * 100) / 100;
+                const investedVND = Number(trade.investedAmount) || 0;
+
+                if (trade.tp1Filled && Number(trade.tp1Fraction) > 0) {
+                    // PnL TỔNG = phần đã chốt ở TP1 (realizedPartialPnl) + phần còn lại đóng bây giờ.
+                    // pnlPercent quy về % trên TOÀN vốn gốc để thống nhất với báo cáo/diag.
+                    const remFrac = 1 - Number(trade.tp1Fraction);
+                    const leg2PnlPct = grossPnlPercent - ROUND_TRIP_FEE_PCT;
+                    const tp1PnlPct = ((isLong ? (Number(trade.tp1FillPrice) - trade.entryPrice) : (trade.entryPrice - Number(trade.tp1FillPrice))) / trade.entryPrice) * 100 - ROUND_TRIP_FEE_PCT;
+                    trade.pnlPercent = Math.round((Number(trade.tp1Fraction) * tp1PnlPct + remFrac * leg2PnlPct) * 100) / 100;
+                    const leg2Vnd = investedVND > 0
+                        ? investedVND * remFrac * (leg2PnlPct / 100)
+                        : (() => {
+                            let raw = trade.volume * remFrac * priceDiff;
+                            if (trade.assetType === 'CRYPTO') raw *= cachedUsdVndRate;
+                            return raw;
+                        })();
+                    trade.pnl = Math.round(Number(trade.realizedPartialPnl || 0) + leg2Vnd);
+                } else {
+                    trade.pnlPercent = Math.round((grossPnlPercent - ROUND_TRIP_FEE_PCT) * 100) / 100;
+                    trade.pnl = investedVND > 0
+                        ? Math.round(investedVND * (trade.pnlPercent / 100))
+                        : (() => {
+                            const currentUsdRateFallback = cachedUsdVndRate;
+                            let rawPnl = trade.volume * priceDiff;
+                            if (trade.assetType === 'CRYPTO') rawPnl *= currentUsdRateFallback;
+                            return Math.round(rawPnl);
+                        })();
+                }
 
                 const isWin = trade.pnlPercent > 0;
                 const exitTag = exitReason.includes('TP HIT') ? 'TP_HIT'
+                    : exitReason.includes('TRAIL/BE') ? 'TRAIL_EXIT'
                     : exitReason.includes('SL HIT') ? 'SL_HIT'
                     : exitReason.includes('Timeout') ? 'TIMEOUT_EXIT'
                     : exitReason.includes('Đảo chiều') ? 'REVERSAL_EXIT'
                     : 'MANUAL_EXIT';
-                
-                const investedVND = Number(trade.investedAmount) || 0;
-                trade.pnl = investedVND > 0
-                    ? Math.round(investedVND * (trade.pnlPercent / 100))
-                    : (() => {
-                        const currentUsdRateFallback = cachedUsdVndRate;
-                        let rawPnl = trade.volume * priceDiff;
-                        if (trade.assetType === 'CRYPTO') rawPnl *= currentUsdRateFallback;
-                        return Math.round(rawPnl);
-                    })();
-                
+
                 await trade.save();
 
                 // ── NHÁNH LIVE EXIT: đóng vị thế thực trên sàn nếu lệnh này là LIVE ──
