@@ -2696,7 +2696,7 @@ export default function VnStocksTab({
           </div>
           <div className={`flex-1 relative ${isDark ? 'bg-[#242424]' : 'bg-slate-100'}`}>
             {marketData?.reportPdf ? (
-              <iframe src={`${marketData.reportPdf}#toolbar=1&navpanes=0&scrollbar=1`} className="w-full h-full border-none" title="TCBS Report Viewer" />
+              <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(marketData.reportPdf)}&embedded=true`} className="w-full h-full border-none" title="TCBS Report Viewer" />
             ) : (
               <div className="h-full flex flex-col items-center justify-center opacity-20">
                 <FileText size={32} className="mb-2" />
