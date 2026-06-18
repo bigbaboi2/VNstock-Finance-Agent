@@ -435,12 +435,13 @@ export const getCryptoTradeContext = async (symbol = 'BTCUSDT') => {
     const cached = getMemory(cacheKey);
     if (cached) return cached;
 
-    const [tickerRes, depthRes, fundingRes, oiRes, longShortRes] = await Promise.all([
+    const [tickerRes, depthRes, fundingRes, oiRes, longShortRes, btcTickerRes] = await Promise.all([
         axios.get(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`, { timeout: 5000 }).catch(() => null),
-        axios.get(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=20`, { timeout: 4000 }).catch(() => null),
+        axios.get(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=100`, { timeout: 4000 }).catch(() => null),
         axios.get(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${symbol}`, { timeout: 5000 }).catch(() => null),
         axios.get(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`, { timeout: 5000 }).catch(() => null),
         axios.get(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=1h&limit=1`, { timeout: 5000 }).catch(() => null),
+        axios.get(`https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT`, { timeout: 5000 }).catch(() => null),
     ]);
 
     const bids = depthRes?.data?.bids || [];
@@ -467,6 +468,7 @@ export const getCryptoTradeContext = async (symbol = 'BTCUSDT') => {
             openInterest: Number(oiRes?.data?.openInterest || 0),
             longShortRatio: Number(longShortRes?.data?.[0]?.longShortRatio || 0),
         },
+        btcTrend: Number(btcTickerRes?.data?.priceChangePercent || 0),
     };
 
     return setMemory(cacheKey, context);
@@ -476,10 +478,23 @@ export const getDerivativesTradeContext = async () => {
     const cached = getMemory('DERIV_CONTEXT', 60 * 1000); // 1 phút TTL cho phái sinh
     if (cached) return cached;
 
-    const [f1mCandles, vn30Candles] = await Promise.all([
+    const [f1mCandles, vn30Candles, vic, fpt, vcb, hpg] = await Promise.all([
         fetchEntradeCandles('VN30F1M', '15', 5, 'derivative').catch(() => []),
         fetchEntradeCandles('VN30', '15', 5, 'index').catch(() => []),
+        fetchEntradeCandles('VIC', '1D', 2, 'stock').catch(() => []),
+        fetchEntradeCandles('FPT', '1D', 2, 'stock').catch(() => []),
+        fetchEntradeCandles('VCB', '1D', 2, 'stock').catch(() => []),
+        fetchEntradeCandles('HPG', '1D', 2, 'stock').catch(() => []),
     ]);
+    
+    const getChange = (candles) => candles.length >= 2 ? ((candles[candles.length-1].close - candles[candles.length-2].close) / candles[candles.length-2].close) * 100 : 0;
+    const topMovers = {
+        VIC: getChange(vic),
+        FPT: getChange(fpt),
+        VCB: getChange(vcb),
+        HPG: getChange(hpg),
+    };
+    
 
     const lastF1M = f1mCandles.at(-1)?.close || null;
     const lastVN30 = vn30Candles.at(-1)?.close || null;
@@ -496,6 +511,7 @@ export const getDerivativesTradeContext = async () => {
         changePct,
         volume: f1mCandles.at(-1)?.volume || null,
         oi: globalDerivCache?.oi || null,
+        topMovers,
         oiTrend: globalDerivCache?.lastOi
             ? globalDerivCache.oi > globalDerivCache.lastOi ? 'UP' : globalDerivCache.oi < globalDerivCache.lastOi ? 'DOWN' : 'FLAT'
             : 'FLAT',
