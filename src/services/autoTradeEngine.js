@@ -29,7 +29,11 @@ import { createManualTrade, closeManualTrade, listOpenManualTrades, monitorManua
 import {
     calculatePositionSize,
     canAcceptNewTrade,
+    getEffectivePortfolioCapital,
+    getMatchedAllocations,
+    getMatchedRealizedPnl,
     recordAllocation,
+    recordUnmatchedAllocation,
     releaseAllocation,
 } from './portfolioManager.js';
 
@@ -49,6 +53,35 @@ const CHANDELIER_ATR_MULT = { CRYPTO: 3.0, VN_STOCK: 3.0, DERIVATIVES: 3.0 };
 let autoTradePipelineRunning = false;
 let exitPipelineRunning = false;
 const volatilityAlertCooldown = new Map();
+
+const IDLE_FAST_SCAN_INTERVAL_MS = Number(process.env.AUTODUCK_IDLE_FAST_SCAN_MS) || 3 * 60 * 1000;
+const IDLE_RELAX_TARGETS = (process.env.AUTODUCK_IDLE_RELAX_TARGETS || '1,3,5')
+    .split(',')
+    .map(v => Number(v.trim()))
+    .filter(v => Number.isFinite(v) && v > 0);
+const IDLE_RELAX_STEP_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_STEP_SCORE) || 3;
+const IDLE_RELAX_MAX_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_SCORE) || 9;
+const IDLE_RELAX_MAX_ATTEMPTS = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS) || 8;
+const IDLE_MIN_SIM_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_SIM_SCORE) || 60;
+const IDLE_MIN_LIVE_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_LIVE_SCORE) || 68;
+
+const idleScanState = {
+    attempts: 0,
+    lastOpenCount: 0,
+};
+
+const resetIdleScanState = (reason = '') => {
+    if (idleScanState.attempts > 0) {
+        console.log(chalk.gray(`[AUTODUCK IDLE] Reset idle scan${reason ? `: ${reason}` : ''}.`));
+    }
+    idleScanState.attempts = 0;
+};
+
+const pickIdleTarget = (maxConcurrentTrades = 10) => {
+    const cap = Number(maxConcurrentTrades) || 10;
+    const eligible = IDLE_RELAX_TARGETS.filter(t => t <= cap);
+    return eligible.length ? Math.max(...eligible) : 1;
+};
 
 // ── NEWS CACHE
 // Crypto news được fetch từ Google News RSS mỗi lần scan → nếu universe có 50 coin
@@ -297,7 +330,7 @@ const classifyNewsSentiment = (text = '') => {
     return 'neutral';
 };
 
-const summarizeNewsItems = (items = []) => {
+const summarizeNewsItems = async (items = []) => {
     const cleanItems = items
         .filter(n => n?.title)
         .slice(0, 8)
@@ -363,7 +396,7 @@ const fetchCryptoNewsContext = async (symbol) => {
         }
     }
 
-    const result = summarizeNewsItems(items);
+    const result = await summarizeNewsItems(items);
     // Chỉ lưu cache khi fetch thành công (có items)
     if (items.length > 0) {
         cryptoNewsCacheMap.set(symbol, { data: result, fetchedAt: Date.now() });
@@ -391,7 +424,7 @@ const getNewsContextForAsset = async (asset, symbol) => {
                 console.log(chalk.gray(`[NEWS] ${symbol}: không có deepNewsData trong DB`));
             }
 
-            return summarizeNewsItems(newsItems);
+            return await summarizeNewsItems(newsItems);
         }
 
         if (asset === 'DERIVATIVES') {
@@ -400,7 +433,7 @@ const getNewsContextForAsset = async (asset, symbol) => {
                 .sort({ timestamp: -1 })
                 .limit(10)
                 .lean();
-            return summarizeNewsItems(news);
+            return await summarizeNewsItems(news);
         }
 
         if (asset === 'CRYPTO') return fetchCryptoNewsContext(symbol);
@@ -408,7 +441,7 @@ const getNewsContextForAsset = async (asset, symbol) => {
         console.log(chalk.gray(`[NEWS] Không lấy được news context cho ${asset}/${symbol}: ${err.message}`));
     }
 
-    return summarizeNewsItems([]);
+    return await summarizeNewsItems([]);
 };
 
 // ── TECHNICAL INDICATORS
@@ -743,6 +776,14 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
     const volumes = candles.map(c => c.volume);
     const currentPrice = closes[closes.length - 1];
 
+    let volumeDeltaPct = 0;
+    if (candles.length > 2 && candles[candles.length - 2].takerBuyVolume !== undefined) {
+        const lastTakerBuy = candles[candles.length - 2].takerBuyVolume || 0;
+        const lastVol = volumes[volumes.length - 2] || 1;
+        const takerSell = lastVol - lastTakerBuy;
+        volumeDeltaPct = ((lastTakerBuy - takerSell) / lastVol) * 100;
+    }
+
     // ── Indicators ──
     const ema9   = calcEMA(closes, 9);
     const ema21  = calcEMA(closes, 21);
@@ -893,12 +934,17 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
     const isAccumulation = candleBias === 'LONG'  && volSurge >= 1.5;
     const isDistribution = candleBias === 'SHORT' && volSurge >= 1.5;
 
-    const volumeLong  = isAccumulation ? volumeConfirm
+    let volumeLong  = isAccumulation ? volumeConfirm
                       : isDistribution ? Math.max(20, 100 - volumeConfirm)
                       : (candleBias === 'LONG' ? volumeConfirm : Math.max(25, 100 - volumeConfirm));
-    const volumeShort = isDistribution ? volumeConfirm
+    let volumeShort = isDistribution ? volumeConfirm
                       : isAccumulation ? Math.max(20, 100 - volumeConfirm)
                       : (candleBias === 'SHORT' ? volumeConfirm : Math.max(25, 100 - volumeConfirm));
+
+    if (volumeDeltaPct > 20) { volumeLong += 15; volumeShort -= 15; }
+    else if (volumeDeltaPct < -20) { volumeShort += 15; volumeLong -= 15; }
+    volumeLong = Math.max(0, Math.min(100, volumeLong));
+    volumeShort = Math.max(0, Math.min(100, volumeShort));
 
     const marketLong = Math.max(0, Math.min(100,
         breadthRatio + (statusType === 'bullish' ? 15 : statusType === 'bearish' ? -20 : statusType === 'warning' ? -10 : 0)
@@ -1045,6 +1091,7 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
         ichimoku,
         bollinger: boll,
         volumeSurge: Math.round(volSurge * 100) / 100,
+        volumeDeltaPct: Math.round(volumeDeltaPct * 100) / 100,
         candlePattern,
     };
 };
@@ -1190,6 +1237,11 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
         const ratio = Number(context.orderbook?.ratio);
         const funding = Number(context.derivatives?.fundingRatePct);
         const longShortRatio = Number(context.derivatives?.longShortRatio);
+        const btcTrend = Number(context.btcTrend);
+        if (Number.isFinite(btcTrend)) {
+            if (btcTrend > 3) { longBias += 3; reasons.push("btc_bull_trend"); }
+            else if (btcTrend < -3) { shortBias += 3; reasons.push("btc_bear_trend"); }
+        }
 
         if (Number.isFinite(ratio) && ratio > 1.2) {
             longBias += 4;
@@ -1219,6 +1271,9 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
     if (asset === 'DERIVATIVES') {
         const basis = Number(context.basis);
         const changePct = Number(context.changePct);
+        const topMovers = context.topMovers || {};
+        if (topMovers.VIC > 2 || topMovers.FPT > 2 || topMovers.VCB > 2 || topMovers.HPG > 2) { longBias += 3; reasons.push("bluechip_pulling_up"); }
+        else if (topMovers.VIC < -2 || topMovers.FPT < -2 || topMovers.VCB < -2 || topMovers.HPG < -2) { shortBias += 3; reasons.push("bluechip_dragging_down"); }
         const foreignNet = Number(context.foreignNet);
         const oiTrend = context.oiTrend;
 
@@ -1250,6 +1305,10 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
     if (asset === 'VN_STOCK' && context.intelligence) {
         const intel = context.intelligence;
 
+        if (context.stockData && context.stockData.tcbs && context.stockData.tcbs.foreignBuy) {
+            const foreignNet = context.stockData.tcbs.foreignBuy - (context.stockData.tcbs.foreignSell || 0);
+            if (foreignNet > 10000000000) { longBias += 4; reasons.push("foreign_net_buy_strong"); }
+        }
         const strongTickers = new Set((intel.strongSectors || []).flatMap(s => s.tickers || []));
         if (strongTickers.has(signal.symbol)) {
             longBias += 5;
@@ -1772,7 +1831,10 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
     }
 };
 
-export const runAutoTradePipeline = async (forcedAssetType = null) => {
+export const runAutoTradePipeline = async (forcedAssetType = null, options = {}) => {
+    const thresholdRelax = Math.max(0, Number(options.thresholdRelax) || 0);
+    const minOpenTarget = Math.max(0, Number(options.minOpenTarget) || 0);
+    const schedulerMode = options.schedulerMode || 'STANDARD';
     // ── CHẾ ĐỘ HOẠT ĐỘNG ──
     // Engine BẬT  → quét full: mô phỏng (training AI nền) + live
     // Engine TẮT  → LIVE-ONLY: dừng triển khai mô phỏng, chỉ quét để phục vụ
@@ -1893,15 +1955,21 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
             // Guard học máy: nâng ngưỡng điểm + giảm size nếu phân khúc này đang hiệu suất kém.
             const guard = adaptiveGuards[asset] || {};
             // LIVE: ngưỡng nghiêm ngặt theo risk level (+ adaptive floor khi hiệu suất yếu) — bảo vệ tiền thật.
-            const liveScoreThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0);
+            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0);
+            const liveScoreThreshold = thresholdRelax > 0
+                ? Math.max(IDLE_MIN_LIVE_SCORE, baseLiveThreshold - thresholdRelax)
+                : baseLiveThreshold;
             // SIM (training nền): ngưỡng thấp hơn để engine sinh đủ dữ liệu học. KHÔNG áp adaptive floor.
             // Nâng nhẹ floor 60→65 và biên -8→-5 (L2: 72→75) — bằng chứng cho thấy bucket điểm rất thấp
             // chỉ sinh lệnh rác (WR ~26%, exp −2.5%), không có giá trị training.
-            const simScoreThreshold = Math.max(65, dynamicScoreThreshold - 5);
+            const baseSimThreshold = Math.max(65, dynamicScoreThreshold - 5);
+            const simScoreThreshold = thresholdRelax > 0
+                ? Math.max(IDLE_MIN_SIM_SCORE, baseSimThreshold - thresholdRelax)
+                : baseSimThreshold;
             // Phễu quét dùng ngưỡng SIM (thấp) để lọt nhiều ứng viên → tạo lệnh SIM; LIVE chặn riêng bên dưới.
             const effectiveThreshold = simScoreThreshold;
             const adaptiveSizeMult = guard.sizeMult || 1.0;
-            console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} (training) · LIVE≥${liveScoreThreshold} (size ×${adaptiveSizeMult}, n=${guard.sample}).`));
+            console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} (training) · LIVE≥${liveScoreThreshold} (size ×${adaptiveSizeMult}, n=${guard.sample})${thresholdRelax > 0 ? ` · ${schedulerMode} relax -${thresholdRelax}` : ''}.`));
 
             const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, aiRejected: 0, matched: 0 };
             let symbolsToScan = [];
@@ -2268,6 +2336,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
 
                         // ── NHÁNH LIVE EXECUTION trước (để biết executionMode chính xác) ──
                         let liveMsg = '';
+                        let liveEntryFailed = false;
                         if (userOrder.executionMode === 'LIVE' && userOrder.exchangeConnectionId && asset === 'CRYPTO') {
                             const liveResult = await executeLiveEntry({
                                 userOrder,
@@ -2286,9 +2355,22 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                                 liveMsg = ` 🔴 LIVE: ${liveResult.message}`;
                                 console.log(chalk.bgMagenta.white(`  [LIVE ENTRY] User ${userOrder.username} → ${symbol} | ${(allocatedCapital/1e6).toFixed(2)}Tr | OrderID: ${liveResult.externalOrderId}`));
                             } else {
-                                liveMsg = ` ⚠️ Live order KHÔNG gửi được (chạy simulated): ${liveResult.message}`;
+                                liveEntryFailed = true;
+                                liveMsg = ` ⚠️ Live order KHÔNG gửi được: ${liveResult.message}`;
                                 console.log(chalk.yellow(`  [LIVE ENTRY FAIL] ${userOrder.username}: ${liveResult.message}`));
                             }
+                        }
+
+                        if (liveEntryFailed) {
+                            const reason = liveMsg.replace(/^ ⚠️\s*/, '');
+                            if (isPortfolio) {
+                                recordUnmatchedAllocation(userOrder, newTrade, allocatedCapital, reason);
+                                userOrder.result.message = `[PORTFOLIO ${directionLabel} · UNMATCHED] ${symbol} không khớp broker, không chiếm vốn và không tính PnL gói. ${reason}${matchNote}`;
+                            } else {
+                                userOrder.result.message = `[UNMATCHED] ${symbol} không khớp broker, gói tiếp tục chờ tín hiệu khác. ${reason}`;
+                            }
+                            await userOrder.save();
+                            continue;
                         }
 
                         // ── Ghi nhận khớp (sau live → executionMode đã đúng) ──
@@ -2331,6 +2413,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null) => {
                 const volSkip = stats.skipVolume || 0;
                 const setupSkip = stats.skipSetup || 0;
                 console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | Volume surge: ${volSkip} | Setup/HTF: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected}] | Đã vào: ${stats.matched} lệnh.`));
+            }
+            if (minOpenTarget > 0 && currentOpenCount >= minOpenTarget) {
+                console.log(chalk.green(`[AUTODUCK IDLE] Đã đạt mục tiêu ${minOpenTarget} lệnh mở, dừng lượt quét nới ngưỡng.`));
+                break;
             }
         }
 
@@ -2588,12 +2674,22 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                 for (const pOrder of portfolioOrders) {
                     const released = releaseAllocation(pOrder, trade._id, trade.pnlPercent);
                     if (released) {
-                        pOrder.result.finalPnl = pOrder.realizedPnl;
-                        pOrder.result.message = `[PORTFOLIO] ${trade.symbol} đóng: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% (${released.pnl >= 0 ? '+' : ''}${Math.round(released.pnl / 1000)}k). Quỹ: ${(pOrder.totalCapital / 1e6).toFixed(2)}Tr | PnL tích lũy: ${pOrder.realizedPnl >= 0 ? '+' : ''}${Math.round(pOrder.realizedPnl / 1000)}k.`;
+                        if (released.counted === false) {
+                            pOrder.result.message = `[PORTFOLIO] ${trade.symbol} UNMATCHED đóng mô phỏng: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%. Không cộng vào PnL/quỹ LIVE.`;
+                            await pOrder.save();
+                            continue;
+                        }
+                        const effectiveCapital = getEffectivePortfolioCapital(pOrder);
+                        const matchedRealizedPnl = getMatchedRealizedPnl(pOrder);
+                        const matchedUsedCapital = getMatchedAllocations(pOrder)
+                            .filter(a => !a.closedAt)
+                            .reduce((s, a) => s + (Number(a.amount) || 0), 0);
+                        pOrder.result.finalPnl = matchedRealizedPnl;
+                        pOrder.result.message = `[PORTFOLIO] ${trade.symbol} đóng: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% (${released.pnl >= 0 ? '+' : ''}${Math.round(released.pnl / 1000)}k). Quỹ: ${(effectiveCapital / 1e6).toFixed(2)}Tr | PnL tích lũy: ${matchedRealizedPnl >= 0 ? '+' : ''}${Math.round(matchedRealizedPnl / 1000)}k.`;
                         await pOrder.save();
                         if (trade.executionMode === 'LIVE') {
                             await sendTelegramMessage(
-                                `💼 <b>[PORTFOLIO ${pOrder.username}]</b> ${trade.symbol} đóng ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%\nQuỹ hiện tại: ${(pOrder.totalCapital / 1e6).toFixed(2)}Tr VNĐ | PnL tích lũy: ${pOrder.realizedPnl >= 0 ? '+' : ''}${Math.round(pOrder.realizedPnl / 1000)}k\nVốn đang dùng: ${(pOrder.usedCapital / 1e6).toFixed(2)}Tr`,
+                                `💼 <b>[PORTFOLIO ${pOrder.username}]</b> ${trade.symbol} đóng ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%\nQuỹ hiện tại: ${(effectiveCapital / 1e6).toFixed(2)}Tr VNĐ | PnL tích lũy: ${matchedRealizedPnl >= 0 ? '+' : ''}${Math.round(matchedRealizedPnl / 1000)}k\nVốn đang dùng: ${(matchedUsedCapital / 1e6).toFixed(2)}Tr`,
                                 { parseMode: 'HTML' }
                             ).catch(() => {});
                         }
@@ -2768,7 +2864,15 @@ export const startAutoDuckScheduler = () => {
     console.log(chalk.bold.green('🚀 [AUTODUCK v2 SCHEDULER] Hệ thống tuần hoàn lệnh thực tế đã lên lịch.'));
 
     const runningPipelines = new Set();
-    const runScheduledPipeline = async (label, forcedAssetType = null) => {
+    const runIntervalTask = async (label, task) => {
+        try {
+            await task();
+        } catch (err) {
+            console.error(chalk.red(`[AUTODUCK INTERVAL ${label}] ${err?.stack || err?.message || err}`));
+        }
+    };
+
+    const runScheduledPipeline = async (label, forcedAssetType = null, options = {}) => {
         if (runningPipelines.has(label)) {
             console.log(chalk.gray(`[AUTODUCK] Bỏ qua chu kỳ ${label}: pipeline trước vẫn đang chạy.`));
             return;
@@ -2776,7 +2880,7 @@ export const startAutoDuckScheduler = () => {
 
         runningPipelines.add(label);
         try {
-            await runAutoTradePipeline(forcedAssetType);
+            await runAutoTradePipeline(forcedAssetType, options);
         } catch (err) {
             console.error(chalk.red(`[SCHEDULER ${label}] ${err.message}`));
         } finally {
@@ -2786,29 +2890,70 @@ export const startAutoDuckScheduler = () => {
 
     runScheduledPipeline('ALL');
 
-    setInterval(async () => {
+    setInterval(() => runIntervalTask('CRYPTO', async () => {
         await runScheduledPipeline('CRYPTO', 'CRYPTO');
-    }, 15 * 60 * 1000);
+    }), 15 * 60 * 1000);
 
-    setInterval(async () => {
+    setInterval(() => runIntervalTask('IDLE_FAST', async () => {
+        try {
+            const [openCount, maxConcurrentSetting] = await Promise.all([
+                AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } }),
+                Setting.findOne({ key: 'autoTradeMaxConcurrent' }).lean(),
+            ]);
+            const target = pickIdleTarget(maxConcurrentSetting?.value);
+            idleScanState.lastOpenCount = openCount;
+            if (openCount >= target) {
+                resetIdleScanState(`đã có ${openCount}/${target} lệnh mở`);
+                return;
+            }
+            if (openCount > 0 && idleScanState.attempts === 0) {
+                return;
+            }
+
+            if (idleScanState.attempts >= IDLE_RELAX_MAX_ATTEMPTS) {
+                resetIdleScanState(`quá ${IDLE_RELAX_MAX_ATTEMPTS} lượt không tìm được mã đạt chuẩn`);
+                return;
+            }
+
+            const relax = Math.min(IDLE_RELAX_MAX_SCORE, (idleScanState.attempts + 1) * IDLE_RELAX_STEP_SCORE);
+            idleScanState.attempts++;
+            console.log(chalk.yellow(`[AUTODUCK IDLE] Lệnh mở ${openCount}/${target} → quét nhanh CRYPTO, nới ngưỡng -${relax} (lượt ${idleScanState.attempts}/${IDLE_RELAX_MAX_ATTEMPTS}).`));
+
+            await runScheduledPipeline('IDLE_FAST', 'CRYPTO', {
+                schedulerMode: 'IDLE_FAST',
+                thresholdRelax: relax,
+                minOpenTarget: target,
+            });
+
+            const afterOpenCount = await AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } });
+            idleScanState.lastOpenCount = afterOpenCount;
+            if (afterOpenCount >= target) {
+                resetIdleScanState(`đã đạt ${afterOpenCount}/${target} lệnh`);
+            }
+        } catch (err) {
+            console.log(chalk.yellow(`[AUTODUCK IDLE] Lỗi idle fast scan: ${err.message}`));
+        }
+    }), IDLE_FAST_SCAN_INTERVAL_MS);
+
+    setInterval(() => runIntervalTask('ALL', async () => {
         if (isVNMarketOpen() || isPreMarket() || isATOPeriod() || isATCPeriod()) {
             await runScheduledPipeline('ALL');
         }
-    }, 15 * 60 * 1000);
+    }), 15 * 60 * 1000);
 
-    setInterval(async () => {
+    setInterval(() => runIntervalTask('EXIT_FAST_MONITOR', async () => {
         if (!exitPipelineRunning) {
             await runExitAndLearningPipeline('REALTIME_FAST_MONITOR', {}, true);
         }
-    }, 30 * 1000);
+    }), 30 * 1000);
 
     // Giám sát lệnh MANUAL (/trade): fill entry, scale-out TP, SL, dời breakeven.
-    setInterval(async () => {
+    setInterval(() => runIntervalTask('MANUAL_MONITOR', async () => {
         await monitorManualTrades().catch(err => console.log(chalk.yellow(`[MANUAL MONITOR] ${err.message}`)));
-    }, 20 * 1000);
+    }), 20 * 1000);
 
     let dailyReportSentForDay = -1;
-    setInterval(async () => {
+    setInterval(() => runIntervalTask('DAILY_PNL', async () => {
         const nowInVN = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
         const hours = nowInVN.getHours();
         const minutes = nowInVN.getMinutes();
@@ -2820,7 +2965,7 @@ export const startAutoDuckScheduler = () => {
                 await sendDailyPnLReport();
             }
         }
-    }, 5 * 60 * 1000);
+    }), 5 * 60 * 1000);
 };
  
 export const calculateSignalScore = (aiScore, sentimentType, breadthRatio, isVolumeConfirmed) => {
@@ -3107,13 +3252,17 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
                 return msg;
             }
             const lines = await Promise.all(portfolios.map(async (p) => {
-                const openAllocs = (p.tradeAllocations || []).filter(a => !a.closedAt).length;
-                const closedAllocs = (p.tradeAllocations || []).filter(a => a.closedAt);
+                const matchedAllocs = getMatchedAllocations(p);
+                const openAllocs = matchedAllocs.filter(a => !a.closedAt).length;
+                const closedAllocs = matchedAllocs.filter(a => a.closedAt);
                 const wins = closedAllocs.filter(a => a.pnl > 0).length;
                 const winRate = closedAllocs.length > 0 ? Math.round(wins / closedAllocs.length * 100) : 0;
+                const usedCapital = matchedAllocs.filter(a => !a.closedAt).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+                const realizedPnl = getMatchedRealizedPnl(p);
+                const effectiveCapital = getEffectivePortfolioCapital(p);
                 return `💼 ${p.username} [${p.executionMode}${p.executionMode === 'LIVE' ? ' 🔴' : ''}]\n` +
-                    `   Quỹ: ${(p.totalCapital / 1e6).toFixed(2)}Tr | Đang dùng: ${(p.usedCapital / 1e6).toFixed(2)}Tr (${openAllocs} lệnh mở)\n` +
-                    `   PnL tích lũy: ${p.realizedPnl >= 0 ? '+' : ''}${Math.round(p.realizedPnl / 1000)}k | Win rate: ${winRate}% (${closedAllocs.length} lệnh đóng)\n` +
+                    `   Quỹ: ${(effectiveCapital / 1e6).toFixed(2)}Tr | Đang dùng: ${(usedCapital / 1e6).toFixed(2)}Tr (${openAllocs} lệnh mở)\n` +
+                    `   PnL tích lũy: ${realizedPnl >= 0 ? '+' : ''}${Math.round(realizedPnl / 1000)}k | Win rate: ${winRate}% (${closedAllocs.length} lệnh đóng)\n` +
                     `   Cấu hình: ${p.allocationPercent}%/lệnh | Max ${p.maxConcurrentOrders} lệnh | Dynamic: ${p.dynamicSizing ? 'BẬT' : 'TẮT'}`;
             }));
             const msg = `💼 GÓI PORTFOLIO ĐANG CHẠY (${portfolios.length})\n━━━━━━━━━━━━━━━━━\n${lines.join('\n\n')}`;
