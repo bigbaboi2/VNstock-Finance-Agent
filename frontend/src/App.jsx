@@ -1857,7 +1857,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 </div>
                 <div className="flex-1 w-full relative bg-white">
                     <iframe 
-                        src={`${marketData.reportPdf}#toolbar=1&navpanes=0&view=FitH`} 
+                        src={`https://docs.google.com/viewer?url=${encodeURIComponent(marketData.reportPdf)}&embedded=true`} 
                         className="absolute inset-0 w-full h-full border-none" 
                         title="PDF Full Viewer"
                    />

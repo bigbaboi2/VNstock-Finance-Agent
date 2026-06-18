@@ -1176,25 +1176,39 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
         'bg-slate-500/10 text-slate-400 border-slate-500/30';
 
     const isPortfolio = order.allocationMode === 'PORTFOLIO';
-    const openAllocs = isPortfolio ? (order.tradeAllocations || []).filter(a => !a.closedAt).length : 0;
-    const closedAllocs = isPortfolio ? (order.tradeAllocations || []).filter(a => a.closedAt) : [];
+    const allAllocations = isPortfolio ? (order.tradeAllocations || []) : [];
+    const isMatchedAllocation = (a) => {
+        if (!a || a.matchStatus === 'UNMATCHED') return false;
+        if (order.executionMode === 'LIVE') return a.executionMode === 'LIVE';
+        return true;
+    };
+    const matchedAllocs = allAllocations.filter(isMatchedAllocation);
+    const openAllocs = matchedAllocs.filter(a => !a.closedAt).length;
+    const closedAllocs = matchedAllocs.filter(a => a.closedAt);
     const wins = closedAllocs.filter(a => a.pnl > 0).length;
-    const usedPct = isPortfolio && order.totalCapital > 0
-        ? Math.min(100, Math.round((order.usedCapital || 0) / order.totalCapital * 100))
+    const displayUsedCapital = matchedAllocs
+        .filter(a => !a.closedAt)
+        .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+    const displayRealizedPnl = closedAllocs.reduce((sum, a) => sum + (Number(a.pnl) || 0), 0);
+    const displayTotalCapital = isPortfolio
+        ? Math.max(0, (Number(order.totalCapital) || 0) - (Number(order.realizedPnl) || 0) + displayRealizedPnl)
+        : Number(order.capital) || 0;
+    const usedPct = isPortfolio && displayTotalCapital > 0
+        ? Math.min(100, Math.round(displayUsedCapital / displayTotalCapital * 100))
         : 0;
 
     return (
         <div className={`p-3 rounded-lg border ${isPortfolio ? (isDark ? 'bg-violet-500/[0.04] border-violet-500/20' : 'bg-violet-50/50 border-violet-200') : (isDark ? 'bg-[#10151c] border-white/5' : 'bg-slate-50 border-slate-200')}`}>
             <div className="flex justify-between items-center gap-3 mb-2">
                 <span className={`text-sm font-black font-mono ${UI.textBold}`}>
-                    {isPortfolio ? `💼 ${formatNumber(order.totalCapital)} đ` : `${formatNumber(order.capital)} đ`}
+                    {isPortfolio ? `💼 ${formatNumber(displayTotalCapital)} đ` : `${formatNumber(order.capital)} đ`}
                 </span>
                 <div className="flex items-center gap-1.5">
                     {isPortfolio && (
                         <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-violet-500/10 text-violet-400 border-violet-500/30">PORTFOLIO</span>
                     )}
                     {order.executionMode === 'LIVE' && (
-                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-red-500/10 text-red-500 border-red-500/30 animate-pulse">🔴 LIVE</span>
+                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-500 border-emerald-500/30 animate-pulse">● LIVE</span>
                     )}
                     <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${statusClass}`}>{order.status}</span>
                 </div>
@@ -1208,10 +1222,10 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
                     </div>
                     <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5">
                         <span className={`text-[10px] font-mono font-bold ${UI.textMuted}`}>
-                            Đang dùng: {formatNumber(order.usedCapital || 0)}đ ({usedPct}%) · {openAllocs} lệnh mở
+                            Đang dùng: {formatNumber(displayUsedCapital)}đ ({usedPct}%) · {openAllocs} lệnh mở
                         </span>
-                        <span className={`text-[10px] font-mono font-black ${(order.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                            PnL: {(order.realizedPnl || 0) >= 0 ? '+' : ''}{formatNumber(order.realizedPnl || 0)}đ
+                        <span className={`text-[10px] font-mono font-black ${displayRealizedPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            PnL: {displayRealizedPnl >= 0 ? '+' : ''}{formatNumber(displayRealizedPnl)}đ
                         </span>
                     </div>
                     {closedAllocs.length > 0 && (
@@ -1230,20 +1244,23 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
             <p className={`text-[10px] font-medium leading-relaxed ${UI.textMuted}`}>{order.result?.message}</p>
 
             {/* ── Danh sách lệnh đã vào của gói portfolio ── */}
-            {isPortfolio && (order.tradeAllocations || []).length > 0 && (
+            {isPortfolio && allAllocations.length > 0 && (
                 <div className={`mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
                     <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${UI.textMuted}`}>
-                        Lệnh đã vào ({(order.tradeAllocations || []).length})
+                        Lệnh đã vào ({matchedAllocs.length}/{allAllocations.length})
                     </p>
                     <div className="flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                        {[...(order.tradeAllocations || [])].reverse().map((a, i) => {
+                        {[...allAllocations].reverse().map((a, i) => {
                             const isClosed = !!a.closedAt;
+                            const isUnmatched = !isMatchedAllocation(a);
                             return (
                                 <div key={i} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[10px] ${isDark ? 'bg-black/20' : 'bg-slate-50'}`}>
                                     <div className="flex items-center gap-1.5 min-w-0">
                                         <span className={`font-black font-mono ${UI.textBold}`}>{a.symbol || '—'}</span>
-                                        {a.executionMode === 'LIVE'
-                                            ? <span className="px-1 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-500">LIVE</span>
+                                        {isUnmatched
+                                            ? <span title={a.matchMessage || 'Khớp broker thất bại'} className="px-1 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-500">UNMATCHED</span>
+                                            : a.executionMode === 'LIVE'
+                                            ? <span className="px-1 py-0.5 rounded text-[8px] font-black bg-emerald-500/15 text-emerald-500">LIVE</span>
                                             : <span className="px-1 py-0.5 rounded text-[8px] font-black bg-amber-500/15 text-amber-500">SIM</span>}
                                         <span className={`font-mono ${UI.textMuted}`}>@{Number(a.entryPrice).toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>
                                     </div>
