@@ -5,6 +5,17 @@ import path from 'path';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 
+process.on('unhandledRejection', (reason) => {
+    const message = reason?.stack || reason?.message || String(reason);
+    console.error(chalk.bgRed.white('[PROCESS] Unhandled promise rejection'));
+    console.error(chalk.red(message));
+});
+
+process.on('uncaughtException', (error) => {
+    console.error(chalk.bgRed.white('[PROCESS] Uncaught exception'));
+    console.error(chalk.red(error?.stack || error?.message || String(error)));
+});
+
 // Import DB and Middleware configuration
 import { connectDB } from './config/db.js';
 import { setupMiddlewares } from './middlewares/configMiddleware.js';
@@ -40,7 +51,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-connectDB();
+await connectDB();
 setupMiddlewares(app);
 app.use(express.json());
 

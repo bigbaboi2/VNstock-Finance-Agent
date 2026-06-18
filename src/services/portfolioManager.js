@@ -1,5 +1,25 @@
 import AutoTrade from '../../models/AutoTrade.js';
 
+export const isAllocationMatched = (userOrder, allocation) => {
+    if (!allocation || allocation.matchStatus === 'UNMATCHED') return false;
+    if (userOrder?.executionMode === 'LIVE') return allocation.executionMode === 'LIVE';
+    return true;
+};
+
+export const getMatchedAllocations = (userOrder) =>
+    (userOrder?.tradeAllocations || []).filter(a => isAllocationMatched(userOrder, a));
+
+export const getMatchedRealizedPnl = (userOrder) =>
+    getMatchedAllocations(userOrder)
+        .filter(a => a.closedAt)
+        .reduce((sum, a) => sum + (Number(a.pnl) || 0), 0);
+
+export const getEffectivePortfolioCapital = (userOrder) => {
+    const total = Number(userOrder?.totalCapital) || 0;
+    const recordedPnl = Number(userOrder?.realizedPnl) || 0;
+    return Math.max(0, total - recordedPnl + getMatchedRealizedPnl(userOrder));
+};
+
 /**
  * PORTFOLIO MANAGER — Bot tự quản lý & chia vốn thông minh.
  *
@@ -16,7 +36,7 @@ const MIN_POSITION_VND = 500_000; // Dưới ngưỡng này → bỏ qua, không
  * Đếm số lệnh đang mở thuộc 1 gói portfolio.
  */
 export const countOpenTradesOfOrder = async (userOrder) => {
-    const openAllocations = (userOrder.tradeAllocations || []).filter(a => !a.closedAt);
+    const openAllocations = getMatchedAllocations(userOrder).filter(a => !a.closedAt);
     if (openAllocations.length === 0) return 0;
     return AutoTrade.countDocuments({
         _id: { $in: openAllocations.map(a => a.trade) },
@@ -49,8 +69,10 @@ export const calculatePositionSize = (userOrder, tradePlan, aiScore = 70) => {
     }
 
     // ── PORTFOLIO: bot tự tính ──
-    const total = Number(userOrder.totalCapital) || 0;
-    const used = Number(userOrder.usedCapital) || 0;
+    const total = getEffectivePortfolioCapital(userOrder);
+    const used = getMatchedAllocations(userOrder)
+        .filter(a => !a.closedAt)
+        .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
     const free = Math.max(0, total - used);
 
     if (free < MIN_POSITION_VND) {
@@ -99,19 +121,34 @@ export const calculatePositionSize = (userOrder, tradePlan, aiScore = 70) => {
  * Ghi nhận phân bổ vốn khi gói portfolio khớp 1 lệnh mới.
  * (Caller tự save userOrder)
  */
-export const recordAllocation = (userOrder, trade, amount) => {
+export const recordAllocation = (userOrder, trade, amount, options = {}) => {
     userOrder.tradeAllocations = userOrder.tradeAllocations || [];
-    userOrder.tradeAllocations.push({
+    const matchStatus = options.matchStatus || 'MATCHED';
+    const allocation = {
         trade: trade._id || trade,
         symbol: trade.symbol || '',
         direction: trade.direction || '',
         entryPrice: Number(trade.entryPrice) || 0,
         executionMode: trade.executionMode || 'SIMULATED',
+        matchStatus,
+        matchMessage: options.matchMessage || '',
         amount,
         openedAt: new Date(),
+    };
+    userOrder.tradeAllocations.push({
+        ...allocation,
     });
-    userOrder.usedCapital = (Number(userOrder.usedCapital) || 0) + amount;
+    if (isAllocationMatched(userOrder, allocation)) {
+        userOrder.usedCapital = (Number(userOrder.usedCapital) || 0) + amount;
+    }
     if (userOrder.status === 'PENDING') userOrder.status = 'ACTIVE';
+};
+
+export const recordUnmatchedAllocation = (userOrder, trade, amount, reason = '') => {
+    recordAllocation(userOrder, trade, amount, {
+        matchStatus: 'UNMATCHED',
+        matchMessage: reason,
+    });
 };
 
 /**
@@ -129,9 +166,12 @@ export const releaseAllocation = (userOrder, tradeId, pnlPercent) => {
     alloc.closedAt = new Date();
     alloc.pnl = pnl;
     alloc.pnlPercent = Number(pnlPercent) || 0;
+    if (!isAllocationMatched(userOrder, alloc)) {
+        return { amount: alloc.amount, pnl, counted: false };
+    }
     userOrder.usedCapital = Math.max(0, (Number(userOrder.usedCapital) || 0) - alloc.amount);
     userOrder.realizedPnl = (Number(userOrder.realizedPnl) || 0) + pnl;
     // Quỹ tự tăng/giảm theo PnL thực hiện → compound
     userOrder.totalCapital = Math.max(0, (Number(userOrder.totalCapital) || 0) + pnl);
-    return { amount: alloc.amount, pnl };
+    return { amount: alloc.amount, pnl, counted: true };
 };

@@ -24,6 +24,8 @@ const UserOrderSchema = new mongoose.Schema({
         direction: { type: String, default: '' },
         entryPrice: { type: Number, default: 0 },
         executionMode: { type: String, default: 'SIMULATED' },
+        matchStatus: { type: String, enum: ['MATCHED', 'UNMATCHED'], default: 'MATCHED' },
+        matchMessage: { type: String, default: '' },
         amount: { type: Number, default: 0 },
         openedAt: { type: Date, default: Date.now },
         closedAt: { type: Date, default: null },
