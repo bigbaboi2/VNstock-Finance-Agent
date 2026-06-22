@@ -64,6 +64,9 @@ const IDLE_RELAX_MAX_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_SCORE) |
 const IDLE_RELAX_MAX_ATTEMPTS = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS) || 8;
 const IDLE_MIN_SIM_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_SIM_SCORE) || 60;
 const IDLE_MIN_LIVE_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_LIVE_SCORE) || 68;
+const IDLE_AI_PROBE_ENABLED = process.env.AUTODUCK_IDLE_AI_PROBE_ENABLED !== 'false';
+const IDLE_AI_PROBE_MIN_SCORE = Number(process.env.AUTODUCK_IDLE_AI_PROBE_MIN_SCORE) || 72;
+const IDLE_AI_PROBE_SIZE_MULT = Number(process.env.AUTODUCK_IDLE_AI_PROBE_SIZE_MULT) || 0.45;
 
 const idleScanState = {
     attempts: 0,
@@ -1487,7 +1490,51 @@ const compactContextForPrompt = (context = {}) => {
     return `Nguồn: ${context.source || 'N/A'} | fetchedAt: ${context.fetchedAt || 'N/A'}${newsBlock}`;
 };
 
-const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc, executionContext = {}, config = getRiskConfig(2)) => {
+export const parseAISignalVerdict = (response = '') => {
+    const text = String(response || '').trim().normalize('NFC');
+    if (!text) return false;
+
+    const verdictPattern = /(?:^|[\s*_`"'“”.,:;!?()[\]{}-])(XÁC\s+NHẬN|BÁC\s+BỎ)(?=$|[\s*_`"'“”.,:;!?()[\]{}-])/giu;
+    const verdicts = [...text.matchAll(verdictPattern)].map(match => match[1].toUpperCase().replace(/\s+/g, ' '));
+    if (verdicts.length > 0) {
+        return verdicts[verdicts.length - 1] === 'XÁC NHẬN';
+    }
+
+    return false;
+};
+
+export const isHardAIRejection = (response = '') => {
+    const text = String(response || '').toLowerCase().normalize('NFC');
+    const hardPatterns = [
+        /mâu thuẫn nghiêm trọng/,
+        /ngược xu hướng/,
+        /đảo chiều (mạnh|rõ|rõ ràng)/,
+        /fake breakout/,
+        /short squeeze/,
+        /phân phối/,
+        /tin tức.*(tiêu cực|bất lợi)/,
+        /orderbook.*(nghiêng hẳn|áp đảo).*(bán|ngược)/,
+        /funding.*(quá cao|bất lợi|crowded)/,
+        /rủi ro (đảo chiều|ngược xu hướng|squeeze)/,
+    ];
+    return hardPatterns.some(pattern => pattern.test(text));
+};
+
+const buildIdleProbeInstruction = (options = {}) => {
+    if (options.schedulerMode !== 'IDLE_FAST') return '';
+    const threshold = Number(options.effectiveThreshold) || IDLE_AI_PROBE_MIN_SCORE;
+    return `\n[CHẾ ĐỘ IDLE PROBE]\nHệ thống đang không có đủ lệnh mở nên đang quét nhanh với ngưỡng kỹ thuật đã nới về ${threshold}. Đây KHÔNG phải lệnh all-in; nếu được duyệt, engine sẽ giảm size và vẫn giữ SL/TP theo ATR. Với tín hiệu đã qua lọc volume, setup đa khung và risk filter, hãy XÁC NHẬN nếu rủi ro chỉ là \"thị trường đi ngang\", \"thiếu xác nhận phụ\", hoặc \"score chưa tới 80\". Chỉ BÁC BỎ khi có veto cứng: ngược xu hướng khung lớn, fake breakout rõ, short squeeze/crowded positioning, phân phối/đảo chiều mạnh, tin tức tiêu cực mạnh, hoặc orderbook/funding chống lại hướng lệnh.`;
+};
+
+const shouldIdleProbeOverrideAI = ({ asset, signal, aiConfirm, schedulerMode, liveOnlyMode }) => {
+    if (!IDLE_AI_PROBE_ENABLED || schedulerMode !== 'IDLE_FAST' || liveOnlyMode || asset !== 'CRYPTO') return false;
+    if (aiConfirm?.confirmed || isHardAIRejection(aiConfirm?.reason)) return false;
+    if ((signal?.score || 0) < IDLE_AI_PROBE_MIN_SCORE) return false;
+    if ((signal?.breakdown?.edge || 0) < 25) return false;
+    return true;
+};
+
+const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc, executionContext = {}, config = getRiskConfig(2), options = {}) => {
     try {
         let lessonContext = 'Không có lịch sử giao dịch trước đó cho mã này.';
         try {
@@ -1544,6 +1591,7 @@ Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệ
 
 ${strategyContext}
 ${scoreBiasInstruction}
+${buildIdleProbeInstruction(options)}
 
 [TRẠNG THÁI VĨ MÔ]
 - Tình trạng thị trường: ${marketStatus}
@@ -1575,7 +1623,7 @@ Phân tích xác nhận hoặc bác bỏ tín hiệu trong 2-3 câu ngắn gọn
             temperature: 0.3
         });
 
-        const confirmed = response.toUpperCase().includes('XÁC NHẬN');
+        const confirmed = parseAISignalVerdict(response);
         return { confirmed, reason: response.trim() };
 
     } catch (err) {
@@ -1971,7 +2019,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             const adaptiveSizeMult = guard.sizeMult || 1.0;
             console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} (training) · LIVE≥${liveScoreThreshold} (size ×${adaptiveSizeMult}, n=${guard.sample})${thresholdRelax > 0 ? ` · ${schedulerMode} relax -${thresholdRelax}` : ''}.`));
 
-            const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, aiRejected: 0, matched: 0 };
+            const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, aiRejected: 0, aiSoftOverride: 0, matched: 0 };
             let symbolsToScan = [];
 
             if (asset === 'VN_STOCK') {
@@ -2072,7 +2120,27 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     }
 
                     // 5. AI confirm
-                    const aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc, executionContext, currentRiskConfig);
+                    let aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc, executionContext, currentRiskConfig, {
+                        schedulerMode,
+                        thresholdRelax,
+                        effectiveThreshold,
+                        liveOnlyMode,
+                    });
+                    const idleProbeOverride = shouldIdleProbeOverrideAI({
+                        asset,
+                        signal: techSignal,
+                        aiConfirm,
+                        schedulerMode,
+                        liveOnlyMode,
+                    });
+                    if (idleProbeOverride) {
+                        stats.aiSoftOverride++;
+                        aiConfirm = {
+                            ...aiConfirm,
+                            confirmed: true,
+                            reason: `[IDLE PROBE OVERRIDE · size x${IDLE_AI_PROBE_SIZE_MULT}] AI bác bỏ mềm, nhưng tín hiệu đã qua filter định lượng và score ${techSignal.score} >= ${IDLE_AI_PROBE_MIN_SCORE}. Lý do AI gốc: ${aiConfirm.reason}`,
+                        };
+                    }
                     console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason}`));
 
                     radarCandidates[asset].push({
@@ -2136,6 +2204,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const goldenSetup = entrySetup.type === 'TREND_PULLBACK' && techSignal.score >= 80;
                     const convictionMult = goldenSetup ? 1.25 : (techSignal.score >= 80 ? 1.1 : 1.0);
                     allocationPct = Math.min(0.40, allocationPct * convictionMult);
+                    if (idleProbeOverride) {
+                        allocationPct = Math.max(0.02, allocationPct * IDLE_AI_PROBE_SIZE_MULT);
+                    }
 
                     let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * adaptiveSizeMult;
                     
@@ -2412,7 +2483,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             if (stats.scanned > 0) {
                 const volSkip = stats.skipVolume || 0;
                 const setupSkip = stats.skipSetup || 0;
-                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | Volume surge: ${volSkip} | Setup/HTF: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected}] | Đã vào: ${stats.matched} lệnh.`));
+                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | Volume surge: ${volSkip} | Setup/HTF: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected} | Idle override: ${stats.aiSoftOverride}] | Đã vào: ${stats.matched} lệnh.`));
             }
             if (minOpenTarget > 0 && currentOpenCount >= minOpenTarget) {
                 console.log(chalk.green(`[AUTODUCK IDLE] Đã đạt mục tiêu ${minOpenTarget} lệnh mở, dừng lượt quét nới ngưỡng.`));

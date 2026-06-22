@@ -306,68 +306,41 @@ ${stockSection}
 
 ---
 
-## YÊU CẦU — BÁO CÁO NHẬN ĐỊNH THỊ TRƯỜNG
+**HƯỚNG DẪN PHÂN TÍCH:**
+1. Phân tích kỹ thuật VN-Index, VN30, HNX: xu hướng, momentum, thanh khoản
+2. Chọn 5–7 mã tiềm năng nhất (MUA/TRÁNH/THEO DÕI) từ danh sách thanh khoản cao
+3. Đánh giá tâm lý thị trường (TÍCH CỰC/TRUNG TÍNH/TIÊU CỰC)
 
-Viết báo cáo đầy đủ bằng tiếng Việt theo cấu trúc sau:
+**HƯỚNG DẪN OUTPUT:**
+BẠN PHẢI TRẢ VỀ DƯỚI DẠNG JSON OBJECT THUẦN. KHÔNG PHÉP CÓ TEXT, KHÔNG PHÉP CÓ MARKDOWN.
+OUTPUT CỦA BẠN CHỈ LÀ MỘT OBJECT JSON DUY NHẤT (CÓ THỂ SPAN NHIỀU DÒNG), KHÔNG CÓ GÌ KHÁC.
 
-### 1. 📊 TỔNG QUAN THỊ TRƯỜNG
-- Nhận định chung (tích cực/trung tính/tiêu cực)
-- Phân tích kỹ thuật VN-Index: xu hướng, momentum, thanh khoản
-- So sánh sức mạnh HNX vs VN30
-
-### 2. 🎯 TOP 5 MÃ TIỀM NĂNG NGẮN HẠN (1–5 phiên)
-Mỗi mã nêu rõ:
-- Lý do kỹ thuật (EMA, RSI, khối lượng, mô hình giá)
-- Vùng mua, mục tiêu TP, stoploss
-- Điều kiện xác nhận vào lệnh
-
-### 3. 🚀 TOP 3 MÃ TIỀM NĂNG DÀI HẠN (3–12 tháng)
-- Câu chuyện tăng trưởng, định giá (P/E so ngành)
-- Rủi ro cần theo dõi
-- Giá tích lũy lý tưởng
-
-### 4. ⚠️ TOP 3 MÃ CẦN TRÁNH / THẬN TRỌNG
-- Lý do kỹ thuật hoặc cơ bản đáng lo ngại
-- Dấu hiệu phân phối hoặc suy yếu
-
-### 5. 📋 CHIẾN LƯỢC HÔM NAY
-- Tỷ lệ tiền mặt khuyến nghị
-- Tâm lý thị trường (Fear/Greed index ước tính)
-- Ngành nên tập trung vs tránh
-- 3 điểm quan sát quan trọng trong phiên
-
-### 6. 🔮 DỰ BÁO 3–5 PHIÊN TỚI
-- Kịch bản chính (xác suất cao nhất)
-- Kịch bản tích cực / tiêu cực
-- Key levels cần phá vỡ
-
----
-
-**Yêu cầu**: Phân tích dứt khoát, có số liệu cụ thể. KHÔNG viết chung chung.
-
-QUAN TRỌNG — PHẦN CUỐI BÁO CÁO: Bạn BẮT BUỘC phải kết thúc bằng đúng một JSON block theo format sau, KHÔNG thêm bất kỳ chữ nào sau closing backtick:
-
-\`\`\`json
+Cấu trúc JSON:
 {
-  "sentiment": "TÍCH CỰC",
-  "summary": "Thị trường hôm nay...",
+  "sentiment": "TÍCH CỰC" | "TRUNG TÍNH" | "TIÊU CỰC",
+  "summary": "Một câu tóm tắt nhận định thị trường hôm nay",
   "topPicks": [
-    { "symbol": "FPT", "action": "MUA", "horizon": "NGẮN HẠN", "reason": "RSI quá bán, hỗ trợ mạnh", "score": 82 },
-    { "symbol": "HPG", "action": "THEO DÕI", "horizon": "DÀI HẠN", "reason": "Tích lũy vùng đáy", "score": 71 },
-    { "symbol": "VIC", "action": "TRÁNH", "horizon": "NGẮN HẠN", "reason": "Phân phối, volume yếu", "score": 35 }
+    { "symbol": "FPT", "action": "MUA", "horizon": "NGẮN HẠN", "reason": "Lý do giao dịch ngắn gọn", "score": 82 },
+    { "symbol": "HPG", "action": "THEO DÕI", "horizon": "DÀI HẠN", "reason": "Lý do theo dõi ngắn gọn", "score": 71 },
+    { "symbol": "VIC", "action": "TRÁNH", "horizon": "NGẮN HẠN", "reason": "Lý do tránh ngắn gọn", "score": 35 },
+    ...thêm 2–4 mã nữa để có ít nhất 5 mã
   ]
 }
-\`\`\`
 
-Quy tắc JSON:
-- "sentiment" chỉ được là một trong ba giá trị: "TÍCH CỰC", "TRUNG TÍNH", hoặc "TIÊU CỰC"
-- "action" chỉ được là: "MUA", "TRÁNH", hoặc "THEO DÕI"  
-- "horizon" chỉ được là: "NGẮN HẠN", "DÀI HẠN", hoặc "CẢ HAI"
-- "score" là số nguyên từ 0 đến 100
-- Liệt kê ít nhất 5 mã trong topPicks (kết hợp MUA + TRÁNH + THEO DÕI)`;
+Quy tắc:
+- sentiment: CHỈ một trong ba giá trị: "TÍCH CỰC", "TRUNG TÍNH", "TIÊU CỰC"
+- action: CHỈ "MUA", "TRÁNH", hoặc "THEO DÕI"
+- horizon: CHỈ "NGẮN HẠN", "DÀI HẠN", hoặc "CẢ HAI"
+- score: số nguyên 0–100
+- topPicks: PHẢI có ít nhất 5 mã
+- reason: câu ngắn (≤100 ký tự)
+- JSON PHẢI hợp lệ (valid JSON)
+- KHÔNG TEXT NÀO TRƯỚC/SAU JSON
+
+TRỞ LẠI NGAY JSON, KHÔNG THÊM MARKDOWN, KHÔNG THÊM GIẢI THÍCH.
+`;
 }
 
-// ── Parse JSON metadata từ response ──────────────────────────────────────────
 // ── Parse JSON metadata từ response — robust multi-strategy ──────────────────
 // Gemini đôi khi trả về: backtick Unicode, khoảng trắng lạ, JSON không fence,
 // JSON ở giữa báo cáo, hoặc có text thừa sau block.
@@ -390,7 +363,7 @@ function parseInsightMeta(rawText) {
             // Làm sạch: backtick Unicode, zero-width chars, BOM
             const clean = str
                 .replace(/[\u200B-\u200D\uFEFF]/g, '')
-                .replace(/[`\u0060\u2018\u2019\u201C\u201D]/g, '"')
+                .replace(/[\u0060\u2018\u2019\u201C\u201D]/g, '"')
                 .trim();
             const p = JSON.parse(clean);
             if (typeof p !== 'object' || !p) return null;
@@ -412,8 +385,17 @@ function parseInsightMeta(rawText) {
         }
     };
 
+    // ── Chiến lược 0: Thử parse toàn bộ response là JSON (chiến lược ưu tiên cho JSON-only prompt)
+    const r0 = tryParse(rawText.trim());
+    if (r0 && r0.topPicks.length > 0) {
+        console.log(chalk.cyan('[INSIGHT] ✅ Parse JSON direct (full response)'));
+        return { ...r0, sentiment: r0.sentiment || 'TRUNG TÍNH' };
+    }
+
     // ── Chiến lược 1: Tìm CUỐI cùng của fence ```json...``` (ưu tiên block cuối)
-    // Gemini đôi khi có nhiều block JSON, block cuối cùng mới là metadata
+    // Gemini đôi khi trả về: backtick Unicode, khoảng trắng lạ, JSON không fence,
+    // JSON ở giữa báo cáo, hoặc có text thừa sau block.
+    // → dùng nhiều chiến lược từ chính xác → rộng dần
     const allFences = [...rawText.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)];
     if (allFences.length > 0) {
         // Thử từ cuối lên để bắt đúng block metadata
@@ -512,7 +494,7 @@ export async function runDailyMarketInsight({ force = false } = {}) {
     const [vnIndex, vn30, hnx, topStocks] = await Promise.all([
         fetchIndexOHLC('VNINDEX', 60),
         fetchIndexOHLC('VN30',    60),
-        fetchIndexOHLC('HNXINDEX',30),
+        fetchIndexOHLC('HNX',      30),
         getTopCandidates(30),
     ]);
     console.log(chalk.gray(`[INSIGHT] Dữ liệu: VN-Index=${vnIndex?.close}, VN30=${vn30?.close}, HNX=${hnx?.close}, Stocks=${topStocks.length}`));
@@ -535,15 +517,21 @@ export async function runDailyMarketInsight({ force = false } = {}) {
         console.log(chalk.yellow('[INSIGHT] ⚠️ topPicks rỗng sau parse → gọi re-extract...'));
         try {
             const reExtractPrompt =
-                'Dưới đây là báo cáo phân tích TTCK Việt Nam. ' +
-                'Trả về DUY NHẤT một JSON object, KHÔNG có markdown fence, KHÔNG có text nào khác.\n\n' +
-                'Báo cáo:\n---\n' + reportRaw.slice(0, 6000) + '\n---\n\n' +
-                'Trả về JSON (không thêm ký tự nào trước/sau):\n' +
-                '{"sentiment":"TÍCH CỰC","summary":"Tóm tắt 1 câu","topPicks":[{"symbol":"FPT","action":"MUA","horizon":"NGẮN HẠN","reason":"lý do","score":80}]}\n\n' +
-                '- sentiment chỉ là: "TÍCH CỰC" | "TRUNG TÍNH" | "TIÊU CỰC"\n' +
-                '- action chỉ là: "MUA" | "TRÁNH" | "THEO DÕI"\n' +
-                '- horizon chỉ là: "NGẮN HẠN" | "DÀI HẠN" | "CẢ HAI"\n' +
-                '- Liệt kê ít nhất 5 mã đề cập trong báo cáo';
+                'BÀI TẬP TRÍCH XUẤT JSON TỪVN REPORT\n\n' +
+                'Báo cáo gốc:\n---\n' + reportRaw.slice(0, 5000) + '\n---\n\n' +
+                'HƯỚNG DẪN: Trích xuất và tạo một JSON object từ báo cáo trên.\n' +
+                'OUTPUT: CHỈ JSON OBJECT, KHÔNG TEXT, KHÔNG MARKDOWN, KHÔNG GIẢI THÍCH.\n' +
+                'PHẢI CÓ ÍT NHẤT 5 MÃ CỔ PHIẾU trong topPicks.\n\n' +
+                'JSON format:\n{\n' +
+                '  "sentiment": "TÍCH CỰC"|"TRUNG TÍNH"|"TIÊU CỰC",\n' +
+                '  "summary": "Một câu tóm tắt",\n' +
+                '  "topPicks": [\n' +
+                '    {"symbol":"FPT","action":"MUA","horizon":"NGẮN HẠN","reason":"Ngắn gọn","score":75},\n' +
+                '    {"symbol":"HPG","action":"TRÁNH","horizon":"NGẮN HẠN","reason":"Ngắn gọn","score":40},\n' +
+                '    ... 3 mã thêm nữa\n' +
+                '  ]\n' +
+                '}\n\n' +
+                'GỬI LẠI JSON NGAY, KHÔNG GIẢI THÍCH, KHÔNG TEXT KHÁC.';
 
             const { text: reText } = await callGeminiInsight(reExtractPrompt, { maxTokens: 1000, temperature: 0.1 });
             const cleaned = reText.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
@@ -573,13 +561,27 @@ export async function runDailyMarketInsight({ force = false } = {}) {
         }
     }
 
+    if (topPicks.length === 0 && topStocks.length > 0) {
+        console.log(chalk.yellow('[INSIGHT] ⚠️ topPicks vẫn rỗng — dùng fallback topStocks để đảm bảo output không trống.'));
+        topPicks = topStocks.slice(0, 5).map(s => ({
+            symbol:  String(s.symbol).toUpperCase(),
+            action:  'THEO DÕI',
+            horizon: 'CẢ HAI',
+            reason:  'Không parse được topPicks từ phản hồi AI, sử dụng mã thanh khoản cao.',
+            score:   60,
+        }));
+        if (!summary) {
+            summary = 'Không thể parse topPicks từ phản hồi AI, vì vậy dùng danh sách thanh khoản cao để tạo fallback.';
+        }
+    }
+
     console.log(chalk.green(`[INSIGHT] ✅ Xong sau ${((Date.now()-t0)/1000).toFixed(1)}s — sentiment: ${sentiment}, picks: ${topPicks.length}, model: ${usedModel}`));
 
     // 5. Upsert vào DB
     const doc = await MarketInsight.findOneAndUpdate(
         { date: dateStr },
         { date: dateStr, report: reportRaw, summary, topPicks, marketSentiment: sentiment, model: usedModel, scannedAt: new Date() },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
     );
     return doc;
 }
