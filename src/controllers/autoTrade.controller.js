@@ -107,21 +107,21 @@ export const updateAutoTradeSettings = async (req, res) => {
             updates.push(Setting.findOneAndUpdate(
                 { key: 'autoTradeTotalCapital' },
                 { value: Number(totalCapital) },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             ));
         }
         if (maxConcurrent && !isNaN(Number(maxConcurrent))) {
             updates.push(Setting.findOneAndUpdate(
                 { key: 'autoTradeMaxConcurrent' },
                 { value: Number(maxConcurrent) },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             ));
         }
         if (riskLevel && !isNaN(Number(riskLevel))) {
             updates.push(Setting.findOneAndUpdate(
                 { key: 'autoTradeRiskLevel' },
                 { value: Number(riskLevel) },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             ));
         }
         if (isEnabled !== undefined) {
@@ -130,7 +130,7 @@ export const updateAutoTradeSettings = async (req, res) => {
             updates.push(Setting.findOneAndUpdate(
                 { key: 'autoTradeEnabled' },
                 { value: enabledBool },
-                { upsert: true, new: true }
+                { upsert: true, returnDocument: 'after' }
             ));
         }
 
