@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import AutoTrade from '../../models/AutoTrade.js';
 import ExchangeConnection from '../../models/ExchangeConnection.js';
 import ExchangeOrder from '../../models/ExchangeOrder.js';
 import Setting from '../../models/Setting.js';
@@ -164,16 +165,14 @@ export const placeOrder = async ({
         return { success: false, reason: 'MIN_NOTIONAL', exchangeOrderDoc: doc };
     }
 
-    // ── Safety guard: số lệnh live đang mở/user (chỉ check khi ENTRY) ──
-    if (purpose === 'ENTRY') {
-        const liveOpenCount = await ExchangeOrder.countDocuments({
-            username: connectionDoc.username,
-            purpose: 'ENTRY',
-            status: { $in: ['PENDING', 'FILLED', 'PARTIAL'] },
-            // chỉ đếm những entry chưa có exit tương ứng — đơn giản hóa: đếm entry của AutoTrade còn OPEN
+    // ── Safety guard: số lệnh AutoTrade LIVE đang mở/user (chỉ check khi ENTRY) ──
+    if (purpose === 'ENTRY' && autoTradeId) {
+        const liveOpenCount = await AutoTrade.countDocuments({
+            exchangeConnectionId: connectionDoc._id,
+            executionMode: 'LIVE',
+            status: { $in: ['OPEN', 'PENDING'] },
         });
-        if (liveOpenCount >= limits.maxLiveOrdersPerUser * 3) {
-            // *3 vì FILLED entry cũ vẫn nằm trong log; guard chính nằm ở engine (đếm AutoTrade LIVE OPEN)
+        if (liveOpenCount >= limits.maxLiveOrdersPerUser) {
             const doc = await logOrder({ status: 'FAILED', errorMessage: `Đã chạm giới hạn số lệnh live (${limits.maxLiveOrdersPerUser}).` });
             return { success: false, reason: 'MAX_LIVE_ORDERS', exchangeOrderDoc: doc };
         }

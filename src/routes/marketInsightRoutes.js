@@ -26,7 +26,7 @@ const router = express.Router();
 
 // ── Middleware: Basic rate-limit per IP ───────────────────────────────────────
 const scanCooldowns = new Map(); // ip → lastScanTime
-const SCAN_COOLDOWN_MS = 5 * 60 * 1000; // 5 phút giữa các lần force scan
+const SCAN_COOLDOWN_MS = 10 * 1000; // 10 giây giữa các lần force scan (test)
 
 function scanRateLimit(req, res, next) {
     const ip = req.ip || req.connection?.remoteAddress || 'unknown';
@@ -69,10 +69,13 @@ router.get('/today', async (req, res) => {
         let insight;
 
         if (isForce) {
-            console.log(chalk.cyan(`[INSIGHT API] Force scan triggered by ${ip}`));
+            console.error(`[INSIGHT ROUTE DEBUG] Force scan triggered by ${ip}, cooldown: ${Date.now() - (scanCooldowns.get(ip) || 0)}`);
             scanCooldowns.set(ip, Date.now());
+            console.error(`[INSIGHT ROUTE DEBUG] Calling runDailyMarketInsight...`);
             insight = await runDailyMarketInsight({ force: true });
+            console.error(`[INSIGHT ROUTE DEBUG] runDailyMarketInsight returned:`, { picks: insight?.topPicks?.length });
         } else {
+            console.error(`[INSIGHT ROUTE DEBUG] Cache fetch for today`);
             insight = await getTodayInsight();
         }
 
