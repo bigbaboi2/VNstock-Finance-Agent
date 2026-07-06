@@ -158,6 +158,19 @@ export const binanceAdapter = {
         }
     },
 
+    async listTradableSymbols(environment, marketType = 'SPOT') {
+        if (String(marketType).toUpperCase() !== 'SPOT') return [];
+        try {
+            const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+            const res = await axios.get(`${base}/api/v3/exchangeInfo`, { timeout: 15000 });
+            return (res.data.symbols || [])
+                .filter(s => s.status === 'TRADING' && s.quoteAsset === 'USDT')
+                .map(s => s.symbol);
+        } catch {
+            return [];
+        }
+    },
+
     async getSymbolInfo(symbol, environment) {
         try {
             const base = BASE_URLS[environment] || BASE_URLS.TESTNET;

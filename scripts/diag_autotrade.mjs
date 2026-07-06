@@ -76,7 +76,10 @@ const printStats = (label, trades) => {
 
 const run = async () => {
     if (!process.env.MONGODB_URI) { console.error('Thiếu MONGODB_URI'); process.exit(1); }
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 15000,
+        family: 4, // tránh lỗi IPv6 trên Windows khi Atlas chỉ resolve AAAA
+    });
     console.log('✓ Connected. DB =', mongoose.connection.name);
 
     const totalClosed = await AutoTrade.countDocuments({ status: 'CLOSED' });

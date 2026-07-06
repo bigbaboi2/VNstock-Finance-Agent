@@ -6,7 +6,7 @@ import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../s
 //OMNI DUCK — DEBATE PIPELINE
 //=========================================================
 
-export async function runDebatePipeline(ticker, data, emitProgress, onDebateChunk = () => {}) {
+export async function runDebatePipeline(ticker, data, emitProgress, onDebateChunk = () => {}, reqContext = { isDisconnected: false }) {
     const companyName = data?.companyProfile?.companyName || ticker;
 
     emitProgress({ step: 'DEBATE_INIT', message: 'Triệu tập Hội đồng Phân tích Độc lập...', progress: 60 });
@@ -68,6 +68,7 @@ Nếu dữ liệu tồn tại các indicator sau, hãy sử dụng để xác nh
 - RSI
 - MACD
 - Bollinger Bands
+- VIDYA (Variable Index Dynamic Average) và Two-Pole SuperSmoother để xác nhận xem xu hướng hiện tại là thực (Trend) hay chỉ là biến động nhiễu (Sideway Noise)
 để xác nhận nhận định.
 Không được bỏ qua indicator nếu dữ liệu có sẵn.
 Yêu cầu:
@@ -191,6 +192,8 @@ Bias: Bullish / Neutral / Bearish
 Giới hạn: 180 từ.
 `;
 
+    if (reqContext.isDisconnected) throw new Error('Client disconnected during debate phase 1');
+
     const [techRes, fundRes, newsRes] = await Promise.all([
         //Technical — Fast Groq + Cerebras fallback (128K context is enough for technical data)
         generateWithRole('tech', [{ text: techPrompt }]),
@@ -275,6 +278,7 @@ Giới hạn: 180 từ.
     Giới hạn 280 từ.
     `;
     //Bulls — Groq (fast, optimistic, looking for reasons to buy)
+    if (reqContext.isDisconnected) throw new Error('Client disconnected before bull opening');
     const bullRes = await generateWithRole('bull', [{ text: bullPrompt }]);
     const bullCase = typeof bullRes === 'string' ? bullRes : bullRes.response?.text?.() || bullRes;
     onDebateChunk({ type: 'bull', content: bullCase }); //✅
@@ -321,6 +325,7 @@ Giới hạn: 180 từ.
     Giới hạn 280 từ.
     `;
     //Bears — Cerebras (good reasoning, finding weaknesses)
+    if (reqContext.isDisconnected) throw new Error('Client disconnected before bear rebuttal');
     const bearRes = await generateWithRole('bear', [{ text: bearPrompt }]);
     const bearCase = typeof bearRes === 'string' ? bearRes : bearRes.response?.text?.() || bearRes;
     onDebateChunk({ type: 'bear', content: bearCase }); //Call
@@ -353,6 +358,7 @@ Mức độ tự tin: X/10
 Giới hạn 180 từ.
 `;
     //Bull counterattack — Groq/Cerebras (needs to be fast and logical)
+    if (reqContext.isDisconnected) throw new Error('Client disconnected before bull defense');
     const bullDefenseRes = await generateWithRole('bull_defense', [{ text: bullDefensePrompt }]);
     const bullDefense = typeof bullDefenseRes === 'string' ? bullDefenseRes : bullDefenseRes.response?.text?.() || bullDefenseRes;
     onDebateChunk({ type: 'def', content: bullDefense });
@@ -432,6 +438,7 @@ Tổng độ dài dưới 700 từ.
 `;
 
      //Portfolio Manager — Groq (summary, final decision)
+     if (reqContext.isDisconnected) throw new Error('Client disconnected before PM decision');
      const pmRes = await generateWithRole('pm', [{ text: pmPrompt }]);
     const pmDecision = typeof pmRes === 'string' ? pmRes : pmRes.response?.text?.() || pmRes;
     onDebateChunk({ type: 'pm', content: pmDecision });
@@ -469,6 +476,7 @@ ${pmDecision}`;
     };
 
     try {
+        if (reqContext.isDisconnected) throw new Error('Client disconnected before action panel extraction');
         //Action panel JSON — Gemini Flash most stable for JSON output, Groq fallback
         const jsonText = await generateWithRole('json', [
             { text: actionPanelPrompt }

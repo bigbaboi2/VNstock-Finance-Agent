@@ -173,6 +173,7 @@ useEffect(() => {
   const [newsMode, setNewsMode] = useState(() => localStorage.getItem('omni_newsMode') || 'balanced'); //balanced | fast | deep | ultra
 
   const eventSourceRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
   const lastActionNewsKeysRef = useRef([]);
@@ -806,6 +807,29 @@ const derivAnalysis = React.useMemo(() => {
         console.error("Lỗi lấy lịch sử:", error);
     }
   };
+
+  const fetchVnIndexData = async () => {
+    try {
+      const res = await axios.get('/api/market/vnindex');
+      if (res.data.success) {
+        setVnIndexData(res.data.data);
+      }
+    } catch (e) {
+      console.log('Lỗi lấy VNIndex', e);
+    }
+  };
+
+  const cancelAnalysis = () => {
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+        setAnalysisStep('Đã hủy phân tích.');
+        setAnalyzing(false);
+        setAnalysisProgress(0);
+        addLog('[SYSTEM] Người dùng đã hủy luồng phân tích AI.');
+    }
+  };
+
   const fetchHeatmap = useCallback(async () => {
       setLoadingHeatmap(true);
       try {
@@ -987,7 +1011,7 @@ useEffect(() => {
         const aSym = a.symbol?.toUpperCase() || '';
         const bSym = b.symbol?.toUpperCase() || '';
         if (aSym === keyword) return -1;
-        if (bSym === keyword) return 1;
+        if (aSym === keyword) return 1;
         if (aSym.startsWith(keyword) && !bSym.startsWith(keyword)) return -1;
         if (!aSym.startsWith(keyword) && bSym.startsWith(keyword)) return 1;
         return aSym.localeCompare(bSym);
@@ -1329,6 +1353,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         const baseUrl = API_BASE_URL; // dev: '' → relative qua proxy; prod: URL backend
         const streamUrl = `${baseUrl}/api/ai/analyze/${marketData.stockInfo.symbol}/stream`.replace(/([^:]\/)\/+/g, "$1");
 
+        abortControllerRef.current = new AbortController();
+
         const response = await fetch(streamUrl, {
             method: 'POST',
             headers: {
@@ -1336,6 +1362,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 Accept: 'text/event-stream',
             },
             body: JSON.stringify(aiPayload),
+            signal: abortControllerRef.current.signal,
         });
 
         if (!response.ok || !response.body) {
@@ -1709,6 +1736,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             vn30Data={vn30Data}
             marketIntel={marketIntel}
             handleAiAnalysis={handleAiAnalysis}
+            cancelAnalysis={cancelAnalysis}
             handleIntervalChange={handleIntervalChange}
             fetchAiNews={fetchAiNews}
             stopNewsStream={stopNewsStream}

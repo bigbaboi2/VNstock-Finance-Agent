@@ -156,6 +156,23 @@ export const okxAdapter = {
         }
     },
 
+    async listTradableSymbols(environment, marketType = 'SPOT') {
+        try {
+            const instType = String(marketType).toUpperCase() === 'FUTURES' ? 'SWAP' : 'SPOT';
+            const headers = {};
+            if (environment === 'TESTNET') headers['x-simulated-trading'] = '1';
+            const res = await axios.get(
+                `${BASE_URL}/api/v5/public/instruments?instType=${instType}`,
+                { headers, timeout: 15000 }
+            );
+            return (res.data.data || [])
+                .filter(s => s.state === 'live' && String(s.instId).endsWith('-USDT'))
+                .map(s => s.instId.replace('-', ''));
+        } catch {
+            return [];
+        }
+    },
+
     async getSymbolInfo(symbol) {
         try {
             const instId = toOkxInstId(symbol);

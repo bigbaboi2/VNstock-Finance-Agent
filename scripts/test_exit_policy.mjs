@@ -1,6 +1,6 @@
 // UNIT TEST (không cần DB/network) — kiểm chứng logic Policy E: evaluateExitDecision
 // + công thức PnL partial. Dùng: node scripts/test_exit_policy.mjs
-import { evaluateExitDecision } from '../src/services/autoTradeEngine.js';
+import { evaluateExitDecision, isHardAIRejection, parseAISignalVerdict } from '../src/services/autoTradeEngine.js';
 
 let pass = 0, fail = 0;
 const approx = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
@@ -79,6 +79,20 @@ console.log('G) Công thức PnL partial: 60% @ TP1(+1.5%) + 40% @ TP2(+3%), fee
     check('tổng pnl% = 1.90', approx(Math.round(total * 100) / 100, 1.90), `=${total}`);
     // So với all-in cũ giữ tới TP2 trừ phí: 3.0 - 0.2 = 2.8 nhưng WR thấp hơn nhiều.
     console.log(`     → partial khoá chắc ${total.toFixed(2)}% với xác suất đạt cao hơn (TP1 gần).`);
+}
+
+console.log('H) Parser AI: lấy phán quyết cuối cùng, không ăn nhầm chữ trong giải thích');
+{
+    check('BÁC BỎ dù câu giải thích có chữ xác nhận', parseAISignalVerdict('Thiếu sự xác nhận từ EMA.\n\n**BÁC BỎ**') === false);
+    check('XÁC NHẬN khi kết luận cuối là xác nhận', parseAISignalVerdict('Có vài rủi ro nhỏ nhưng tín hiệu chính đồng thuận.\n\nXÁC NHẬN') === true);
+    check('BÁC BỎ thắng nếu xuất hiện sau XÁC NHẬN', parseAISignalVerdict('Ban đầu có thể XÁC NHẬN, nhưng dữ liệu mới đảo chiều.\nKết luận: BÁC BỎ') === false);
+}
+
+console.log('I) Idle AI guard: phân biệt bác bỏ mềm và veto cứng');
+{
+    check('Thiếu xác nhận phụ là bác bỏ mềm', isHardAIRejection('Thị trường đi ngang và thiếu xác nhận phụ.\nBÁC BỎ') === false);
+    check('Fake breakout là veto cứng', isHardAIRejection('Có dấu hiệu fake breakout rõ và ngược xu hướng khung lớn.\nBÁC BỎ') === true);
+    check('Short squeeze là veto cứng', isHardAIRejection('Long/Short ratio lệch mạnh, rủi ro short squeeze cao.\nBÁC BỎ') === true);
 }
 
 console.log(`\n${fail === 0 ? '✅ TẤT CẢ PASS' : '❌ CÓ TEST FAIL'} — ${pass} pass / ${fail} fail`);

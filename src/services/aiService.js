@@ -539,6 +539,28 @@ const buildAnalyzePromptParts = (ticker, data, debateResult = null) => {
     ${debateResult.pmDecision}
     ` : '';
     
+    const actionPlanInstruction = debateResult?.actionPanelData ? `
+## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
+Dựa trên các phân tích định lượng và định tính kỹ lưỡng, BẮT BUỘC SỬ DỤNG CHÍNH XÁC KẾT QUẢ SAU ĐÂY TỪ HỘI ĐỒNG AI:
+- <span style="color:#f59e0b;font-weight:900;font-size:1.125rem">RATING: ${debateResult.actionPanelData.action}</span>
+- **Vùng Mua (Entry):** ${debateResult.actionPanelData.entry}
+- **Cắt Lỗ (Stoploss):** ${debateResult.actionPanelData.stoploss}
+- **Chốt Lời Ngắn Hạn (Target):** ${debateResult.actionPanelData.target1}
+- **Thời Gian Ngắn Hạn:** ${debateResult.actionPanelData.horizon}
+- **Mục Tiêu Dài Hạn:** ${debateResult.actionPanelData.target2 !== 'N/A' && debateResult.actionPanelData.target2 ? debateResult.actionPanelData.target2 : (debateResult.actionPanelData.longTermTarget || 'Không áp dụng')}
+- **Thời Gian Dài Hạn:** ${debateResult.actionPanelData.longTermHorizon || 'Không áp dụng'}
+- **Kế hoạch Vốn (Position Sizing):** Mức độ tự tin ${debateResult.actionPanelData.conviction}. Lý do: ${debateResult.actionPanelData.reason}` : `
+## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
+Dựa trên mục tiêu lợi nhuận, ( giả định cả đang nắm giữ cho mục tiêu bán) đây là kịch bản chuẩn xác:
+- <span style="color:#f59e0b;font-weight:900;font-size:1.125rem">RATING: [MUA / NẮM GIỮ / BÁN]</span>
+- **Vùng Mua (Entry):** [Mức giá]
+- **Cắt Lỗ (Stoploss):** [Mức giá]
+- **Chốt Lời Ngắn Hạn (Target):** [Mức giá]
+- **Thời Gian Ngắn Hạn:** [Dự kiến bao lâu đạt Target, VD: 3-5 phiên, 1-2 tuần]
+- **Mục Tiêu Dài Hạn:** [Mức giá mục tiêu 6-12 tháng tới]
+- **Thời Gian Dài Hạn:** [Dự kiến bao lâu đạt mốc Dài Hạn, VD: 2 quý, năm 2026]
+- **Kế hoạch Vốn (Position Sizing):** [% NAV]`;
+
    const systemPrompt = `Bạn là Giám đốc Nghiên cứu Chiến lược Phân tích Định lượng của hệ thống OMNI DUCK. 
 Nhiệm vụ của bạn là tổng hợp toàn bộ dữ liệu thị trường thực tế (Cafef, Entrade) kết hợp với SIÊU VĂN BẢN KHÁCH QUAN TRÍCH XUẤT TỪ FILE PDF mặc định (Xử lý bởi Docling).
 
@@ -575,16 +597,7 @@ QUY TẮC TÔ MÀU (KỶ LUẬT THÉP - TIẾT CHẾ TỐI ĐA):
 - Tích cực: bọc trong <span style="color:#10b981;font-weight:900;text-transform:uppercase">từ khóa</span>
 - Tiêu cực: bọc trong <span style="color:#ef4444;font-weight:900;text-transform:uppercase">từ khóa</span>
  
-## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
-Dựa trên mục tiêu lợi nhuận, ( giả định cả đang nắm giữ cho mục tiêu bán) đây là kịch bản chuẩn xác:
-- <span style="color:#f59e0b;font-weight:900;font-size:1.125rem">RATING: [MUA / NẮM GIỮ / BÁN]</span>
-- **Vùng Mua (Entry):** [Mức giá]
-- **Cắt Lỗ (Stoploss):** [Mức giá]
-- **Chốt Lời Ngắn Hạn (Target):** [Mức giá]
-- **Thời Gian Ngắn Hạn:** [Dự kiến bao lâu đạt Target, VD: 3-5 phiên, 1-2 tuần]
-- **Mục Tiêu Dài Hạn:** [Mức giá mục tiêu 6-12 tháng tới]
-- **Thời Gian Dài Hạn:** [Dự kiến bao lâu đạt mốc Dài Hạn, VD: 2 quý, năm 2026]
-- **Kế hoạch Vốn (Position Sizing):** [% NAV]`;
+${actionPlanInstruction}`;
 
     const userPrompt = `DỮ LIỆU ĐẦU VÀO TỪ HỆ THỐNG:
 1. Thông tin doanh nghiệp: ${companyName}
@@ -828,6 +841,7 @@ export async function analyzeCryptoSignalWithGemini(symbol, liveData) {
     - Giá: ${liveData.currentPrice} | Score: ${liveData.technicalScore}/100
     - RSI: ${liveData.techDetails?.rsi} | MACD: ${liveData.techDetails?.macdLine}
     - ATR: ${liveData.techDetails?.atr} | CVD: ${liveData.techDetails?.cvd}
+    - VIDYA (9): ${liveData.techDetails?.vidya} | Two-Pole (15): ${liveData.techDetails?.twoPole}
 
     --- DỮ LIỆU PHÁI SINH ---
     - Funding Rate: ${liveData.derivatives?.fundingRate}%

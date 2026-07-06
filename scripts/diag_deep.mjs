@@ -38,7 +38,10 @@ const stat = (label, trades) => {
 };
 
 const run = async () => {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 15000,
+        family: 4,
+    });
     console.log('✓ DB =', mongoose.connection.name);
 
     const q = { status: 'CLOSED' };
@@ -101,6 +104,25 @@ const run = async () => {
         const med = atrs[Math.floor(atrs.length / 2)];
         console.log(`   ATR% median ≈ ${f(med)}% → TP cũ = 4×ATR ≈ ${f(med * 4)}% xa | SL = 2×ATR ≈ ${f(med * 2)}% | R:R 2:1`);
         console.log(`   (đối chiếu: avgWin thực chỉ ~1.3% → winner ăn chưa tới 1×ATR rồi quay đầu)`);
+    }
+
+    console.log('\n━━━━━━ 6) qualityScore (signalBreakdown) ━━━━━━');
+    const withQ = trades.filter(t => Number(t.signalBreakdown?.qualityScore) > 0);
+    if (withQ.length) {
+        const buckets = { '<72': [], '72-81': [], '>=82': [] };
+        for (const t of withQ) {
+            const q = t.signalBreakdown.qualityScore;
+            if (q < 72) buckets['<72'].push(t);
+            else if (q < 82) buckets['72-81'].push(t);
+            else buckets['>=82'].push(t);
+        }
+        for (const [k, list] of Object.entries(buckets)) {
+            if (!list.length) { console.log(`   ${k}: 0`); continue; }
+            const w = list.filter(t => t.pnlPercent > 0).length;
+            console.log(`   ${k}: ${list.length} lệnh | WR ${f(w / list.length * 100, 0)}% | PnL ${f(list.reduce((s, t) => s + t.pnlPercent, 0))}%`);
+        }
+    } else {
+        console.log('   Chưa có lệnh với qualityScore (chờ engine mới chạy thêm).');
     }
 
     await mongoose.disconnect();

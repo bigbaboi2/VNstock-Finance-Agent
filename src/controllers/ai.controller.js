@@ -1,6 +1,7 @@
 import axios from 'axios';
 import chalk from 'chalk';
 import Stock from '../../models/Stock.js';
+import PartialAnalysis from '../../models/PartialAnalysis.js';
 import DerivNews from '../../models/DerivNews.js';
 import crypto from 'crypto';
 import { runDebatePipeline } from '../services/hedgeFundEngine.js';
@@ -304,7 +305,7 @@ export const analyzeDerivatives = async (req, res) => {
     }
 };
 
-const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null, onChunk = null, onDebateChunk = () => {}) => {
+const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {}, inputHash = null, onChunk = null, onDebateChunk = () => {}, reqContext = { isDisconnected: false }, partialState = null) => {
     if (!fullData || !fullData.stockInfo) {
         const err = new Error('Thiếu dữ liệu.');
         err.statusCode = 400;
@@ -313,10 +314,10 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
 
     emitProgress({ step: 'INIT', message: 'Khởi tạo engine phân tích và kiểm tra dữ liệu đầu vào', progress: 5 });
 
-        let masterRecord = await Stock.findOne({ symbol: ticker });
-        if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
+    let masterRecord = await Stock.findOne({ symbol: ticker });
+    if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
 
-        let previousAnalysis = null;
+    let previousAnalysis = null;
     if (masterRecord.reports && masterRecord.reports.length > 0) {
         const latestUserReport = getLatestUserReport(masterRecord, user);
         if (latestUserReport) {
@@ -328,6 +329,11 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     const pdfMode = fullData.pdfMode || 'turbo';
 
     const fetchMarketContext = async () => {
+        if (partialState?.fullData?.marketContext) {
+            emitProgress({ step: 'MARKET_CONTEXT_CACHE', message: 'Đã có dữ liệu bối cảnh thị trường từ bản nháp', progress: 14 });
+            return partialState.fullData.marketContext;
+        }
+        if (reqContext.isDisconnected) return null;
         emitProgress({ step: 'MARKET_CONTEXT', message: 'Đang lấy dữ liệu thị trường VN-Index và độ rộng thị trường', progress: 14 });
         const marketScraped = await scrapeCafefMarketOverview();
         const to = Math.floor(Date.now() / 1000);
@@ -345,6 +351,11 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     };
 
     const fetchMacroNews = async () => {
+        if (partialState?.fullData?.macroNews) {
+            emitProgress({ step: 'MACRO_NEWS_CACHE', message: 'Đã có tin vĩ mô từ bản nháp', progress: 20 });
+            return partialState.fullData.macroNews;
+        }
+        if (reqContext.isDisconnected) return [];
         emitProgress({ step: 'MACRO_NEWS', message: 'Đang đọc dữ liệu tin vĩ mô và sentiment thị trường', progress: 20 });
         const macroNews = await DerivNews.find()
             .sort({ timestamp: -1 })
@@ -369,11 +380,12 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
             emitProgress({ step: 'MARKET_CONTEXT_FAILED', message: 'Không lấy được bối cảnh thị trường, tiếp tục với dữ liệu đang có', progress: 42 });
             return null;
         }),
-        getMarkdownFromTcbsPdf(ticker, pdfMode, emitProgress).catch(err => {
+        partialState?.fullData?.tcbsMarkdownData ? Promise.resolve(partialState.fullData.tcbsMarkdownData) :
+        (reqContext.isDisconnected ? Promise.resolve(null) : getMarkdownFromTcbsPdf(ticker, pdfMode, emitProgress).catch(err => {
             console.log(chalk.red('[AI] getMarkdownFromTcbsPdf lỗi:', err.message));
             emitProgress({ step: 'TCBS_PDF_FAILED', message: 'Không bóc tách được BCTC PDF, tiếp tục với dữ liệu đang có', progress: 46 });
             return null;
-        }),
+        })),
         fetchMacroNews().catch(err => {
             console.log(chalk.red('[AI] fetchMacroNews lỗi:', err.message));
             emitProgress({ step: 'MACRO_NEWS_FAILED', message: 'Không lấy được tin vĩ mô, tiếp tục với dữ liệu đang có', progress: 40 });
@@ -381,16 +393,48 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         }),
     ]);
 
+    if (reqContext.isDisconnected) {
+        fullData.marketContext = marketContext;
+        fullData.tcbsMarkdownData = markdownData;
+        fullData.macroNews = macroNews;
+        const abortErr = new Error('Client disconnected during data fetch');
+        abortErr.isAbort = true;
+        abortErr.fullData = fullData;
+        throw abortErr;
+    }
+
     emitProgress({ step: 'DATA_MERGE', message: 'Đang hợp nhất dữ liệu BCTC, lịch sử giá, tin tức và market context', progress: 54 });
     if (marketContext)         fullData.marketContext     = marketContext;
     else                       fullData.marketContext     = "Không có dữ liệu bối cảnh thị trường lúc này.";
     if (markdownData)          fullData.tcbsMarkdownData  = markdownData;
     if (macroNews?.length > 0) fullData.macroNews         = macroNews;
 
-    const debateResult = await runDebatePipeline(ticker, fullData, emitProgress, onDebateChunk);
+    let debateResult = partialState?.debateResult;
+    if (!debateResult) {
+        debateResult = await runDebatePipeline(ticker, fullData, emitProgress, onDebateChunk, reqContext);
+    } else {
+        emitProgress({ step: 'DEBATE_CACHE', message: 'Sử dụng phán quyết AI từ bản nháp', progress: 85 });
+    }
     fullData.debateResult = debateResult;
+
+    if (reqContext.isDisconnected) {
+        const abortErr = new Error('Client disconnected after debate');
+        abortErr.isAbort = true;
+        abortErr.fullData = fullData;
+        abortErr.debateResult = debateResult;
+        throw abortErr;
+    }
+
     emitProgress({ step: 'AI_GENERATING', message: 'Đang tổng hợp báo cáo chiến lược cuối cùng...', progress: 86 });
     const aiReport = await analyzeWithGeminiStream(ticker, fullData, emitProgress, onChunk);
+
+    if (reqContext.isDisconnected) {
+        const abortErr = new Error('Client disconnected during streaming');
+        abortErr.isAbort = true;
+        abortErr.fullData = fullData;
+        abortErr.debateResult = debateResult;
+        throw abortErr;
+    }
 
     const actionPanelData = debateResult.actionPanelData;
     const finalAction = actionPanelData?.action || 'QUAN SÁT';
@@ -438,8 +482,9 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     const user = fullData.user || 'Unknown';
     const startedAt = Date.now();
     let lastProgress = 1;
+    const reqContext = { isDisconnected: false };
 
-        res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
     res.setHeader('ngrok-skip-browser-warning', 'true');
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -447,7 +492,14 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
+    res.on('close', () => { 
+        if (!res.writableEnded) {
+            reqContext.isDisconnected = true; 
+        }
+    });
+
     const writeEvent = (event, payload) => {
+        if (reqContext.isDisconnected) return;
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
@@ -492,11 +544,23 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
                 cached: true, 
                 elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) 
             });
-            res.end();
+            if (!reqContext.isDisconnected) res.end();
             return;
         }
 
-        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash, onChunk, onDebateChunk);
+        const partialDoc = await PartialAnalysis.findOne({ symbol: ticker, user });
+        const partialState = partialDoc ? partialDoc.toObject() : null;
+        if (partialState) {
+            emitProgress({ step: 'RESUME', message: 'Tìm thấy bản nháp đang phân tích dở dang, đang tiếp tục...', progress: 10 });
+        }
+
+        const result = await runStockAnalysis(ticker, fullData, user, emitProgress, inputHash, onChunk, onDebateChunk, reqContext, partialState);
+        
+        // Clean up partial state if successful
+        if (partialState) {
+            await PartialAnalysis.deleteOne({ symbol: ticker, user });
+        }
+
         writeEvent('done', { 
             success: true, 
             actionPanelData: result.actionPanelData,
@@ -504,10 +568,27 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
             cached: false, 
             elapsedSeconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)) 
         });
-        res.end();
+        if (!reqContext.isDisconnected) res.end();
     } catch (error) {
+        if (error.isAbort) {
+            console.log(chalk.yellow(`[AI CORE] Phân tích bị hủy bởi người dùng (${ticker}). Đang lưu trạng thái...`));
+            await PartialAnalysis.findOneAndUpdate(
+                { symbol: ticker, user },
+                {
+                    $set: {
+                        symbol: ticker,
+                        user,
+                        fullData: error.fullData || null,
+                        debateResult: error.debateResult || null,
+                        createdAt: new Date()
+                    }
+                },
+                { upsert: true, setDefaultsOnInsert: true }
+            );
+            return;
+        }
         writeEvent('error', { success: false, message: error.message });
-        res.end();
+        if (!reqContext.isDisconnected) res.end();
     }
 };
 

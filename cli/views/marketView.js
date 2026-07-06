@@ -1,6 +1,6 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
-import { ScreenBuffer, padVisible, getTermSize } from './screenManager.js';
+import { ScreenBuffer, padVisible, getTermSize } from '../screenManager.js';
 
 export function buildMarketBuffer(apiResponse) {
     const buf      = new ScreenBuffer();
