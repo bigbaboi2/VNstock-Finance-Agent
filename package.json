@@ -6,7 +6,12 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev:backend": "nodemon src/server.js",
+    "dev:backend": "nodemon --exec \"node --use-system-ca\" src/server.js",
+    "diag:autotrade": "node --use-system-ca scripts/diag_autotrade.mjs",
+    "diag:deep": "node --use-system-ca scripts/diag_deep.mjs",
+    "test:entry-setup": "node scripts/test_entry_setup.mjs",
+    "test:exit-policy": "node scripts/test_exit_policy.mjs",
+    "test:testnet-gate": "node scripts/test_testnet_symbol_gate.mjs",
     "dev:tunnel": "cross-env npx ngrok http --domain=%NGROK_DOMAIN% 3001",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:tunnel\""
   },

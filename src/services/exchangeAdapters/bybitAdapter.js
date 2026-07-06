@@ -144,6 +144,22 @@ export const bybitAdapter = {
         }
     },
 
+    async listTradableSymbols(environment, marketType = 'SPOT') {
+        try {
+            const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+            const category = String(marketType).toUpperCase() === 'FUTURES' ? 'linear' : 'spot';
+            const res = await axios.get(
+                `${base}/v5/market/instruments-info?category=${category}`,
+                { timeout: 15000 }
+            );
+            return (res.data.result?.list || [])
+                .filter(s => s.status === 'Trading' && String(s.symbol).endsWith('USDT'))
+                .map(s => s.symbol);
+        } catch {
+            return [];
+        }
+    },
+
     async getSymbolInfo(symbol, environment) {
         try {
             const base = BASE_URLS[environment] || BASE_URLS.TESTNET;

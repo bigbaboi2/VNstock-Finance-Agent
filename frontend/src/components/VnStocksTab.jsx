@@ -1037,6 +1037,7 @@ export default function VnStocksTab({
   vnReportTimestamp,
   debateResult,
   liveDebate = {},
+  cancelAnalysis,
 }) {
   const [mobileTab, setMobileTab] = useState('ai');
   // STATES & REFS
@@ -1781,11 +1782,16 @@ export default function VnStocksTab({
                             handleAiAnalysis(false);
                             setIsRightColOpen(false);
                             setMobileTab('ai'); // Tự động nhảy sang tab AI khi bắt đầu phân tích
-                        }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-black/40 text-slate-500 cursor-not-allowed border border-white/6' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
+                        }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-black/40 text-slate-500 cursor-not-allowed border border-white/6 hidden' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
                           <BrainCircuit size={18} className={analyzing ? 'animate-pulse' : ''} />
                           {analyzing ? 'OMNI DUCK ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
                         </button>
-                        {marketData && (
+                        {analyzing && (
+                          <button onClick={cancelAnalysis} className={`w-full h-10 rounded-xl font-black text-[11px] tracking-widest uppercase transition-all flex items-center justify-center gap-2 border border-dashed active:scale-95 ${isDark ? 'border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500' : 'border-red-400 text-red-600 hover:bg-red-50 hover:border-red-500'}`}>
+                            <X size={16} /> HỦY PHÂN TÍCH (LƯU BẢN NHÁP)
+                          </button>
+                        )}
+                        {marketData && !analyzing && (
                           <button onClick={() => { 
                               setIsChatOpen(true); 
                               setMobileTab('ai'); // Tự động chuyển sang AI nếu mở Chat từ tab Dữ liệu

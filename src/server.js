@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import chalk from 'chalk';
@@ -32,6 +31,7 @@ import autoTradeRoutes from './routes/autoTrade.routes.js';
 import telegramRoutes from './routes/telegram.routes.js';
 import exchangeConnectionRoutes from './routes/exchangeConnection.routes.js';
 import marketInsightRouter from './routes/marketInsightRoutes.js';
+import { processExternalSignal } from './controllers/externalSignal.controller.js';
 
 // Import Jobs & Services
 import { updateSymbolsDatabase } from './services/symbolUpdater.js';
@@ -39,7 +39,7 @@ import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import { startPortfolioMatcher } from './jobs/portfolioMatcher.js';
 import { startDerivUpdater } from './jobs/derivUpdater.js';
 import { startCronJobs } from './jobs/newsCron.js';
-import { startAutoDuckScheduler, handleTelegramCommand } from './services/autoTradeEngine.js';
+import { startAutoDuckScheduler } from './services/autoTradeEngine.js';
 import { scheduleMarketInsight } from './services/marketInsightService.js';
 
 const app = express();
@@ -66,6 +66,7 @@ app.use('/api/history',      historyRoutes);
 app.use('/api/auto-trade', autoTradeRoutes);
 app.use('/api/telegram',  telegramRoutes);
 app.use('/api/exchange-connections', exchangeConnectionRoutes);
+app.post('/api/v1/signals/external', processExternalSignal);
 
 // ─── Flat alias routes  ────────────────────────
 
