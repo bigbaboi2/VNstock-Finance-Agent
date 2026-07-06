@@ -1,113 +1,83 @@
 ---
 name: understand-project-structure
-description: Skill to help AI agents understand the directory structure, file purposes, and overall architecture of the VNstock-Finance-Agent project to save tokens and locate files quickly.
+description: Fast onboarding map for ProjectFinance so agents can locate files, avoid path pitfalls, and spend fewer tokens when debugging or implementing features.
 ---
 
-# VNstock-Finance-Agent: Project Structure Guide
+# ProjectFinance: Token-Saving Structure Guide
 
-When working on this project, use this guide to quickly locate the correct files and understand the architecture without needing to manually explore the directory tree. This saves context tokens and time.
+Use this file as a **2-minute map** before reading code. It is optimized for agents that need to find the right files fast, avoid duplicate exploration, and reduce context usage.
 
-> [!NOTE]
-> **For a deep-dive into the core business logic, final outputs, and execution flow of major files, please read:**
-> [PROJECT_ARCHITECTURE_DETAIL.md](file:///g:/ProjectFinance/.agents/skills/project-structure-guide/references/PROJECT_ARCHITECTURE_DETAIL.md)
+## Read Order (Mandatory)
 
-## High-Level Architecture
+1. Read this file first.
+2. Read quick map: [QUICK_MAP.md](file:///g:/ProjectFinance/.agents/skills/project-structure-guide/references/QUICK_MAP.md)
+3. Read deep architecture only if needed: [PROJECT_ARCHITECTURE_DETAIL.md](file:///g:/ProjectFinance/.agents/skills/project-structure-guide/references/PROJECT_ARCHITECTURE_DETAIL.md)
 
-The project is a full-stack application:
-- **Backend**: Node.js + Express (located in `/src`, `/models`).
-- **Frontend**: React + Vite (located in `/frontend`).
-- **CLI**: A command-line tool for interacting with the system (located in `/cli`).
-- **Database**: MongoDB (Mongoose models in `/models`).
+## High-Level System
 
----
+- Backend: Node.js + Express in `/src`, models in `/models`
+- Frontend: React + Vite in `/frontend`
+- CLI: tools in `/cli`
+- DB: MongoDB (Mongoose models)
 
-## Backend Directory (`/src` & `/models`)
+## Critical Path Pitfall (Read Carefully)
 
-### `/models`
-Contains Mongoose database schemas.
-- `AiBehavior.js`: AI behavior configurations.
-- `AutoTrade.js`: Auto-trading rules/logs.
-- `CryptoCoin.js`, `Stock.js`, `DerivNews.js`: Data models for various financial instruments.
-- `User.js`, `UserOrder.js`: User data and portfolio tracking.
-- `Portfolio.js`, `Setting.js`: User portfolio and system settings.
+### Audit log path depends on runtime cwd
 
-### `/src/controllers`
-Handles incoming HTTP requests, invokes services, and sends HTTP responses.
-- `ai.controller.js`: AI-related endpoints.
-- `auth.controller.js`: Authentication.
-- `autoTrade.controller.js`: Automated trading logic.
-- `crypto.controller.js`, `market.controller.js`, `derivatives.controller.js`: Financial data endpoints.
-- `portfolio.controller.js`: Portfolio management.
+- Config key: `AUTODUCK_AUDIT_LOG_DIR` (default `logs/autoduck`)
+- Runtime resolution in `src/services/auditLogService.js` uses `path.resolve(process.cwd(), ...)`
+- If backend starts from project root, logs go to `G:/ProjectFinance/logs/...`
+- If backend starts from `src`, logs go to `G:/ProjectFinance/src/logs/...`
 
-### `/src/routes`
-Express route definitions mapping URLs to controllers.
-- `api.js`: Main router combining all routes.
-- `*.routes.js`: Specific feature routes (e.g., `ai.routes.js`, `crypto.routes.js`).
+Always verify **both** locations when troubleshooting missing logs.
 
-### `/src/services`
-Core business logic, external API integrations, and heavy lifting.
-- `aiService.js`: Integration with AI models.
-- `autoTradeEngine.js`, `quantEngine.js`, `hedgeFundEngine.js`: Trading and quantitative analysis logic.
-- `cryptoService.js`, `marketInsightService.js`: Financial data processing.
-- `telegramService.js`, `telegram_signal_gateway.py`: Telegram bot and signal integrations.
-- `multiProviderRouter.js`: Routing requests to multiple data providers.
+## Directory Map (What to read by task)
 
-### `/src/jobs`
-Cron jobs and background tasks.
-- `cryptoUpdater.js`, `derivUpdater.js`: Background updaters for financial data.
-- `newsCron.js`: Fetching news periodically.
-- `portfolioMatcher.js`: Matching user portfolios with market data.
+### Backend API changes
 
-### `/src/fetchers` & `/src/scrapers`
-Modules to retrieve external data.
-- **Fetchers** (`cafefService.js`, `tcbsService.js`): API clients for financial data providers.
-- **Scrapers** (`cafefMarketScraper.js`, `googleNewsDecoder.js`, `vnNewsSearch.js`): Web scraping utilities for news and market data.
+- Routes: `/src/routes/*.routes.js`
+- Controllers: `/src/controllers/*.controller.js`
+- Logic: `/src/services/*`
+- Server entry: `/src/server.js`
 
-### `/src/utils` & `/src/middlewares`
-- **utils**: Shared helpers (e.g., `browserManager.js` for headless browsers).
-- **middlewares**: Express middlewares (e.g., `configMiddleware.js`).
+Flow: `routes -> controller -> service -> model/external`
 
-### `/src/server.js`
-The main entry point for the backend server.
+### AutoDuck / trading issues
 
----
+- Main engine: `/src/services/autoTradeEngine.js`
+- Funnel telemetry: `/src/services/tradeFunnelService.js`
+- Pipeline logging: `/src/services/pipelineLogService.js`
+- Audit persistence: `/src/services/auditLogService.js`
+- Broker/live execution: `/src/services/exchangeBrokerService.js`
+- Entry setup filters: `/src/services/entrySetupEngine.js`
 
-## Frontend Directory (`/frontend`)
+### Frontend changes
 
-React + Vite frontend application.
+- App shell/routing: `/frontend/src/App.jsx`
+- API client: `/frontend/src/services/api.js`
+- Feature UI: `/frontend/src/components/*`
 
-### `/frontend/src/components`
-Reusable React UI components.
-- **Tabs/Pages**: `AutoDuckTab.jsx`, `CryptoTab.jsx`, `DerivativesTab.jsx`, `VnStocksTab.jsx`, `PaperTradingTab.jsx`.
-- **UI Widgets**: `CyberpunkClock.jsx`, `MarketOverview.jsx`, `MarketRadar.jsx`, `TradingChart.jsx`, `StockChart.jsx`.
-- **Layout/Global**: `AppHeader.jsx`, `UserMenu.jsx`, `DraggableLog.jsx`.
-- **AI Integration**: `StockAiChat.jsx`.
+### Data model changes
 
-### `/frontend/src/services`
-Frontend API client logic.
-- `api.js`: Axios/Fetch configurations to call the backend.
+- Mongoose schemas: `/models/*`
 
-### `/frontend/src/App.jsx` & `main.jsx`
-Main React application roots and routing.
+## Fast Search Strategy (to save tokens)
 
-### `/frontend/src/index.css` & `App.css`
-Global styling (utilizing TailwindCSS usually, check `tailwind.config.js`).
+1. Search symbol usage first (`rg` / exact symbol), do not read whole folders.
+2. Read only target files + small windows around matches.
+3. Avoid opening very large files fully unless necessary.
+4. For AutoDuck questions, start from `autoTradeEngine.js` call sites and follow imports.
 
----
+## Common Feature Entry Points
 
-## CLI Directory (`/cli`)
-A terminal interface for the app.
-- `omni-cli.js`: Main CLI entry point.
-- `apiClient.js`: Client to communicate with the backend.
-- `screenmanager.js` & `/views`: Handles CLI screen rendering for different markets (crypto, stock, deriv).
+- AutoTrade APIs: `/src/controllers/autoTrade.controller.js`, `/src/routes/autoTrade.routes.js`
+- Telegram webhook/setup: `/src/routes/telegram.routes.js`
+- Security/CORS/env behavior: `/src/middlewares/configMiddleware.js`
+- Scheduler start: `/src/server.js` -> `startAutoDuckScheduler()`
 
-## Root Files
-- `omni-manager.bat`: Script to start/manage the application stack.
-- `.env` & `.env.example`: Environment variables (API keys, DB URIs).
+## Agent Best Practices (Project-specific)
 
----
-
-## Best Practices for Agents
-1. **Adding a new endpoint**: Update `/src/routes/X.routes.js` -> Create/Update `/src/controllers/X.controller.js` -> Create/Update `/src/services/XService.js`.
-2. **Adding a UI feature**: Create component in `/frontend/src/components/`, update `/frontend/src/services/api.js` if a new endpoint is needed.
-3. **Database Changes**: Update the schema in `/models/` first.
+1. Endpoint changes: update `route -> controller -> service` in one pass.
+2. Keep `.env` as operational config; keep `.env.example` and `.env.example.en` synchronized as templates.
+3. When debugging logs, check runtime cwd before changing code.
+4. Prefer small, targeted reads over broad scans to reduce token use.
