@@ -3,6 +3,9 @@ import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Setting from '../../models/Setting.js';
 import { runAutoTradePipeline, verifyOrderFeasibility, getUsdVndRate } from '../services/autoTradeEngine.js';
+import { getPipelineLogs } from '../services/pipelineLogService.js';
+import { getFunnelLogs } from '../services/tradeFunnelService.js';
+import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
 
 //Get the entire automatic transaction history of the system with advanced quantitative statistics
 export const getSystemTradeLogs = async (req, res) => {
@@ -366,6 +369,62 @@ export const getAiLessons = async (req, res) => {
     try {
         const lessons = await AiBehavior.find({}).sort({ date: -1 }).limit(30);
         return res.json({ success: true, data: lessons });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getPipelineLogsHandler = async (req, res) => {
+    try {
+        const sinceId = Number(req.query.sinceId) || 0;
+        return res.json({ success: true, ...getPipelineLogs(sinceId) });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getFunnelLogsHandler = async (req, res) => {
+    try {
+        const sinceId = Number(req.query.sinceId) || 0;
+        const asset = req.query.asset || null;
+        return res.json({ success: true, ...getFunnelLogs(sinceId, asset) });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getAuditStatusHandler = async (req, res) => {
+    try {
+        return res.json({ success: true, data: getAuditStatus() });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getAuditTailHandler = async (req, res) => {
+    try {
+        const limit = Number(req.query.limit) || 50;
+        const channel = req.query.channel || null;
+        return res.json({ success: true, data: getAuditTail(limit, channel) });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getAuditFileTailHandler = async (req, res) => {
+    try {
+        const { username, adminCode } = req.query;
+        if (username !== 'admin') {
+            const validAdminCode = process.env.ADMIN_CODE;
+            if (!validAdminCode || !adminCode || adminCode !== validAdminCode) {
+                return res.status(403).json({ success: false, message: 'Sai mã Admin, bạn không có quyền truy cập audit file.' });
+            }
+        }
+        const channel = req.query.channel || 'funnel';
+        const date = req.query.date || null;
+        const limit = Number(req.query.limit) || 100;
+        const data = await readAuditFileTail({ channel, date, limit });
+        return res.json({ success: true, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
