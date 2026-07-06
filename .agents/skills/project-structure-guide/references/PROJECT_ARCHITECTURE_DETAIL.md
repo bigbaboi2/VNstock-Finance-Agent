@@ -1,6 +1,10 @@
-# BẢN ĐỒ CHI TIẾT KIẾN TRÚC VÀ LOGIC HỆ THỐNG VNSTOCK-FINANCE-AGENT
+# BẢN ĐỒ CHI TIẾT KIẾN TRÚC VÀ LOGIC HỆ THỐNG PROJECTFINANCE
 
-Tài liệu này cung cấp cái nhìn chuyên sâu (deep-dive) vào logic thực thi, nhiệm vụ, và kết quả đầu ra của từng nhóm file quan trọng nhất trong dự án. Tài liệu này dành cho các AI Agent hoặc Lập trình viên cần hiểu rõ nghiệp vụ (Business Logic) trước khi sửa code.
+Tài liệu này cung cấp cái nhìn chuyên sâu (deep-dive) vào logic thực thi, nhiệm vụ, và kết quả đầu ra của từng nhóm file quan trọng nhất trong dự án. Tài liệu này dành cho AI Agent hoặc lập trình viên cần hiểu rõ nghiệp vụ trước khi sửa code.
+
+> Gợi ý đọc nhanh trước khi vào deep-dive:
+> - `../QUICK_MAP.md` (tóm tắt đường đi ngắn nhất)
+> - `../SKILL.md` (quy tắc đọc tiết kiệm token)
 
 ---
 
@@ -24,6 +28,18 @@ Tài liệu này cung cấp cái nhìn chuyên sâu (deep-dive) vào logic thự
   3. Áp dụng mức độ rủi ro (Risk Config từ Level 1: Thận trọng đến Level 4: Liều lĩnh) để đưa ra điểm số (Score).
   4. Quản lý việc chốt lời/cắt lỗ (Trailing Stop, Partial Scale-out - chốt lời từng phần).
 - **Kết quả cuối**: Phát lệnh giao dịch ảo (Paper Trading) hoặc thật (Live) thông qua `ExchangeBroker`, đồng thời gửi cảnh báo qua Telegram.
+
+### `auditLogService.js` / `pipelineLogService.js` / `tradeFunnelService.js`
+- **Nhiệm vụ**:
+  - `pipelineLogService.js`: log tiến trình pipeline + buffer RAM
+  - `tradeFunnelService.js`: tóm tắt funnel (qualified/reject reason/top candidates)
+  - `auditLogService.js`: lưu JSONL theo ngày, có thể mã hóa AES-256-GCM
+- **Lưu ý quan trọng về đường dẫn log**:
+  - Log path resolve theo `process.cwd()`
+  - Cùng một `AUTODUCK_AUDIT_LOG_DIR=logs/autoduck` nhưng có thể ghi vào:
+    - `G:/ProjectFinance/logs/autoduck/...` hoặc
+    - `G:/ProjectFinance/src/logs/autoduck/...`
+  - Phụ thuộc thư mục chạy server
 
 ### `cryptoService.js` / `marketInsightService.js`
 - **Nhiệm vụ**: Phục vụ dữ liệu tài chính cho Frontend và AI.
