@@ -11,3 +11,4 @@ diag_output.txt
 full-structure.txt
 logs/
 src/controllers/deriv_full_export.json
+scripts/
