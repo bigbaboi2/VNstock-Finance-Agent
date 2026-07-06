@@ -4,6 +4,7 @@ import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Setting from '../../models/Setting.js';
 import ExchangeOrder from '../../models/ExchangeOrder.js';
+import ExchangeConnection from '../../models/ExchangeConnection.js';
 import Stock from '../../models/Stock.js';
 import DerivNews from '../../models/DerivNews.js';
 import { generateWithRole } from './multiProviderRouter.js';
@@ -36,6 +37,19 @@ import {
     recordUnmatchedAllocation,
     releaseAllocation,
 } from './portfolioManager.js';
+import {
+    detectEntrySetup,
+    applyQualityToSignal,
+    passesLiveQuantGate,
+    passesSimQuantGate,
+    IDLE_PROBE_SETUP_WHITELIST,
+} from './entrySetupEngine.js';
+import {
+    buildTestnetGateContext,
+    checkTestnetSymbolForPipeline,
+    filterSymbolsForTestnetUniverse,
+    isSymbolTradableOnConnection,
+} from './testnetSymbolGate.js';
 
 // ── CONSTANTS & HELPERS
 
@@ -60,12 +74,13 @@ const IDLE_RELAX_TARGETS = (process.env.AUTODUCK_IDLE_RELAX_TARGETS || '1,3,5')
     .map(v => Number(v.trim()))
     .filter(v => Number.isFinite(v) && v > 0);
 const IDLE_RELAX_STEP_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_STEP_SCORE) || 3;
-const IDLE_RELAX_MAX_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_SCORE) || 9;
-const IDLE_RELAX_MAX_ATTEMPTS = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS) || 8;
-const IDLE_MIN_SIM_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_SIM_SCORE) || 60;
-const IDLE_MIN_LIVE_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_LIVE_SCORE) || 68;
+const IDLE_RELAX_MAX_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_SCORE) || 6;
+const IDLE_RELAX_MAX_ATTEMPTS = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS) || 4;
+const IDLE_MIN_SIM_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_SIM_SCORE) || 68;
+const IDLE_MIN_LIVE_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_LIVE_SCORE) || 80;
 const IDLE_AI_PROBE_ENABLED = process.env.AUTODUCK_IDLE_AI_PROBE_ENABLED !== 'false';
-const IDLE_AI_PROBE_MIN_SCORE = Number(process.env.AUTODUCK_IDLE_AI_PROBE_MIN_SCORE) || 72;
+const IDLE_AI_PROBE_LIVE = process.env.AUTODUCK_IDLE_AI_PROBE_LIVE === 'true';
+const IDLE_AI_PROBE_MIN_SCORE = Number(process.env.AUTODUCK_IDLE_AI_PROBE_MIN_SCORE) || 78;
 const IDLE_AI_PROBE_SIZE_MULT = Number(process.env.AUTODUCK_IDLE_AI_PROBE_SIZE_MULT) || 0.45;
 
 const idleScanState = {
@@ -84,6 +99,38 @@ const pickIdleTarget = (maxConcurrentTrades = 10) => {
     const cap = Number(maxConcurrentTrades) || 10;
     const eligible = IDLE_RELAX_TARGETS.filter(t => t <= cap);
     return eligible.length ? Math.max(...eligible) : 1;
+};
+
+const countLiveOrdersWaiting = (asset) => UserOrder.countDocuments({
+    status: { $in: ['PENDING', 'ACTIVE'] },
+    executionMode: 'LIVE',
+    $or: [{ assetType: 'ALL' }, { assetType: asset }],
+});
+
+export const rebaseTradeLevelsFromFill = (trade, filledPrice) => {
+    const fill = Number(filledPrice);
+    const oldEntry = Number(trade.entryPrice);
+    if (!Number.isFinite(fill) || !Number.isFinite(oldEntry) || oldEntry <= 0) return;
+    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+    const roundPrice = (p) => {
+        if (trade.assetType === 'VN_STOCK') return Math.round(p * 20) / 20;
+        if (trade.assetType === 'DERIVATIVES') return Math.round(p * 10) / 10;
+        return p;
+    };
+    const tp1D = Math.abs(Number(trade.takeProfit1Price) - oldEntry);
+    const tpD = Math.abs(Number(trade.takeProfitPrice) - oldEntry);
+    const slD = Math.abs(Number(trade.stopLossPrice) - oldEntry);
+    trade.entryPrice = fill;
+    if (tp1D > 0) {
+        trade.takeProfit1Price = roundPrice(isLong ? fill + tp1D : fill - tp1D);
+    }
+    if (tpD > 0) {
+        trade.takeProfitPrice = roundPrice(isLong ? fill + tpD : fill - tpD);
+    }
+    if (slD > 0) {
+        trade.stopLossPrice = roundPrice(isLong ? fill - slD : fill + slD);
+    }
+    trade.peakPrice = fill;
 };
 
 // ── NEWS CACHE
@@ -275,7 +322,7 @@ const fetchCryptoOHLCV = async (symbol, interval = '15m', limit = 120) => {
     }));
 };
 
-const fetchRealtimeQuote = async (symbol, assetType) => {
+export const fetchRealtimeQuote = async (symbol, assetType) => {
     const price = await fetchCurrentPrice(symbol, assetType);
     if (!Number.isFinite(price) || price <= 0) {
         throw new Error(`Gia realtime khong hop le cho ${symbol}`);
@@ -731,6 +778,43 @@ const calcBollinger = (closes, period = 20, stdMult = 2) => {
     };
 };
 
+const calcVIDYA = (closes, period = 9) => {
+    if (closes.length < period + 1) return null;
+    const alpha = 2 / (period + 1);
+    let startIndex = Math.max(1, closes.length - period * 4);
+    let vidya = closes[startIndex - 1];
+    
+    for (let i = startIndex; i < closes.length; i++) {
+        let stepUp = 0;
+        let stepDown = 0;
+        const cmoStart = Math.max(1, i - period + 1);
+        for (let j = cmoStart; j <= i; j++) {
+            const diff = closes[j] - closes[j - 1];
+            if (diff > 0) stepUp += diff;
+            else stepDown -= diff;
+        }
+        const stepCmo = (stepUp + stepDown) === 0 ? 0 : Math.abs((stepUp - stepDown) / (stepUp + stepDown));
+        const stepWeight = alpha * stepCmo;
+        vidya = stepWeight * closes[i] + (1 - stepWeight) * vidya;
+    }
+    return vidya;
+};
+
+const calcTwoPoleSuperSmoother = (closes, period = 15) => {
+    if (closes.length < 3) return null;
+    const a1 = Math.exp(-Math.SQRT2 * Math.PI / period);
+    const b1 = 2 * a1 * Math.cos(Math.SQRT2 * Math.PI / period);
+    const c2 = b1;
+    const c3 = -a1 * a1;
+    const c1 = 1 - c2 - c3;
+    
+    const ss = [closes[0], closes[1]];
+    for (let i = 2; i < closes.length; i++) {
+        ss[i] = c1 * (closes[i] + closes[i-1]) / 2 + c2 * ss[i-1] + c3 * ss[i-2];
+    }
+    return ss[ss.length - 1];
+};
+
 const calcIchimoku = (candles, periods = { tenkan: 9, kijun: 26, senkouB: 52, chikou: 26 }) => {
     if (candles.length < periods.senkouB + periods.kijun) {
         return { tenkan: null, kijun: null, senkouA: null, senkouB: null, chikou: null, futureKumo: 'NEUTRAL' };
@@ -797,6 +881,8 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
     const volSurge = calcVolumeSurge(volumes);
     const { macd, signal: macdSignal, hist } = calcMACD(closes);
     const ichimoku = calcIchimoku(candles);
+    const vidya  = calcVIDYA(closes, 9);
+    const twoPole = calcTwoPoleSuperSmoother(closes, 15);
 
     // ── Chỉ báo bổ sung nâng cao ──
     const obv = calcOBV(candles);
@@ -1089,10 +1175,11 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
         rsi: Math.round(rsi * 10) / 10,
         stochRSI,
         adx,
-        ema9, ema21, ema50,
-        vwap: vwap || null,
-        ichimoku,
+        obvTrend: obv.obvTrend,
+        vwap: vwap,
         bollinger: boll,
+        vidya: vidya,
+        twoPole: twoPole,
         volumeSurge: Math.round(volSurge * 100) / 100,
         volumeDeltaPct: Math.round(volumeDeltaPct * 100) / 100,
         candlePattern,
@@ -1409,47 +1496,6 @@ const getCryptoHtfTrend = async (symbol) => {
     }
 };
 
-/**
- * Phân loại setup vào lệnh. Chỉ siết chặt cho CRYPTO LONG (96% lệnh & nơi thua nặng).
- * @returns {{ valid: boolean, type: string, note: string }}
- */
-const classifyEntrySetup = (asset, signal, htfTrend) => {
-    if (asset !== 'CRYPTO' || signal.direction !== 'LONG') {
-        return { valid: true, type: signal.direction || 'DEFAULT', note: '' };
-    }
-
-    const rsi = signal.rsi ?? 50;
-    const k = signal.stochRSI?.k ?? 50;
-    const price = signal.entryPrice;
-    const vwap = signal.vwap;
-    const boll = signal.bollinger;
-
-    // 1) Không long ngược xu hướng khung lớn đang giảm.
-    if (htfTrend === 'DOWN') {
-        return { valid: false, type: 'BLOCK_HTF_DOWN', note: 'HTF 1h giảm — không long ngược xu hướng lớn' };
-    }
-
-    // 2) Anti-chase: không mua khi quá căng (đu đỉnh nhịp pump).
-    const extendedAboveVwap = vwap ? price > vwap * 1.04 : false;
-    if (rsi > 72 || k > 88 || extendedAboveVwap) {
-        return { valid: false, type: 'BLOCK_EXTENDED', note: `Quá căng (RSI ${rsi}, K ${k}${extendedAboveVwap ? ', xa VWAP' : ''}) — tránh đu đỉnh` };
-    }
-
-    // 3) Setup TREND-PULLBACK: HTF tăng + chưa quá nóng → vào theo xu hướng.
-    if (htfTrend === 'UP') {
-        return { valid: true, type: 'TREND_PULLBACK', note: 'HTF 1h tăng, theo xu hướng' };
-    }
-
-    // 4) Setup MEAN-REVERSION: HTF trung tính + quá bán gần đáy Bollinger → mua hồi.
-    const nearLowerBand = boll ? price <= boll.lower * 1.01 : false;
-    if ((rsi < 35 || k < 25) && (nearLowerBand || rsi < 30)) {
-        return { valid: true, type: 'MEAN_REVERSION', note: 'Quá bán gần đáy band, mua hồi' };
-    }
-
-    // HTF trung tính nhưng không có setup rõ → bỏ qua cho chắc.
-    return { valid: false, type: 'NO_CLEAR_SETUP', note: 'HTF trung tính, không setup trend/reversal rõ' };
-};
-
 // ── AI SIGNAL CONFIRMATION
 
 const compactContextForPrompt = (context = {}) => {
@@ -1490,6 +1536,31 @@ const compactContextForPrompt = (context = {}) => {
     return `Nguồn: ${context.source || 'N/A'} | fetchedAt: ${context.fetchedAt || 'N/A'}${newsBlock}`;
 };
 
+export const parseAIVerdictJson = (response = '') => {
+    try {
+        const text = String(response || '');
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        const parsed = JSON.parse(jsonMatch[0]);
+        const verdict = String(parsed.verdict || '').toUpperCase();
+        return {
+            confirmed: verdict === 'CONFIRM',
+            vetoed: verdict === 'VETO',
+            hardVeto: parsed.hardVeto === true,
+            confidence: Number(parsed.confidence) || 0,
+            reason: String(parsed.reason || text).trim(),
+        };
+    } catch {
+        return null;
+    }
+};
+
+const aiRoleForAsset = (asset) => {
+    if (asset === 'CRYPTO') return 'crypto';
+    if (asset === 'DERIVATIVES') return 'derivatives';
+    return 'main';
+};
+
 export const parseAISignalVerdict = (response = '') => {
     const text = String(response || '').trim().normalize('NFC');
     if (!text) return false;
@@ -1526,10 +1597,12 @@ const buildIdleProbeInstruction = (options = {}) => {
     return `\n[CHẾ ĐỘ IDLE PROBE]\nHệ thống đang không có đủ lệnh mở nên đang quét nhanh với ngưỡng kỹ thuật đã nới về ${threshold}. Đây KHÔNG phải lệnh all-in; nếu được duyệt, engine sẽ giảm size và vẫn giữ SL/TP theo ATR. Với tín hiệu đã qua lọc volume, setup đa khung và risk filter, hãy XÁC NHẬN nếu rủi ro chỉ là \"thị trường đi ngang\", \"thiếu xác nhận phụ\", hoặc \"score chưa tới 80\". Chỉ BÁC BỎ khi có veto cứng: ngược xu hướng khung lớn, fake breakout rõ, short squeeze/crowded positioning, phân phối/đảo chiều mạnh, tin tức tiêu cực mạnh, hoặc orderbook/funding chống lại hướng lệnh.`;
 };
 
-const shouldIdleProbeOverrideAI = ({ asset, signal, aiConfirm, schedulerMode, liveOnlyMode }) => {
-    if (!IDLE_AI_PROBE_ENABLED || schedulerMode !== 'IDLE_FAST' || liveOnlyMode || asset !== 'CRYPTO') return false;
-    if (aiConfirm?.confirmed || isHardAIRejection(aiConfirm?.reason)) return false;
-    if ((signal?.score || 0) < IDLE_AI_PROBE_MIN_SCORE) return false;
+const shouldIdleProbeOverrideAI = ({ asset, signal, aiConfirm, schedulerMode, liveOnlyMode, hasLiveUserOrderWaiting, entrySetup }) => {
+    if (!IDLE_AI_PROBE_ENABLED || IDLE_AI_PROBE_LIVE || schedulerMode !== 'IDLE_FAST' || liveOnlyMode || asset !== 'CRYPTO') return false;
+    if (hasLiveUserOrderWaiting) return false;
+    if (aiConfirm?.confirmed || aiConfirm?.hardVeto || isHardAIRejection(aiConfirm?.reason)) return false;
+    if (!IDLE_PROBE_SETUP_WHITELIST.has(entrySetup?.type)) return false;
+    if ((signal?.breakdown?.qualityScore ?? signal?.score ?? 0) < IDLE_AI_PROBE_MIN_SCORE) return false;
     if ((signal?.breakdown?.edge || 0) < 25) return false;
     return true;
 };
@@ -1566,11 +1639,17 @@ const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDe
             : `CHIẾN LƯỢC: Đây là lệnh GIAO DỊCH NGẮN HẠN (${asset}).\n${config.prompt}`;
 
         const scoreForBias = signal.score || 0;
-        const scoreBiasInstruction = scoreForBias >= 80
-            ? `\nLƯU Ý QUAN TRỌNG: Score kỹ thuật ${scoreForBias}/100 rất cao. Mặc định THIÊN VỀ XÁC NHẬN — chỉ BÁC BỎ nếu có lý do kỹ thuật cực kỳ rõ ràng (tín hiệu đảo chiều mạnh hoặc context thị trường quá tiêu cực).`
-            : scoreForBias >= 70
-            ? `\nLƯU Ý: Score kỹ thuật ${scoreForBias}/100 tốt. Chỉ BÁC BỎ nếu có mâu thuẫn rõ ràng giữa các tín hiệu chính hoặc context thị trường bất lợi đáng kể.`
-            : `\nLƯU Ý: Score kỹ thuật ${scoreForBias}/100. Đánh giá khách quan, cân nhắc cả điểm mạnh và điểm yếu.`;
+        const entrySetupType = options.entrySetup?.type || signal.breakdown?.entrySetup || 'N/A';
+        const qualityScore = signal.breakdown?.qualityScore ?? signal.score;
+        const confluenceScore = signal.breakdown?.confluenceScore ?? 'N/A';
+        const contextReasons = (signal.breakdown?.contextBiasReasons || []).slice(0, 3).join(', ') || 'none';
+        const liveVetoMode = options.liveVetoMode === true;
+
+        const scoreBiasInstruction = liveVetoMode
+            ? `\nCHẾ ĐỘ LIVE VETO: Tín hiệu đã PASS cổng định lượng (setup=${entrySetupType}, quality=${qualityScore}, confluence=${confluenceScore}). Mặc định CONFIRM. Chỉ trả VETO khi có rủi ro CỨNG: HTF ngược, fake breakout, funding cực đoan, tin cực tiêu cực, orderbook chống hướng lệnh. KHÔNG veto vì thiếu 1-2 chỉ báo phụ.`
+            : scoreForBias >= 80
+            ? `\nLƯU Ý: qualityScore ${qualityScore}/100 cao. Đánh giá khách quan — chỉ VETO khi mâu thuẫn rõ.`
+            : `\nLƯU Ý: qualityScore ${qualityScore}/100. Đánh giá cân bằng điểm mạnh/yếu.`;
 
         const prompt = `Bạn là chuyên gia phân tích kỹ thuật của hệ thống OMNI DUCK.
 Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệnh sắp vào:
@@ -1578,10 +1657,12 @@ Dưới đây là kết quả phân tích kỹ thuật định lượng cho lệ
 [THÔNG TIN TÍN HIỆU]
 - Phân khúc: ${asset}
 - Mã: ${signal.symbol}
+- Entry setup: ${entrySetupType}
+- Quality score: ${qualityScore}/100 | Confluence: ${confluenceScore} | Legacy: ${signal.breakdown?.legacyScore ?? signal.score}
+- Context bias: ${contextReasons}
 - Giá hiện tại: ${signal.entryPrice}
-- VWAP: ${signal.vwap ?? 'N/A'} | Giá ${signal.entryPrice > (signal.vwap ?? 0) ? 'trên' : 'dưới'} VWAP
+- VWAP: ${signal.vwap ?? 'N/A'}
 - Hướng đề xuất: ${signal.direction}
-- Điểm tổng hợp: ${signal.score}/100
 - RSI: ${signal.rsi} | StochRSI K: ${signal.stochRSI?.k ?? 'N/A'}
 - ADX: ${signal.adx?.adx ?? 'N/A'} (+DI: ${signal.adx?.pdi ?? 'N/A'} / -DI: ${signal.adx?.mdi ?? 'N/A'})
 - Volume Surge: ${signal.volumeSurge}x
@@ -1597,40 +1678,55 @@ ${buildIdleProbeInstruction(options)}
 - Tình trạng thị trường: ${marketStatus}
 - Chẩn đoán: ${diagnosticDesc}
 
-[CONTEXT BỔ SUNG TỪ TAB/SERVICE LIÊN QUAN]
+[CONTEXT BỔ SUNG]
 ${compactContextForPrompt(executionContext)}
 
 [CHI TIẾT ĐIỂM]
-- Long Score: ${signal.breakdown.longScore}/100
-- Short Score: ${signal.breakdown.shortScore}/100
-- Directional Edge: ${signal.breakdown.edge}
-- Trend Long/Short: ${signal.breakdown.trendLong}/${signal.breakdown.trendShort}
-- RSI Long/Short: ${signal.breakdown.rsiLong}/${signal.breakdown.rsiShort}
-- Bollinger Long/Short: ${signal.breakdown.bollLong}/${signal.breakdown.bollShort}
-- Volume Long/Short: ${signal.breakdown.volumeLong}/${signal.breakdown.volumeShort}
-- OBV Long/Short: ${signal.breakdown.obvLong ?? 'N/A'}/${signal.breakdown.obvShort ?? 'N/A'}
-- VWAP Long/Short: ${signal.breakdown.vwapLong ?? 'N/A'}/${signal.breakdown.vwapShort ?? 'N/A'}
-- Market Long/Short: ${signal.breakdown.marketLong}/${signal.breakdown.marketShort}
-- Pattern bonus: +${signal.breakdown.patternBonus ?? 0}
+- Long/Short: ${signal.breakdown.longScore}/${signal.breakdown.shortScore} | Edge: ${signal.breakdown.edge}
+- Setup score: ${signal.breakdown.setupScore ?? 'N/A'}
 
 [LỊCH SỬ GIAO DỊCH GẦN NHẤT (${signal.symbol})]
 ${lessonContext}
 
-Phân tích xác nhận hoặc bác bỏ tín hiệu trong 2-3 câu ngắn gọn bằng tiếng Việt. Kết thúc bằng: "XÁC NHẬN" hoặc "BÁC BỎ".`;
+Trả lời JSON duy nhất (không markdown):
+{"verdict":"CONFIRM"|"VETO","confidence":0-100,"hardVeto":true|false,"reason":"2-3 câu tiếng Việt"}`;
 
-        const response = await generateWithRole('derivatives', prompt, {
+        const response = await generateWithRole(aiRoleForAsset(asset), prompt, {
             maxTokens: 300,
-            temperature: 0.3
+            temperature: 0.2,
+            responseFormat: 'json_object',
         });
 
-        const confirmed = parseAISignalVerdict(response);
-        return { confirmed, reason: response.trim() };
+        const parsed = parseAIVerdictJson(response);
+        let confirmed;
+        let hardVeto = false;
+        if (parsed) {
+            hardVeto = parsed.hardVeto || parsed.vetoed;
+            confirmed = liveVetoMode
+                ? !parsed.vetoed && !parsed.hardVeto
+                : parsed.confirmed;
+        } else {
+            const legacy = parseAISignalVerdict(response);
+            confirmed = liveVetoMode ? legacy !== false : legacy;
+            hardVeto = isHardAIRejection(response);
+            if (hardVeto) confirmed = false;
+        }
+
+        return {
+            confirmed,
+            hardVeto,
+            reason: parsed?.reason || response.trim(),
+        };
 
     } catch (err) {
-        console.log(chalk.yellow(`[AI CONFIRM] Không gọi được AI, fallback theo score kỹ thuật: ${err.message}`));
+        console.log(chalk.yellow(`[AI CONFIRM] Không gọi được AI: ${err.message}`));
+        if (options.liveVetoMode) {
+            return { confirmed: false, hardVeto: false, reason: 'AI không phản hồi — LIVE skip (không auto-confirm).' };
+        }
         return {
-            confirmed: signal.score >= 70,
-            reason: 'AI không phản hồi — xác nhận tự động theo ngưỡng kỹ thuật.'
+            confirmed: (signal.breakdown?.qualityScore ?? signal.score) >= 75,
+            hardVeto: false,
+            reason: 'AI không phản hồi — SIM fallback qualityScore >= 75.',
         };
     }
 };
@@ -2002,25 +2098,33 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
             // Guard học máy: nâng ngưỡng điểm + giảm size nếu phân khúc này đang hiệu suất kém.
             const guard = adaptiveGuards[asset] || {};
-            // LIVE: ngưỡng nghiêm ngặt theo risk level (+ adaptive floor khi hiệu suất yếu) — bảo vệ tiền thật.
-            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0);
-            const liveScoreThreshold = thresholdRelax > 0
-                ? Math.max(IDLE_MIN_LIVE_SCORE, baseLiveThreshold - thresholdRelax)
-                : baseLiveThreshold;
-            // SIM (training nền): ngưỡng thấp hơn để engine sinh đủ dữ liệu học. KHÔNG áp adaptive floor.
-            // Nâng nhẹ floor 60→65 và biên -8→-5 (L2: 72→75) — bằng chứng cho thấy bucket điểm rất thấp
-            // chỉ sinh lệnh rác (WR ~26%, exp −2.5%), không có giá trị training.
+            const liveOrdersWaiting = await countLiveOrdersWaiting(asset);
+            const requiresLiveQuality = liveOnlyMode || liveOrdersWaiting > 0;
+
+            // LIVE: cố định — KHÔNG nới ngưỡng khi idle (thresholdRelax chỉ áp SIM).
+            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0, IDLE_MIN_LIVE_SCORE);
+            const liveScoreThreshold = baseLiveThreshold;
+
             const baseSimThreshold = Math.max(65, dynamicScoreThreshold - 5);
             const simScoreThreshold = thresholdRelax > 0
                 ? Math.max(IDLE_MIN_SIM_SCORE, baseSimThreshold - thresholdRelax)
                 : baseSimThreshold;
-            // Phễu quét dùng ngưỡng SIM (thấp) để lọt nhiều ứng viên → tạo lệnh SIM; LIVE chặn riêng bên dưới.
             const effectiveThreshold = simScoreThreshold;
             const adaptiveSizeMult = guard.sizeMult || 1.0;
-            console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} (training) · LIVE≥${liveScoreThreshold} (size ×${adaptiveSizeMult}, n=${guard.sample})${thresholdRelax > 0 ? ` · ${schedulerMode} relax -${thresholdRelax}` : ''}.`));
+            console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (LIVE relax=0) · LIVE chờ=${liveOrdersWaiting}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}.`));
 
-            const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, aiRejected: 0, aiSoftOverride: 0, matched: 0 };
+            const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, skipLiveGate: 0, skipSimGate: 0, skipTestnetSymbol: 0, aiRejected: 0, aiSoftOverride: 0, matched: 0 };
             let symbolsToScan = [];
+            let testnetGateContext = null;
+
+            if (asset === 'CRYPTO' && requiresLiveQuality) {
+                testnetGateContext = await buildTestnetGateContext(asset);
+                if (testnetGateContext.hasTestnetOrders && testnetGateContext.tradableUnion.size > 0) {
+                    console.log(chalk.cyan(
+                        `  [TESTNET GATE] ${testnetGateContext.testnetConnections.length} kết nối TESTNET · ${testnetGateContext.tradableUnion.size} cặp USDT khả dụng (union SPOT+FUTURES)`
+                    ));
+                }
+            }
 
             if (asset === 'VN_STOCK') {
                 const baseUniverse = await buildVnStockScanUniverse(vnMarketContext, 60);
@@ -2038,7 +2142,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
             } else if (asset === 'CRYPTO') {
                 const baseUniverse = await buildCryptoScanUniverse(50);
-                symbolsToScan = baseUniverse;
+                symbolsToScan = testnetGateContext?.hasTestnetOrders
+                    ? filterSymbolsForTestnetUniverse(baseUniverse, testnetGateContext.tradableUnion)
+                    : baseUniverse;
+                if (testnetGateContext?.hasTestnetOrders && symbolsToScan.length < baseUniverse.length) {
+                    console.log(chalk.gray(
+                        `  [TESTNET GATE] Universe ${baseUniverse.length} → ${symbolsToScan.length} mã (lọc theo testnet)`
+                    ));
+                }
             }
 
             // 4. Analyze symbol
@@ -2063,11 +2174,17 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         ...baseExecutionContext,
                         news: newsContext,
                     };
-                    let techSignal = analyzeTechnicalSignal(candles, breadthRatio, statusType, effectiveThreshold, currentRiskConfig);
+                    let techSignal = analyzeTechnicalSignal(
+                        candles,
+                        breadthRatio,
+                        statusType,
+                        Math.max(60, effectiveThreshold - 12),
+                        currentRiskConfig
+                    );
                     techSignal = applyExecutionContextBias(techSignal, asset, executionContext, effectiveThreshold, currentRiskConfig);
                     techSignal.symbol = symbol;
 
-                    if (techSignal.direction === 'NEUTRAL' || techSignal.score < effectiveThreshold) {
+                    if (techSignal.direction === 'NEUTRAL') {
                         stats.skipScore++;
                         continue;
                     }
@@ -2084,17 +2201,37 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         continue;
                     }
 
-                    // ── HYBRID ENTRY FILTER: lọc đa khung + anti-chase + phân loại setup (crypto LONG) ──
-                    let entrySetup = { valid: true, type: techSignal.direction, note: '' };
-                    if (asset === 'CRYPTO' && techSignal.direction === 'LONG') {
-                        const htfTrend = await getCryptoHtfTrend(symbol);
-                        entrySetup = classifyEntrySetup(asset, techSignal, htfTrend);
+                    // ── SETUP + QUALITY SCORE (setup-aware funnel) ──
+                    let entrySetup = { valid: true, type: techSignal.direction, note: '', setupScore: 70 };
+                    let htfTrend = 'NEUTRAL';
+                    if (asset === 'CRYPTO') {
+                        htfTrend = await getCryptoHtfTrend(symbol);
+                        entrySetup = detectEntrySetup(asset, techSignal, htfTrend, candles, executionContext);
                         if (!entrySetup.valid) {
                             stats.skipSetup = (stats.skipSetup || 0) + 1;
                             console.log(chalk.gray(`  [SETUP FILTER] ${symbol}: ${entrySetup.type} — ${entrySetup.note}`));
                             continue;
                         }
-                        console.log(chalk.cyan(`  [SETUP ✓] ${symbol}: ${entrySetup.type} (HTF ${htfTrend}) — ${entrySetup.note}`));
+                        techSignal = applyQualityToSignal(techSignal, entrySetup, executionContext);
+                        console.log(chalk.cyan(`  [SETUP ✓] ${symbol}: ${entrySetup.type} Q=${techSignal.score} (HTF ${htfTrend}) — ${entrySetup.note}`));
+                    } else {
+                        techSignal = applyQualityToSignal(techSignal, entrySetup, executionContext);
+                    }
+
+                    const liveGate = passesLiveQuantGate(entrySetup, techSignal);
+                    const simGate = passesSimQuantGate(entrySetup, techSignal);
+
+                    if (requiresLiveQuality) {
+                        if (!liveGate.pass || techSignal.score < liveScoreThreshold) {
+                            stats.skipLiveGate++;
+                            console.log(chalk.gray(`  [LIVE GATE] ${symbol}: ${liveGate.reason || `score ${techSignal.score} < ${liveScoreThreshold}`}`));
+                            continue;
+                        }
+                    } else if (!liveOnlyMode) {
+                        if (!simGate.pass || techSignal.score < effectiveThreshold) {
+                            stats.skipSimGate++;
+                            continue;
+                        }
                     }
 
                     if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
@@ -2119,12 +2256,27 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         continue;
                     }
 
+                    const testnetPipeline = await checkTestnetSymbolForPipeline({
+                        gateContext: testnetGateContext,
+                        symbol,
+                        direction: tradePlan.directionLabel,
+                        requiresLiveQuality,
+                        liveOnlyMode,
+                    });
+                    if (!testnetPipeline.allow) {
+                        stats.skipTestnetSymbol++;
+                        console.log(chalk.gray(`  [TESTNET GATE] ${symbol}: ${testnetPipeline.reason}`));
+                        continue;
+                    }
+
                     // 5. AI confirm
                     let aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc, executionContext, currentRiskConfig, {
                         schedulerMode,
                         thresholdRelax,
                         effectiveThreshold,
                         liveOnlyMode,
+                        liveVetoMode: requiresLiveQuality,
+                        entrySetup,
                     });
                     const idleProbeOverride = shouldIdleProbeOverrideAI({
                         asset,
@@ -2132,6 +2284,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         aiConfirm,
                         schedulerMode,
                         liveOnlyMode,
+                        hasLiveUserOrderWaiting: liveOrdersWaiting > 0,
+                        entrySetup,
                     });
                     if (idleProbeOverride) {
                         stats.aiSoftOverride++;
@@ -2286,7 +2440,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const liveOpenCount = await AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } });
                     if (liveOpenCount >= MAX_CONCURRENT_TRADES) {
                         stats.skipLimit++;
-                        currentOpenCount = liveOpenCount; // sync lại local counter
+                        currentOpenCount = liveOpenCount;
+                        currentAllocatedCapital -= investedAmount;
+                        currentOpenCount = Math.max(currentOpenCount - 1, 0);
                         continue;
                     }
                     const raceGuardCheck = await AutoTrade.findOne({
@@ -2314,9 +2470,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         investedAmount,
                         volume,
                         aiScore: techSignal.score,
-                        confidence: techSignal.score,
+                        confidence: techSignal.breakdown?.qualityScore ?? techSignal.score,
                         reason: aiConfirm.reason,
-                        aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; setup=${entrySetup.type}; longScore=${techSignal.breakdown.longScore}; shortScore=${techSignal.breakdown.shortScore}; edge=${techSignal.breakdown.edge}; news=${newsContext.summary}`,
+                        exitReason: null,
+                        exitTag: null,
+                        aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; setup=${entrySetup.type}; qualityScore=${techSignal.breakdown?.qualityScore}; confluence=${techSignal.breakdown?.confluenceCount}; legacyScore=${techSignal.breakdown?.legacyScore}; edge=${techSignal.breakdown?.edge}; news=${newsContext.summary}`,
                         status: tradeStatus,
                         marketCondition: marketStatus,
                         riskLevel: currentRiskLevel,
@@ -2356,11 +2514,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         // FIXED đã MATCHED rồi thì không xét lại; PORTFOLIO ACTIVE vẫn nhận thêm lệnh
                         if (!isPortfolio && userOrder.status !== 'PENDING') continue;
 
-                        // LIVE chỉ khớp ứng viên đạt ngưỡng nghiêm ngặt (bảo vệ tiền thật).
-                        // Ứng viên điểm thấp (SIM≤score<LIVE) vẫn được giữ làm lệnh training,
-                        // nhưng KHÔNG kích hoạt/chiếm vốn gói LIVE — gói LIVE tiếp tục chờ.
-                        if (userOrder.executionMode === 'LIVE' && techSignal.score < liveScoreThreshold) {
-                            continue;
+                        // LIVE: quant gate + quality score (không nới ngưỡng idle).
+                        if (userOrder.executionMode === 'LIVE') {
+                            if (!liveGate.pass || techSignal.score < liveScoreThreshold) continue;
                         }
 
                         const validation = verifyOrderFeasibility(asset, userOrder.targetPct);
@@ -2405,6 +2561,20 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             matchNote = ` Reward/Risk: +${compatibility.rewardPct}%/-${compatibility.riskPct}%.`;
                         }
 
+                        // ── TESTNET symbol gate (trước broker — tránh UNMATCHED) ──
+                        if (userOrder.executionMode === 'LIVE' && userOrder.exchangeConnectionId && asset === 'CRYPTO') {
+                            const conn = testnetGateContext?.connectionsById?.[String(userOrder.exchangeConnectionId)]
+                                || await ExchangeConnection.findById(userOrder.exchangeConnectionId);
+                            if (conn?.environment === 'TESTNET') {
+                                const symbolCheck = await isSymbolTradableOnConnection(conn, symbol, directionLabel);
+                                if (!symbolCheck.supported) {
+                                    userOrder.result.message = `[TESTNET SKIP] ${symbol}: ${symbolCheck.reason}. Gói tiếp tục chờ mã khác (không tính UNMATCHED).`;
+                                    await userOrder.save();
+                                    continue;
+                                }
+                            }
+                        }
+
                         // ── NHÁNH LIVE EXECUTION trước (để biết executionMode chính xác) ──
                         let liveMsg = '';
                         let liveEntryFailed = false;
@@ -2417,6 +2587,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             });
                             if (liveResult.success) {
                                 liveMatched = true;
+                                if (liveResult.filledPrice) {
+                                    rebaseTradeLevelsFromFill(newTrade, liveResult.filledPrice);
+                                }
                                 newTrade.executionMode = 'LIVE';
                                 newTrade.marketType = liveResult.marketType || 'SPOT';
                                 newTrade.leverage = liveResult.leverage || 1;
@@ -2458,6 +2631,15 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         await userOrder.save();
                     }
 
+                    if (liveOnlyMode && !liveMatched) {
+                        await AutoTrade.deleteOne({ _id: newTrade._id });
+                        currentAllocatedCapital -= investedAmount;
+                        currentOpenCount = Math.max(currentOpenCount - 1, 0);
+                        stats.matched--;
+                        console.log(chalk.gray(`  [LIVE-ONLY] ${symbol}: không khớp LIVE broker — hủy lệnh tạm.`));
+                        continue;
+                    }
+
                     // 9. Telegram MỞ LỆNH: chỉ thông báo khi là lệnh LIVE.
                     //    Mô phỏng chạy nền training AI → im lặng, xem qua /sim.
                     if (liveMatched) {
@@ -2483,7 +2665,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             if (stats.scanned > 0) {
                 const volSkip = stats.skipVolume || 0;
                 const setupSkip = stats.skipSetup || 0;
-                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | Volume surge: ${volSkip} | Setup/HTF: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected} | Idle override: ${stats.aiSoftOverride}] | Đã vào: ${stats.matched} lệnh.`));
+                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | LIVE gate: ${stats.skipLiveGate || 0} | SIM gate: ${stats.skipSimGate || 0} | Testnet: ${stats.skipTestnetSymbol || 0} | Volume: ${volSkip} | Setup: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected} | Idle override: ${stats.aiSoftOverride}] | Vào: ${stats.matched} lệnh.`));
             }
             if (minOpenTarget > 0 && currentOpenCount >= minOpenTarget) {
                 console.log(chalk.green(`[AUTODUCK IDLE] Đã đạt mục tiêu ${minOpenTarget} lệnh mở, dừng lượt quét nới ngưỡng.`));
@@ -2557,6 +2739,17 @@ const handlePartialFill = async (trade, partialPrice) => {
                 return raw;
             })();
 
+        if (trade.executionMode === 'LIVE') {
+            const r = await executeLivePartialExit({ trade, fraction, exitReason: `TP1 partial @ ${partialPrice}` })
+                .catch(err => ({ success: false, message: err.message }));
+            if (!r.success) {
+                console.log(chalk.bgRed.white(`  [LIVE PARTIAL FAIL] ${trade.symbol}: ${r.message} — giữ nguyên vị thế, không đánh dấu TP1.`));
+                await sendTelegramMessage(`🚨 <b>[LIVE PARTIAL FAIL]</b> ${trade.symbol}: ${r.message}\n⚠️ Kiểm tra & chốt một phần thủ công.`).catch(() => {});
+                return;
+            }
+            await sendTelegramMessage(`🎯 <b>[LIVE TP1]</b> ${trade.symbol}: chốt ${Math.round(fraction * 100)}% @ ${partialPrice} (+${tp1PnlPct.toFixed(2)}%).`).catch(() => {});
+        }
+
         trade.realizedPartialPnl = Math.round((Number(trade.realizedPartialPnl) || 0) + realizedVnd);
         trade.tp1Filled = true;
         trade.tp1FillPrice = partialPrice;
@@ -2564,18 +2757,6 @@ const handlePartialFill = async (trade, partialPrice) => {
         trade.stopLossPrice = isLong
             ? Math.max(trade.stopLossPrice, trade.entryPrice)
             : Math.min(trade.stopLossPrice, trade.entryPrice);
-
-        // LIVE: bán phần TP1 thực trên sàn (best-effort; thất bại không chặn logic SIM).
-        if (trade.executionMode === 'LIVE') {
-            const r = await executeLivePartialExit({ trade, fraction, exitReason: `TP1 partial @ ${partialPrice}` })
-                .catch(err => ({ success: false, message: err.message }));
-            if (!r.success) {
-                console.log(chalk.bgRed.white(`  [LIVE PARTIAL FAIL] ${trade.symbol}: ${r.message} — kiểm tra sàn!`));
-                await sendTelegramMessage(`🚨 <b>[LIVE PARTIAL FAIL]</b> ${trade.symbol}: ${r.message}\n⚠️ Kiểm tra & chốt một phần thủ công.`).catch(() => {});
-            } else {
-                await sendTelegramMessage(`🎯 <b>[LIVE TP1]</b> ${trade.symbol}: chốt ${Math.round(fraction * 100)}% @ ${partialPrice} (+${tp1PnlPct.toFixed(2)}%), dời SL → breakeven ${trade.entryPrice}. Phần còn lại chạy tiếp.`).catch(() => {});
-            }
-        }
 
         await trade.save();
         console.log(chalk.green(
@@ -2662,6 +2843,9 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                 const ROUND_TRIP_FEE_PCT = trade.assetType === 'CRYPTO' ? 0.2
                     : trade.assetType === 'VN_STOCK' ? 0.4
                     : 0.1;
+                const EXIT_ONLY_FEE_PCT = trade.assetType === 'CRYPTO' ? 0.1
+                    : trade.assetType === 'VN_STOCK' ? 0.2
+                    : 0.05;
                 const grossPnlPercent = (priceDiff / trade.entryPrice) * 100;
                 const investedVND = Number(trade.investedAmount) || 0;
 
@@ -2669,7 +2853,7 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                     // PnL TỔNG = phần đã chốt ở TP1 (realizedPartialPnl) + phần còn lại đóng bây giờ.
                     // pnlPercent quy về % trên TOÀN vốn gốc để thống nhất với báo cáo/diag.
                     const remFrac = 1 - Number(trade.tp1Fraction);
-                    const leg2PnlPct = grossPnlPercent - ROUND_TRIP_FEE_PCT;
+                    const leg2PnlPct = grossPnlPercent - EXIT_ONLY_FEE_PCT;
                     const tp1PnlPct = ((isLong ? (Number(trade.tp1FillPrice) - trade.entryPrice) : (trade.entryPrice - Number(trade.tp1FillPrice))) / trade.entryPrice) * 100 - ROUND_TRIP_FEE_PCT;
                     trade.pnlPercent = Math.round((Number(trade.tp1Fraction) * tp1PnlPct + remFrac * leg2PnlPct) * 100) / 100;
                     const leg2Vnd = investedVND > 0
@@ -2699,6 +2883,9 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
                     : exitReason.includes('Timeout') ? 'TIMEOUT_EXIT'
                     : exitReason.includes('Đảo chiều') ? 'REVERSAL_EXIT'
                     : 'MANUAL_EXIT';
+
+                trade.exitReason = exitReason;
+                trade.exitTag = exitTag;
 
                 await trade.save();
 
@@ -2861,7 +3048,8 @@ export const getTradeAnalytics = async ({ days = 30, assetType = null } = {}) =>
 
     // Phân tích PnL theo exit tag
     const byExitTag = trades.reduce((acc, t) => {
-        const tag = t.aiReportSnapshot?.match(/exitTag=([A-Z_]+)/)?.[1]
+        const tag = t.exitTag
+            || t.aiReportSnapshot?.match(/exitTag=([A-Z_]+)/)?.[1]
             || (t.pnlPercent > 0 ? 'TP_HIT' : 'SL_HIT');
         if (!acc[tag]) acc[tag] = { count: 0, wins: 0, totalPnl: 0 };
         acc[tag].count++;
@@ -2967,6 +3155,15 @@ export const startAutoDuckScheduler = () => {
 
     setInterval(() => runIntervalTask('IDLE_FAST', async () => {
         try {
+            const liveWaiting = await UserOrder.countDocuments({
+                status: { $in: ['PENDING', 'ACTIVE'] },
+                executionMode: 'LIVE',
+            });
+            if (liveWaiting > 0) {
+                resetIdleScanState(`${liveWaiting} gói LIVE đang chờ — tạm dừng idle SIM relax`);
+                return;
+            }
+
             const [openCount, maxConcurrentSetting] = await Promise.all([
                 AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } }),
                 Setting.findOne({ key: 'autoTradeMaxConcurrent' }).lean(),

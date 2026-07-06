@@ -3,8 +3,6 @@ import AutoTrade from '../../models/AutoTrade.js';
 import Setting from '../../models/Setting.js';
 import {
     analyzeTechnicalSignal,
-    buildTradePlanFromSignal,
-    getExecutionContextForAsset,
     fetchRealtimeQuote,
     fetchAnalysisCandles,
     getUsdVndRate,

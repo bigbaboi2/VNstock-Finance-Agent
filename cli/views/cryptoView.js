@@ -1,6 +1,6 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
-import { ScreenBuffer, getTermSize } from './screenManager.js';
+import { ScreenBuffer, getTermSize } from '../screenManager.js';
 
 function formatVolume(val) {
     const num = parseFloat(val) || 0;
