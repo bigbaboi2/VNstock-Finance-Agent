@@ -12,6 +12,11 @@
     "test:entry-setup": "node scripts/test_entry_setup.mjs",
     "test:exit-policy": "node scripts/test_exit_policy.mjs",
     "test:testnet-gate": "node scripts/test_testnet_symbol_gate.mjs",
+    "test:funnel": "node scripts/test_funnel.mjs",
+    "test:macro-resolution": "node scripts/test_macro_resolution.mjs",
+    "test:adaptive-guards": "node scripts/test_adaptive_guards.mjs",
+    "diag:funnel": "node --use-system-ca scripts/diag_funnel.mjs",
+    "diag:audit": "node --use-system-ca scripts/audit_tail.mjs",
     "dev:tunnel": "cross-env npx ngrok http --domain=%NGROK_DOMAIN% 3001",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:tunnel\""
   },

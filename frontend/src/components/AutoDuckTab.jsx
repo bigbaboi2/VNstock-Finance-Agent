@@ -59,6 +59,29 @@ const getRewardRiskPct = (log) => {
 
 const getSignalBreakdown = (log) => log.signalBreakdown || {};
 
+const isMatchedAllocation = (order, allocation) => {
+    if (!allocation || allocation.matchStatus === 'UNMATCHED') return false;
+    if (order.executionMode === 'LIVE') return allocation.executionMode === 'LIVE';
+    return true;
+};
+
+/** Số lệnh/vị thế đang mở thực tế trong một gói (PORTFOLIO hoặc FIXED). */
+const countOpenOrdersInPackage = (order) => {
+    if (order.allocationMode === 'PORTFOLIO') {
+        return (order.tradeAllocations || []).filter(
+            (a) => isMatchedAllocation(order, a) && !a.closedAt
+        ).length;
+    }
+    if (order.status === 'MATCHED' && order.assignedTrade) {
+        const trade = order.assignedTrade;
+        if (typeof trade === 'object' && trade.status) {
+            return ['OPEN', 'PENDING'].includes(trade.status) ? 1 : 0;
+        }
+        return 1;
+    }
+    return 0;
+};
+
 export default function AutoDuckTab({ username, isDark, UI }) {
     const isAdmin = username === 'admin';
     const [systemLogs, setSystemLogs] = useState([]);
@@ -124,6 +147,16 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             worstTrade,
         };
     }, [systemLogs]);
+
+    const userOrderStats = useMemo(() => {
+        const totalOpenRunning = userOrders.reduce((sum, order) => sum + countOpenOrdersInPackage(order), 0);
+        const activePackages = userOrders.filter((o) => ['ACTIVE', 'PENDING', 'MATCHED'].includes(o.status)).length;
+        return {
+            packageCount: userOrders.length,
+            totalOpenRunning,
+            activePackages,
+        };
+    }, [userOrders]);
 
     const filteredAndSortedLogs = useMemo(() => {
         let result = [...systemLogs];
@@ -886,17 +919,44 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 </section>
 
                 <section className={`xl:col-span-7 rounded-xl border flex flex-col max-h-[560px] overflow-hidden ${UI.card}`}>
-                    <div className={`px-5 py-4 flex items-center gap-2 border-b ${UI.border} shrink-0`}>
-                        <Target size={16} className="text-yellow-500" />
-                        <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Gói lệnh của bạn ({userOrders.length})</span>
+                    <div className={`px-5 py-4 flex flex-col gap-1 border-b ${UI.border} shrink-0`}>
+                        <div className="flex items-center gap-2">
+                            <Target size={16} className="text-yellow-500 shrink-0" />
+                            <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>
+                                Gói lệnh của bạn
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 pl-6">
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+                                {userOrderStats.packageCount} gói
+                            </span>
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${userOrderStats.totalOpenRunning > 0 ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : (isDark ? 'bg-white/5 border-white/10 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500')}`}>
+                                {userOrderStats.totalOpenRunning} lệnh đang chạy
+                            </span>
+                            {userOrderStats.activePackages > 0 && (
+                                <span className={`text-[10px] font-bold ${UI.textMuted}`}>
+                                    · {userOrderStats.activePackages} gói bot đang bật
+                                </span>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-3">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
                         {userOrders.length === 0 ? (
                             <p className={`text-sm font-bold text-center py-8 ${UI.textMuted}`}>
                                 Chưa có gói lệnh nào. Tạo gói lệnh để AutoDuck tự khớp tín hiệu tối ưu cho bạn.
                             </p>
                         ) : (
-                            userOrders.map(order => <UserOrderCard key={order._id} order={order} isDark={isDark} UI={UI} onStop={handleStopOrder} onDelete={handleDeleteOrder} />)
+                            userOrders.map((order, idx) => (
+                                <UserOrderCard
+                                    key={order._id}
+                                    index={idx + 1}
+                                    order={order}
+                                    isDark={isDark}
+                                    UI={UI}
+                                    onStop={handleStopOrder}
+                                    onDelete={handleDeleteOrder}
+                                />
+                            ))
                         )}
                     </div>
                 </section>
@@ -1166,7 +1226,7 @@ function ScoreBlock({ label, value, tone }) {
     );
 }
 
-function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
+function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
     const statusClass =
         order.status === 'MATCHED' ? 'bg-cyan-500/10 text-cyan-500 border-cyan-500/30' :
         order.status === 'ACTIVE' ? 'bg-violet-500/10 text-violet-400 border-violet-500/30' :
@@ -1177,13 +1237,8 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
 
     const isPortfolio = order.allocationMode === 'PORTFOLIO';
     const allAllocations = isPortfolio ? (order.tradeAllocations || []) : [];
-    const isMatchedAllocation = (a) => {
-        if (!a || a.matchStatus === 'UNMATCHED') return false;
-        if (order.executionMode === 'LIVE') return a.executionMode === 'LIVE';
-        return true;
-    };
-    const matchedAllocs = allAllocations.filter(isMatchedAllocation);
-    const openAllocs = matchedAllocs.filter(a => !a.closedAt).length;
+    const matchedAllocs = allAllocations.filter((a) => isMatchedAllocation(order, a));
+    const openCount = countOpenOrdersInPackage(order);
     const closedAllocs = matchedAllocs.filter(a => a.closedAt);
     const wins = closedAllocs.filter(a => a.pnl > 0).length;
     const displayUsedCapital = matchedAllocs
@@ -1197,21 +1252,57 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
         ? Math.min(100, Math.round(displayUsedCapital / displayTotalCapital * 100))
         : 0;
 
+    const packageOutline = openCount > 0
+        ? (isDark ? 'ring-2 ring-cyan-500/35 border-2 border-cyan-500/25 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]' : 'ring-2 ring-cyan-400/50 border-2 border-cyan-300 shadow-sm')
+        : isPortfolio
+            ? (isDark ? 'ring-1 ring-violet-500/30 border-2 border-violet-500/20' : 'ring-1 ring-violet-300/60 border-2 border-violet-200')
+            : (isDark ? 'ring-1 ring-white/10 border-2 border-white/10' : 'ring-1 ring-slate-200 border-2 border-slate-200');
+
+    const packageBg = isPortfolio
+        ? (isDark ? 'bg-violet-500/[0.04]' : 'bg-violet-50/40')
+        : (isDark ? 'bg-[#10151c]' : 'bg-slate-50');
+
     return (
-        <div className={`p-3 rounded-lg border ${isPortfolio ? (isDark ? 'bg-violet-500/[0.04] border-violet-500/20' : 'bg-violet-50/50 border-violet-200') : (isDark ? 'bg-[#10151c] border-white/5' : 'bg-slate-50 border-slate-200')}`}>
-            <div className="flex justify-between items-center gap-3 mb-2">
-                <span className={`text-sm font-black font-mono ${UI.textBold}`}>
-                    {isPortfolio ? `💼 ${formatNumber(displayTotalCapital)} đ` : `${formatNumber(order.capital)} đ`}
-                </span>
-                <div className="flex items-center gap-1.5">
+        <div className={`rounded-xl p-4 ${packageBg} ${packageOutline}`}>
+            {/* ── Header gói: số thứ tự + trạng thái lệnh đang chạy ── */}
+            <div className={`flex items-center justify-between gap-2 mb-3 pb-2.5 border-b ${isDark ? 'border-white/8' : 'border-slate-200'}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className={`flex shrink-0 items-center justify-center w-8 h-8 rounded-lg text-xs font-black border ${isDark ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' : 'bg-yellow-50 border-yellow-300 text-yellow-700'}`}>
+                        #{index}
+                    </span>
+                    <div className="flex flex-col min-w-0">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold}`}>
+                            Gói #{index}{isPortfolio ? ' · Portfolio' : ' · Cố định'}
+                        </span>
+                        <span className={`text-[9px] font-bold ${openCount > 0 ? 'text-cyan-400' : UI.textMuted}`}>
+                            {openCount > 0
+                                ? `${openCount} lệnh đang chạy`
+                                : ['ACTIVE', 'PENDING'].includes(order.status)
+                                    ? 'Bot đang bật · chờ tín hiệu'
+                                    : 'Không có lệnh đang chạy'}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    {openCount > 0 && (
+                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
+                            {openCount} đang chạy
+                        </span>
+                    )}
                     {isPortfolio && (
                         <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-violet-500/10 text-violet-400 border-violet-500/30">PORTFOLIO</span>
                     )}
                     {order.executionMode === 'LIVE' && (
-                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-500 border-emerald-500/30 animate-pulse">● LIVE</span>
+                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-500 border-emerald-500/30">● LIVE</span>
                     )}
                     <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${statusClass}`}>{order.status}</span>
                 </div>
+            </div>
+
+            <div className="flex justify-between items-center gap-3 mb-2">
+                <span className={`text-sm font-black font-mono ${UI.textBold}`}>
+                    {isPortfolio ? `💼 ${formatNumber(displayTotalCapital)} đ` : `${formatNumber(order.capital)} đ`}
+                </span>
             </div>
 
             {/* ── PORTFOLIO: thanh sử dụng quỹ + thống kê ── */}
@@ -1222,7 +1313,7 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
                     </div>
                     <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5">
                         <span className={`text-[10px] font-mono font-bold ${UI.textMuted}`}>
-                            Đang dùng: {formatNumber(displayUsedCapital)}đ ({usedPct}%) · {openAllocs} lệnh mở
+                            Đang dùng: {formatNumber(displayUsedCapital)}đ ({usedPct}%) · {openCount} lệnh mở
                         </span>
                         <span className={`text-[10px] font-mono font-black ${displayRealizedPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                             PnL: {displayRealizedPnl >= 0 ? '+' : ''}{formatNumber(displayRealizedPnl)}đ
@@ -1234,6 +1325,12 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
                         </span>
                     )}
                 </div>
+            )}
+
+            {!isPortfolio && (
+                <p className={`text-[10px] font-mono font-bold mb-2 ${openCount > 0 ? 'text-cyan-400' : UI.textMuted}`}>
+                    {openCount > 0 ? `${openCount} lệnh đang chạy trong gói` : 'Chưa có lệnh khớp · đang chờ tín hiệu'}
+                </p>
             )}
 
             <div className="flex flex-wrap gap-2 mb-2">
@@ -1252,7 +1349,7 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
                     <div className="flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
                         {[...allAllocations].reverse().map((a, i) => {
                             const isClosed = !!a.closedAt;
-                            const isUnmatched = !isMatchedAllocation(a);
+                            const isUnmatched = !isMatchedAllocation(order, a);
                             return (
                                 <div key={i} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[10px] ${isDark ? 'bg-black/20' : 'bg-slate-50'}`}>
                                     <div className="flex items-center gap-1.5 min-w-0">
@@ -1291,7 +1388,7 @@ function UserOrderCard({ order, isDark, UI, onStop, onDelete }) {
             )}
 
             {/* ── Nút xóa gói đã kết thúc (COMPLETED / STOPPED / REJECTED) ── */}
-            {!['ACTIVE', 'PENDING'].includes(order.status) && openAllocs === 0 && onDelete && (
+            {!['ACTIVE', 'PENDING'].includes(order.status) && openCount === 0 && onDelete && (
                 <button
                     onClick={() => onDelete(order)}
                     className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-500/40 text-red-500 hover:bg-red-500/10 transition-colors">

@@ -5,7 +5,18 @@ import CryptoCoin from '../../models/CryptoCoin.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from './quantEngine.js';
 import { globalDerivCache } from '../jobs/derivUpdater.js';
+import { ensureCryptoUpdaterRunning } from '../jobs/cryptoUpdater.js';
+import { cryptoCache } from './cryptoService.js';
 import { getCachedData, saveToCache } from './cacheService.js';
+
+const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+/** Ảnh hưởng VN macro lên breadth crypto (phần còn lại = Fear&Greed/BTC). */
+export const CRYPTO_VN_BREADTH_BLEND = Number(process.env.AUTODUCK_CRYPTO_VN_BREADTH_BLEND) || 0.08;
+/** Bật nudge ±1–2 điểm từ VN statusType lên CRYPTO context bias. */
+export const CRYPTO_VN_CROSS_BIAS = process.env.AUTODUCK_CRYPTO_VN_CROSS_BIAS !== 'false';
+/** Cap tổng điểm context bias mỗi hướng (orderbook/funding/news/VN cross). */
+export const CONTEXT_BIAS_MAX = Number(process.env.AUTODUCK_CONTEXT_BIAS_MAX) || 6;
 
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
 const MEMORY_TTL = 2 * 60 * 1000;
@@ -256,6 +267,119 @@ export const getVnMarketContext = async ({ forceRefresh = false } = {}) => {
         source: 'CAFEF_ENTRADE_LIVE',
         fetchedAt: new Date(),
     });
+};
+
+export const buildVnMacroSnapshot = (vnMarketContext = {}) => {
+    const intel = vnMarketContext?.intelligence || {};
+    return {
+        source: vnMarketContext?.source || 'VN_MARKET',
+        breadthRatio: parseFloat(intel.breadthRatio) || 50,
+        marketStatus: intel.marketStatus || 'ĐI NGANG TÍCH LŨY',
+        statusType: intel.statusType || 'neutral',
+        diagnosticDesc: intel.diagnosticDesc || '',
+    };
+};
+
+const CRYPTO_MACRO_CACHE_KEY = 'CRYPTO_MACRO_CONTEXT';
+const CRYPTO_MACRO_TTL_MS = 5 * 60 * 1000;
+
+/** Macro crypto: Fear&Greed + BTC 24h + biến động vốn hóa toàn thị trường (CoinGecko). */
+export const getCryptoMacroContext = async ({ forceRefresh = false } = {}) => {
+    if (!forceRefresh) {
+        const cached = getMemory(CRYPTO_MACRO_CACHE_KEY, CRYPTO_MACRO_TTL_MS);
+        if (cached) return cached;
+    }
+
+    await ensureCryptoUpdaterRunning();
+
+    let btcChangePct = 0;
+    try {
+        const res = await axios.get('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', { timeout: 5000 });
+        btcChangePct = parseFloat(res.data?.priceChangePercent) || 0;
+    } catch (err) {
+        console.log(chalk.gray(`[CRYPTO MACRO] Không lấy được BTC 24h: ${err.message}`));
+    }
+
+    const fg = Number(cryptoCache.fearGreed?.value) || 50;
+    const fgLabel = cryptoCache.fearGreed?.label || 'Neutral';
+    const gmChange = parseFloat(cryptoCache.globalMarket?.marketCapChangePercent) || 0;
+
+    let breadthRatio = fg
+        + clampNum(btcChangePct * 2.5, -12, 12)
+        + clampNum(gmChange * 1.5, -8, 8);
+    breadthRatio = clampNum(Math.round(breadthRatio * 10) / 10, 5, 95);
+
+    let statusType = 'neutral';
+    let marketStatus = 'CRYPTO TRUNG LẬP';
+    const diagnosticDesc = `Fear&Greed ${fg} (${fgLabel}) · BTC 24h ${btcChangePct >= 0 ? '+' : ''}${btcChangePct.toFixed(2)}% · MCAP 24h ${gmChange >= 0 ? '+' : ''}${gmChange}%`;
+
+    if (fg <= 25 || (fg <= 35 && btcChangePct < -2)) {
+        statusType = 'bearish';
+        marketStatus = 'CRYPTO RISK-OFF';
+    } else if (fg >= 75 || (fg >= 60 && btcChangePct > 2 && gmChange > 0)) {
+        statusType = 'bullish';
+        marketStatus = 'CRYPTO RISK-ON';
+    } else if (fg <= 40 || btcChangePct < -3) {
+        statusType = 'warning';
+        marketStatus = 'CRYPTO THẬN TRỌNG';
+    } else if (fg >= 55 && btcChangePct > 0) {
+        statusType = 'bullish';
+        marketStatus = 'CRYPTO TÍCH CỰC';
+    }
+
+    const payload = {
+        source: 'CRYPTO_FNG_BTC_GLOBAL',
+        breadthRatio,
+        statusType,
+        marketStatus,
+        diagnosticDesc,
+        fearGreed: fg,
+        fearGreedLabel: fgLabel,
+        btcChangePct,
+        globalMcapChangePct: gmChange,
+    };
+    return setMemory(CRYPTO_MACRO_CACHE_KEY, payload);
+};
+
+/** Chọn macro chính theo phân khúc; crypto blend nhẹ breadth VN (~8%). */
+export const resolveAssetMacro = (asset, vnMacro, cryptoMacro) => {
+    const vn = vnMacro || buildVnMacroSnapshot();
+
+    if (asset === 'CRYPTO' && cryptoMacro) {
+        const blend = CRYPTO_VN_BREADTH_BLEND;
+        const breadthRatio = clampNum(
+            Math.round((cryptoMacro.breadthRatio * (1 - blend) + vn.breadthRatio * blend) * 10) / 10,
+            5,
+            95
+        );
+        return {
+            ...cryptoMacro,
+            breadthRatio,
+            primarySource: cryptoMacro.source,
+            vnCrossBlend: blend,
+            vnReference: {
+                marketStatus: vn.marketStatus,
+                breadthRatio: vn.breadthRatio,
+                statusType: vn.statusType,
+            },
+        };
+    }
+
+    if (asset === 'DERIVATIVES' || asset === 'VN_STOCK') {
+        return { ...vn, primarySource: vn.source || 'VN_MARKET' };
+    }
+
+    return { ...vn, primarySource: vn.source || 'VN_MARKET' };
+};
+
+export const getMacroContextForTrade = (assetType, vnMacro, cryptoMacro) => {
+    const m = resolveAssetMacro(assetType, vnMacro, cryptoMacro);
+    return {
+        breadthRatio: m.breadthRatio,
+        statusType: m.statusType,
+        marketStatus: m.marketStatus,
+        diagnosticDesc: m.diagnosticDesc,
+    };
 };
 
 export const buildVnStockScanUniverse = async (marketContext, limit = 25) => {

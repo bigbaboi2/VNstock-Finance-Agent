@@ -14,6 +14,12 @@ import {
     getCryptoTradeContext,
     getDerivativesTradeContext,
     getVnMarketContext,
+    buildVnMacroSnapshot,
+    getCryptoMacroContext,
+    resolveAssetMacro,
+    getMacroContextForTrade,
+    CRYPTO_VN_CROSS_BIAS,
+    CONTEXT_BIAS_MAX,
 } from './tradeContextService.js';
 import {
     buildAutoTradeCloseMessage,
@@ -50,6 +56,11 @@ import {
     filterSymbolsForTestnetUniverse,
     isSymbolTradableOnConnection,
 } from './testnetSymbolGate.js';
+import {
+    createFunnelTracker,
+    pushFunnelSummary,
+} from './tradeFunnelService.js';
+import { appendAuditEvent } from './auditLogService.js';
 
 // ── CONSTANTS & HELPERS
 
@@ -106,6 +117,13 @@ const countLiveOrdersWaiting = (asset) => UserOrder.countDocuments({
     executionMode: 'LIVE',
     $or: [{ assetType: 'ALL' }, { assetType: asset }],
 });
+
+const isAutoFuturesShortEnabled = async () => {
+    const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
+    const dbEnabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1));
+    const envEnabled = process.env.AUTODUCK_AUTO_FUTURES_SHORT_ENABLED === 'true';
+    return dbEnabled || envEnabled;
+};
 
 export const rebaseTradeLevelsFromFill = (trade, filledPrice) => {
     const fill = Number(filledPrice);
@@ -1305,11 +1323,13 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
     };
 };
 
-const applyExecutionContextBias = (signal, asset, context = {}, customScoreThreshold = null, config = getRiskConfig(2)) => {
+const applyExecutionContextBias = (signal, asset, context = {}, customScoreThreshold = null, config = getRiskConfig(2), vnMacroCross = null) => {
     if (!signal?.breakdown || signal.direction === 'NEUTRAL') return signal;
 
     let longBias = 0;
     let shortBias = 0;
+    let vnCrossLong = 0;
+    let vnCrossShort = 0;
     const reasons = [];
     const newsScore = Number(context.news?.sentimentScore);
 
@@ -1356,6 +1376,20 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
             longBias += 2;
             reasons.push('short_side_overcrowded');
         }
+
+        // VN macro: ảnh hưởng nhẹ (~±2 điểm bias), không thay thế macro crypto.
+        if (CRYPTO_VN_CROSS_BIAS && vnMacroCross?.statusType === 'bearish') {
+            vnCrossShort += 2;
+            reasons.push('vn_macro_cross_risk_off');
+        } else if (CRYPTO_VN_CROSS_BIAS && vnMacroCross?.statusType === 'bullish') {
+            vnCrossLong += 1;
+            reasons.push('vn_macro_cross_risk_on');
+        } else if (CRYPTO_VN_CROSS_BIAS && vnMacroCross?.statusType === 'warning') {
+            vnCrossShort += 1;
+            reasons.push('vn_macro_cross_caution');
+        }
+        longBias += vnCrossLong;
+        shortBias += vnCrossShort;
     }
 
     if (asset === 'DERIVATIVES') {
@@ -1414,8 +1448,12 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
 
     if (longBias === 0 && shortBias === 0) return signal;
 
-    const longScore = Math.max(0, Math.min(100, (signal.breakdown.longScore || 0) + longBias));
-    const shortScore = Math.max(0, Math.min(100, (signal.breakdown.shortScore || 0) + shortBias));
+    const capBias = (n) => Math.min(CONTEXT_BIAS_MAX, Math.max(0, n));
+    const cappedLong = capBias(longBias);
+    const cappedShort = capBias(shortBias);
+
+    const longScore = Math.max(0, Math.min(100, (signal.breakdown.longScore || 0) + cappedLong));
+    const shortScore = Math.max(0, Math.min(100, (signal.breakdown.shortScore || 0) + cappedShort));
     const edge = Math.abs(longScore - shortScore);
     const score = Math.max(longScore, shortScore);
     const scoreThr = customScoreThreshold !== null ? customScoreThreshold : config.scoreThreshold;
@@ -1432,10 +1470,42 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
             longScore,
             shortScore,
             edge,
-            contextLongBias: longBias,
-            contextShortBias: shortBias,
+            contextLongBias: cappedLong,
+            contextShortBias: cappedShort,
             contextBiasReasons: reasons,
+            vnCrossLongBias: vnCrossLong,
+            vnCrossShortBias: vnCrossShort,
         },
+    };
+};
+
+const buildBiasLedger = (signal, assetMacro, vnMacroCross = null) => {
+    const b = signal?.breakdown || {};
+    const contextLong = Number(b.contextLongBias) || 0;
+    const contextShort = Number(b.contextShortBias) || 0;
+    const vnLong = Number(b.vnCrossLongBias) || 0;
+    const vnShort = Number(b.vnCrossShortBias) || 0;
+    return {
+        macro: {
+            breadth: assetMacro?.breadthRatio ?? 50,
+            statusType: assetMacro?.statusType ?? 'neutral',
+            deltaLong: 0,
+            deltaShort: 0,
+            embeddedInTechnical: true,
+        },
+        context: {
+            reasons: b.contextBiasReasons || [],
+            deltaLong: contextLong,
+            deltaShort: contextShort,
+        },
+        vnCross: {
+            enabled: CRYPTO_VN_CROSS_BIAS,
+            statusType: vnMacroCross?.statusType ?? null,
+            deltaLong: vnLong,
+            deltaShort: vnShort,
+        },
+        totalDeltaLong: contextLong,
+        totalDeltaShort: contextShort,
     };
 };
 
@@ -1786,6 +1856,17 @@ export const evaluateExitDecision = (trade, currentPrice) => {
 
 // ── REALTIME EXIT CHECK
 
+const resolveExitMacroContext = (trade, marketContext = {}) => {
+    if (marketContext.vnMacro) {
+        return getMacroContextForTrade(trade.assetType, marketContext.vnMacro, marketContext.cryptoMacro);
+    }
+    return {
+        breadthRatio: marketContext.breadthRatio ?? 50,
+        statusType: marketContext.statusType ?? 'neutral',
+        marketStatus: marketContext.marketStatus ?? '',
+    };
+};
+
 const checkExitConditions = async (trade, marketContext = {}, isFastCheck = false) => {
     try {
         const currentPrice = await fetchCurrentPrice(trade.symbol, trade.assetType);
@@ -1861,10 +1942,11 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
             && !isFastCheck && holdMs > minHoldForSignalExitMs) {
             try {
                 const candles = await fetchAnalysisCandles(trade.symbol, trade.assetType);
+                const tradeMacro = resolveExitMacroContext(trade, marketContext);
                 const signal = analyzeTechnicalSignal(
                     candles,
-                    marketContext.breadthRatio ?? 50,
-                    marketContext.statusType ?? 'neutral',
+                    tradeMacro.breadthRatio ?? 50,
+                    tradeMacro.statusType ?? 'neutral',
                     REVERSAL_EXIT_THRESHOLD,
                     config
                 );
@@ -1890,45 +1972,59 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
 // "Học thật": dùng KẾT QUẢ THỰC TẾ (AutoTrade đã đóng, PnL ròng) để tự điều chỉnh
 // ngưỡng điểm vào lệnh + size theo từng phân khúc. Đây là vòng phản hồi định lượng
 // thay cho việc chỉ lưu bài học dạng text (AiBehavior) vốn KHÔNG phản hồi vào logic.
-const adaptiveGuards = {
+const adaptiveGuardsSim = {
     CRYPTO:      { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
     VN_STOCK:    { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
     DERIVATIVES: { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+};
+
+const adaptiveGuardsLive = {
+    CRYPTO:      { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+    VN_STOCK:    { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+    DERIVATIVES: { scoreFloor: 0, sizeMult: 1.0, sample: 0 },
+};
+
+export const computeAdaptiveGuardFromTrades = (list) => {
+    let scoreFloor = 0;
+    let sizeMult = 1.0;
+
+    if (list.length >= 12) {
+        const winRate = list.filter(t => t.pnlPercent > 0).length / list.length;
+        const totalPnl = list.reduce((s, t) => s + (t.pnlPercent || 0), 0);
+
+        if (winRate < 0.5 || totalPnl < 0) {
+            for (const cut of [72, 74, 76, 78, 80]) {
+                const above = list.filter(t => (t.aiScore || 0) >= cut);
+                if (above.length >= 6) {
+                    const wAbove = above.filter(t => t.pnlPercent > 0).length / above.length;
+                    if (wAbove >= 0.55) { scoreFloor = cut; break; }
+                }
+            }
+            if (scoreFloor === 0) scoreFloor = 76;
+            sizeMult = 0.7;
+        }
+    }
+    return { scoreFloor, sizeMult, sample: list.length };
 };
 
 const recomputeAdaptiveGuards = async () => {
     try {
         const since = new Date(Date.now() - 30 * 24 * 3600_000);
         const trades = await AutoTrade.find({ status: 'CLOSED', closedAt: { $gte: since } })
-            .select('assetType aiScore pnlPercent').lean();
+            .select('assetType aiScore pnlPercent executionMode').lean();
 
-        for (const asset of Object.keys(adaptiveGuards)) {
-            const list = trades.filter(t => t.assetType === asset);
-            let scoreFloor = 0;
-            let sizeMult = 1.0;
-
-            // Cần đủ mẫu mới dám điều chỉnh — tránh phản ứng với nhiễu thống kê.
-            if (list.length >= 12) {
-                const winRate = list.filter(t => t.pnlPercent > 0).length / list.length;
-                const totalPnl = list.reduce((s, t) => s + (t.pnlPercent || 0), 0);
-
-                // Phân khúc đang yếu (win rate < 50% HOẶC tổng PnL âm) → siết.
-                if (winRate < 0.5 || totalPnl < 0) {
-                    // Tìm ngưỡng điểm THẤP NHẤT mà phía trên nó win rate >= 55% (mẫu >= 6).
-                    for (const cut of [72, 74, 76, 78, 80]) {
-                        const above = list.filter(t => (t.aiScore || 0) >= cut);
-                        if (above.length >= 6) {
-                            const wAbove = above.filter(t => t.pnlPercent > 0).length / above.length;
-                            if (wAbove >= 0.55) { scoreFloor = cut; break; }
-                        }
-                    }
-                    if (scoreFloor === 0) scoreFloor = 76; // không vùng nào đủ tốt → siết mặc định
-                    sizeMult = 0.7;                        // giảm size 30% khi phân khúc đang yếu
-                }
-            }
-            adaptiveGuards[asset] = { scoreFloor, sizeMult, sample: list.length };
+        for (const asset of Object.keys(adaptiveGuardsSim)) {
+            const allAsset = trades.filter(t => t.assetType === asset);
+            const simList = allAsset.filter(t => t.executionMode !== 'LIVE');
+            const liveList = allAsset.filter(t => t.executionMode === 'LIVE');
+            adaptiveGuardsSim[asset] = computeAdaptiveGuardFromTrades(simList);
+            adaptiveGuardsLive[asset] = computeAdaptiveGuardFromTrades(liveList);
         }
-        console.log(chalk.magenta(`[ADAPTIVE] ${Object.entries(adaptiveGuards).map(([a, g]) => `${a}:floor${g.scoreFloor}/×${g.sizeMult}(n=${g.sample})`).join(' | ')}`));
+        const fmt = (label, guards) => Object.entries(guards)
+            .map(([a, g]) => `${a}:${label}floor${g.scoreFloor}/×${g.sizeMult}(n=${g.sample})`)
+            .join(' | ');
+        console.log(chalk.magenta(`[ADAPTIVE] ${fmt('SIM', adaptiveGuardsSim)}`));
+        console.log(chalk.magenta(`[ADAPTIVE] ${fmt('LIVE', adaptiveGuardsLive)}`));
     } catch (err) {
         console.log(chalk.yellow(`[ADAPTIVE] Lỗi tính guard học máy: ${err.message}`));
     }
@@ -1979,6 +2075,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
     const thresholdRelax = Math.max(0, Number(options.thresholdRelax) || 0);
     const minOpenTarget = Math.max(0, Number(options.minOpenTarget) || 0);
     const schedulerMode = options.schedulerMode || 'STANDARD';
+    const dryRun = options.dryRun === true;
     // ── CHẾ ĐỘ HOẠT ĐỘNG ──
     // Engine BẬT  → quét full: mô phỏng (training AI nền) + live
     // Engine TẮT  → LIVE-ONLY: dừng triển khai mô phỏng, chỉ quét để phục vụ
@@ -2020,6 +2117,17 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
     } else {
         console.log(chalk.bgMagenta.black(`\n[AUTODUCK ENGINE v2] Khởi chạy chu kỳ rà soát thị trường thực tế...`));
     }
+    appendAuditEvent('pipeline', {
+        forcedAssetType: forcedAssetType || 'ALL',
+        schedulerMode,
+        thresholdRelax,
+        minOpenTarget,
+        liveOnlyMode,
+        dryRun,
+    }, {
+        event: 'pipeline_cycle_start',
+        source: 'autoTradeEngine',
+    }).catch(() => {});
 
     try {
         // 1. Macro data
@@ -2032,6 +2140,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
         let topVolumeFromMarket  = [];
         let strongSectorsFromMarket = [];
         let vnMarketContext = null;
+        let vnMacro = buildVnMacroSnapshot();
+        let cryptoMacro = null;
         const radarCandidates = {
             CRYPTO: [],
             VN_STOCK: [],
@@ -2040,22 +2150,25 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
         try {
             vnMarketContext = await getVnMarketContext();
+            vnMacro = buildVnMacroSnapshot(vnMarketContext);
             const intel = vnMarketContext?.intelligence;
             if (intel) {
-                breadthRatio            = parseFloat(intel.breadthRatio) || 50;
-                marketStatus            = intel.marketStatus;
-                statusType              = intel.statusType;
-                diagnosticDesc          = intel.diagnosticDesc;
+                breadthRatio            = vnMacro.breadthRatio;
+                marketStatus            = vnMacro.marketStatus;
+                statusType              = vnMacro.statusType;
+                diagnosticDesc          = vnMacro.diagnosticDesc;
                 topGainersFromMarket    = intel.topGainers || [];
                 topLosersFromMarket     = intel.topLosers || [];
                 topVolumeFromMarket     = intel.topVolume || [];
                 strongSectorsFromMarket = intel.strongSectors || [];
             }
         } catch (macroErr) {
-            console.log(chalk.yellow(`[AUTODUCK] Lấy dữ liệu vĩ mô lỗi, tiếp tục với breadth mặc định: ${macroErr.message}`));
+            console.log(chalk.yellow(`[AUTODUCK] Lấy VN macro lỗi, tiếp tục mặc định: ${macroErr.message}`));
         }
 
-        console.log(chalk.gray(`[AUTODUCK] Macro: ${marketStatus} | Breadth: ${breadthRatio.toFixed(1)}% | Type: ${statusType}`));
+        console.log(chalk.gray(
+            `[AUTODUCK] VN Macro: ${vnMacro.marketStatus} | Breadth: ${vnMacro.breadthRatio.toFixed(1)}% | Type: ${vnMacro.statusType}`
+        ));
 
         // 2. Target assets
         const targetAssets = [];
@@ -2067,6 +2180,17 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             if (isVNMarketOpen() || isPreMarket() || isATOPeriod() || isATCPeriod()) {
                 targetAssets.push('VN_STOCK');
                 targetAssets.push('DERIVATIVES');
+            }
+        }
+
+        if (targetAssets.includes('CRYPTO')) {
+            try {
+                cryptoMacro = await getCryptoMacroContext();
+                console.log(chalk.gray(
+                    `[AUTODUCK] Crypto Macro: ${cryptoMacro.marketStatus} | Breadth: ${cryptoMacro.breadthRatio.toFixed(1)}% | F&G ${cryptoMacro.fearGreed} | BTC ${cryptoMacro.btcChangePct >= 0 ? '+' : ''}${cryptoMacro.btcChangePct.toFixed(2)}%`
+                ));
+            } catch (cryptoMacroErr) {
+                console.log(chalk.yellow(`[AUTODUCK] Lấy Crypto macro lỗi: ${cryptoMacroErr.message}`));
             }
         }
 
@@ -2094,15 +2218,24 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
         // 3. Scan loop
         for (const asset of targetAssets) {
-            console.log(chalk.cyan(`\n[AUTODUCK] ═══ Quét phân khúc: ${asset} ═══`));
+            const assetMacro = resolveAssetMacro(asset, vnMacro, cryptoMacro);
+            const macroLogSuffix = asset === 'CRYPTO' && assetMacro.vnReference
+                ? ` | VN cross ${(assetMacro.vnCrossBlend * 100).toFixed(0)}% (${assetMacro.vnReference.marketStatus})`
+                : '';
+            console.log(chalk.cyan(
+                `\n[AUTODUCK] ═══ Quét phân khúc: ${asset} ═══`
+            ));
+            console.log(chalk.gray(
+                `  [MACRO ${asset}] ${assetMacro.marketStatus} | Breadth ${assetMacro.breadthRatio.toFixed(1)}% | ${assetMacro.statusType}${macroLogSuffix}`
+            ));
 
-            // Guard học máy: nâng ngưỡng điểm + giảm size nếu phân khúc này đang hiệu suất kém.
-            const guard = adaptiveGuards[asset] || {};
+            // Guard học máy: SIM và LIVE tách riêng — LIVE không bị siết bởi lịch sử SIM.
+            const guardSim = adaptiveGuardsSim[asset] || {};
+            const guardLive = adaptiveGuardsLive[asset] || {};
             const liveOrdersWaiting = await countLiveOrdersWaiting(asset);
             const requiresLiveQuality = liveOnlyMode || liveOrdersWaiting > 0;
 
-            // LIVE: cố định — KHÔNG nới ngưỡng khi idle (thresholdRelax chỉ áp SIM).
-            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guard.scoreFloor || 0, IDLE_MIN_LIVE_SCORE);
+            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guardLive.scoreFloor || 0, IDLE_MIN_LIVE_SCORE);
             const liveScoreThreshold = baseLiveThreshold;
 
             const baseSimThreshold = Math.max(65, dynamicScoreThreshold - 5);
@@ -2110,9 +2243,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 ? Math.max(IDLE_MIN_SIM_SCORE, baseSimThreshold - thresholdRelax)
                 : baseSimThreshold;
             const effectiveThreshold = simScoreThreshold;
-            const adaptiveSizeMult = guard.sizeMult || 1.0;
-            console.log(chalk.magenta(`  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (LIVE relax=0) · LIVE chờ=${liveOrdersWaiting}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}.`));
+            const adaptiveSizeMult = guardSim.sizeMult || 1.0;
+            console.log(chalk.magenta(
+                `  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (guard LIVE floor=${guardLive.scoreFloor || 0}, n=${guardLive.sample}) · LIVE chờ=${liveOrdersWaiting}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}.`
+            ));
 
+            const funnel = createFunnelTracker(asset);
             const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, skipLiveGate: 0, skipSimGate: 0, skipTestnetSymbol: 0, aiRejected: 0, aiSoftOverride: 0, matched: 0 };
             let symbolsToScan = [];
             let testnetGateContext = null;
@@ -2156,6 +2292,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             for (const symbol of symbolsToScan) {
                 try {
                     stats.scanned++;
+                    funnel.record('scanned');
 
                     let candles;
                     try {
@@ -2176,27 +2313,39 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     };
                     let techSignal = analyzeTechnicalSignal(
                         candles,
-                        breadthRatio,
-                        statusType,
+                        assetMacro.breadthRatio,
+                        assetMacro.statusType,
                         Math.max(60, effectiveThreshold - 12),
                         currentRiskConfig
                     );
-                    techSignal = applyExecutionContextBias(techSignal, asset, executionContext, effectiveThreshold, currentRiskConfig);
+                    techSignal = applyExecutionContextBias(
+                        techSignal,
+                        asset,
+                        executionContext,
+                        effectiveThreshold,
+                        currentRiskConfig,
+                        asset === 'CRYPTO' ? vnMacro : null
+                    );
+                    const biasLedger = buildBiasLedger(techSignal, assetMacro, asset === 'CRYPTO' ? vnMacro : null);
                     techSignal.symbol = symbol;
+                    techSignal.breakdown = { ...techSignal.breakdown, biasLedger };
 
                     if (techSignal.direction === 'NEUTRAL') {
                         stats.skipScore++;
+                        funnel.record('weak');
                         continue;
                     }
 
                     if (asset === 'VN_STOCK' && techSignal.direction === 'SHORT') {
                         stats.skipScore++;
+                        funnel.record('weak');
                         continue;
                     }
 
                     const minVolSurge = currentRiskConfig.volSurge[asset] || 1.2;
                     if (techSignal.volumeSurge < minVolSurge) {
                         stats.skipVolume = (stats.skipVolume || 0) + 1;
+                        funnel.record('vol');
                         console.log(chalk.gray(`  [VOL FILTER] ${symbol}: volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x (score=${techSignal.score})`));
                         continue;
                     }
@@ -2209,6 +2358,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         entrySetup = detectEntrySetup(asset, techSignal, htfTrend, candles, executionContext);
                         if (!entrySetup.valid) {
                             stats.skipSetup = (stats.skipSetup || 0) + 1;
+                            funnel.record('setup', { type: entrySetup.type, reason: entrySetup.type });
                             console.log(chalk.gray(`  [SETUP FILTER] ${symbol}: ${entrySetup.type} — ${entrySetup.note}`));
                             continue;
                         }
@@ -2224,14 +2374,43 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     if (requiresLiveQuality) {
                         if (!liveGate.pass || techSignal.score < liveScoreThreshold) {
                             stats.skipLiveGate++;
-                            console.log(chalk.gray(`  [LIVE GATE] ${symbol}: ${liveGate.reason || `score ${techSignal.score} < ${liveScoreThreshold}`}`));
+                            const gateReason = liveGate.reason || `score ${techSignal.score} < ${liveScoreThreshold}`;
+                            funnel.record('live_gate', {
+                                symbol,
+                                score: techSignal.score,
+                                setup: entrySetup.type,
+                                reason: gateReason,
+                            });
+                            appendAuditEvent('candidate', {
+                                asset,
+                                symbol,
+                                score: techSignal.score,
+                                setup: entrySetup.type,
+                                stage: 'live_gate',
+                                reason: gateReason,
+                                liveScoreThreshold,
+                                requiresLiveQuality,
+                                biasLedger: techSignal.breakdown?.biasLedger || null,
+                            }, {
+                                event: 'candidate_rejected',
+                                source: 'autoTradeEngine',
+                            }).catch(() => {});
+                            console.log(chalk.gray(`  [LIVE GATE] ${symbol}: ${gateReason}`));
                             continue;
                         }
+                        funnel.record('sim_ok');
                     } else if (!liveOnlyMode) {
                         if (!simGate.pass || techSignal.score < effectiveThreshold) {
                             stats.skipSimGate++;
                             continue;
                         }
+                        funnel.record('sim_ok');
+                    }
+
+                    if (techSignal.score >= liveScoreThreshold - 4) {
+                        console.log(chalk.gray(
+                            `  [BIAS] ${symbol}: macro=${assetMacro.statusType} breadth=${assetMacro.breadthRatio.toFixed(1)} | ctx +${biasLedger.totalDeltaLong}/+${biasLedger.totalDeltaShort} [${(biasLedger.context.reasons || []).slice(0, 3).join(',')}]`
+                        ));
                     }
 
                     if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
@@ -2265,12 +2444,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     });
                     if (!testnetPipeline.allow) {
                         stats.skipTestnetSymbol++;
+                        funnel.record('testnet');
                         console.log(chalk.gray(`  [TESTNET GATE] ${symbol}: ${testnetPipeline.reason}`));
                         continue;
                     }
 
                     // 5. AI confirm
-                    let aiConfirm = await getAISignalConfirmation(asset, techSignal, marketStatus, diagnosticDesc, executionContext, currentRiskConfig, {
+                    let aiConfirm = await getAISignalConfirmation(asset, techSignal, assetMacro.marketStatus, assetMacro.diagnosticDesc || diagnosticDesc, executionContext, currentRiskConfig, {
                         schedulerMode,
                         thresholdRelax,
                         effectiveThreshold,
@@ -2315,10 +2495,38 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
                     if (!aiConfirm.confirmed) {
                         stats.aiRejected++;
+                        funnel.record('ai_veto', {
+                            symbol,
+                            score: techSignal.score,
+                            setup: entrySetup.type,
+                            reason: aiConfirm.reason,
+                        });
+                        appendAuditEvent('candidate', {
+                            asset,
+                            symbol,
+                            score: techSignal.score,
+                            setup: entrySetup.type,
+                            stage: 'ai_veto',
+                            reason: aiConfirm.reason,
+                            biasLedger: techSignal.breakdown?.biasLedger || null,
+                        }, {
+                            event: 'candidate_rejected',
+                            source: 'autoTradeEngine',
+                        }).catch(() => {});
                         continue;
                     }
 
-                    // 6. Trade plan
+                    if (dryRun) {
+                        funnel.record('near_live', {
+                            symbol,
+                            score: techSignal.score,
+                            setup: entrySetup.type,
+                            fail: 'dry_run_pass',
+                        });
+                        continue;
+                    }
+
+                    const deferTradePersist = liveOnlyMode;
                     const {
                         directionLabel,
                         entryPrice,
@@ -2432,18 +2640,25 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         }
                     }
 
-                    currentAllocatedCapital += investedAmount;
-                    currentOpenCount++;
+                    if (!deferTradePersist) {
+                        currentAllocatedCapital += investedAmount;
+                        currentOpenCount++;
+                    }
 
                     const tradeStatus = (isOutOfStandardHours && asset !== 'CRYPTO') ? 'PENDING' : 'OPEN';
 
-                    const liveOpenCount = await AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } });
-                    if (liveOpenCount >= MAX_CONCURRENT_TRADES) {
-                        stats.skipLimit++;
-                        currentOpenCount = liveOpenCount;
-                        currentAllocatedCapital -= investedAmount;
-                        currentOpenCount = Math.max(currentOpenCount - 1, 0);
-                        continue;
+                    if (!deferTradePersist) {
+                        const liveOpenCount = await AutoTrade.countDocuments({ status: { $in: ['OPEN', 'PENDING'] } });
+                        if (liveOpenCount >= MAX_CONCURRENT_TRADES) {
+                            stats.skipLimit++;
+                            funnel.record('limit');
+                            currentOpenCount = liveOpenCount;
+                            if (!deferTradePersist) {
+                                currentAllocatedCapital -= investedAmount;
+                                currentOpenCount = Math.max(currentOpenCount - 1, 0);
+                            }
+                            continue;
+                        }
                     }
                     const raceGuardCheck = await AutoTrade.findOne({
                         symbol,
@@ -2451,8 +2666,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         status: { $in: ['OPEN', 'PENDING'] },
                     });
                     if (raceGuardCheck) {
-                        currentOpenCount = Math.max(currentOpenCount - 1, 0);
-                        currentAllocatedCapital -= investedAmount;
+                        if (!deferTradePersist) {
+                            currentOpenCount = Math.max(currentOpenCount - 1, 0);
+                            currentAllocatedCapital -= investedAmount;
+                        }
                         continue;
                     }
 
@@ -2476,7 +2693,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         exitTag: null,
                         aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; setup=${entrySetup.type}; qualityScore=${techSignal.breakdown?.qualityScore}; confluence=${techSignal.breakdown?.confluenceCount}; legacyScore=${techSignal.breakdown?.legacyScore}; edge=${techSignal.breakdown?.edge}; news=${newsContext.summary}`,
                         status: tradeStatus,
-                        marketCondition: marketStatus,
+                        marketCondition: assetMacro.marketStatus,
                         riskLevel: currentRiskLevel,
                         signalBreakdown: {
                             ...techSignal.breakdown,
@@ -2489,13 +2706,23 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             contextSource: executionContext.source || null,
                         },
                     });
-                    await newTrade.save();
 
-                    // Log mở lệnh: gọn cho mô phỏng (training nền), nổi bật khi có LIVE
-                    console.log(chalk.gray(
-                        `  [SIM ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | ${(investedAmount/1e6).toFixed(2)}Tr | Score: ${techSignal.score}`
-                    ));
-                    stats.matched++;
+                    const persistTradeRecord = async () => {
+                        if (newTrade._id) return;
+                        await newTrade.save();
+                        if (!deferTradePersist) return;
+                        currentAllocatedCapital += investedAmount;
+                        currentOpenCount++;
+                    };
+
+                    if (!deferTradePersist) {
+                        await persistTradeRecord();
+                        console.log(chalk.gray(
+                            `  [SIM ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | ${(investedAmount/1e6).toFixed(2)}Tr | Score: ${techSignal.score}`
+                        ));
+                        stats.matched++;
+                        funnel.record('matched_sim');
+                    }
 
                     // 8. Match user orders (FIXED 'PENDING' + PORTFOLIO 'ACTIVE'/'PENDING')
                     //    LIVE-ONLY mode (engine tắt) → chỉ xét các gói LIVE
@@ -2575,20 +2802,68 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             }
                         }
 
+                        // ── SHORT LIVE gate: chỉ cho Binance Futures + cờ short bật ──
+                        if (userOrder.executionMode === 'LIVE' && asset === 'CRYPTO' && directionLabel === 'SHORT') {
+                            const conn = testnetGateContext?.connectionsById?.[String(userOrder.exchangeConnectionId)]
+                                || await ExchangeConnection.findById(userOrder.exchangeConnectionId);
+                            const shortEnabled = await isAutoFuturesShortEnabled();
+                            if (!shortEnabled) {
+                                userOrder.result.message = `[SHORT GATE] SHORT auto đang TẮT (autoFuturesShortEnabled=false). Gói tiếp tục chờ tín hiệu LONG hoặc khi bật SHORT.`;
+                                await userOrder.save();
+                                appendAuditEvent('security', {
+                                    userOrderId: String(userOrder._id),
+                                    username: userOrder.username,
+                                    symbol,
+                                    setup: entrySetup.type,
+                                    reason: 'short_auto_disabled',
+                                }, {
+                                    event: 'live_short_blocked',
+                                    level: 'warn',
+                                    source: 'autoTradeEngine',
+                                }).catch(() => {});
+                                continue;
+                            }
+                            if (!conn || String(conn.exchangeName).toUpperCase() !== 'BINANCE') {
+                                userOrder.result.message = `[SHORT GATE] SHORT LIVE chỉ hỗ trợ Binance Futures. Gói tiếp tục chờ mã khác/kết nối phù hợp.`;
+                                await userOrder.save();
+                                appendAuditEvent('security', {
+                                    userOrderId: String(userOrder._id),
+                                    username: userOrder.username,
+                                    symbol,
+                                    setup: entrySetup.type,
+                                    exchange: conn?.exchangeName || 'unknown',
+                                    reason: 'short_requires_binance_futures',
+                                }, {
+                                    event: 'live_short_blocked',
+                                    level: 'warn',
+                                    source: 'autoTradeEngine',
+                                }).catch(() => {});
+                                continue;
+                            }
+                        }
+
                         // ── NHÁNH LIVE EXECUTION trước (để biết executionMode chính xác) ──
                         let liveMsg = '';
                         let liveEntryFailed = false;
                         if (userOrder.executionMode === 'LIVE' && userOrder.exchangeConnectionId && asset === 'CRYPTO') {
+                            await persistTradeRecord();
                             const liveResult = await executeLiveEntry({
                                 userOrder,
                                 trade: newTrade,
                                 usdVndRate: currentUsdRate,
-                                capitalVnd: allocatedCapital, // PORTFOLIO: dùng size bot tính; FIXED: = capital
+                                capitalVnd: allocatedCapital,
                             });
-                            if (liveResult.success) {
+                            if (liveResult.success && liveResult.fillConfirmed !== false) {
                                 liveMatched = true;
+                                funnel.record('matched_live');
                                 if (liveResult.filledPrice) {
                                     rebaseTradeLevelsFromFill(newTrade, liveResult.filledPrice);
+                                }
+                                if (liveResult.filledQuantity > 0) {
+                                    newTrade.volume = liveResult.filledQuantity;
+                                    const filledUsd = liveResult.filledQuantity * (liveResult.filledPrice || entryPrice);
+                                    allocatedCapital = Math.round(filledUsd * currentUsdRate);
+                                    newTrade.investedAmount = allocatedCapital;
                                 }
                                 newTrade.executionMode = 'LIVE';
                                 newTrade.marketType = liveResult.marketType || 'SPOT';
@@ -2596,12 +2871,48 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 newTrade.exchangeConnectionId = liveResult.exchangeConnectionId;
                                 newTrade.externalOrderId = liveResult.externalOrderId;
                                 await newTrade.save();
-                                liveMsg = ` 🔴 LIVE: ${liveResult.message}`;
-                                console.log(chalk.bgMagenta.white(`  [LIVE ENTRY] User ${userOrder.username} → ${symbol} | ${(allocatedCapital/1e6).toFixed(2)}Tr | OrderID: ${liveResult.externalOrderId}`));
+                                const fillQty = liveResult.filledQuantity || newTrade.volume;
+                                liveMsg = ` 🔴 LIVE: ${liveResult.message} | fill qty=${fillQty}`;
+                                console.log(chalk.bgMagenta.white(
+                                    `  [LIVE MATCH] package=${userOrder._id} ${symbol} fill=OK qty=${fillQty} testnet=${liveResult.environment || 'n/a'} | ${(allocatedCapital/1e6).toFixed(2)}Tr`
+                                ));
+                                appendAuditEvent('live_execution', {
+                                    userOrderId: String(userOrder._id),
+                                    username: userOrder.username,
+                                    tradeId: String(newTrade._id),
+                                    symbol,
+                                    direction: directionLabel,
+                                    setup: entrySetup.type,
+                                    score: techSignal.score,
+                                    exchangeConnectionId: String(liveResult.exchangeConnectionId || userOrder.exchangeConnectionId || ''),
+                                    externalOrderId: liveResult.externalOrderId || null,
+                                    fillQty,
+                                    fillPrice: liveResult.filledPrice || null,
+                                }, {
+                                    event: 'live_match_ok',
+                                    source: 'autoTradeEngine',
+                                }).catch(() => {});
                             } else {
                                 liveEntryFailed = true;
+                                if (deferTradePersist && newTrade._id) {
+                                    await AutoTrade.deleteOne({ _id: newTrade._id });
+                                }
                                 liveMsg = ` ⚠️ Live order KHÔNG gửi được: ${liveResult.message}`;
                                 console.log(chalk.yellow(`  [LIVE ENTRY FAIL] ${userOrder.username}: ${liveResult.message}`));
+                                appendAuditEvent('live_execution', {
+                                    userOrderId: String(userOrder._id),
+                                    username: userOrder.username,
+                                    tradeId: String(newTrade._id),
+                                    symbol,
+                                    direction: directionLabel,
+                                    setup: entrySetup.type,
+                                    score: techSignal.score,
+                                    reason: liveResult.message,
+                                }, {
+                                    event: 'live_match_failed',
+                                    level: 'warn',
+                                    source: 'autoTradeEngine',
+                                }).catch(() => {});
                             }
                         }
 
@@ -2620,7 +2931,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         // ── Ghi nhận khớp (sau live → executionMode đã đúng) ──
                         const modeTag = newTrade.executionMode === 'LIVE' ? '🔴 LIVE' : 'SIM';
                         if (isPortfolio) {
-                            recordAllocation(userOrder, newTrade, allocatedCapital);
+                            recordAllocation(userOrder, newTrade, allocatedCapital, {
+                                matchStatus: 'MATCHED',
+                                matchMessage: liveMsg.trim(),
+                            });
                             userOrder.result.message = `[PORTFOLIO ${directionLabel} · ${modeTag}] Bot phân bổ ${(allocatedCapital/1e6).toFixed(2)}Tr vào ${symbol} @ ${entryPrice}. Quỹ đang dùng: ${(userOrder.usedCapital/1e6).toFixed(1)}/${(userOrder.totalCapital/1e6).toFixed(1)}Tr.${matchNote}${liveMsg}`;
                         } else {
                             userOrder.assignedTrade = newTrade._id;
@@ -2631,13 +2945,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         await userOrder.save();
                     }
 
-                    if (liveOnlyMode && !liveMatched) {
-                        await AutoTrade.deleteOne({ _id: newTrade._id });
-                        currentAllocatedCapital -= investedAmount;
-                        currentOpenCount = Math.max(currentOpenCount - 1, 0);
-                        stats.matched--;
-                        console.log(chalk.gray(`  [LIVE-ONLY] ${symbol}: không khớp LIVE broker — hủy lệnh tạm.`));
+                    if (deferTradePersist && !liveMatched) {
+                        console.log(chalk.gray(`  [LIVE-ONLY] ${symbol}: không khớp LIVE — bỏ qua (không tạo SIM).`));
                         continue;
+                    }
+
+                    if (deferTradePersist && liveMatched) {
+                        stats.matched++;
                     }
 
                     // 9. Telegram MỞ LỆNH: chỉ thông báo khi là lệnh LIVE.
@@ -2666,6 +2980,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 const volSkip = stats.skipVolume || 0;
                 const setupSkip = stats.skipSetup || 0;
                 console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | LIVE gate: ${stats.skipLiveGate || 0} | SIM gate: ${stats.skipSimGate || 0} | Testnet: ${stats.skipTestnetSymbol || 0} | Volume: ${volSkip} | Setup: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected} | Idle override: ${stats.aiSoftOverride}] | Vào: ${stats.matched} lệnh.`));
+                pushFunnelSummary(funnel.finalize({
+                    liveOrdersWaiting,
+                    liveScoreThreshold,
+                    simScoreThreshold,
+                    dryRun,
+                }));
             }
             if (minOpenTarget > 0 && currentOpenCount >= minOpenTarget) {
                 console.log(chalk.green(`[AUTODUCK IDLE] Đã đạt mục tiêu ${minOpenTarget} lệnh mở, dừng lượt quét nới ngưỡng.`));
@@ -2710,12 +3030,26 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
         }
 
         // 9. Exit pipeline
-        await runExitAndLearningPipeline(marketStatus, { breadthRatio, statusType });
+        await runExitAndLearningPipeline({ vnMacro, cryptoMacro });
 
     } catch (err) {
         console.error(chalk.red(`[AUTODUCK CRITICAL ERROR] ${err.message}`));
+        appendAuditEvent('pipeline', {
+            forcedAssetType: forcedAssetType || 'ALL',
+            reason: err.message,
+        }, {
+            event: 'pipeline_cycle_error',
+            level: 'warn',
+            source: 'autoTradeEngine',
+        }).catch(() => {});
     } finally {
         autoTradePipelineRunning = false;
+        appendAuditEvent('pipeline', {
+            forcedAssetType: forcedAssetType || 'ALL',
+        }, {
+            event: 'pipeline_cycle_end',
+            source: 'autoTradeEngine',
+        }).catch(() => {});
     }
 };
 
@@ -2769,7 +3103,7 @@ const handlePartialFill = async (trade, partialPrice) => {
 
 // ── EXIT & AI LEARNING PIPELINE
 
-async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {}, isFastCheck = false) {
+async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false) {
     // Engine TẮT → vẫn chạy nhưng CHỈ giám sát lệnh LIVE (lệnh thực trên sàn
     // không bao giờ bị bỏ rơi). Lệnh mô phỏng tạm đóng băng đến khi bật lại.
     let monitorLiveOnly = false;
@@ -2790,6 +3124,24 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
     if (exitPipelineRunning) return;
     exitPipelineRunning = true;
 
+    let vnMacro = macroBundles.vnMacro;
+    let cryptoMacro = macroBundles.cryptoMacro;
+    if (!vnMacro) {
+        try {
+            vnMacro = buildVnMacroSnapshot(await getVnMarketContext());
+        } catch {
+            vnMacro = buildVnMacroSnapshot();
+        }
+    }
+    if (!cryptoMacro) {
+        try {
+            cryptoMacro = await getCryptoMacroContext();
+        } catch {
+            cryptoMacro = null;
+        }
+    }
+    const exitMarketContext = { vnMacro, cryptoMacro };
+
     try {
         const tradeQuery = { status: { $in: ['OPEN', 'PENDING'] } };
         if (monitorLiveOnly) tradeQuery.executionMode = 'LIVE';
@@ -2802,7 +3154,8 @@ async function runExitAndLearningPipeline(currentMarketStatus, marketContext = {
 
         for (const trade of openTrades) {
             try {
-                const { shouldClose, currentPrice, exitReason, trailingUpdated, partialFill, partialPrice } = await checkExitConditions(trade, marketContext, isFastCheck);
+                const tradeMacro = resolveExitMacroContext(trade, exitMarketContext);
+                const { shouldClose, currentPrice, exitReason, trailingUpdated, partialFill, partialPrice } = await checkExitConditions(trade, exitMarketContext, isFastCheck);
 
                 // ── PARTIAL TP1: chốt một phần, dời SL phần còn lại về breakeven, GIỮ lệnh mở ──
                 if (partialFill && !shouldClose) {
@@ -2969,7 +3322,7 @@ Phân tích giao dịch vừa kết thúc và rút ra bài học kinh nghiệm n
 - Thời gian nắm giữ: ${Math.round((Date.now() - new Date(trade.openedAt).getTime()) / 3600000)}h
 - Volume surge lúc vào: ${trade.signalBreakdown?.volumeSurge ?? 'N/A'}x
 - Trailing SL có được kích hoạt không: ${trade.stopLossPrice !== trade.signalBreakdown?.originalSL && trade.signalBreakdown?.originalSL ? 'Có' : 'Không'}
-- Trạng thái thị trường: ${currentMarketStatus}
+- Trạng thái thị trường: ${tradeMacro.marketStatus}
 - Breakdown tín hiệu: ${JSON.stringify(trade.signalBreakdown || {})}
 
 Bài học kinh nghiệm (tiếng Việt, 2-3 câu thực chiến):`;
@@ -2982,7 +3335,7 @@ Bài học kinh nghiệm (tiếng Việt, 2-3 câu thực chiến):`;
                         action:         trade.direction,
                         predictedScore: trade.aiScore,
                         actualPnl:      trade.pnlPercent,
-                        marketCondition: currentMarketStatus,
+                        marketCondition: tradeMacro.marketStatus,
                         lesson:         lessonText.trim(),
                         tags:           [isWin ? 'WIN_SIGNAL' : 'LOSS_SIGNAL', exitTag],
                     });
@@ -3211,7 +3564,7 @@ export const startAutoDuckScheduler = () => {
 
     setInterval(() => runIntervalTask('EXIT_FAST_MONITOR', async () => {
         if (!exitPipelineRunning) {
-            await runExitAndLearningPipeline('REALTIME_FAST_MONITOR', {}, true);
+            await runExitAndLearningPipeline({}, true);
         }
     }), 30 * 1000);
 
