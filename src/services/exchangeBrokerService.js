@@ -7,6 +7,7 @@ import { getAdapter } from './exchangeAdapters/index.js';
 import { decrypt } from './encryptionService.js';
 import { sendTelegramMessage } from './telegramService.js';
 import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
+import { appendAuditEvent } from './auditLogService.js';
 
 /**
  * EXCHANGE BROKER SERVICE — Business logic trung tâm cho live trading.
@@ -270,7 +271,62 @@ export const cancelOrder = async ({ connectionDoc, externalOrderId, symbol }) =>
     return result;
 };
 
-/** Lấy trạng thái lệnh từ sàn + đồng bộ vào ExchangeOrder log */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const FILL_POLL_MS = Number(process.env.AUTODUCK_LIVE_FILL_POLL_MS) || 2000;
+const FILL_POLL_TIMEOUT_MS = Number(process.env.AUTODUCK_LIVE_FILL_TIMEOUT_MS) || 25000;
+
+/** Poll sàn cho đến khi lệnh FILLED/PARTIAL hoặc timeout. */
+export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol, initial = {} }) => {
+    if (initial.status === 'FILLED' && initial.filledPrice) {
+        return { ...initial, fillConfirmed: true };
+    }
+
+    const deadline = Date.now() + FILL_POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        await sleep(FILL_POLL_MS);
+        const status = await getOrderStatus({ connectionDoc, externalOrderId, symbol });
+        if (!status.success) continue;
+        appendAuditEvent('broker', {
+            exchange: connectionDoc.exchangeName,
+            environment: connectionDoc.environment,
+            symbol: normalizeCryptoSymbol(symbol),
+            externalOrderId,
+            status: status.status,
+            filledQty: status.filledQty || 0,
+        }, {
+            event: 'live_fill_poll',
+            source: 'exchangeBrokerService',
+        }).catch(() => {});
+
+        if (status.status === 'FILLED' || status.status === 'PARTIAL') {
+            const filledQty = status.filledQty || initial.filledQuantity || 0;
+            if (filledQty > 0) {
+                return {
+                    ...initial,
+                    status: status.status,
+                    filledPrice: status.filledPrice || initial.filledPrice,
+                    filledQuantity: filledQty,
+                    fillConfirmed: true,
+                };
+            }
+        }
+        if (['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED'].includes(status.status)) {
+            return {
+                success: false,
+                fillConfirmed: false,
+                message: `Lệnh ${status.status} trên sàn`,
+            };
+        }
+    }
+
+    return {
+        ...initial,
+        fillConfirmed: false,
+        message: initial.message || `Chưa xác nhận fill sau ${FILL_POLL_TIMEOUT_MS / 1000}s`,
+    };
+};
+
 export const getOrderStatus = async ({ connectionDoc, externalOrderId, symbol }) => {
     const adapter = getAdapter(connectionDoc.exchangeName);
     const creds = getCredentials(connectionDoc);
@@ -329,7 +385,8 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         let orderSide = 'BUY';
         if (!isLong) {
             const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
-            const enabled = flag && (flag.value === true || flag.value === 'true' || flag.value === 1);
+            const envFallback = process.env.AUTODUCK_AUTO_FUTURES_SHORT_ENABLED === 'true';
+            const enabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1)) || envFallback;
             if (!enabled) {
                 return { success: false, message: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false) — theo dõi simulated.' };
             }
@@ -370,24 +427,81 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         });
 
         if (!result.success) {
+            appendAuditEvent('live_execution', {
+                username: userOrder.username,
+                symbol: trade.symbol,
+                direction: trade.direction,
+                exchangeConnectionId: String(userOrder.exchangeConnectionId || ''),
+                reason: result.reason,
+            }, {
+                event: 'live_entry_place_failed',
+                level: 'warn',
+                source: 'exchangeBrokerService',
+            }).catch(() => {});
             return { success: false, message: `Live entry thất bại: ${result.reason}` };
         }
 
+        const fillResult = await waitForOrderFill({
+            connectionDoc,
+            externalOrderId: result.externalOrderId,
+            symbol: trade.symbol,
+            initial: {
+                success: true,
+                message: `Lệnh LIVE đã gửi ra ${connectionDoc.exchangeName} (${connectionDoc.environment}). OrderID: ${result.externalOrderId}`,
+                externalOrderId: result.externalOrderId,
+                filledPrice: result.filledPrice,
+                filledQuantity: result.filledQuantity || result.finalQty,
+                status: result.status,
+            },
+        });
+
+        if (!fillResult.fillConfirmed) {
+            appendAuditEvent('live_execution', {
+                username: userOrder.username,
+                symbol: trade.symbol,
+                externalOrderId: result.externalOrderId,
+                reason: fillResult.message,
+            }, {
+                event: 'live_entry_fill_unconfirmed',
+                level: 'warn',
+                source: 'exchangeBrokerService',
+            }).catch(() => {});
+            return {
+                success: false,
+                fillConfirmed: false,
+                message: fillResult.message || 'Không xác nhận được fill từ sàn',
+                externalOrderId: result.externalOrderId,
+            };
+        }
+
         sendTelegramMessage(
-            `${isLong ? '🟢' : '🔴'} <b>[LIVE ${connectionDoc.environment}${marketType === 'FUTURES' ? ' · FUTURES ' + leverage + 'x' : ''}] Đã vào lệnh thực</b>\nUser: ${userOrder.username} | Sàn: ${connectionDoc.exchangeName}\n${orderSide} ${result.finalQty} ${normalizeCryptoSymbol(trade.symbol)} @ ~${trade.entryPrice}\nOrderID: ${result.externalOrderId}`
+            `${isLong ? '🟢' : '🔴'} <b>[LIVE ${connectionDoc.environment}${marketType === 'FUTURES' ? ' · FUTURES ' + leverage + 'x' : ''}] Đã vào lệnh thực</b>\nUser: ${userOrder.username} | Sàn: ${connectionDoc.exchangeName}\n${orderSide} ${fillResult.filledQuantity || result.finalQty} ${normalizeCryptoSymbol(trade.symbol)} @ ~${fillResult.filledPrice || trade.entryPrice}\nOrderID: ${result.externalOrderId}`
         ).catch(() => {});
 
         return {
             success: true,
-            message: `Lệnh LIVE đã gửi ra ${connectionDoc.exchangeName} (${connectionDoc.environment}). OrderID: ${result.externalOrderId}`,
+            fillConfirmed: true,
+            message: fillResult.message,
             externalOrderId: result.externalOrderId,
-            filledPrice: result.filledPrice,
-            finalQty: result.finalQty,
+            filledPrice: fillResult.filledPrice,
+            filledQuantity: fillResult.filledQuantity || result.finalQty,
+            finalQty: fillResult.filledQuantity || result.finalQty,
             exchangeConnectionId: connectionDoc._id,
-            marketType, leverage,
+            marketType,
+            leverage,
+            environment: connectionDoc.environment,
         };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLiveEntry lỗi: ${err.message}`));
+        appendAuditEvent('live_execution', {
+            symbol: trade?.symbol,
+            username: userOrder?.username,
+            reason: err.message,
+        }, {
+            event: 'live_entry_exception',
+            level: 'warn',
+            source: 'exchangeBrokerService',
+        }).catch(() => {});
         return { success: false, message: err.message };
     }
 };

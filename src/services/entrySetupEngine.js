@@ -2,11 +2,16 @@
  * Setup detection + setup-aware quality scoring for AutoDuck entry funnel.
  */
 
+const LIVE_ALLOW_SHORT_CONTINUATION = process.env.AUTODUCK_LIVE_ALLOW_SHORT_CONTINUATION === 'true';
+const LIVE_ALLOW_SHORT_FALLBACK = process.env.AUTODUCK_LIVE_ALLOW_SHORT_FALLBACK === 'true';
+
 export const LIVE_SETUP_WHITELIST = new Set([
     'EMA_PULLBACK',
     'TREND_PULLBACK',
     'VWAP_RECLAIM',
     'BREAKOUT_RETEST',
+    ...(LIVE_ALLOW_SHORT_CONTINUATION ? ['SHORT_CONTINUATION'] : []),
+    ...(LIVE_ALLOW_SHORT_FALLBACK ? ['SHORT'] : []),
 ]);
 
 export const IDLE_PROBE_SETUP_WHITELIST = new Set([
@@ -18,6 +23,24 @@ export const IDLE_PROBE_SETUP_WHITELIST = new Set([
 
 export const LIVE_QUALITY_MIN = Number(process.env.AUTODUCK_LIVE_QUALITY_MIN) || 82;
 export const SIM_QUALITY_MIN = Number(process.env.AUTODUCK_SIM_QUALITY_MIN) || 72;
+
+const parseEnvQuality = (key, fallback) => {
+    const v = Number(process.env[key]);
+    return Number.isFinite(v) && v > 0 ? v : fallback;
+};
+
+/** Ngưỡng quality LIVE theo setup (override env, mặc định = LIVE_QUALITY_MIN). */
+export const getLiveQualityMinForSetup = (setupType) => {
+    const map = {
+        EMA_PULLBACK: parseEnvQuality('AUTODUCK_LIVE_MIN_QUALITY_EMA_PULLBACK', LIVE_QUALITY_MIN),
+        TREND_PULLBACK: parseEnvQuality('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', LIVE_QUALITY_MIN),
+        VWAP_RECLAIM: parseEnvQuality('AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM', LIVE_QUALITY_MIN),
+        BREAKOUT_RETEST: parseEnvQuality('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', LIVE_QUALITY_MIN),
+        SHORT_CONTINUATION: parseEnvQuality('AUTODUCK_LIVE_MIN_QUALITY_SHORT_CONTINUATION', LIVE_QUALITY_MIN),
+        SHORT: parseEnvQuality('AUTODUCK_LIVE_MIN_QUALITY_SHORT', LIVE_QUALITY_MIN + 2),
+    };
+    return map[setupType] ?? LIVE_QUALITY_MIN;
+};
 export const LIVE_CONFLUENCE_MIN = Number(process.env.AUTODUCK_LIVE_CONFLUENCE_MIN) || 3;
 export const SIM_CONFLUENCE_MIN = Number(process.env.AUTODUCK_SIM_CONFLUENCE_MIN) || 2;
 export const LIVE_EDGE_MIN = Number(process.env.AUTODUCK_LIVE_EDGE_MIN) || 28;
@@ -250,7 +273,8 @@ export const passesLiveQuantGate = (entrySetup, signal) => {
     const conf = signal.breakdown?.confluenceCount ?? computeConfluenceScore(signal, signal.direction);
     const adx = signal.breakdown?.adx ?? signal.adx?.adx ?? 0;
     if (adx < 18 && edge < 30) return { pass: false, reason: `ADX ${adx} thấp + edge ${edge} yếu` };
-    if (q < LIVE_QUALITY_MIN) return { pass: false, reason: `qualityScore ${q} < ${LIVE_QUALITY_MIN}` };
+    const minQuality = getLiveQualityMinForSetup(type);
+    if (q < minQuality) return { pass: false, reason: `qualityScore ${q} < ${minQuality}` };
     if (conf < LIVE_CONFLUENCE_MIN) return { pass: false, reason: `confluence ${conf} < ${LIVE_CONFLUENCE_MIN}` };
     if (edge < LIVE_EDGE_MIN) return { pass: false, reason: `edge ${edge} < ${LIVE_EDGE_MIN}` };
     return { pass: true, reason: 'LIVE quant gate OK' };

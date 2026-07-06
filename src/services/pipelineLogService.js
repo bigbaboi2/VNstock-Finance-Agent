@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { performance } from 'node:perf_hooks';
+import { appendAuditEvent } from './auditLogService.js';
 
 const ICT_TZ = 'Asia/Ho_Chi_Minh';
 const MAX_BUFFER = 80;
@@ -78,6 +79,11 @@ export const pushPipelineLog = (message, level = 'info') => {
 
     const paint = levelStyles[level] || levelStyles.info;
     console.log(paint(`[AUTODUCK] ${message}`));
+    appendAuditEvent('pipeline', { message: entry.message }, {
+        event: 'pipeline_log',
+        level,
+        source: 'pipelineLogService',
+    }).catch(() => {});
     return entry;
 };
 

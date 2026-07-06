@@ -51,6 +51,32 @@ const printStats = (label, trades) => {
         console.log(`     ${a.padEnd(11)}: ${list.length} lệnh | WR ${fmt(w / list.length * 100, 0)}% | PnL ${fmt(list.reduce((s, t) => s + t.pnlPercent, 0))}%`);
     }
 
+    // LIVE vs SIM (executionMode trên AutoTrade)
+    const byMode = { LIVE: [], SIMULATED: [], OTHER: [] };
+    for (const t of trades) {
+        const mode = t.executionMode === 'LIVE' ? 'LIVE' : (t.executionMode === 'SIMULATED' || !t.executionMode ? 'SIMULATED' : 'OTHER');
+        byMode[mode].push(t);
+    }
+    console.log('  ── Theo executionMode:');
+    for (const [mode, list] of Object.entries(byMode)) {
+        if (!list.length) { console.log(`     ${mode.padEnd(11)}: 0 lệnh`); continue; }
+        const w = list.filter(t => t.pnlPercent > 0).length;
+        console.log(`     ${mode.padEnd(11)}: ${list.length} lệnh | WR ${fmt(w / list.length * 100, 0)}% | PnL ${fmt(list.reduce((s, t) => s + t.pnlPercent, 0))}%`);
+    }
+    const cryptoLive = trades.filter(t => t.assetType === 'CRYPTO' && t.executionMode === 'LIVE');
+    const cryptoSim = trades.filter(t => t.assetType === 'CRYPTO' && t.executionMode !== 'LIVE');
+    if (cryptoLive.length || cryptoSim.length) {
+        console.log('  ── CRYPTO LIVE vs SIM:');
+        if (cryptoLive.length) {
+            const w = cryptoLive.filter(t => t.pnlPercent > 0).length;
+            console.log(`     LIVE       : ${cryptoLive.length} | WR ${fmt(w / cryptoLive.length * 100, 0)}% | PnL ${fmt(cryptoLive.reduce((s, t) => s + t.pnlPercent, 0))}%`);
+        }
+        if (cryptoSim.length) {
+            const w = cryptoSim.filter(t => t.pnlPercent > 0).length;
+            console.log(`     SIM        : ${cryptoSim.length} | WR ${fmt(w / cryptoSim.length * 100, 0)}% | PnL ${fmt(cryptoSim.reduce((s, t) => s + t.pnlPercent, 0))}%`);
+        }
+    }
+
     // Theo score bucket
     const buckets = { '<80': [], '>=80': [] };
     for (const t of trades) buckets[(t.aiScore || 0) < 80 ? '<80' : '>=80'].push(t);
