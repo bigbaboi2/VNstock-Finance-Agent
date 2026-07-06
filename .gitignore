@@ -1,6 +1,13 @@
 node_modules/
+.cursor/
 src/.env
 **/.env
 src/data
 src/database
-frontendgithub
+__pycache__/
+*.pyc
+*.session
+diag_output.txt
+full-structure.txt
+logs/
+src/controllers/deriv_full_export.json

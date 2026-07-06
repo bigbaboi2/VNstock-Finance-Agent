@@ -15,6 +15,7 @@ export const connectDB = async () => {
 
         await mongoose.connect(process.env.MONGODB_URI, {
             serverSelectionTimeoutMS: 15000,
+            family: 4, // tránh lỗi IPv6 trên Windows
         });
         console.log(chalk.green.italic('[HỆ THỐNG] KẾT NỐI MONGODB THÀNH CÔNG '));
     } catch (error) {

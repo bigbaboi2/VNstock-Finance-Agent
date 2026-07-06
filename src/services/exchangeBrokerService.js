@@ -6,6 +6,7 @@ import Setting from '../../models/Setting.js';
 import { getAdapter } from './exchangeAdapters/index.js';
 import { decrypt } from './encryptionService.js';
 import { sendTelegramMessage } from './telegramService.js';
+import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 
 /**
  * EXCHANGE BROKER SERVICE — Business logic trung tâm cho live trading.
@@ -309,6 +310,17 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         const connectionDoc = await ExchangeConnection.findById(userOrder.exchangeConnectionId);
         if (!connectionDoc || connectionDoc.username !== userOrder.username) {
             return { success: false, message: 'Không tìm thấy kết nối sàn hợp lệ của user.' };
+        }
+
+        const direction = trade.direction === 'SHORT' || trade.direction === 'BÁN' ? 'SHORT' : 'LONG';
+        if (connectionDoc.environment === 'TESTNET') {
+            const symbolCheck = await isSymbolTradableOnConnection(connectionDoc, trade.symbol, direction);
+            if (!symbolCheck.supported) {
+                return {
+                    success: false,
+                    message: `[TESTNET GATE] ${symbolCheck.reason || 'Symbol không hỗ trợ trên testnet'}`,
+                };
+            }
         }
 
         // SHORT auto: cần FUTURES + flag bật (MẶC ĐỊNH TẮT để an toàn — engine chưa có edge).

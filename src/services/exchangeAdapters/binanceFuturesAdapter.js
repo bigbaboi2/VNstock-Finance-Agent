@@ -156,6 +156,19 @@ export const binanceFuturesAdapter = {
         }
     },
 
+    async listTradableSymbols(environment, marketType = 'FUTURES') {
+        if (String(marketType).toUpperCase() !== 'FUTURES') return [];
+        try {
+            const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+            const res = await axios.get(`${base}/fapi/v1/exchangeInfo`, { timeout: 15000 });
+            return (res.data.symbols || [])
+                .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+                .map(s => s.symbol);
+        } catch {
+            return [];
+        }
+    },
+
     async getSymbolInfo(symbol, environment) {
         try {
             const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
