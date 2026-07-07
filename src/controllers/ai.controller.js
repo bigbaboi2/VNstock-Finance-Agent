@@ -21,9 +21,12 @@ import { searchVnNewsDirectly, rescoreSentiment, fetchFireAntSocial, fetchReddit
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
-
-//Maximum number of records stored in DB per stock
-const MAX_NEWS_DB = 80;
+import {
+    MAX_NEWS_DB,
+    filterValidNews,
+    isDeepNewsFresh,
+    saveDeepNewsForSymbol,
+} from '../services/vnStockNewsService.js';
 //Number of scraped messages per fetch
 const MAX_SCRAPE  = 20;
 //Number of parallel scrapes per batch
@@ -99,6 +102,9 @@ export const getLiveNews = async (req, res) => {
                  ? req.query.mode : 'balanced';
     const newsMode = ['fast', 'balanced', 'deep', 'ultra'].includes(req.query.newsMode)
                  ? req.query.newsMode : 'balanced';
+    const forceRefresh = req.query.force === 'true' || req.query.force === '1';
+    const shouldScrapeContent = newsMode === 'deep' || newsMode === 'ultra';
+    const searchNewsMode = shouldScrapeContent ? newsMode : 'fast';
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
@@ -111,22 +117,20 @@ export const getLiveNews = async (req, res) => {
     let isClientDisconnected = false;
     req.on('close', () => { isClientDisconnected = true; });
 
+    const finishStream = () => {
+        if (!isClientDisconnected) {
+            res.write('event: done\ndata: {}\n\n');
+            res.end();
+        }
+    };
+
     try {
         let masterRecord = await Stock.findOne({ symbol: ticker });
         if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
 
-        let cachedNews = masterRecord.deepNewsData || [];
-        let newDeepNewsData = [];
-
-        const isBadNews = (n) => {
-            if (!n) return true;
-            if (!n.link || n.link === 'null' || n.link.trim() === '') return true; 
-            if (!n.title || n.title === 'null' || n.title.trim() === '') return true; 
-            return false;
-        };
-        const staleCount = cachedNews.filter(isBadNews).length;
+        let cachedNews = filterValidNews(masterRecord.deepNewsData || []);
+        const staleCount = (masterRecord.deepNewsData || []).length - cachedNews.length;
         if (staleCount > 0) {
-            cachedNews = cachedNews.filter(n => !isBadNews(n));
             masterRecord.deepNewsData = cachedNews;
             await masterRecord.save();
             console.log(chalk.red.italic(`[FIX-DB] Đã xóa ${staleCount} bản ghi RÁC (null/google) của mã ${ticker} khỏi Database.`));
@@ -138,21 +142,29 @@ export const getLiveNews = async (req, res) => {
             res.write(`data: ${JSON.stringify(rescored)}\n\n`);
         }
 
-console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`));
+        const cacheFresh = isDeepNewsFresh({ ...masterRecord.toObject(), deepNewsData: cachedNews });
+        if (cacheFresh && !forceRefresh) {
+            console.log(chalk.gray(`[HỆ THỐNG] ${ticker}: cache fresh — bỏ qua fetch ngoài (${cachedNews.length} tin).`));
+            finishStream();
+            return;
+        }
 
-        //─── // === paging loop ===. ───
-        const seenLinks      = new Set(cachedNews.map(n => n.link));
-        let uniqueNew        = [];
-        let currentPage      = 1;
-        const MAX_PAGES      = 5;   // allow one extra page vs old 4 for thin tickers
+        console.log(chalk.yellowBright(
+            `[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`
+        ));
+
+        const seenLinks = new Set(cachedNews.map(n => n.link));
+        let uniqueNew = [];
+        let currentPage = 1;
+        const MAX_PAGES = shouldScrapeContent ? 5 : 2;
         const TARGET_FOR_MODE = MIN_COUNT_BY_MODE[mode] ?? 8;
-        let consecutiveEmptyPages = 0; // abort early if pages keep returning 0 new articles
+        let consecutiveEmptyPages = 0;
 
         while (uniqueNew.length < TARGET_FOR_MODE && currentPage <= MAX_PAGES) {
             if (isClientDisconnected) break;
 
-            const offset       = (currentPage - 1) * 15;
-            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset, newsMode);
+            const offset = (currentPage - 1) * 15;
+            const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset, searchNewsMode);
 
             if (currentBatch.length === 0) {
                 console.log(chalk.gray(`[HỆ THỐNG] Trang ${currentPage}: Server không còn tin. Dừng.`));
@@ -179,8 +191,8 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
                     `[HỆ THỐNG] ↳ Trang ${currentPage} [${mode}]: Toàn tin cũ` +
                     ` (${consecutiveEmptyPages} trang trắng liên tiếp)`
                 ));
-                if (consecutiveEmptyPages >= 4) {
-                    console.log(chalk.yellow(`[HỆ THỐNG] 4 trang trắng liên tiếp → dừng sớm.`));
+                if (consecutiveEmptyPages >= (shouldScrapeContent ? 4 : 2)) {
+                    console.log(chalk.yellow(`[HỆ THỐNG] Dừng sớm — không còn tin mới.`));
                     break;
                 }
             }
@@ -188,58 +200,54 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
             currentPage++;
         }
 
-        // Summary log
         if (uniqueNew.length === 0) {
-            console.log(chalk.gray(
-                `[HỆ THỐNG] Dừng [${mode}]. Không có bài mới nào về mã ${ticker}.`
-            ));
-        } else {
-            const metTarget = uniqueNew.length >= TARGET_FOR_MODE;
-            console.log(chalk.gray.bold(
-                `[HỆ THỐNG] TỔNG KẾT [${mode}]: ${uniqueNew.length} tin mới` +
-                ` ${metTarget ? '✅ (đủ quota)' : '⚠️ (chưa đủ quota, pool cạn)'}` +
-                ` — Đang cào nội dung...`
-            ));
+            console.log(chalk.gray(`[HỆ THỐNG] Dừng [${mode}]. Không có bài mới nào về mã ${ticker}.`));
+            await saveDeepNewsForSymbol(ticker, [], { mode, touchFetchedAt: true });
+            finishStream();
+            return;
         }
 
-        if (uniqueNew.length > 0 && !isClientDisconnected) {
-             const toScrape = uniqueNew.slice(0, MAX_SCRAPE);
-            
-            //---END OF LOOP ---
+        console.log(chalk.gray.bold(
+            `[HỆ THỐNG] TỔNG KẾT [${mode}]: ${uniqueNew.length} tin mới` +
+            `${shouldScrapeContent ? ' — Đang cào nội dung...' : ' — headline only'}`
+        ));
 
-            const SAFE_BATCH_SIZE = 5;
-            for (let i = 0; i < toScrape.length; i += SAFE_BATCH_SIZE) {
+        const newDeepNewsData = [];
+        const toProcess = uniqueNew.slice(0, shouldScrapeContent ? MAX_SCRAPE : uniqueNew.length);
+
+        if (shouldScrapeContent && !isClientDisconnected) {
+            for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
                 if (isClientDisconnected) break;
-                const batch   = toScrape.slice(i, i + SAFE_BATCH_SIZE);
-                
+                const batch = toProcess.slice(i, i + BATCH_SIZE);
+
                 const scraped = await Promise.all(batch.map(async (news) => {
                     try {
                         const content = await Promise.race([
-                        scrapeArticleContent(news.link),
-                        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))  
-                    ]);
+                            scrapeArticleContent(news.link),
+                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+                        ]);
                         const raw = {
-                            title:       news.title,
-                            link:        news.link,
-                            source:      news.source || news.link,
-                            sentiment:   news.sentiment || 'neutral',
-                            content:     (content && content.length > 80) ? content : news.title,
-                            date:        news.date || new Date().toLocaleDateString('vi-VN'),
+                            title: news.title,
+                            link: news.link,
+                            source: news.source || news.link,
+                            sentiment: news.sentiment || 'neutral',
+                            content: (content && content.length > 80) ? content : news.title,
+                            date: news.date || new Date().toLocaleDateString('vi-VN'),
                             publishedAt: news.publishedAt || new Date(),
                             mode,
                         };
                         return rescoreSentiment(raw);
                     } catch {
-                        return {
-                            title:       news.title,
-                            link:        news.link,
-                            source:      news.source || news.link,
-                            sentiment:   news.sentiment || 'neutral',
-                            content:     news.title,
-                            date:        news.date || new Date().toLocaleDateString('vi-VN'),
+                        return rescoreSentiment({
+                            title: news.title,
+                            link: news.link,
+                            source: news.source || news.link,
+                            sentiment: news.sentiment || 'neutral',
+                            content: news.title,
+                            date: news.date || new Date().toLocaleDateString('vi-VN'),
                             publishedAt: news.publishedAt || new Date(),
                             mode,
-                        };
+                        });
                     }
                 }));
 
@@ -249,37 +257,35 @@ console.log(chalk.yellowBright(`[HỆ THỐNG] Đang tìm tin tức mới cho ${
                     res.write(`data: ${JSON.stringify(item)}\n\n`);
                 }
             }
+        } else if (!isClientDisconnected) {
+            for (const news of toProcess) {
+                const item = rescoreSentiment({
+                    title: news.title,
+                    link: news.link,
+                    source: news.source || news.link,
+                    sentiment: news.sentiment || 'neutral',
+                    content: news.title,
+                    date: news.date || new Date().toLocaleDateString('vi-VN'),
+                    publishedAt: news.publishedAt || new Date(),
+                    mode,
+                });
+                newDeepNewsData.push(item);
+                res.write(`data: ${JSON.stringify(item)}\n\n`);
+            }
         }
 
         if (newDeepNewsData.length > 0) {
-            masterRecord = await Stock.findOne({ symbol: ticker });
-            const combined = [...newDeepNewsData, ...(masterRecord.deepNewsData || [])];
-            const seen = new Set();
-            
-            const isBadNews = (n) => !n || !n.link || n.link === 'null' || n.link.includes('google.com');
-
-            masterRecord.deepNewsData = combined
-                .filter(n => {
-                    if (isBadNews(n)) return false; 
-                    if (seen.has(n.link)) return false;
-                    seen.add(n.link);
-                    return true;
-                })
-                .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0))
-                .slice(0, MAX_NEWS_DB);
-            
-            await masterRecord.save();
+            await saveDeepNewsForSymbol(ticker, newDeepNewsData, { mode, touchFetchedAt: true });
             console.log(chalk.gray(`[DB] Đã cập nhật thành công ${newDeepNewsData.length} tin tức SẠCH cho mã ${ticker}.`));
+        } else {
+            await saveDeepNewsForSymbol(ticker, [], { mode, touchFetchedAt: true });
         }
 
-        if (!isClientDisconnected) {
-            res.write('event: done\ndata: {}\n\n');
-            res.end();
-        }
+        finishStream();
     } catch (error) {
         console.error(chalk.red(`[HỆ THỐNG LỖI STREAM] Lỗi khi lấy tin tức: ${error.message}`));
-        console.error(error.stack);  
-        
+        console.error(error.stack);
+
         if (!isClientDisconnected) {
             res.write(`event: error\ndata: {}\n\n`);
             res.end();
