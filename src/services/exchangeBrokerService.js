@@ -5,9 +5,84 @@ import ExchangeOrder from '../../models/ExchangeOrder.js';
 import Setting from '../../models/Setting.js';
 import { getAdapter } from './exchangeAdapters/index.js';
 import { decrypt } from './encryptionService.js';
-import { sendTelegramMessage } from './telegramService.js';
+import { sendTelegramMessage, escapeHtml } from './telegramService.js';
 import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const FILL_POLL_MS = Number(process.env.AUTODUCK_LIVE_FILL_POLL_MS) || 2000;
+const FILL_POLL_TIMEOUT_MS = Number(process.env.AUTODUCK_LIVE_FILL_TIMEOUT_MS) || 25000;
+
+/**
+ * Tính PnL LIVE từ ExchangeOrder fills thực (ENTRY vs EXIT).
+ * @returns {{ pnlPercent, pnl, exitPrice, entryPrice, source }|null}
+ */
+export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400) => {
+    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+    const entrySide = isLong ? 'BUY' : 'SELL';
+    const exitSide = isLong ? 'SELL' : 'BUY';
+
+    const orders = await ExchangeOrder.find({
+        autoTradeId: trade._id,
+        status: { $in: ['FILLED', 'PARTIAL'] },
+    }).lean();
+
+    let entryQty = 0;
+    let entryNotional = 0;
+    let exitQty = 0;
+    let exitNotional = 0;
+
+    for (const o of orders) {
+        const qty = Number(o.filledQuantity) || 0;
+        const px = Number(o.filledPrice) || 0;
+        if (qty <= 0 || px <= 0) continue;
+        if (o.purpose === 'ENTRY' && o.side === entrySide) {
+            entryQty += qty;
+            entryNotional += qty * px;
+        } else if (o.purpose === 'EXIT' && o.side === exitSide) {
+            exitQty += qty;
+            exitNotional += qty * px;
+        }
+    }
+
+    if (entryQty <= 0 || entryNotional <= 0 || exitQty <= 0) return null;
+
+    const avgEntry = entryNotional / entryQty;
+    const avgExit = exitNotional / exitQty;
+    const netPnlUSDT = exitNotional - entryNotional;
+    const pnlPercent = (netPnlUSDT / entryNotional) * 100;
+    const investedVND = Number(trade.investedAmount) || Math.round(entryNotional * usdVndRate);
+    const pnlVND = Math.round(investedVND * (pnlPercent / 100));
+
+    return {
+        pnlPercent: Math.round(pnlPercent * 100) / 100,
+        pnl: pnlVND,
+        exitPrice: avgExit,
+        entryPrice: avgEntry,
+        source: 'exchange_fills',
+    };
+};
+
+const confirmBrokerFill = async ({ connectionDoc, result, symbol }) => {
+    if (!result?.success || !result.externalOrderId) return result;
+    const fillResult = await waitForOrderFill({
+        connectionDoc,
+        externalOrderId: result.externalOrderId,
+        symbol,
+        initial: {
+            status: result.exchangeOrderDoc?.status,
+            filledPrice: result.filledPrice,
+            filledQuantity: result.filledQuantity,
+        },
+    });
+    return {
+        ...result,
+        filledPrice: fillResult.filledPrice || result.filledPrice,
+        filledQuantity: fillResult.filledQuantity || result.filledQuantity,
+        fillConfirmed: fillResult.fillConfirmed !== false,
+    };
+};
 
 /**
  * EXCHANGE BROKER SERVICE — Business logic trung tâm cho live trading.
@@ -66,7 +141,8 @@ export const testConnection = async (connectionDoc) => {
 
     if (!result.success) {
         sendTelegramMessage(
-            `⚠️ <b>[BROKER] Test connection FAILED</b>\nUser: ${connectionDoc.username}\nSàn: ${connectionDoc.exchangeName} (${connectionDoc.environment})\nLỗi: ${result.message}`
+            `⚠️ <b>[BROKER] Test connection FAILED</b>\nUser: ${escapeHtml(connectionDoc.username)}\nSàn: ${escapeHtml(connectionDoc.exchangeName)} (${escapeHtml(connectionDoc.environment)})\nLỗi: ${escapeHtml(result.message)}`,
+            { parseMode: 'HTML' }
         ).catch(() => {});
     }
     return result;
@@ -229,7 +305,8 @@ export const placeOrder = async ({
     if (!result.success) {
         const doc = await logOrder({ status: 'FAILED', notionalUSDT, errorMessage: result.message, rawResponse: result.rawResponse });
         sendTelegramMessage(
-            `🔴 <b>[BROKER] Lệnh LIVE thất bại</b>\nUser: ${connectionDoc.username} | Sàn: ${connectionDoc.exchangeName} (${connectionDoc.environment})\n${side} ${finalQty} ${normalizedSymbol}\nLỗi: ${result.message}`
+            `🔴 <b>[BROKER] Lệnh LIVE thất bại</b>\nUser: ${escapeHtml(connectionDoc.username)} | Sàn: ${escapeHtml(connectionDoc.exchangeName)} (${escapeHtml(connectionDoc.environment)})\n${escapeHtml(side)} ${finalQty} ${escapeHtml(normalizedSymbol)}\nLỗi: ${escapeHtml(result.message)}`,
+            { parseMode: 'HTML' }
         ).catch(() => {});
         return { success: false, reason: result.message, exchangeOrderDoc: doc };
     }
@@ -270,11 +347,6 @@ export const cancelOrder = async ({ connectionDoc, externalOrderId, symbol }) =>
     }
     return result;
 };
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const FILL_POLL_MS = Number(process.env.AUTODUCK_LIVE_FILL_POLL_MS) || 2000;
-const FILL_POLL_TIMEOUT_MS = Number(process.env.AUTODUCK_LIVE_FILL_TIMEOUT_MS) || 25000;
 
 /** Poll sàn cho đến khi lệnh FILLED/PARTIAL hoặc timeout. */
 export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol, initial = {} }) => {
@@ -475,7 +547,8 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         }
 
         sendTelegramMessage(
-            `${isLong ? '🟢' : '🔴'} <b>[LIVE ${connectionDoc.environment}${marketType === 'FUTURES' ? ' · FUTURES ' + leverage + 'x' : ''}] Đã vào lệnh thực</b>\nUser: ${userOrder.username} | Sàn: ${connectionDoc.exchangeName}\n${orderSide} ${fillResult.filledQuantity || result.finalQty} ${normalizeCryptoSymbol(trade.symbol)} @ ~${fillResult.filledPrice || trade.entryPrice}\nOrderID: ${result.externalOrderId}`
+            `${isLong ? '🟢' : '🔴'} <b>[LIVE ${escapeHtml(connectionDoc.environment)}${marketType === 'FUTURES' ? ' · FUTURES ' + leverage + 'x' : ''}] Đã vào lệnh thực</b>\nUser: ${escapeHtml(userOrder.username)} | Sàn: ${escapeHtml(connectionDoc.exchangeName)}\n${escapeHtml(orderSide)} ${fillResult.filledQuantity || result.finalQty} ${escapeHtml(normalizeCryptoSymbol(trade.symbol))} @ ~${fillResult.filledPrice || trade.entryPrice}\nOrderID: ${escapeHtml(result.externalOrderId)}`,
+            { parseMode: 'HTML' }
         ).catch(() => {});
 
         return {
@@ -526,6 +599,7 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
         if (entryOrders.length === 0) return { success: true, message: 'Không có lệnh live nào cần đóng.' };
 
         const results = [];
+        const fills = [];
         for (const entry of entryOrders) {
             const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
             if (!connectionDoc) continue;
@@ -552,16 +626,35 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
                 reduceOnly: isFut,
                 leverage: trade.leverage || 1,
             });
-            results.push(result);
+            const confirmed = await confirmBrokerFill({ connectionDoc, result, symbol: entry.symbol });
+            results.push(confirmed);
+            if (confirmed.success && confirmed.filledQuantity > 0) {
+                fills.push({
+                    filledPrice: confirmed.filledPrice,
+                    filledQuantity: confirmed.filledQuantity,
+                    side: exitSide,
+                    purpose: 'EXIT',
+                });
+            }
 
-            if (result.success) {
+            if (confirmed.success) {
                 sendTelegramMessage(
-                    `🟡 <b>[LIVE ${connectionDoc.environment}] Đã đóng vị thế thực</b>\nUser: ${entry.username} | Sàn: ${entry.exchangeName}\n${exitSide} ${result.finalQty} ${entry.symbol}\nLý do: ${exitReason}`
+                    `🟡 <b>[LIVE ${escapeHtml(connectionDoc.environment)}] Đã đóng vị thế thực</b>\nUser: ${escapeHtml(entry.username)} | Sàn: ${escapeHtml(entry.exchangeName)}\n${escapeHtml(exitSide)} ${result.finalQty} ${escapeHtml(entry.symbol)}\nLý do: ${escapeHtml(exitReason)}`,
+                    { parseMode: 'HTML' }
                 ).catch(() => {});
             }
         }
         const allOk = results.every(r => r.success);
-        return { success: allOk, message: allOk ? 'Đã đóng toàn bộ vị thế live.' : 'Một số lệnh exit live thất bại — kiểm tra ExchangeOrder log.' };
+        const exitNotional = fills.reduce((s, f) => s + (Number(f.filledPrice) || 0) * (Number(f.filledQuantity) || 0), 0);
+        const exitQty = fills.reduce((s, f) => s + (Number(f.filledQuantity) || 0), 0);
+        const avgExitPrice = exitQty > 0 ? exitNotional / exitQty : null;
+        return {
+            success: allOk,
+            message: allOk ? 'Đã đóng toàn bộ vị thế live.' : 'Một số lệnh exit live thất bại — kiểm tra ExchangeOrder log.',
+            fills,
+            avgExitPrice,
+            fillConfirmed: fills.length > 0,
+        };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLiveExit lỗi: ${err.message}`));
         return { success: false, message: err.message };
@@ -592,6 +685,7 @@ export const executeLivePartialExit = async ({ trade, fraction, exitReason }) =>
         if (entryOrders.length === 0) return { success: true, message: 'Không có vị thế live để chốt một phần.' };
 
         const results = [];
+        const fills = [];
         for (const entry of entryOrders) {
             const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
             if (!connectionDoc) continue;
@@ -618,16 +712,37 @@ export const executeLivePartialExit = async ({ trade, fraction, exitReason }) =>
                 reduceOnly: isFut,
                 leverage: trade.leverage || 1,
             });
-            results.push(result);
+            const confirmed = await confirmBrokerFill({ connectionDoc, result, symbol: entry.symbol });
+            results.push(confirmed);
+            if (confirmed.success && confirmed.filledQuantity > 0) {
+                fills.push({
+                    filledPrice: confirmed.filledPrice,
+                    filledQuantity: confirmed.filledQuantity,
+                    side: exitSide,
+                    purpose: 'EXIT',
+                });
+            }
 
-            if (result.success) {
+            if (confirmed.success) {
                 sendTelegramMessage(
-                    `🎯 <b>[LIVE ${connectionDoc.environment}] Chốt một phần (TP1)</b>\nUser: ${entry.username} | ${exitSide} ${result.finalQty} ${entry.symbol}\nLý do: ${exitReason}`
+                    `🎯 <b>[LIVE ${escapeHtml(connectionDoc.environment)}] Chốt một phần (TP1)</b>\nUser: ${escapeHtml(entry.username)} | ${escapeHtml(exitSide)} ${result.finalQty} ${escapeHtml(entry.symbol)}\nLý do: ${escapeHtml(exitReason)}`,
+                    { parseMode: 'HTML' }
                 ).catch(() => {});
             }
         }
         const allOk = results.length > 0 && results.every(r => r.success);
-        return { success: allOk, message: allOk ? `Đã chốt ${Math.round(frac * 100)}% vị thế live.` : 'Một phần lệnh chốt TP1 thất bại — kiểm tra ExchangeOrder log.' };
+        const partialNotional = fills.reduce((s, f) => s + (Number(f.filledPrice) || 0) * (Number(f.filledQuantity) || 0), 0);
+        const partialQty = fills.reduce((s, f) => s + (Number(f.filledQuantity) || 0), 0);
+        const avgPartialPrice = partialQty > 0 ? partialNotional / partialQty : null;
+        return {
+            success: allOk,
+            message: allOk ? `Đã chốt ${Math.round(frac * 100)}% vị thế live.` : 'Một phần lệnh chốt TP1 thất bại — kiểm tra ExchangeOrder log.',
+            fills,
+            avgPartialPrice,
+            filledPrice: avgPartialPrice,
+            filledQuantity: partialQty,
+            fillConfirmed: partialQty > 0,
+        };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLivePartialExit lỗi: ${err.message}`));
         return { success: false, message: err.message };

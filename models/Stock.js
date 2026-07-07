@@ -32,8 +32,9 @@ const StockSchema = new mongoose.Schema({
     sector: { type: String, default: "KH%C3%81C" },
     cafeF: { type: mongoose.Schema.Types.Mixed, default: null },
     tcbs: { type: mongoose.Schema.Types.Mixed, default: null },
-    deepNewsData: [NewsSchema], 
-    reports: [ReportSchema],    
+    deepNewsData: [NewsSchema],
+    deepNewsFetchedAt: { type: Date, default: null },
+    reports: [ReportSchema],
     lastUpdated: { type: Date, default: Date.now }
 });
 

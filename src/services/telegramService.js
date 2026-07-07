@@ -6,6 +6,16 @@ const getTelegramConfig = () => ({
     chatId: process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHANNEL_ID || '',
 });
 
+const getTradeCloseIcon = (pnlValue) => {
+    const n = Number(pnlValue);
+    if (!Number.isFinite(n)) return '⚪';
+    if (n > 0) return '🟢';
+    if (n < 0) return '🔴';
+    return '⚪';
+};
+
+const PLAIN_DIVIDER = '━━━━━━━━━━━━━━━━━━━━';
+
 const escapeMarkdownV2 = (text = '') =>
     String(text)
         .replace(/\\/g, '\\\\')
@@ -27,6 +37,86 @@ const escapeMarkdownV2 = (text = '') =>
         .replace(/\}/g, '\\}')
         .replace(/\./g, '\\.')
         .replace(/!/g, '\\!');
+
+const escapeHtml = (text = '') =>
+    String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+const formatTelegramPlainSection = (title, lines = []) => {
+    const body = (Array.isArray(lines) ? lines : [lines]).filter(Boolean);
+    if (!body.length) return '';
+    return `${title}\n${PLAIN_DIVIDER}\n${body.join('\n')}`;
+};
+
+const packPlainLines = (lines, maxLen = 3900) => {
+    const packed = [];
+    let total = 0;
+    for (const line of lines) {
+        if (total + line.length + 1 > maxLen) {
+            packed.push(`... (còn ${lines.length - packed.length} dòng bị cắt)`);
+            break;
+        }
+        packed.push(line);
+        total += line.length + 1;
+    }
+    return packed.join('\n');
+};
+
+const formatStatsSummary = (stats = {}, label = '') => {
+    if (!stats || stats.error || !stats.totalTrades) {
+        return `${label ? label + ': ' : ''}Chưa có lệnh đóng`;
+    }
+    const pnlSign = (stats.totalPnlPct || 0) >= 0 ? '+' : '';
+    const amountPart = stats.currency === 'USDT'
+        ? ` | $${Number(stats.totalPnlAmount || 0).toFixed(2)}`
+        : '';
+    return `${label ? label + ' — ' : ''}${stats.totalTrades} lệnh | Win ${stats.winRate} | PnL ${pnlSign}${stats.totalPnlPct}%${amountPart}`;
+};
+
+const formatCombinedStatsLine = (stats = {}) => {
+    if (!stats || stats.error || !stats.totalTrades) return 'Chưa có lệnh đóng';
+    let line = `${stats.totalTrades} lệnh | Win ${stats.winRate}`;
+    if (stats.manualTrades > 0) {
+        line += ` (🤖 ${stats.autoTrades} auto ${stats.autoWinRate} | 🙋 ${stats.manualTrades} manual ${stats.manualWinRate})`;
+    }
+    return line;
+};
+
+const appendUnifiedStatsSection = (lines, {
+    title,
+    combined,
+    auto,
+    autoLive,
+    autoSim,
+    manual,
+    hasManualEver,
+}) => {
+    lines.push(title);
+    lines.push(`  📈 Tổng: ${formatCombinedStatsLine(combined)}`);
+    if (hasManualEver) {
+        lines.push(`  🤖 Auto: ${formatStatsSummary(auto, '')}`);
+        lines.push(`     🔴 LIVE: ${formatStatsSummary(autoLive, '')}`);
+        lines.push(`     🧪 SIM:  ${formatStatsSummary(autoSim, '')}`);
+        if (manual?.totalTrades) {
+            lines.push(`  🙋 Manual: ${formatStatsSummary(manual, '')}`);
+        } else {
+            lines.push(`  🙋 Manual: chưa có lệnh đóng trong kỳ`);
+        }
+    } else {
+        lines.push(`  🔴 LIVE: ${formatStatsSummary(autoLive, '')}`);
+        lines.push(`  🧪 SIM:  ${formatStatsSummary(autoSim, '')}`);
+    }
+};
+
+const calcUnrealizedPct = (trade) => {
+    if (!Number.isFinite(trade.currentPrice) || trade.currentPrice <= 0 || !trade.entryPrice) return null;
+    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+    return isLong
+        ? ((trade.currentPrice - trade.entryPrice) / trade.entryPrice * 100)
+        : ((trade.entryPrice - trade.currentPrice) / trade.entryPrice * 100);
+};
 
 
 
@@ -99,51 +189,54 @@ const formatHoldDuration = (openedAt) => {
 
 
 
-const isTelegramConfigured = () => {
+const isTelegramConfigured = (chatIdOverride = null) => {
     const { botToken, chatId } = getTelegramConfig();
-    return Boolean(botToken && chatId);
+    return Boolean(botToken && (chatIdOverride || chatId));
 };
 
 
-const sendTelegramMessage = async (message, { parseMode = 'MarkdownV2', _isRetry = false } = {}) => {
-    if (!isTelegramConfigured()) {
+const sendTelegramMessage = async (message, { chatId: chatIdOverride, parseMode = 'MarkdownV2', _isRetry = false } = {}) => {
+    const { botToken, chatId: defaultChatId } = getTelegramConfig();
+    const targetChatId = chatIdOverride || defaultChatId;
+
+    if (!isTelegramConfigured(targetChatId)) {
         return { ok: false, skipped: true, reason: 'Telegram chưa được cấu hình' };
     }
 
     try {
-        const { botToken, chatId } = getTelegramConfig();
         const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
         const payload = {
-            chat_id: chatId,
+            chat_id: targetChatId,
             text: message,
-            parse_mode: parseMode,
             disable_web_page_preview: true,
         };
+        if (parseMode && parseMode !== 'none') {
+            payload.parse_mode = parseMode;
+        }
 
         const res = await axios.post(url, payload, { timeout: 10000 });
         return { ok: true, data: res.data };
     } catch (error) {
         const status = error?.response?.status;
+        const apiDesc = error?.response?.data?.description;
 
-        
-        if (status === 400 && parseMode !== 'none' && !_isRetry) {
-            console.log(chalk.yellow(`[TELEGRAM] Markdown lỗi (400), thử lại plain text...`));
-            
+        if (status === 400 && parseMode && parseMode !== 'none' && !_isRetry) {
+            console.log(chalk.yellow(`[TELEGRAM] Parse lỗi (400)${apiDesc ? `: ${apiDesc}` : ''}, thử lại plain text...`));
             const plain = message
                 .replace(/\\/g, '')
-                .replace(/[*_~`]/g, '');
-            return sendTelegramMessage(plain, { parseMode: 'none', _isRetry: true });
+                .replace(/[*_~`]/g, '')
+                .replace(/<[^>]+>/g, '');
+            return sendTelegramMessage(plain, { chatId: targetChatId, parseMode: 'none', _isRetry: true });
         }
 
-        
         if (!_isRetry && !status) {
             console.log(chalk.yellow(`[TELEGRAM] Lỗi mạng, thử lại sau 2s: ${error.message}`));
             await new Promise(r => setTimeout(r, 2000));
-            return sendTelegramMessage(message, { parseMode, _isRetry: true });
+            return sendTelegramMessage(message, { chatId: targetChatId, parseMode, _isRetry: true });
         }
 
-        console.log(chalk.yellow(`[TELEGRAM] Gửi tin nhắn thất bại (${status || 'network'}): ${error.message}`));
-        return { ok: false, error: error.message };
+        console.log(chalk.yellow(`[TELEGRAM] Gửi tin nhắn thất bại (${status || 'network'}): ${apiDesc || error.message}`));
+        return { ok: false, error: apiDesc || error.message };
     }
 };
 
@@ -268,7 +361,7 @@ const buildAutoTradeCloseMessage = (trade, exitReason) => {
     const symbol    = escapeMarkdownV2(trade.symbol);
     const direction = escapeMarkdownV2(trade.direction);
     const dirIcon   = isLong ? '📈' : '📉';
-    const statusIcon = isWin ? '🤑' : '🩸';
+    const statusIcon = getTradeCloseIcon(trade.pnlPercent);
 
     const entry    = escapeMarkdownV2(formatPrice(trade.entryPrice, assetType));
     const exit     = escapeMarkdownV2(formatPrice(trade.exitPrice, assetType));
@@ -391,7 +484,7 @@ const buildDailyPnLReportMessage = (trades, date = new Date()) => {
             const dir    = escapeMarkdownV2(t.direction);
             const pctStr = escapeMarkdownV2(formatSignedPct(t.pnlPercent, 2));
             const vndStr = escapeMarkdownV2(formatVND(t.pnl));
-            const icon   = t.pnl > 0 ? '🤑' : t.pnl < 0 ? '🩸' : '⚪';
+            const icon   = getTradeCloseIcon(t.pnlPercent);
             lines.push(`${icon} *${sym}* \\(${dir}\\): ${pctStr} \\| ${vndStr}`);
         });
         if (totalTrades > 15) {
@@ -528,10 +621,546 @@ const buildProgressBar = (pct, width = 10) => {
     return `[${'█'.repeat(filled)}${'░'.repeat(width - filled)}] ${pct.toFixed(1)}%`;
 };
 
+const formatOpenTradePlain = (trade, asset) => {
+    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
+    const dirIcon = isLong ? '📈' : '📉';
+    const modeBadge = trade.executionMode === 'LIVE' ? '🔴 LIVE' : '🧪 SIM';
+    const statusEmoji = trade.status === 'PENDING' ? '⏳' : '🟢';
+    const holdDur = formatHoldDuration(trade.openedAt);
+    const pct = calcUnrealizedPct(trade);
+    const lines = [
+        `${statusEmoji} ${modeBadge} ${trade.symbol} ${dirIcon} ${trade.direction} | Score ${trade.aiScore ?? '--'}/100`,
+        `  Entry: ${formatPrice(trade.entryPrice, asset)} | TP: ${formatPrice(trade.takeProfitPrice, asset)} | SL: ${formatPrice(trade.stopLossPrice, asset)}`,
+        `  Vốn: ${formatVND(trade.investedAmount)} VNĐ${holdDur ? ` | Giữ: ${holdDur}` : ''}`,
+    ];
+    if (pct != null) {
+        const pnlIcon = pct >= 0 ? '🟢' : '🔴';
+        lines.push(`  ${pnlIcon} PnL tạm: ${formatSignedPct(pct, 2)} | Giá: ${formatPrice(trade.currentPrice, asset)}`);
+    }
+    return lines.join('\n');
+};
+
+const buildCheckDashboardMessage = (data = {}) => {
+    const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const totalCap = Number(data.totalCapital || 0);
+    const allocCap = Number(data.allocatedCapital || 0);
+    const freeCap = totalCap - allocCap;
+    const utilPct = totalCap > 0 ? (allocCap / totalCap * 100) : 0;
+    const openTrades = Array.isArray(data.openTrades) ? data.openTrades : [];
+    const liveOpen = openTrades.filter(t => t.executionMode === 'LIVE');
+    const simOpen = openTrades.filter(t => t.executionMode !== 'LIVE');
+
+    const lines = [
+        `🦆 OMNI DUCK — DASHBOARD`,
+        `🕒 ${now}`,
+        PLAIN_DIVIDER,
+        `💰 VỐN`,
+        `  Tổng:      ${formatVND(totalCap)} VNĐ`,
+        `  Đang dùng: ${formatVND(allocCap)} VNĐ (${utilPct.toFixed(1)}%)`,
+        `  Còn lại:   ${formatVND(freeCap)} VNĐ`,
+        `  ${buildProgressBar(utilPct, 10)}`,
+        PLAIN_DIVIDER,
+    ];
+    appendUnifiedStatsSection(lines, {
+        title: '📊 THỐNG KÊ 30 NGÀY',
+        combined: data.stats30d,
+        auto: data.stats30dAuto,
+        autoLive: data.stats30dLive,
+        autoSim: data.stats30dSim,
+        manual: data.stats30dManual,
+        hasManualEver: data.hasManualEver,
+    });
+
+    if (data.statsToday) {
+        const t = data.statsToday;
+        lines.push(PLAIN_DIVIDER);
+        appendUnifiedStatsSection(lines, {
+            title: '📅 HÔM NAY',
+            combined: t.combined,
+            auto: t.auto,
+            autoLive: t.live,
+            autoSim: t.sim,
+            manual: t.manual,
+            hasManualEver: t.hasManualEver,
+        });
+    }
+
+    lines.push(
+        PLAIN_DIVIDER,
+        `📋 LỆNH ĐANG MỞ: ${openTrades.length} (🔴 LIVE ${liveOpen.length} | 🧪 SIM ${simOpen.length})`,
+    );
+
+    if (!openTrades.length) {
+        lines.push(`  Không có lệnh nào đang chạy`);
+    } else {
+        const byAsset = { CRYPTO: [], VN_STOCK: [], DERIVATIVES: [] };
+        for (const t of openTrades) (byAsset[t.assetType] || byAsset.CRYPTO).push(t);
+        const assetIcon = { CRYPTO: '🪙', VN_STOCK: '🏢', DERIVATIVES: '📊' };
+        const assetLabel = { CRYPTO: 'Crypto', VN_STOCK: 'Cổ phiếu', DERIVATIVES: 'Phái sinh' };
+        for (const [asset, trades] of Object.entries(byAsset)) {
+            if (!trades.length) continue;
+            lines.push('', `${assetIcon[asset]} ${assetLabel[asset]} (${trades.length})`);
+            for (const t of trades) {
+                lines.push(formatOpenTradePlain(t, asset));
+                lines.push(`  ${'─'.repeat(18)}`);
+            }
+        }
+    }
+
+    const ps = data.pipelineState || {};
+    lines.push('', PLAIN_DIVIDER, `⚙️ Pipeline: ${ps.manuallyStopped ? '⏸ TẮT thủ công' : ps.autoTradeEnabled === false ? '⏸ Engine tắt' : '🟢 BẬT'} | Risk L${data.riskLevel || 2}`);
+    lines.push(`💡 /check làm mới | /live /sim | /stats | /help`);
+
+    return packPlainLines(lines);
+};
+
+const buildLiveDetailMessage = (data = {}) => {
+    const trades = Array.isArray(data.liveTrades) ? data.liveTrades : [];
+    const stats = data.stats30dLive || {};
+    const lines = [`🔴 LIVE — VỊ THẾ ĐANG MỞ (${trades.length})`, PLAIN_DIVIDER];
+
+    if (!trades.length) {
+        lines.push(`(không có vị thế live nào)`);
+    } else {
+        for (const t of trades) {
+            const isLong = t.direction === 'LONG' || t.direction === 'MUA';
+            const dirIcon = isLong ? '📈' : '📉';
+            const lev = Number(t.leverage) > 1 ? ` ${t.leverage}x` : '';
+            const mkt = t.marketType === 'FUTURES' ? ` FUTURES${lev}` : ' SPOT';
+            const holdDur = formatHoldDuration(t.openedAt);
+            const pct = calcUnrealizedPct(t);
+            const invested = Number(t.investedAmount) || 0;
+            const notional = invested * (Number(t.leverage) || 1);
+            lines.push(`${dirIcon} ${t.symbol} ${t.direction}${mkt}`);
+            lines.push(`  Entry: ${formatPrice(t.entryPrice, t.assetType)}${pct != null ? ` | Giá: ${formatPrice(t.currentPrice, t.assetType)} (${formatSignedPct(pct, 2)})` : ''}`);
+            lines.push(`  Vốn: ${formatVND(invested)} VNĐ${t.assetType === 'CRYPTO' ? ` (~$${(invested / (data.usdVndRate || 25000)).toFixed(0)})` : ''}${notional > invested ? ` | Notional: ${formatVND(notional)}` : ''}`);
+            lines.push(`  TP: ${formatPrice(t.takeProfitPrice, t.assetType)} | SL: ${formatPrice(t.stopLossPrice, t.assetType)}${t.tp1Filled ? ' | TP1: ✅ đã chốt' : ''}`);
+            lines.push(`  Score: ${t.aiScore ?? '--'}/100${holdDur ? ` | Giữ: ${holdDur}` : ''} | ${t.status}`);
+            lines.push(`  ${'─'.repeat(18)}`);
+        }
+    }
+
+    lines.push('', `📊 LIVE 30 ngày: ${formatStatsSummary(stats, '')}`);
+    lines.push(PLAIN_DIVIDER, `📋 5 LỆNH SÀN GẦN NHẤT`);
+
+    const orders = Array.isArray(data.recentOrders) ? data.recentOrders : [];
+    if (!orders.length) {
+        lines.push(`(chưa có lệnh nào gửi ra sàn)`);
+    } else {
+        for (const o of orders) {
+            const icon = o.status === 'FILLED' ? '✅' : o.status === 'FAILED' ? '❌' : '⏳';
+            const err = o.errorMessage ? ` — ${truncate(o.errorMessage, 50)}` : '';
+            lines.push(`${icon} ${o.side} ${o.symbol} [${o.exchangeName}/${o.environment}] ${o.status}${err}`);
+        }
+    }
+
+    return packPlainLines(lines);
+};
+
+const buildSimDetailMessage = (data = {}) => {
+    const trades = Array.isArray(data.simTrades) ? data.simTrades : [];
+    const stats = data.stats30dSim || {};
+    const allocated = trades.reduce((s, t) => s + (Number(t.investedAmount) || 0), 0);
+    const avgScore = trades.length
+        ? Math.round(trades.reduce((s, t) => s + (Number(t.aiScore) || 0), 0) / trades.length)
+        : 0;
+
+    const lines = [
+        `🧪 MÔ PHỎNG — TRAINING AI NỀN`,
+        PLAIN_DIVIDER,
+        `📊 TỔNG QUAN`,
+        `  Lệnh đang mở: ${trades.length}`,
+        `  Vốn mô phỏng đang dùng: ${formatVND(allocated)} VNĐ`,
+        `  Avg AI Score: ${avgScore}/100`,
+        `  SIM 30 ngày: ${formatStatsSummary(stats, '')}`,
+        PLAIN_DIVIDER,
+        `📋 CHI TIẾT LỆNH (${Math.min(trades.length, 15)})`,
+    ];
+
+    if (!trades.length) {
+        lines.push(`(không có lệnh mô phỏng nào đang mở)`);
+    } else {
+        for (const t of trades.slice(0, 15)) {
+            const isLong = t.direction === 'LONG' || t.direction === 'MUA';
+            const holdH = Math.round((Date.now() - new Date(t.openedAt).getTime()) / 3600000);
+            const pct = calcUnrealizedPct(t);
+            lines.push(`${isLong ? '🟢' : '🔴'} ${t.symbol} [${t.assetType}] ${t.direction} @ ${formatPrice(t.entryPrice, t.assetType)}`);
+            lines.push(`   TP ${formatPrice(t.takeProfitPrice, t.assetType)} | SL ${formatPrice(t.stopLossPrice, t.assetType)} | Score ${t.aiScore} | ${holdH}h${pct != null ? ` | PnL tạm ${formatSignedPct(pct, 2)}` : ''}`);
+        }
+        if (trades.length > 15) lines.push(`... và ${trades.length - 15} lệnh khác`);
+    }
+
+    return packPlainLines(lines);
+};
+
+const buildMarketOverviewMessage = (data = {}) => {
+    const vn = data.vn || {};
+    const intel = vn.intelligence || {};
+    const crypto = data.crypto || {};
+    const lines = [
+        `🌐 TỔNG QUAN THỊ TRƯỜNG`,
+        `🕒 ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+        PLAIN_DIVIDER,
+        `🏢 CHỨNG KHOÁN VN`,
+        `  Trạng thái: ${intel.marketStatus || 'N/A'}`,
+        `  Breadth: ${intel.breadthRatio ?? 'N/A'}% | Loại: ${intel.statusType || 'N/A'}`,
+    ];
+    if (intel.diagnosticDesc) lines.push(`  ${truncate(intel.diagnosticDesc, 200)}`);
+    lines.push(`  Phiên mở cửa: ${data.vnMarketOpen ? 'CÓ' : 'KHÔNG'}`);
+
+    lines.push(PLAIN_DIVIDER, `🪙 CRYPTO MACRO`);
+    lines.push(`  Trạng thái: ${crypto.marketStatus || 'N/A'}`);
+    lines.push(`  Breadth: ${crypto.breadthRatio ?? 'N/A'}%`);
+    if (crypto.diagnosticDesc) lines.push(`  ${truncate(crypto.diagnosticDesc, 200)}`);
+
+    lines.push(PLAIN_DIVIDER, `💹 GIÁ NỔI BẬT`);
+    lines.push(`  BTC: ${data.btc || 'N/A'}`);
+    lines.push(`  ETH: ${data.eth || 'N/A'}`);
+
+    if (data.derivStatus) {
+        lines.push(PLAIN_DIVIDER, `📊 PHÁI SINH VN30`);
+        lines.push(`  ${data.derivStatus}`);
+    }
+
+    return packPlainLines(lines);
+};
+
+const buildStatsMessage = (data = {}) => {
+    const days = data.days || 30;
+    const hasManualEver = data.hasManualEver === true;
+    const combined = data.combined || {};
+    const auto = data.auto || {};
+    const autoLive = data.autoLive || {};
+    const autoSim = data.autoSim || {};
+    const manual = data.manual || {};
+
+    const lines = [`📊 THỐNG KÊ ${days} NGÀY`, PLAIN_DIVIDER];
+
+    appendUnifiedStatsSection(lines, {
+        title: '📈 TỔNG QUAN',
+        combined,
+        auto,
+        autoLive,
+        autoSim,
+        manual,
+        hasManualEver,
+    });
+
+    if (hasManualEver) {
+        lines.push('');
+        const fmtDetail = (stats, label) => {
+            if (stats.error || !stats.totalTrades) return [`${label}: Chưa có lệnh đóng`];
+            const pnlSign = (stats.totalPnlPct || 0) >= 0 ? '+' : '';
+            const amt = stats.currency === 'USDT'
+                ? ` | $${Number(stats.totalPnlAmount || 0).toFixed(2)}`
+                : ` | ${formatVND(stats.totalPnlAmount || 0)} VNĐ`;
+            return [
+                `${label}:`,
+                `  ${stats.totalTrades} lệnh (✅ ${stats.wins} | ❌ ${stats.losses}${stats.breakEven ? ` | ➖ ${stats.breakEven} hoà` : ''})`,
+                `  Win: ${stats.winRate} | Avg thắng +${stats.avgWinPnl}% | Avg thua ${stats.avgLossPnl}%`,
+                `  PnL: ${pnlSign}${stats.totalPnlPct}%${amt}`,
+            ];
+        };
+        lines.push(PLAIN_DIVIDER, ...fmtDetail(auto, '🤖 AUTO'), '', ...fmtDetail(manual, '🙋 MANUAL'));
+    }
+
+    const tags = combined.byExitTag || auto.byExitTag || [];
+    if (tags.length) {
+        lines.push(PLAIN_DIVIDER, `🏷 THEO EXIT TAG (tổng)`);
+        for (const t of tags.slice(0, 6)) {
+            lines.push(`  ${t.tag}: ${t.count} lệnh | Win ${t.winRate} | Avg ${t.avgPnl}%`);
+        }
+    }
+
+    const buckets = combined.byScoreBucket || auto.byScoreBucket || [];
+    if (buckets.length) {
+        lines.push(PLAIN_DIVIDER, `🎯 THEO SCORE BUCKET (auto)`);
+        for (const b of buckets) {
+            if (!b.count) continue;
+            lines.push(`  ${b.bucket}: ${b.count} lệnh | Win ${b.winRate}`);
+        }
+    }
+
+    const byAsset = combined.byAsset || auto.byAsset || [];
+    if (byAsset.some(a => a.count > 0)) {
+        lines.push(PLAIN_DIVIDER, `📂 THEO LOẠI TÀI SẢN (auto)`);
+        const icon = { CRYPTO: '🪙', VN_STOCK: '🏢', DERIVATIVES: '📊' };
+        for (const a of byAsset) {
+            if (!a.count) continue;
+            lines.push(`  ${icon[a.asset] || '•'} ${a.asset}: ${a.count} lệnh | Win ${a.winRate} | PnL ${a.totalPnlPct >= 0 ? '+' : ''}${a.totalPnlPct}%`);
+        }
+    }
+
+    return packPlainLines(lines);
+};
+
+const buildFunnelMessage = (funnel, assetLabel = 'CRYPTO') => {
+    if (!funnel) {
+        return `🔍 FUNNEL ${assetLabel}\n${PLAIN_DIVIDER}\nChưa có dữ liệu chu kỳ quét gần nhất.`;
+    }
+    const c = funnel;
+    const lines = [
+        `🔍 FUNNEL — ${assetLabel}`,
+        `🕒 ${c.ts ? new Date(c.ts).toLocaleString('vi-VN') : 'N/A'}`,
+        PLAIN_DIVIDER,
+        `Quét: ${c.scanned} mã`,
+        `  ↳ Yếu tín hiệu: ${c.weak}`,
+        `  ↳ Vol không đạt: ${c.vol}`,
+        `  ↳ Setup fail: ${c.setup}`,
+        `  ↳ SIM ok: ${c.simOk}`,
+        `  ↳ LIVE gate chặn: ${c.liveGate}`,
+        `  ↳ AI veto: ${c.aiVeto}`,
+        `  ↳ Testnet chặn: ${c.testnet}`,
+        `  ↳ Risk/limit: ${(c.risk || 0) + (c.limit || 0)}`,
+        PLAIN_DIVIDER,
+        `✅ Khớp SIM: ${c.matchedSim} | 🔴 Khớp LIVE: ${c.matchedLive}`,
+    ];
+    if (c.topCandidates?.length) {
+        lines.push(PLAIN_DIVIDER, `🏆 TOP ỨNG VIÊN`);
+        for (const [i, row] of c.topCandidates.slice(0, 5).entries()) {
+            lines.push(`  ${i + 1}. ${row.symbol} score ${row.score} ${row.direction || ''}${row.aiConfirmed === true ? ' ✅AI' : row.aiConfirmed === false ? ' ❌AI' : ''}`);
+        }
+    }
+    return packPlainLines(lines);
+};
+
+const buildInsightMessage = (insight) => {
+    if (!insight) {
+        return `📰 BÁO CÁO AI THỊ TRƯỜNG\n${PLAIN_DIVIDER}\nChưa có báo cáo. Hệ thống quét lúc 7:00 sáng T2–T6.`;
+    }
+    const lines = [
+        `📰 BÁO CÁO AI — ${insight.date || 'N/A'}${insight.isWeekend ? ' (cuối tuần — bản gần nhất)' : ''}`,
+        `Sentiment: ${insight.marketSentiment || 'N/A'} | Model: ${insight.model || 'N/A'}`,
+        PLAIN_DIVIDER,
+    ];
+    if (insight.summary) lines.push(truncate(insight.summary, 800));
+    const picks = Array.isArray(insight.topPicks) ? insight.topPicks : [];
+    if (picks.length) {
+        lines.push(PLAIN_DIVIDER, `🎯 TOP PICKS`);
+        for (const p of picks.slice(0, 5)) {
+            lines.push(`  ${p.action || '?'} ${p.symbol} [${p.horizon || ''}] score ${p.score ?? '--'}`);
+            if (p.reason) lines.push(`    ${truncate(p.reason, 100)}`);
+        }
+    }
+    return packPlainLines(lines);
+};
+
+const buildHealthMessage = (health = {}) => {
+    const ps = health.pipelineState || {};
+    const lines = [
+        `⚙️ HỆ THỐNG`,
+        `🕒 ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+        PLAIN_DIVIDER,
+        `Pipeline: ${ps.manuallyStopped ? '⏸ TẮT (/stop)' : ps.autoTradeEnabled === false ? '⏸ Engine tắt' : '🟢 BẬT'}`,
+        `Chu kỳ quét: ${ps.pipelineRunning ? '🔄 đang chạy' : '💤 rảnh'}`,
+        `Risk: L${health.riskLevel || 2} — ${health.riskName || 'N/A'}`,
+        `Max concurrent: ${health.maxConcurrent || 10}`,
+    ];
+
+    const fmtGuards = (label, guards) => {
+        if (!guards) return;
+        const parts = Object.entries(guards).map(([a, g]) => `${a}: floor${g.scoreFloor}/×${g.sizeMult}(n=${g.sample})`);
+        lines.push(`${label}: ${parts.join(' | ')}`);
+    };
+    fmtGuards('Adaptive SIM', health.adaptiveSim);
+    fmtGuards('Adaptive LIVE', health.adaptiveLive);
+
+    const providers = health.providers || {};
+    const provParts = Object.entries(providers).map(([k, v]) => {
+        const icon = v.blocked ? `🔴 ${Math.ceil((v.remainingMs || 0) / 1000)}s` : '🟢';
+        return `${k} ${icon}`;
+    });
+    if (provParts.length) {
+        lines.push(PLAIN_DIVIDER, `🤖 AI Providers: ${provParts.join(' | ')}`);
+    }
+
+    const audit = health.audit || {};
+    lines.push(PLAIN_DIVIDER, `📝 Audit: ${audit.enabled ? 'BẬT' : 'TẮT'} | ${audit.tailSize || 0} events | Mã hóa: ${audit.encrypted ? 'có' : 'không'}`);
+
+    const logs = health.recentPipelineLogs || [];
+    if (logs.length) {
+        lines.push(PLAIN_DIVIDER, `📋 Pipeline log gần nhất:`);
+        for (const l of logs.slice(-3)) {
+            lines.push(`  • ${truncate(l.message || JSON.stringify(l), 80)}`);
+        }
+    }
+
+    return packPlainLines(lines);
+};
+
+const buildSettingsMessage = (settings = {}) => {
+    const lines = [
+        `⚙️ CẤU HÌNH AUTO-TRADE`,
+        PLAIN_DIVIDER,
+        `Vốn tổng:     ${formatVND(settings.autoTradeTotalCapital || 0)} VNĐ`,
+        `Max lệnh:     ${settings.autoTradeMaxConcurrent || 10}`,
+        `Risk level:   L${settings.autoTradeRiskLevel || 2} — ${settings.riskName || ''}`,
+        `Engine:       ${settings.autoTradeEnabled === false ? 'TẮT' : 'BẬT'}`,
+        `Tỷ giá USD:   ${Number(settings.usdVndRate || 0).toLocaleString('vi-VN')} VNĐ`,
+        PLAIN_DIVIDER,
+        `💡 Thay đổi cấu hình qua web dashboard hoặc API /auto-trade/settings`,
+    ];
+    return lines.join('\n');
+};
+
+const buildAiLessonsMessage = (data = {}) => {
+    const lessons = Array.isArray(data.lessons) ? data.lessons : [];
+    const learning = data.aiLearning || {};
+    const lines = [
+        `🤖 AI LEARNING`,
+        PLAIN_DIVIDER,
+        `30 ngày: ${learning.totalLogs || 0} logs | WIN signal ${learning.wins || 0} | LOSS signal ${learning.losses || 0}`,
+        PLAIN_DIVIDER,
+        `📚 BÀI HỌC GẦN NHẤT (${Math.min(lessons.length, 5)})`,
+    ];
+    if (!lessons.length) {
+        lines.push(`(chưa có bài học nào)`);
+    } else {
+        for (const l of lessons.slice(0, 5)) {
+            const sym = l.symbol || 'N/A';
+            const tags = Array.isArray(l.tags) ? l.tags.join(', ') : '';
+            lines.push(`• ${sym} [${l.assetType || ''}] ${tags}`);
+            if (l.lesson) lines.push(`  ${truncate(l.lesson, 120)}`);
+        }
+    }
+    return packPlainLines(lines);
+};
+
+const buildBrokerStatusMessage = (connections = []) => {
+    const lines = [`🔗 KẾT NỐI SÀN (${connections.length})`, PLAIN_DIVIDER];
+    if (!connections.length) {
+        lines.push(`(chưa có kết nối nào)`);
+        return lines.join('\n');
+    }
+    for (const c of connections.slice(0, 10)) {
+        const status = c.isActive ? '🟢' : '⏸';
+        const bal = c.balanceSnapshot?.USDT != null ? `USDT ${Number(c.balanceSnapshot.USDT).toFixed(2)}` : 'N/A';
+        lines.push(`${status} ${c.exchangeName} [${c.environment}] — ${c.username || c.label || ''}`);
+        lines.push(`  Balance: ${bal} | Quyền: ${(c.permissions || []).join(',') || 'N/A'}`);
+        if (c.lastTestError) lines.push(`  Lỗi test: ${truncate(c.lastTestError, 60)}`);
+        lines.push(`  ${'─'.repeat(18)}`);
+    }
+    return packPlainLines(lines);
+};
+
+const buildTodayPnLMessage = (data = {}) => {
+    const dateStr = data.date || new Date().toLocaleDateString('vi-VN');
+    const hasManualEver = data.hasManualEver === true;
+    const lines = [
+        `📋 PnL HÔM NAY — ${dateStr}`,
+        PLAIN_DIVIDER,
+    ];
+
+    const fmtBlock = (stats, label) => {
+        if (!stats?.totalTrades) return [`${label}: Không có lệnh đóng`];
+        const sign = (stats.totalPnlPct || 0) >= 0 ? '+' : '';
+        const amountLine = stats.currency === 'USDT'
+            ? `  PnL: ${sign}$${Number(stats.totalPnlAmount || 0).toFixed(2)} (${sign}${stats.totalPnlPct}%)`
+            : `  PnL: ${sign}${formatVND(stats.totalPnlAmount || 0)} VNĐ (${sign}${stats.totalPnlPct}%)`;
+        return [
+            `${label}:`,
+            `  ${stats.totalTrades} lệnh (✅ ${stats.wins} | ❌ ${stats.losses}) | Win ${stats.winRate}`,
+            amountLine,
+        ];
+    };
+
+    if (hasManualEver) {
+        if (data.combined?.totalTrades) lines.push(...fmtBlock(data.combined, '📈 TỔNG'), '');
+        lines.push(...fmtBlock(data.auto, '🤖 AUTO'), '');
+        if (data.manual?.totalTrades) lines.push(...fmtBlock(data.manual, '🙋 MANUAL'), '');
+        else lines.push('🙋 MANUAL: Không có lệnh đóng', '');
+        lines.push(...fmtBlock(data.live, '  🔴 LIVE auto'), '', ...fmtBlock(data.sim, '  🧪 SIM auto'));
+    } else {
+        lines.push(...fmtBlock(data.live, '🔴 LIVE'), '', ...fmtBlock(data.sim, '🧪 SIM'));
+    }
+
+    const autoTrades = Array.isArray(data.trades) ? data.trades : [];
+    const manualTrades = Array.isArray(data.manualTrades) ? data.manualTrades : [];
+    const allTrades = [
+        ...autoTrades.map(t => ({ ...t, _kind: 'auto' })),
+        ...manualTrades.map(t => ({ ...t, _kind: 'manual' })),
+    ];
+    if (allTrades.length) {
+        lines.push(PLAIN_DIVIDER, `📝 CHI TIẾT (${Math.min(allTrades.length, 10)})`);
+        for (const t of allTrades.slice(0, 10)) {
+            if (t._kind === 'manual') {
+                const icon = getTradeCloseIcon(t.realizedPnlUsdt);
+                lines.push(`${icon} 🙋 ${t.symbol} (${t.direction}): ${formatSignedPct(t.pnlPercent, 2)} | $${Number(t.realizedPnlUsdt || 0).toFixed(2)}`);
+            } else {
+                const mode = t.executionMode === 'LIVE' ? '🔴' : '🧪';
+                const icon = getTradeCloseIcon(t.pnlPercent);
+                lines.push(`${icon} ${mode} ${t.symbol} (${t.direction}): ${formatSignedPct(t.pnlPercent, 2)} | ${formatVND(t.pnl)} VNĐ`);
+            }
+        }
+        if (allTrades.length > 10) lines.push(`... và ${allTrades.length - 10} lệnh khác`);
+    }
+
+    return packPlainLines(lines);
+};
+
+const buildPortfolioMessage = (portfolios = []) => {
+    const lines = [`💼 GÓI PORTFOLIO (${portfolios.length})`, PLAIN_DIVIDER];
+    if (!portfolios.length) {
+        lines.push(`(không có gói portfolio nào đang chạy)`);
+        return lines.join('\n');
+    }
+    for (const p of portfolios) {
+        const mode = p.executionMode === 'LIVE' ? '🔴 LIVE' : '🧪 SIM';
+        const cap = p.effectiveCapital || 0;
+        const used = p.usedCapital || 0;
+        const utilPct = cap > 0 ? (used / cap * 100) : 0;
+        const pnlPct = cap > 0 ? ((p.realizedPnl || 0) / cap * 100) : 0;
+        const pnlSign = (p.realizedPnl || 0) >= 0 ? '+' : '';
+        lines.push(`💼 ${p.username} [${mode}]`);
+        lines.push(`  Quỹ: ${(cap / 1e6).toFixed(2)}Tr | Dùng: ${(used / 1e6).toFixed(2)}Tr (${utilPct.toFixed(0)}%) | ${p.openCount} lệnh mở`);
+        lines.push(`  PnL: ${pnlSign}${Math.round((p.realizedPnl || 0) / 1000)}k (${pnlSign}${pnlPct.toFixed(2)}%) | Win ${p.winRate}% (${p.closedCount} đóng)`);
+        if (p.closedCount > 0 && (p.avgWinVnd != null || p.expectancyVnd != null)) {
+            const expSign = (p.expectancyVnd || 0) >= 0 ? '+' : '';
+            lines.push(`  Avg thắng: +${Math.round((p.avgWinVnd || 0) / 1000)}k | Avg thua: ${Math.round((p.avgLossVnd || 0) / 1000)}k | Expectancy: ${expSign}${Math.round((p.expectancyVnd || 0) / 1000)}k/lệnh`);
+        }
+        lines.push(`  Cấu hình: ${p.allocationPercent}%/lệnh | Max ${p.maxConcurrentOrders} | Dynamic ${p.dynamicSizing ? 'BẬT' : 'TẮT'}`);
+        lines.push('');
+    }
+    return packPlainLines(lines);
+};
+
+const buildHelpMessage = () => [
+    `🦆 OMNI DUCK — LỆNH TELEGRAM`,
+    PLAIN_DIVIDER,
+    `📊 GIÁM SÁT & THỊ TRƯỜNG`,
+    `/check      — Dashboard tổng hợp (vốn, auto/manual, LIVE/SIM)`,
+    `/live       — Vị thế LIVE chi tiết + log sàn`,
+    `/sim        — Lệnh mô phỏng + stats training`,
+    `/market     — Tổng quan VN + Crypto macro`,
+    `/insight    — Báo cáo AI thị trường hôm nay`,
+    `/stats [7]  — Thống kê win rate: tổng / auto / manual`,
+    `/funnel     — Kết quả chu kỳ quét (crypto/vn/deriv)`,
+    `/pnl        — Tổng kết PnL hôm nay`,
+    `/portfolio  — Gói quỹ bot tự quản lý`,
+    ``,
+    `⚙️ HỆ THỐNG`,
+    `/health     — Pipeline, AI providers, adaptive guards`,
+    `/settings   — Cấu hình auto-trade`,
+    `/ai         — Bài học AI gần nhất`,
+    `/broker     — Trạng thái kết nối sàn`,
+    ``,
+    `🙋 LỆNH THỦ CÔNG`,
+    `/trade ...  — Đặt lệnh khớp sàn (xem /help trên web)`,
+    `/close <mã> — Đóng lệnh manual`,
+    `/manual     — Danh sách lệnh manual đang mở`,
+    ``,
+    `🎛 ĐIỀU KHIỂN`,
+    `/stop /start — Tắt/bật auto-trade pipeline`,
+    `/help       — Danh sách lệnh này`,
+].join('\n');
+
 export {
     isTelegramConfigured,
     sendTelegramMessage,
+    escapeHtml,
+    formatTelegramPlainSection,
     buildAutoTradeOpenMessage,
+    getTradeCloseIcon,
     buildAutoTradeCloseMessage,
     buildCryptoSignalMessage,
     buildMarketRadarMessage,
@@ -539,4 +1168,18 @@ export {
     buildSystemAlertMessage,
     buildDailyPnLReportMessage,
     buildStatusMessage,
+    buildCheckDashboardMessage,
+    buildLiveDetailMessage,
+    buildSimDetailMessage,
+    buildMarketOverviewMessage,
+    buildStatsMessage,
+    buildFunnelMessage,
+    buildInsightMessage,
+    buildHealthMessage,
+    buildSettingsMessage,
+    buildAiLessonsMessage,
+    buildBrokerStatusMessage,
+    buildTodayPnLMessage,
+    buildPortfolioMessage,
+    buildHelpMessage,
 };
