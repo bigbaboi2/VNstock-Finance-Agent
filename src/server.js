@@ -39,6 +39,7 @@ import { updateCryptoSymbols } from './services/cryptoSymbolUpdater.js';
 import { startPortfolioMatcher } from './jobs/portfolioMatcher.js';
 import { startDerivUpdater } from './jobs/derivUpdater.js';
 import { startCronJobs } from './jobs/newsCron.js';
+import { startVnStockNewsPrefetch } from './jobs/vnStockNewsPrefetch.js';
 import { startAutoDuckScheduler } from './services/autoTradeEngine.js';
 import { scheduleMarketInsight } from './services/marketInsightService.js';
 
@@ -108,6 +109,7 @@ app.listen(PORT, async () => {
         await updateSymbolsDatabase();
         await updateCryptoSymbols();
         startCronJobs();
+        startVnStockNewsPrefetch();
     } catch (error) {
         console.error(chalk.red('[LỖI] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
     }

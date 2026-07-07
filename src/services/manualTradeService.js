@@ -9,7 +9,7 @@ import {
     getBalance,
     normalizeCryptoSymbol,
 } from './exchangeBrokerService.js';
-import { sendTelegramMessage } from './telegramService.js';
+import { sendTelegramMessage, getTradeCloseIcon } from './telegramService.js';
 
 /**
  * MANUAL TRADE SERVICE — Lệnh /trade người dùng yêu cầu, khớp THẲNG ra sàn LIVE.
@@ -348,7 +348,7 @@ const finalizeClose = async (t, reason) => {
     const cost = t.filledPrice * t.filledQty;
     t.pnlPercent = cost > 0 ? Math.round((t.realizedPnlUsdt / cost) * 10000) / 100 : 0;
     await t.save();
-    const icon = t.realizedPnlUsdt >= 0 ? '🤑' : '🩸';
+    const icon = getTradeCloseIcon(t.realizedPnlUsdt);
     await sendTelegramMessage(
         `${icon} [MANUAL CLOSE] ${t.symbol} đóng (${reason})\nPnL: ${t.realizedPnlUsdt >= 0 ? '+' : ''}${t.realizedPnlUsdt.toFixed(2)}$ (${t.pnlPercent}%)`,
         { parseMode: 'none' }
