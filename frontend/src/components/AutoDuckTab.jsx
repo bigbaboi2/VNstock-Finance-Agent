@@ -91,6 +91,10 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         winRate: 0, avgPnl: '0.00', totalTrades: 0, maxWinStreak: 0,
         totalPnlAmount: 0, winningTrades: 0, losingTrades: 0 
     });
+    const [metricsLive, setMetricsLive] = useState({
+        winRate: 0, avgPnl: '0.00', totalTrades: 0,
+        totalPnlAmount: 0, avgWinPct: 0, avgLossPct: 0, expectancyPct: 0,
+    });
     const [loading, setLoading] = useState(false);
     const [actionMessage, setActionMessage] = useState({ text: '', isError: false });
     
@@ -212,6 +216,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             if (resLogs.data.success) {
                 setSystemLogs(resLogs.data.data);
                 setMetrics(resLogs.data.metrics);
+                if (resLogs.data.metricsLive) setMetricsLive(resLogs.data.metricsLive);
             }
             if (resUser.data.success) setUserOrders(resUser.data.data);
             if (resLessons.data.success) setAiLessons(resLessons.data.data);
@@ -683,6 +688,37 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                     detail={performance.worstTrade ? `${formatNumber(performance.worstTrade.pnl)} đ` : 'Chưa có lệnh đóng'}
                 />
             </div>
+
+            {metricsLive.totalTrades > 0 && (
+                <div className={`mb-6 rounded-xl border px-4 py-3 ${isDark ? 'bg-emerald-950/30 border-emerald-500/25' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                        ● LIVE — {metricsLive.totalTrades} lệnh đóng
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono">
+                        <div>
+                            <span className={UI.textMuted}>Win rate </span>
+                            <span className="font-black text-cyan-500">{metricsLive.winRate}%</span>
+                        </div>
+                        <div>
+                            <span className={UI.textMuted}>Avg thắng </span>
+                            <span className="font-black text-emerald-500">+{metricsLive.avgWinPct}%</span>
+                        </div>
+                        <div>
+                            <span className={UI.textMuted}>Avg thua </span>
+                            <span className="font-black text-red-500">{metricsLive.avgLossPct}%</span>
+                        </div>
+                        <div>
+                            <span className={UI.textMuted}>Expectancy </span>
+                            <span className={`font-black ${metricsLive.expectancyPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {metricsLive.expectancyPct >= 0 ? '+' : ''}{metricsLive.expectancyPct}%/lệnh
+                            </span>
+                        </div>
+                    </div>
+                    <p className={`text-[10px] mt-2 ${UI.textMuted}`}>
+                        PnL LIVE tích lũy: {metricsLive.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metricsLive.totalPnlAmount)} đ
+                    </p>
+                </div>
+            )}
 
             <div className={`mb-6 rounded-xl border px-4 py-3 flex items-start gap-3 ${isDark ? 'bg-slate-950/70 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
                 <DatabaseZap size={16} className="text-amber-500 mt-0.5 shrink-0" />
@@ -1241,6 +1277,17 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
     const openCount = countOpenOrdersInPackage(order);
     const closedAllocs = matchedAllocs.filter(a => a.closedAt);
     const wins = closedAllocs.filter(a => a.pnl > 0).length;
+    const winAllocs = closedAllocs.filter(a => a.pnl > 0);
+    const lossAllocs = closedAllocs.filter(a => a.pnl < 0);
+    const avgWinVnd = winAllocs.length
+        ? Math.round(winAllocs.reduce((s, a) => s + (Number(a.pnl) || 0), 0) / winAllocs.length)
+        : 0;
+    const avgLossVnd = lossAllocs.length
+        ? Math.round(lossAllocs.reduce((s, a) => s + (Number(a.pnl) || 0), 0) / lossAllocs.length)
+        : 0;
+    const expectancyVnd = closedAllocs.length > 0
+        ? Math.round((wins / closedAllocs.length) * avgWinVnd + ((closedAllocs.length - wins) / closedAllocs.length) * avgLossVnd)
+        : 0;
     const displayUsedCapital = matchedAllocs
         .filter(a => !a.closedAt)
         .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
@@ -1322,6 +1369,9 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                     {closedAllocs.length > 0 && (
                         <span className={`text-[9px] font-bold ${UI.textMuted}`}>
                             Đã đóng {closedAllocs.length} lệnh · Thắng {wins} ({Math.round(wins / closedAllocs.length * 100)}%) · {order.allocationPercent}%/lệnh · Max {order.maxConcurrentOrders} · Dynamic {order.dynamicSizing ? 'BẬT' : 'TẮT'}
+                            {order.executionMode === 'LIVE' && (
+                                <> · Avg +{formatNumber(avgWinVnd)}đ / {formatNumber(avgLossVnd)}đ · Exp {expectancyVnd >= 0 ? '+' : ''}{formatNumber(expectancyVnd)}đ</>
+                            )}
                         </span>
                     )}
                 </div>

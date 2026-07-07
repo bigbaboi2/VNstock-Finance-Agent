@@ -15,11 +15,13 @@ import {
     getAuditStatusHandler,
     getAuditTailHandler,
     getAuditFileTailHandler,
+    getTradeAnalyticsHandler,
 } from '../controllers/autoTrade.controller.js';
 
 const router = express.Router();
 
 router.get('/logs', getSystemTradeLogs);
+router.get('/analytics', getTradeAnalyticsHandler);
 router.post('/user-order', createUserExpectationOrder);
 router.get('/user-order/:username', getUserOrders);
 router.post('/user-order/:id/stop', stopUserOrder);

@@ -3,6 +3,7 @@ import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Setting from '../../models/Setting.js';
 import { runAutoTradePipeline, verifyOrderFeasibility, getUsdVndRate } from '../services/autoTradeEngine.js';
+import { getUnifiedTradeAnalytics, computeExpectancyStats } from '../services/tradeAnalyticsService.js';
 import { getPipelineLogs } from '../services/pipelineLogService.js';
 import { getFunnelLogs } from '../services/tradeFunnelService.js';
 import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
@@ -34,6 +35,22 @@ export const getSystemTradeLogs = async (req, res) => {
             }
         ]);
 
+        const statsLive = await AutoTrade.aggregate([
+            { $match: { status: 'CLOSED', executionMode: 'LIVE' } },
+            {
+                $group: {
+                    _id: null,
+                    totalTrades: { $sum: 1 },
+                    winningTrades: { $sum: { $cond: [{ $gt: ['$pnlPercent', 0] }, 1, 0] } },
+                    losingTrades: { $sum: { $cond: [{ $lt: ['$pnlPercent', 0] }, 1, 0] } },
+                    totalPnlAmount: { $sum: '$pnl' },
+                    totalPnlPct: { $sum: '$pnlPercent' },
+                    avgWinPct: { $avg: { $cond: [{ $gt: ['$pnlPercent', 0] }, '$pnlPercent', null] } },
+                    avgLossPct: { $avg: { $cond: [{ $lt: ['$pnlPercent', 0] }, '$pnlPercent', null] } },
+                },
+            },
+        ]);
+
         let totalTrades = 0, winningTrades = 0, losingTrades = 0, totalPnlAmount = 0, totalPnlPct = 0;
         if (stats.length > 0) {
             ({ totalTrades, winningTrades, losingTrades, totalPnlAmount, totalPnlPct } = stats[0]);
@@ -41,6 +58,35 @@ export const getSystemTradeLogs = async (req, res) => {
         
         const winRate = totalTrades > 0 ? Math.round((winningTrades / totalTrades) * 100) : 0;
         const avgPnl = totalTrades > 0 ? (totalPnlPct / totalTrades).toFixed(2) : "0.00";
+
+        let metricsLive = {
+            winRate: 0, avgPnl: '0.00', totalTrades: 0,
+            totalPnlAmount: 0, winningTrades: 0, losingTrades: 0,
+            avgWinPct: 0, avgLossPct: 0, expectancyPct: 0,
+        };
+        if (statsLive.length > 0) {
+            const s = statsLive[0];
+            const liveTotal = s.totalTrades || 0;
+            const liveWinRate = liveTotal > 0 ? Math.round((s.winningTrades / liveTotal) * 100) : 0;
+            const liveAvgWin = Number(s.avgWinPct) || 0;
+            const liveAvgLoss = Number(s.avgLossPct) || 0;
+            const liveExpectancy = liveTotal > 0
+                ? Math.round(((s.winningTrades / liveTotal) * liveAvgWin + (s.losingTrades / liveTotal) * liveAvgLoss) * 100) / 100
+                : 0;
+            metricsLive = {
+                winRate: liveWinRate,
+                avgPnl: liveTotal > 0 ? (s.totalPnlPct / liveTotal).toFixed(2) : '0.00',
+                totalTrades: liveTotal,
+                totalPnlAmount: s.totalPnlAmount || 0,
+                winningTrades: s.winningTrades || 0,
+                losingTrades: s.losingTrades || 0,
+                avgWinPct: Math.round(liveAvgWin * 100) / 100,
+                avgLossPct: Math.round(liveAvgLoss * 100) / 100,
+                expectancyPct: liveExpectancy,
+            };
+        }
+
+        const unified30d = await getUnifiedTradeAnalytics({ days: 30 }).catch(() => null);
         
         const allClosedTrades = await AutoTrade.find({ status: 'CLOSED' }).sort({ closedAt: 1 }).select('pnlPercent').lean();
         let currentStreak = 0;
@@ -62,8 +108,10 @@ export const getSystemTradeLogs = async (req, res) => {
             success: true,
             metrics: { 
                 winRate, avgPnl, totalTrades, maxWinStreak,
-                totalPnlAmount, winningTrades, losingTrades
+                totalPnlAmount, winningTrades, losingTrades,
             },
+            metricsLive,
+            analytics30d: unified30d,
             data: logs
         });
     } catch (error) {
@@ -424,6 +472,16 @@ export const getAuditFileTailHandler = async (req, res) => {
         const date = req.query.date || null;
         const limit = Number(req.query.limit) || 100;
         const data = await readAuditFileTail({ channel, date, limit });
+        return res.json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getTradeAnalyticsHandler = async (req, res) => {
+    try {
+        const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+        const data = await getUnifiedTradeAnalytics({ days });
         return res.json({ success: true, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
