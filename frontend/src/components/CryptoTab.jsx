@@ -303,6 +303,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
     const [loadingPrice, setLoadingPrice] = useState(false);
     const [loadingRadar, setLoadingRadar] = useState(false);
     const [loadingNews, setLoadingNews]   = useState(false);
+    const [loadError, setLoadError]       = useState(false);
 
     // ── STATE: AI ──
     const [aiSignal, setAiSignal]   = useState(null);
@@ -410,16 +411,19 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
         const intervalVal = INTERVAL_OPTIONS.find(o => o.label === intervalLabel)?.value || intervalLabel;
         setLoadingChart(true);
         setLoadingPrice(true);
+        setLoadError(false);
         addLog(`[CRYPTO] Đang tải ${sym} | Khung: ${intervalLabel} (${intervalVal})...`);
         try {
             const [chartRes, priceRes] = await Promise.all([
                 axios.get(`/api/crypto/history/${sym}?interval=${intervalVal}`).catch(() => null),
                 axios.get(`/api/crypto/price/${sym}?interval=${intervalVal}`).catch(() => null)
             ]);
+            let chartOk = false, priceOk = false;
             if (chartRes?.data?.success && chartRes.data.data?.length > 0) {
                 const raw = chartRes.data.data;
                 const candles = Array.isArray(raw) ? raw : raw.chartData || [];
                 setChartData(candles);
+                chartOk = candles.length > 0;
                 addLog(`[CRYPTO] Chart ${sym}: ${candles.length} nến`);
             }
             if (priceRes?.data?.success) {
@@ -427,9 +431,17 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                 setPriceData(d);
                 if (d.lastSignal) setAiSignal(d.lastSignal);
                 else setAiSignal(null);
+                priceOk = true;
                 addLog(`[CRYPTO] Giá ${sym}: $${d.currentPrice?.toLocaleString()} | Score: ${d.technicals?.score ?? '-'}`);
             }
+            // Không nguồn nào trả dữ liệu → hiện trạng thái lỗi rõ ràng thay vì để trống
+            if (!chartOk && !priceOk) {
+                setChartData([]);
+                setLoadError(true);
+                addLog(`[CẢNH BÁO] Không có dữ liệu cho ${sym} (${intervalLabel}). Có thể coin không niêm yết cặp USDT.`);
+            }
         } catch (e) {
+            setLoadError(true);
             addLog(`[LỖI] Lỗi tải ${sym}: ${e.message}`);
         } finally {
             setLoadingChart(false);
@@ -479,6 +491,14 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
         const moversTimer = setInterval(fetchMovers, 2 * 60 * 1000);
         return () => { clearInterval(radarTimer); clearInterval(moversTimer); };
     }, []);
+
+    // Đổi coin → xoá dữ liệu cũ ngay để tránh hiện biểu đồ/giá của coin trước (stale)
+    useEffect(() => {
+        setChartData(null);
+        setPriceData(null);
+        setAiSignal(null);
+        setLoadError(false);
+    }, [symbol]);
 
     // FIX: Effect phụ thuộc vào cả symbol VÀ cryptoInterval để re-fetch khi đổi khung thời gian
     useEffect(() => {
@@ -957,6 +977,22 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                                         onIntervalChange={handleIntervalChange}
                                         currentInterval={cryptoInterval}
                                     />
+                                ) : loadError && !loadingChart ? (
+                                    <div className="flex flex-col items-center gap-3 px-6 text-center">
+                                        <AlertTriangle size={28} className="text-amber-400" />
+                                        <p className={`text-xs font-medium ${T.textBody(isDark)}`}>
+                                            Không tải được dữ liệu cho <span className="font-bold">{symbol}</span>.
+                                        </p>
+                                        <p className={`text-[11px] ${T.textMute(isDark)}`}>
+                                            Coin có thể chưa niêm yết cặp USDT hoặc nguồn dữ liệu tạm gián đoạn.
+                                        </p>
+                                        <button
+                                            onClick={() => fetchCoin(symbol, cryptoInterval)}
+                                            className={`mt-1 h-8 px-4 rounded-lg ${T.accentSolid} text-white font-semibold text-xs transition-all active:scale-95 flex items-center gap-1.5`}
+                                        >
+                                            <RefreshCw size={13} /> Thử lại
+                                        </button>
+                                    </div>
                                 ) : (
                                     <div className="flex flex-col items-center gap-2 opacity-50">
                                         <Activity size={28} className={`animate-pulse ${T.accent}`} />
