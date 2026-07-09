@@ -758,7 +758,7 @@ export default function CryptoTab({ isDark, UI, addLog = [] }) {
                 `} style={{ scrollbarGutter: 'stable' }}>
 
                     {/* ── SEARCH BAR (sticky) ── */}
-                    <div className={`sticky top-0 z-30 shrink-0 border-b ${isDark ? 'bg-[#060A10]/95 border-white/6 backdrop-blur-xl' : 'bg-white/95 border-slate-200 backdrop-blur-xl'}`}>
+                    <div className={`sticky top-0 z-[10000] shrink-0 border-b ${isDark ? 'bg-[#060A10]/95 border-white/6 backdrop-blur-xl' : 'bg-white/95 border-slate-200 backdrop-blur-xl'}`}>
                         <div className="px-4 py-3" ref={searchRef}>
 
                             {/* Row 1: Search + Interval */}

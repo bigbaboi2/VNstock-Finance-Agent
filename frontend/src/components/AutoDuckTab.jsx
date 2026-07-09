@@ -1404,12 +1404,24 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                                 <div key={i} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[10px] ${isDark ? 'bg-black/20' : 'bg-slate-50'}`}>
                                     <div className="flex items-center gap-1.5 min-w-0">
                                         <span className={`font-black font-mono ${UI.textBold}`}>{a.symbol || '—'}</span>
+                                        {a.direction && (
+                                            <span className={`px-1 py-0.5 rounded text-[8px] font-black ${
+                                                a.direction.includes('LONG') || a.direction.includes('MUA') ? 'bg-emerald-500/15 text-emerald-500' : 
+                                                a.direction.includes('SHORT') || a.direction.includes('BÁN') ? 'bg-red-500/15 text-red-500' : 
+                                                'bg-slate-500/15 text-slate-400'
+                                            }`}>
+                                                {a.direction}
+                                            </span>
+                                        )}
                                         {isUnmatched
                                             ? <span title={a.matchMessage || 'Khớp broker thất bại'} className="px-1 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-500">UNMATCHED</span>
                                             : a.executionMode === 'LIVE'
                                             ? <span className="px-1 py-0.5 rounded text-[8px] font-black bg-emerald-500/15 text-emerald-500">LIVE</span>
                                             : <span className="px-1 py-0.5 rounded text-[8px] font-black bg-amber-500/15 text-amber-500">SIM</span>}
-                                        <span className={`font-mono ${UI.textMuted}`}>@{Number(a.entryPrice).toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>
+                                        <span className={`font-mono ${UI.textMuted}`}>
+                                            @{Number(a.entryPrice).toLocaleString('en-US', { maximumFractionDigits: 4 })}
+                                            {a.openedAt && <span className="ml-1.5 opacity-50 text-[8px] font-normal">({new Date(a.openedAt).toLocaleString('vi-VN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })})</span>}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                         <span className={`font-mono font-bold ${UI.textNormal}`}>{(a.amount / 1e6).toFixed(2)}Tr</span>
@@ -1417,6 +1429,17 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                                             <span className={`font-mono font-black ${a.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                                                 {a.pnlPercent >= 0 ? '+' : ''}{Number(a.pnlPercent || 0).toFixed(2)}%
                                             </span>
+                                        ) : isUnmatched ? (
+                                            <div className="group flex items-center justify-end w-[100px] cursor-pointer">
+                                                <span className="text-[11px] font-black text-red-500 group-hover:hidden">
+                                                    UNMATCHED
+                                                </span>
+                                                <div className="hidden group-hover:flex relative overflow-hidden w-full mask-fade-edges items-center">
+                                                    <span className="text-[10px] font-bold text-yellow-400 animate-marquee-left" title={a.matchMessage || 'Lỗi'}>
+                                                        {a.matchMessage || 'Lỗi'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         ) : (
                                             <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-cyan-500/15 text-cyan-500">ĐANG MỞ</span>
                                         )}

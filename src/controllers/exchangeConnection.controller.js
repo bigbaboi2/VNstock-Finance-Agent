@@ -3,6 +3,7 @@ import ExchangeOrder from '../../models/ExchangeOrder.js';
 import { encrypt, maskKey } from '../services/encryptionService.js';
 import { SUPPORTED_EXCHANGES } from '../services/exchangeAdapters/index.js';
 import * as brokerService from '../services/exchangeBrokerService.js';
+import { getUsdVndRate } from '../services/autoTradeEngine.js';
 
 const MAX_ACTIVE_CONNECTIONS_PER_USER = 5;
 
@@ -63,6 +64,15 @@ export const createConnection = async (req, res) => {
         // Test connection ngay sau khi tạo
         const testResult = await brokerService.testConnection(doc);
 
+        if (!testResult.success) {
+            // Nếu test sai key, xóa luôn khỏi DB để user sửa lại key, không lưu rác
+            await doc.deleteOne();
+            return res.json({
+                success: false,
+                message: `Test kết nối thất bại: ${testResult.message}`
+            });
+        }
+
         // Cảnh báo nếu key có quyền WITHDRAW
         let warning = null;
         if (testResult.permissions?.includes('WITHDRAW')) {
@@ -74,9 +84,7 @@ export const createConnection = async (req, res) => {
             data: doc.toSafeJSON(),
             testResult,
             warning,
-            message: testResult.success
-                ? 'Tạo kết nối và xác thực với sàn thành công!'
-                : `Đã lưu kết nối nhưng test thất bại: ${testResult.message}`,
+            message: 'Tạo kết nối và xác thực với sàn thành công!',
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -171,6 +179,32 @@ export const getExchangeOrders = async (req, res) => {
             .limit(200)
             .lean();
 
+        const autoTradeIds = [...new Set(orders.map(o => o.autoTradeId).filter(Boolean))];
+        const AutoTrade = (await import('../../models/AutoTrade.js')).default;
+        const autoTrades = await AutoTrade.find({ _id: { $in: autoTradeIds } }, 'pnl pnlPercent').lean();
+        const tradeMap = {};
+        autoTrades.forEach(t => tradeMap[t._id.toString()] = t);
+
+        const currentUsdVndRate = await getUsdVndRate();
+
+        for (const o of orders) {
+            if (o.purpose === 'EXIT' && o.autoTradeId && tradeMap[o.autoTradeId.toString()]) {
+                const t = tradeMap[o.autoTradeId.toString()];
+                let displayPnl = t.pnl;
+                
+                // Nếu không phải chứng khoán VN (DNSE) thì frontend hiển thị theo $.
+                // Chuyển đổi từ VNĐ sang USD. Dùng heuristic: nếu PnL > 10000 (đây là VNĐ, hoặc $10k là rất hiếm).
+                if (o.exchangeName !== 'DNSE') {
+                    if (Math.abs(displayPnl) > 10000) {
+                        displayPnl = displayPnl / currentUsdVndRate; 
+                    }
+                }
+                
+                o.livePnl = displayPnl;
+                o.livePnlPercent = t.pnlPercent;
+            }
+        }
+
         const filled = orders.filter(o => o.status === 'FILLED');
         const stats = {
             totalOrders: orders.length,
@@ -180,6 +214,29 @@ export const getExchangeOrders = async (req, res) => {
             totalNotionalUSDT: +filled.reduce((s, o) => s + (o.notionalUSDT || 0), 0).toFixed(2),
         };
         return res.json({ success: true, stats, data: orders });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/** POST /api/exchange-connections/:id/sell-to-usdt — Bán thủ công 1 đồng coin ra USDT */
+export const sellBalanceToUSDT = async (req, res) => {
+    try {
+        const doc = await ExchangeConnection.findById(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, message: 'Không tìm thấy kết nối.' });
+
+        const { asset } = req.body;
+        if (!asset) return res.status(400).json({ success: false, message: 'Thiếu tên tài sản (asset).' });
+
+        const result = await brokerService.sellAssetToUSDT(doc, asset);
+        
+        // Trả về balance mới luôn (vì sellAssetToUSDT đã getBalance rồi)
+        return res.json({ 
+            success: result.success, 
+            message: result.message,
+            balances: doc.balanceSnapshot,
+            updatedAt: doc.balanceUpdatedAt
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }

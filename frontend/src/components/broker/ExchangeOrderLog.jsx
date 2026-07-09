@@ -47,7 +47,8 @@ export default function ExchangeOrderLog({ orders, isDark, UI }) {
                                 <th className="px-3 py-2 text-left">Loại</th>
                                 <th className="px-3 py-2 text-right">Qty</th>
                                 <th className="px-3 py-2 text-right">Giá khớp</th>
-                                <th className="px-3 py-2 text-right">~USDT</th>
+                                <th className="px-3 py-2 text-right">Số tiền</th>
+                                <th className="px-3 py-2 text-right">Lãi lỗ</th>
                                 <th className="px-3 py-2 text-center">Status</th>
                                 <th className="px-3 py-2 text-left">External ID</th>
                             </tr>
@@ -62,14 +63,44 @@ export default function ExchangeOrderLog({ orders, isDark, UI }) {
                                             o.environment === 'LIVE' ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'
                                         }`}>{o.environment === 'LIVE' ? 'LIVE' : 'TEST'}</span>
                                     </td>
-                                    <td className={`px-3 py-2 font-black ${UI.textBold}`}>{o.symbol}</td>
-                                    <td className={`px-3 py-2 font-black ${o.side === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>
-                                        {o.side}{o.purpose === 'EXIT' ? ' (exit)' : ''}
+                                    <td className={`px-3 py-2 font-black ${UI.textBold}`}>
+                                        <div className="flex items-center gap-1.5">
+                                            <span>{o.symbol}</span>
+                                            {(o.marketType || o.direction) && (
+                                                <span className={`px-1 py-0.5 rounded text-[8px] font-black ${
+                                                    o.direction === 'LONG' ? 'bg-emerald-500/15 text-emerald-500' :
+                                                    o.direction === 'SHORT' ? 'bg-red-500/15 text-red-500' :
+                                                    'bg-cyan-500/15 text-cyan-500'
+                                                }`}>
+                                                    {o.direction || o.marketType} {o.leverage && o.marketType === 'FUTURES' ? `${o.leverage}x` : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2 font-black">
+                                        <div className={`inline-flex px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ${o.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'}`}>
+                                            {o.marketType === 'FUTURES' ? (
+                                                o.side === 'BUY' ? (o.purpose === 'EXIT' ? 'ĐÓNG SHORT' : 'LONG') 
+                                                                 : (o.purpose === 'EXIT' ? 'ĐÓNG LONG' : 'SHORT')
+                                            ) : (
+                                                o.side === 'BUY' ? 'MUA' : 'BÁN'
+                                            )}
+                                        </div>
                                     </td>
                                     <td className={`px-3 py-2 ${UI.textMuted}`}>{o.orderType}</td>
                                     <td className={`px-3 py-2 text-right ${UI.textNormal}`}>{fmtNum(o.filledQuantity || o.quantity)}</td>
                                     <td className={`px-3 py-2 text-right ${UI.textNormal}`}>{fmtNum(o.filledPrice, 4)}</td>
-                                    <td className={`px-3 py-2 text-right ${UI.textMuted}`}>{fmtNum(o.notionalUSDT, 2)}</td>
+                                    <td className={`px-3 py-2 text-right ${UI.textMuted}`}>
+                                        {fmtNum(o.notionalUSDT, o.exchangeName === 'DNSE' ? 0 : 2)} {o.exchangeName === 'DNSE' ? 'VNĐ' : '$'}
+                                    </td>
+                                    <td className="px-3 py-2 text-right font-black">
+                                        {o.purpose === 'EXIT' && o.livePnl !== undefined && o.livePnl !== null ? (
+                                            <span className={o.livePnl > 0 ? 'text-emerald-500' : o.livePnl < 0 ? 'text-red-500' : UI.textMuted}>
+                                                {o.livePnl > 0 ? '+' : ''}{fmtNum(o.livePnl, o.exchangeName === 'DNSE' ? 0 : 2)}{o.exchangeName === 'DNSE' ? 'đ' : '$'}
+                                                {o.livePnlPercent != null && <span className="text-[9px] ml-1 opacity-70">({o.livePnl > 0 ? '+' : ''}{o.livePnlPercent}%)</span>}
+                                            </span>
+                                        ) : <span className={UI.textMuted}>--</span>}
+                                    </td>
                                     <td className="px-3 py-2 text-center">
                                         <span
                                             title={o.errorMessage || ''}

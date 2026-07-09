@@ -6,6 +6,7 @@ const EXCHANGE_COLORS = {
     BINANCE: '#F0B90B',
     OKX: '#2980fe',
     BYBIT: '#FF6B2B',
+    DNSE: '#F26A44',
 };
 
 const timeAgo = (date) => {
@@ -72,7 +73,29 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
         }
     };
 
-    const balances = Object.entries(conn.balanceSnapshot || {}).filter(([, v]) => v > 0).slice(0, 4);
+    const handleSell = async (asset) => {
+        const base = conn.exchangeName === 'DNSE' ? 'VNĐ' : 'USDT';
+        if (!window.confirm(`Bạn có chắc muốn thanh lý BÁN TOÀN BỘ số dư ${asset} sang ${base} với giá Market không?`)) return;
+        setBusy(`sell-${asset}`);
+        try {
+            const res = await axios.post(`/api/exchange-connections/${conn._id}/sell-to-usdt`, { asset });
+            showFlash(res.data.message, !res.data.success);
+            onChanged?.(); // Refresh lists and balances
+        } catch (err) {
+            showFlash(err.response?.data?.message || `Lỗi bán ${asset}`, true);
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const balances = Object.entries(conn.balanceSnapshot || {})
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => {
+            if (a[0] === 'USDT' || a[0] === 'VND') return -1;
+            if (b[0] === 'USDT' || b[0] === 'VND') return 1;
+            return b[1] - a[1];
+        })
+        .slice(0, 8);
 
     return (
         <div className={`rounded-2xl border p-4 flex flex-col gap-3 transition-opacity ${UI.card} ${!conn.isActive ? 'opacity-50' : ''}`}>
@@ -99,12 +122,27 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
             <div className={`rounded-xl p-2.5 border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                 <p className={`text-[9px] uppercase tracking-widest font-black mb-1 ${UI.textMuted}`}>Balance snapshot</p>
                 {balances.length > 0 ? (
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                        {balances.map(([asset, amount]) => (
-                            <span key={asset} className={`text-xs font-mono font-bold ${UI.textBold}`}>
-                                {asset}: {Number(amount).toLocaleString('en-US', { maximumFractionDigits: 6 })}
-                            </span>
-                        ))}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        {balances.map(([asset, amount]) => {
+                            const displayName = asset === '这是测试币' ? 'TESTCOIN' : asset;
+                            return (
+                                <div key={asset} className={`flex items-center gap-1.5 group/coin px-2 py-1 rounded-md ${isDark ? 'bg-black/40 border border-white/5' : 'bg-slate-200/50 border border-slate-200'}`}>
+                                    <span className={`text-[11px] font-mono font-bold ${(asset === 'USDT' || asset === 'VND') ? 'text-cyan-400' : UI.textBold}`}>
+                                        {displayName}: {Number(amount).toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                                    </span>
+                                {asset !== 'USDT' && asset !== 'VND' && Number(amount) > 0 && (
+                                    <button
+                                        onClick={() => handleSell(asset)}
+                                        disabled={!!busy}
+                                        title={`Bán toàn bộ ${asset} sang ${conn.exchangeName === 'DNSE' ? 'VNĐ' : 'USDT'}`}
+                                        className="opacity-0 group-hover/coin:opacity-100 px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500 hover:text-white transition-all text-[8px] uppercase font-black flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                        {busy === `sell-${asset}` ? <Loader2 size={10} className="animate-spin" /> : 'Bán'}
+                                    </button>
+                                )}
+                                </div>
+                            );
+                        })}
                     </div>
                 ) : (
                     <p className={`text-xs ${UI.textMuted}`}>Chưa có dữ liệu — bấm Test hoặc Balance</p>

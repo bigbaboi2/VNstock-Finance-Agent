@@ -1592,6 +1592,30 @@ export default function VnStocksTab({
   const tooltipRef = useRef(null);
   const newsScrollRef = useRef(null);
   const [showNewsScroll, setShowNewsScroll] = useState(false);
+  const [homeNews, setHomeNews] = useState([]);
+  const [loadingHomeNews, setLoadingHomeNews] = useState(false);
+
+  // Fetch home news
+  useEffect(() => {
+    if (!marketData && homeNews.length === 0) {
+      const fetchHomeNews = async () => {
+        setLoadingHomeNews(true);
+        try {
+          const res = await fetch('/api/market/home-news');
+          const data = await res.json();
+          if (data.success) {
+            setHomeNews(data.data);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingHomeNews(false);
+        }
+      };
+      fetchHomeNews();
+    }
+  }, [marketData, homeNews.length]);
+
   const [showFullReportModal, setShowFullReportModal] = useState(false);
   const [analysisNotice, setAnalysisNotice] = useState(null);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
@@ -3763,6 +3787,77 @@ export default function VnStocksTab({
                             }
                           </div>
                         </>
+                      )}
+                      
+                      {/* HOME NEWS STREAM */}
+                      {!marketData && homeNews && homeNews.length > 0 && (
+                        <div className="mt-8 mb-4">
+                            <h2 className={`text-sm font-black tracking-widest uppercase mb-4 mt-6 ${UI.textBold}`}>
+                                Tin tức Vĩ mô & Thị Trường <span className="text-yellow-500">📰</span>
+                            </h2>
+                            {loadingHomeNews ? (
+                                <div className="flex justify-center p-8"><Loader2 className="animate-spin text-yellow-500" /></div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {homeNews.map((news, index) => {
+                                        let badge;
+                                        if (news.isMacro)       badge = { label: 'Vĩ mô',     icon: <Activity size={9}/>,     cls: isDark ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40' : 'bg-sky-50 text-sky-700 border border-sky-300' };
+                                        else if (news.isAiGenerated) badge = { label: 'AI',   icon: <Bot size={9}/>,          cls: 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]' };
+                                        else { const s = news.sentiment; const m = news.mode;
+                                            if (s === 'positive')  badge = { label: 'Tích cực',   icon: <TrendingUp size={9}/>,   cls: isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border border-emerald-300' };
+                                            else if (s === 'negative') badge = { label: 'Tiêu cực', icon: <TrendingDown size={9}/>, cls: isDark ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-red-50 text-red-700 border border-red-300' };
+                                            else if (m === 'official') badge = { label: 'Chính thức', icon: <Newspaper size={9}/>, cls: isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-blue-50 text-blue-700 border border-blue-300' };
+                                            else if (m === 'rumor')   badge = { label: 'Tin đồn',  icon: <Radio size={9}/>,       cls: isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-amber-50 text-amber-700 border border-amber-300' };
+                                            else if (m === 'negative') badge = { label: 'Rủi ro',  icon: <ShieldAlert size={9}/>, cls: isDark ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' : 'bg-orange-50 text-orange-700 border border-orange-300' };
+                                            else badge = { label: 'Tổng hợp', icon: <Minus size={9}/>, cls: isDark ? 'bg-white/5 text-slate-400 border border-white/10' : 'bg-slate-100 text-slate-500 border border-slate-200' };
+                                        }
+
+                                        let cardStyle;
+                                        if (news.isMacro) cardStyle = isDark ? 'bg-[#080e18] border-sky-500/30' : 'bg-sky-50/60 border-sky-200';
+                                        else if (news.isAiGenerated) cardStyle = isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
+                                        else if (news.sentiment === 'negative') cardStyle = isDark ? 'bg-[#130c0c] border-red-900/40' : 'bg-red-50/50 border-red-200';
+                                        else if (news.sentiment === 'positive') cardStyle = isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
+                                        else cardStyle = isDark ? 'bg-[#131922] border-white/6' : 'bg-white border-slate-200 shadow-sm';
+
+                                        const titleColor = news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : news.sentiment === 'negative' ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}` : news.sentiment === 'positive' ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}` : `group-hover:text-yellow-500 ${UI.textNormal}`;
+                                        const dateColor = news.isAiGenerated ? 'text-purple-300' : news.sentiment === 'positive' ? 'text-emerald-400' : 'text-yellow-500';
+
+                                        let displayTitle = news.title;
+                                        let symbolTag = null;
+                                        const match = displayTitle?.match(/^\[([A-Z0-9]{3,})\]\s(.*)/);
+                                        if (match && !news.isMacro) {
+                                            symbolTag = match[1];
+                                            displayTitle = match[2];
+                                        }
+
+                                        return (
+                                            <a key={index} href={news.link} target="_blank" rel="noopener noreferrer" className={`flex flex-col justify-between rounded-2xl p-4 transition-all cursor-pointer group border ${UI.cardHover} ${cardStyle}`}>
+                                                <div>
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                                                            <span className={`inline-flex items-center gap-1 shrink-0 text-[9px] px-2 py-[3px] rounded-full font-black uppercase tracking-widest ${badge.cls}`}>{badge.icon}{badge.label}</span>
+                                                            {symbolTag && <span className={`inline-flex items-center gap-1 shrink-0 text-[10px] px-2.5 py-[3px] rounded-full font-black uppercase tracking-widest ${isDark ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-800 border border-yellow-300'}`}>{symbolTag}</span>}
+                                                        </div>
+                                                        <span className={`text-[9px] font-bold tabular-nums whitespace-nowrap ${dateColor}`}>{news.date || 'Tin tức mới'}</span>
+                                                    </div>
+                                                    <h3 className={`font-bold text-sm leading-snug transition-colors line-clamp-3 ${titleColor}`}>{displayTitle}</h3>
+                                                </div>
+                                                <div className={`mt-4 pt-3 flex justify-between items-center gap-3 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                                                    <span className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 truncate ${news.isAiGenerated ? 'text-purple-400' : UI.textBold}`}>
+                                                        <Globe size={10} className="shrink-0" />
+                                                        <span className="truncate">{news.source || 'Internet'}</span>
+                                                    </span>
+                                                    <div className="flex items-center gap-0 shrink-0">
+                                                        <span className={`text-[10px] flex items-center gap-1 font-mono font-bold ${UI.textMuted}`}><Clock size={10} /> {news.fetchedAt || 'Đang đồng bộ'}</span>
+                                                        <ExternalLink size={12} className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1 ${news.sentiment === 'positive' ? 'text-emerald-400' : news.isAiGenerated ? 'text-purple-400' : 'text-yellow-500'}`} />
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                       )}
                     </div>
 

@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import axios from 'axios';
 import Stock from '../../models/Stock.js';
 import CryptoCoin from '../../models/CryptoCoin.js';
+import DerivNews from '../../models/DerivNews.js';
 import { fetchCafefData } from '../fetchers/cafefService.js';
 import { fetchTcbsData, getTcbsPdfUrl, TCBS_HTTP_HEADERS } from '../fetchers/tcbsService.js';
 import { getCachedData, saveToCache } from '../services/cacheService.js';
@@ -156,6 +157,38 @@ export const streamTcbsPdf = async (req, res) => {
         upstream.data.pipe(res);
     } catch (error) {
         return res.status(502).json({ success: false, message: error.message });
+    }
+};
+
+// Get macro and recent symbol news for home page
+export const getHomeNews = async (req, res) => {
+    try {
+        const macroNews = await DerivNews.find().sort({ date: -1 }).limit(10);
+        
+        const recentStocks = await Stock.find({ 'deepNewsData.0': { $exists: true } })
+            .select('symbol deepNewsData')
+            .lean();
+            
+        let userNews = [];
+        recentStocks.forEach(stock => {
+            if (stock.deepNewsData && stock.deepNewsData.length > 0) {
+                const newsItems = stock.deepNewsData.slice(0, 3).map(n => ({
+                    ...n,
+                    title: `[${stock.symbol}] ${n.title}`
+                }));
+                userNews = userNews.concat(newsItems);
+            }
+        });
+        
+        userNews.sort((a, b) => new Date(b.date || b.fetchedAt || 0) - new Date(a.date || a.fetchedAt || 0));
+        userNews = userNews.slice(0, 15);
+        
+        const combinedNews = [...macroNews.map(n => ({...n.toObject(), isMacro: true})), ...userNews];
+        combinedNews.sort((a, b) => new Date(b.date || b.fetchedAt || 0) - new Date(a.date || a.fetchedAt || 0));
+        
+        return res.json({ success: true, data: combinedNews });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 

@@ -38,3 +38,23 @@ html, body, #root {
   background: rgba(203, 213, 225, 0.72) !important;
   color: #111827 !important;
 }
+
+/* ==========================================
+   MARQUEE ANIMATION
+   ========================================== */
+@keyframes marquee-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee-left {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: marquee-left 12s linear infinite;
+}
+
+.mask-fade-edges {
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}

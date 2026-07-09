@@ -4,8 +4,8 @@ export default function AuthScreen({ authForm, setAuthForm, authError, handleAut
   return (
     <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#05080C] bg-[radial-gradient(ellipse_at_center,rgba(250,204,21,0.05),transparent_50%)]">
       <div className="w-[400px] p-8 rounded-3xl border border-white/10 bg-[#0B0F14]/90 backdrop-blur-xl shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center">
-                <div className="w-16 h-16 rounded-2xl bg-yellow-400 flex items-center justify-center text-black shadow-[0_0_20px_rgba(250,204,21,0.4)] mb-6">
-                    <TrendingUp size={32} />
+                <div className="w-24 h-24 flex items-center justify-center mb-6">
+                    <img src="/favicon.svg" alt="Omni Duck Logo" className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(250,204,21,0.3)]" />
                 </div>
                 <h2 className="text-2xl font-black text-white tracking-widest uppercase mb-1">OMNI DUCK</h2>
                 <p className="text-[10px] text-yellow-500 tracking-[0.3em] uppercase font-bold mb-6">System Authorization</p>

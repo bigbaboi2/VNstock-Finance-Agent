@@ -702,7 +702,7 @@ const rowBtn = React.useCallback((active) =>
       {/* ── TOP TOOLBAR ──────────────────────────────────────── */}
       {!isMini && (
         <div
-          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[9999] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[20] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
           onClick={e => e.stopPropagation()}
         >
         {/* INTERVAL */}

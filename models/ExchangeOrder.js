@@ -17,7 +17,10 @@ const ExchangeOrderSchema = new mongoose.Schema({
     symbol:               { type: String, required: true, uppercase: true },
     side:                 { type: String, required: true, enum: ['BUY', 'SELL'] },
     orderType:            { type: String, enum: ['MARKET', 'LIMIT'], default: 'MARKET' },
-    purpose:              { type: String, enum: ['ENTRY', 'EXIT', 'MANUAL'], default: 'ENTRY' },
+    purpose:              { type: String, enum: ['ENTRY', 'EXIT', 'MANUAL', 'MANUAL_LIQUIDATE'], default: 'ENTRY' },
+    marketType:           { type: String, enum: ['SPOT', 'FUTURES'], default: 'SPOT' },
+    leverage:             { type: Number, default: 1 },
+    direction:            { type: String, default: '' },
 
     quantity:             { type: Number, required: true },
     price:                { type: Number, default: null },   // giá limit (null nếu MARKET)
