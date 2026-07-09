@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { generateWithRole } from './aiService.js';
+import { parseLlmJson } from '../utils/parseLlmJson.js';
 import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../scrapers/vnNewsSearch.js';
 
 //=========================================================
@@ -475,6 +476,8 @@ ${pmDecision}`;
         reason: "Chờ xác nhận thị trường"
     };
 
+    let lastActionPanelRaw = '';
+
     try {
         if (reqContext.isDisconnected) throw new Error('Client disconnected before action panel extraction');
         //Action panel JSON — Gemini Flash most stable for JSON output, Groq fallback
@@ -485,14 +488,26 @@ ${pmDecision}`;
             temperature: 0.1,
         });
 
-        const cleanJson = (typeof jsonText === 'string' ? jsonText : jsonText.response?.text?.() || '')
-            .replace(/```json|```/gi, '')
-            .trim();
+        lastActionPanelRaw = typeof jsonText === 'string'
+            ? jsonText
+            : (typeof jsonText?.response?.text === 'function' ? jsonText.response.text() : String(jsonText ?? ''));
 
-        actionPanelData = JSON.parse(cleanJson);
+        const parsed = parseLlmJson(lastActionPanelRaw);
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error('Không tìm thấy JSON object hợp lệ trong phản hồi AI');
+        }
+
+        actionPanelData = {
+            ...actionPanelData,
+            ...parsed,
+            action: parsed.action || actionPanelData.action,
+        };
         console.log(chalk.greenBright(`[DEBATE] Action Panel trích xuất thành công: ${actionPanelData.action}`));
     } catch (e) {
         console.error(chalk.red("[DEBATE] JSON Parse Error khi trích xuất Action Panel:"), e.message);
+        if (lastActionPanelRaw) {
+            console.error(chalk.gray(`[DEBATE] Raw snippet: ${lastActionPanelRaw.slice(0, 280)}...`));
+        }
     }
 
     emitProgress({ step: 'DEBATE_DONE', message: 'Hội đồng đã hoàn tất tranh luận. Đang tổng hợp báo cáo chính...', progress: 85 });

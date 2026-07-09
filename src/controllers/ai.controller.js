@@ -24,14 +24,15 @@ import { analyzeMarketIntelligence } from '../services/quantEngine.js';
 import {
     MAX_NEWS_DB,
     filterValidNews,
-    isDeepNewsFresh,
+    hasRichNewsContent,
+    isUserNewsCacheFresh,
     saveDeepNewsForSymbol,
 } from '../services/vnStockNewsService.js';
 //Number of scraped messages per fetch
 const MAX_SCRAPE  = 20;
 //Number of parallel scrapes per batch
 const BATCH_SIZE  = 5;
-const AI_REPORT_CACHE_TTL_MS = Number(process.env.AI_REPORT_CACHE_TTL_MS) || 15 * 60 * 1000;
+const AI_REPORT_CACHE_TTL_MS = Number(process.env.AI_REPORT_CACHE_TTL_MS) || 90 * 60 * 1000;
 
 const stableNormalize = (value) => {
     if (value instanceof Date) return value.toISOString();
@@ -92,6 +93,7 @@ const getCachedStockAnalysis = async (ticker, user, inputHash) => {
     return {
         aiReport: latestReport.content,
         actionPanelData: latestReport.actionData || { action: latestReport.action },
+        debateResult: latestReport.debateResult || null,
         timestamp: latestReport.timestamp,
         inputHash: latestReport.inputHash,
     };
@@ -103,8 +105,8 @@ export const getLiveNews = async (req, res) => {
     const newsMode = ['fast', 'balanced', 'deep', 'ultra'].includes(req.query.newsMode)
                  ? req.query.newsMode : 'balanced';
     const forceRefresh = req.query.force === 'true' || req.query.force === '1';
-    const shouldScrapeContent = newsMode === 'deep' || newsMode === 'ultra';
-    const searchNewsMode = shouldScrapeContent ? newsMode : 'fast';
+    const shouldScrapeContent = newsMode !== 'fast';
+    const searchNewsMode = newsMode;
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
@@ -122,6 +124,46 @@ export const getLiveNews = async (req, res) => {
             res.write('event: done\ndata: {}\n\n');
             res.end();
         }
+    };
+
+    const scrapeArticles = async (articles) => {
+        const scraped = [];
+        for (let i = 0; i < articles.length; i += BATCH_SIZE) {
+            if (isClientDisconnected) break;
+            const batch = articles.slice(i, i + BATCH_SIZE);
+            const batchResults = await Promise.all(batch.map(async (news) => {
+                try {
+                    const content = await Promise.race([
+                        scrapeArticleContent(news.link),
+                        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+                    ]);
+                    const raw = {
+                        title: news.title,
+                        link: news.link,
+                        source: news.source || news.link,
+                        sentiment: news.sentiment || 'neutral',
+                        content: (content && content.length > 80) ? content : news.title,
+                        date: news.date || new Date().toLocaleDateString('vi-VN'),
+                        publishedAt: news.publishedAt || new Date(),
+                        mode,
+                    };
+                    return rescoreSentiment(raw);
+                } catch {
+                    return rescoreSentiment({
+                        title: news.title,
+                        link: news.link,
+                        source: news.source || news.link,
+                        sentiment: news.sentiment || 'neutral',
+                        content: news.title,
+                        date: news.date || new Date().toLocaleDateString('vi-VN'),
+                        publishedAt: news.publishedAt || new Date(),
+                        mode,
+                    });
+                }
+            }));
+            scraped.push(...batchResults);
+        }
+        return scraped;
     };
 
     try {
@@ -142,21 +184,28 @@ export const getLiveNews = async (req, res) => {
             res.write(`data: ${JSON.stringify(rescored)}\n\n`);
         }
 
-        const cacheFresh = isDeepNewsFresh({ ...masterRecord.toObject(), deepNewsData: cachedNews });
-        if (cacheFresh && !forceRefresh) {
-            console.log(chalk.gray(`[HỆ THỐNG] ${ticker}: cache fresh — bỏ qua fetch ngoài (${cachedNews.length} tin).`));
+        const userCacheFresh = isUserNewsCacheFresh({ ...masterRecord.toObject(), deepNewsData: cachedNews });
+        if (userCacheFresh && !forceRefresh) {
+            console.log(chalk.gray(`[HỆ THỐNG] ${ticker}: cache user fresh (body đầy đủ) — bỏ qua fetch (${cachedNews.length} tin).`));
             finishStream();
             return;
         }
 
-        console.log(chalk.yellowBright(
-            `[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`
-        ));
+        const prefetchOnly = cachedNews.length > 0 && !userCacheFresh;
+        if (prefetchOnly) {
+            console.log(chalk.yellow(
+                `[HỆ THỐNG] ${ticker}: cache prefetch/headline — sẽ tìm và cào body đầy đủ (${cachedNews.length} tin DB).`
+            ));
+        } else {
+            console.log(chalk.yellowBright(
+                `[HỆ THỐNG] Đang tìm tin tức mới cho ${ticker}... DB hiện có ${cachedNews.length} tin sạch.`
+            ));
+        }
 
         const seenLinks = new Set(cachedNews.map(n => n.link));
         let uniqueNew = [];
         let currentPage = 1;
-        const MAX_PAGES = shouldScrapeContent ? 5 : 2;
+        const MAX_PAGES = newsMode === 'ultra' ? 8 : newsMode === 'deep' ? 5 : 3;
         const TARGET_FOR_MODE = MIN_COUNT_BY_MODE[mode] ?? 8;
         let consecutiveEmptyPages = 0;
 
@@ -182,7 +231,7 @@ export const getLiveNews = async (req, res) => {
                 newItems.forEach(n => seenLinks.add(n.link));
                 consecutiveEmptyPages = 0;
                 console.log(chalk.green(
-                    `[HỆ THỐNG] ↳ Trang ${currentPage} [${mode}]: +${newItems.length} tin mới` +
+                    `[HỆ THỐNG] ↳ Trang ${currentPage} [${mode}/${newsMode}]: +${newItems.length} tin mới` +
                     ` (tổng ${uniqueNew.length}/${TARGET_FOR_MODE})`
                 ));
             } else {
@@ -200,62 +249,38 @@ export const getLiveNews = async (req, res) => {
             currentPage++;
         }
 
-        if (uniqueNew.length === 0) {
-            console.log(chalk.gray(`[HỆ THỐNG] Dừng [${mode}]. Không có bài mới nào về mã ${ticker}.`));
-            await saveDeepNewsForSymbol(ticker, [], { mode, touchFetchedAt: true });
+        const cacheNeedingScrape = shouldScrapeContent
+            ? cachedNews.filter(n => !hasRichNewsContent(n)).slice(0, MAX_SCRAPE)
+            : [];
+
+        if (uniqueNew.length === 0 && cacheNeedingScrape.length === 0) {
+            console.log(chalk.gray(`[HỆ THỐNG] Dừng [${mode}]. Không có bài mới hoặc cần cào cho mã ${ticker}.`));
             finishStream();
             return;
         }
 
+        const newToScrape = uniqueNew.slice(0, MAX_SCRAPE);
+        const cacheToScrape = cacheNeedingScrape.filter(
+            n => !newToScrape.some(u => u.link === n.link)
+        );
+        const toProcess = shouldScrapeContent
+            ? [...newToScrape, ...cacheToScrape]
+            : uniqueNew;
+
         console.log(chalk.gray.bold(
-            `[HỆ THỐNG] TỔNG KẾT [${mode}]: ${uniqueNew.length} tin mới` +
+            `[HỆ THỐNG] TỔNG KẾT [${mode}/${newsMode}]: ${uniqueNew.length} tin mới` +
+            `${cacheToScrape.length ? ` + ${cacheToScrape.length} tin prefetch cần cào body` : ''}` +
             `${shouldScrapeContent ? ' — Đang cào nội dung...' : ' — headline only'}`
         ));
 
         const newDeepNewsData = [];
-        const toProcess = uniqueNew.slice(0, shouldScrapeContent ? MAX_SCRAPE : uniqueNew.length);
 
-        if (shouldScrapeContent && !isClientDisconnected) {
-            for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
+        if (shouldScrapeContent && !isClientDisconnected && toProcess.length > 0) {
+            const scraped = await scrapeArticles(toProcess);
+            for (const item of scraped) {
                 if (isClientDisconnected) break;
-                const batch = toProcess.slice(i, i + BATCH_SIZE);
-
-                const scraped = await Promise.all(batch.map(async (news) => {
-                    try {
-                        const content = await Promise.race([
-                            scrapeArticleContent(news.link),
-                            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
-                        ]);
-                        const raw = {
-                            title: news.title,
-                            link: news.link,
-                            source: news.source || news.link,
-                            sentiment: news.sentiment || 'neutral',
-                            content: (content && content.length > 80) ? content : news.title,
-                            date: news.date || new Date().toLocaleDateString('vi-VN'),
-                            publishedAt: news.publishedAt || new Date(),
-                            mode,
-                        };
-                        return rescoreSentiment(raw);
-                    } catch {
-                        return rescoreSentiment({
-                            title: news.title,
-                            link: news.link,
-                            source: news.source || news.link,
-                            sentiment: news.sentiment || 'neutral',
-                            content: news.title,
-                            date: news.date || new Date().toLocaleDateString('vi-VN'),
-                            publishedAt: news.publishedAt || new Date(),
-                            mode,
-                        });
-                    }
-                }));
-
-                for (const item of scraped) {
-                    if (isClientDisconnected) break;
-                    newDeepNewsData.push(item);
-                    res.write(`data: ${JSON.stringify(item)}\n\n`);
-                }
+                newDeepNewsData.push(item);
+                res.write(`data: ${JSON.stringify(item)}\n\n`);
             }
         } else if (!isClientDisconnected) {
             for (const news of toProcess) {
@@ -274,11 +299,14 @@ export const getLiveNews = async (req, res) => {
             }
         }
 
-        if (newDeepNewsData.length > 0) {
+        const richSaved = newDeepNewsData.filter(hasRichNewsContent);
+        if (richSaved.length > 0) {
             await saveDeepNewsForSymbol(ticker, newDeepNewsData, { mode, touchFetchedAt: true });
-            console.log(chalk.gray(`[DB] Đã cập nhật thành công ${newDeepNewsData.length} tin tức SẠCH cho mã ${ticker}.`));
-        } else {
-            await saveDeepNewsForSymbol(ticker, [], { mode, touchFetchedAt: true });
+            console.log(chalk.gray(
+                `[DB] Đã cập nhật ${newDeepNewsData.length} tin (${richSaved.length} có body đầy đủ) cho mã ${ticker}.`
+            ));
+        } else if (newDeepNewsData.length > 0 && !shouldScrapeContent) {
+            await saveDeepNewsForSymbol(ticker, newDeepNewsData, { mode, touchFetchedAt: false });
         }
 
         finishStream();
@@ -449,7 +477,9 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     if (!masterRecord.reports) masterRecord.reports = [];
     masterRecord.reports.push({
         user: user, timestamp: fullData.timestamp || new Date().toISOString(),
-        content: aiReport, action: finalAction, actionData: actionPanelData, price: fullData.stockInfo.currentPrice,
+        content: aiReport, action: finalAction, actionData: actionPanelData,
+        debateResult,
+        price: fullData.stockInfo.currentPrice,
         changePercent: parseFloat(fullData.stockInfo.changePercent) || 0,
         inputHash
     });
@@ -627,6 +657,7 @@ export const getLatestVnStockReport = async (req, res) => {
             data: {
                 aiReport: latestReport.content,
                 actionData: latestReport.actionData || { action: latestReport.action },
+                debateResult: latestReport.debateResult || null,
                 timestamp: latestReport.timestamp
             } 
         });
@@ -640,14 +671,30 @@ export const debugFeed = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const fullData = { ...req.body };
     const user = fullData.user || 'Unknown';
+    const clientAiReport = typeof fullData.aiReport === 'string' ? fullData.aiReport.trim() : '';
+    const clientAiReportTimestamp = fullData.aiReportTimestamp || null;
+    delete fullData.aiReport;
+    delete fullData.aiReportTimestamp;
 
     try {
         const masterRecord = await Stock.findOne({ symbol: ticker });
-        if (masterRecord?.reports?.length > 0) {
-            const userReports = masterRecord.reports.filter(r => r.user === user);
-            fullData.previousAnalysis = userReports.length > 0 ? userReports[userReports.length - 1].content : null;
+
+        if (clientAiReport) {
+            fullData.aiReport = clientAiReport;
+            fullData.aiReportMeta = {
+                source: 'client',
+                timestamp: clientAiReportTimestamp,
+            };
         } else {
-            fullData.previousAnalysis = null;
+            const latestReport = getLatestUserReport(masterRecord, user);
+            if (latestReport?.content) {
+                fullData.aiReport = latestReport.content;
+                fullData.aiReportMeta = {
+                    source: 'database',
+                    timestamp: latestReport.timestamp,
+                    action: latestReport.action || null,
+                };
+            }
         }
 
         try {
@@ -664,8 +711,10 @@ export const debugFeed = async (req, res) => {
             }
         } catch { fullData.marketContext = 'Không lấy được dữ liệu thị trường'; }
 
-        const markdownData = await getMarkdownFromTcbsPdf(ticker);
+        const pdfMode = fullData.pdfMode || 'turbo';
+        const markdownData = await getMarkdownFromTcbsPdf(ticker, pdfMode);
         if (markdownData) fullData.tcbsMarkdownData = markdownData;
+        console.log(chalk.cyan(`[DEBUG EXPORT] PDF mode=${pdfMode}, hasTcbsData=${!!markdownData}`));
         // Export FireAnt & Reddit sentiment
         try {
             console.log(chalk.cyan(`[DEBUG EXPORT] Đang cào dữ liệu FireAnt & Reddit cho mã ${ticker}...`));
@@ -709,9 +758,14 @@ export const debugFeed = async (req, res) => {
             _debugMeta: {
                 hasSocialData: !!fullData.socialSentiment,
                 ticker, exportedAt: new Date().toISOString(), totalSizeKB: sizeKB,
-                fields: Object.keys(fullData), hasPreviousAnalysis: !!fullData.previousAnalysis,
-                hasMarketContext: !!fullData.marketContext, hasTcbsData: !!fullData.tcbsMarkdownData,
-                technicalBars: fullData.technicalData?.length || 0, newsCount: fullData.news?.length || 0,
+                fields: Object.keys(fullData),
+                hasAiReport: !!fullData.aiReport,
+                aiReportSource: fullData.aiReportMeta?.source || null,
+                hasMarketContext: !!fullData.marketContext,
+                hasTcbsData: !!fullData.tcbsMarkdownData,
+                pdfMode,
+                technicalBars: fullData.technicalData?.length || 0,
+                newsCount: fullData.news?.length || 0,
                 macroNewsCount: fullData.macroNews?.length || 0,
             },
             data: fullData

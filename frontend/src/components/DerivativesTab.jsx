@@ -4,6 +4,7 @@ import AtomLoader from './AtomLoader';
 import ReactMarkdown from 'react-markdown';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import StockAiChat from './StockAiChat';
+import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
 
 // ─── Tooltip nhỏ gọn, dùng lại ───────────────────────────────────────────────
 function Tip({ text, children, side = 'top' }) {
@@ -215,8 +216,8 @@ export default function DerivativesTab({
     const aiStatusLabel = (() => {
         if (!lastAiDerivTime) return null;
         const elapsed = Date.now() - lastAiDerivTime;
-        const canCall = elapsed >= 5 * 60 * 1000;
-        const remainMs = 5 * 60 * 1000 - elapsed;
+        const canCall = elapsed >= AI_REPORT_COOLDOWN_MS;
+        const remainMs = AI_REPORT_COOLDOWN_MS - elapsed;
         const remainMin = Math.floor(remainMs / 60000);
         const remainSec = Math.floor((remainMs % 60000) / 1000);
         return { canCall, time: new Date(lastAiDerivTime).toLocaleTimeString('vi-VN'), countdown: `${remainMin}:${String(remainSec).padStart(2, '0')}` };
@@ -727,7 +728,7 @@ export default function DerivativesTab({
                                 <button
                                     onClick={() => handleAiDerivAnalysis(true)}
                                     disabled={analyzingDeriv}
-                                    title="Bỏ qua cache, ép AI phân tích lại ngay lập tức dù chưa đủ 5 phút hoặc chưa có biến động lớn"
+                                    title="Bỏ qua cache, ép AI phân tích lại ngay lập tức dù chưa đủ 1.5 giờ hoặc chưa có biến động lớn"
                                     className={`w-full py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all disabled:opacity-30 active:scale-95 ${isDark ? 'border-white/10 text-slate-400 hover:border-orange-500/40 hover:text-orange-400' : 'border-slate-200 text-slate-400 hover:border-orange-300 hover:text-orange-500'}`}
                                 >
                                     ↻ Phân tích lại ngay

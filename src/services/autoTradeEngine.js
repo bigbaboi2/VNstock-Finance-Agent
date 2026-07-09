@@ -8,6 +8,7 @@ import ExchangeConnection from '../../models/ExchangeConnection.js';
 import Stock from '../../models/Stock.js';
 import DerivNews from '../../models/DerivNews.js';
 import { generateWithRole } from './multiProviderRouter.js';
+import { parseLlmJson } from '../utils/parseLlmJson.js';
 import {
     buildVnStockScanUniverse,
     buildCryptoScanUniverse,
@@ -551,14 +552,15 @@ const getNewsContextForAsset = async (asset, symbol) => {
         if (asset === 'VN_STOCK') {
             const stock = await Stock.findOne(
                 { symbol },
-                { deepNewsData: { $slice: -10 }, deepNewsFetchedAt: 1 }
+                { deepNewsData: { $slice: -10 }, deepNewsFetchedAt: 1, deepNewsPrefetchedAt: 1 }
             ).lean();
             const newsItems = (stock?.deepNewsData || []).slice().reverse();
 
             if (newsItems.length === 0) {
                 console.log(chalk.gray(`[NEWS] ${symbol}: không có deepNewsData trong DB`));
             } else if (!stock?.deepNewsFetchedAt) {
-                console.log(chalk.yellow(`[NEWS] ⚠️ ${symbol}: có ${newsItems.length} tin nhưng chưa có deepNewsFetchedAt — có thể từ user search cũ`));
+                const prefetchNote = stock?.deepNewsPrefetchedAt ? ' — chỉ prefetch headline, chưa cào body' : '';
+                console.log(chalk.yellow(`[NEWS] ⚠️ ${symbol}: có ${newsItems.length} tin nhưng chưa có deepNewsFetchedAt${prefetchNote}`));
             } else {
                 const fetchAgeHours = (Date.now() - new Date(stock.deepNewsFetchedAt).getTime()) / 3_600_000;
                 const inSession = isPreMarket() || isVNMarketOpen() || isATOPeriod() || isATCPeriod();
@@ -1683,17 +1685,15 @@ const compactContextForPrompt = (context = {}) => {
 
 export const parseAIVerdictJson = (response = '') => {
     try {
-        const text = String(response || '');
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) return null;
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = parseLlmJson(response);
+        if (!parsed) return null;
         const verdict = String(parsed.verdict || '').toUpperCase();
         return {
             confirmed: verdict === 'CONFIRM',
             vetoed: verdict === 'VETO',
             hardVeto: parsed.hardVeto === true,
             confidence: Number(parsed.confidence) || 0,
-            reason: String(parsed.reason || text).trim(),
+            reason: String(parsed.reason || response).trim(),
         };
     } catch {
         return null;

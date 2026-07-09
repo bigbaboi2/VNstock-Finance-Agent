@@ -18,7 +18,7 @@ import {
     getVnMarketContext,
 } from '../services/tradeContextService.js';
 import {
-    isDeepNewsFresh,
+    isPrefetchNewsFresh,
     prefetchVnStockNews,
 } from '../services/vnStockNewsService.js';
 
@@ -53,14 +53,14 @@ export const prefetchStaleSymbols = async () => {
 
         const records = await Stock.find(
             { symbol: { $in: universe } },
-            { symbol: 1, deepNewsData: 1, deepNewsFetchedAt: 1 }
+            { symbol: 1, deepNewsData: 1, deepNewsPrefetchedAt: 1, deepNewsFetchedAt: 1 }
         ).lean();
         const recordBySymbol = new Map(records.map(r => [r.symbol, r]));
 
         const staleSymbols = universe.filter(sym => {
             const rec = recordBySymbol.get(sym);
             if (!rec) return true;
-            return !isDeepNewsFresh(rec);
+            return !isPrefetchNewsFresh(rec);
         });
 
         const toProcess = staleSymbols.slice(0, MAX_PER_RUN);
