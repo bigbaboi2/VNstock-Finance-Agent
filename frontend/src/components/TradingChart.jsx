@@ -234,7 +234,7 @@ const CHART_TYPES = [
   {id:'area',             label:'Biểu đồ Vùng'},
   {id:'heikin_ashi',      label:'Heikin Ashi'},
 ];
-const OVERLAY_COLORS = ['#FF9600','#089981','#F23645','#2196F3','#EAB308','#E11D74','#FFFFFF'];
+const OVERLAY_COLORS = ['#8B5CF6','#A855F7','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
 const STROKE_SIZES   = [1,2,3,4];
 
 /* ════════════════════════════════════════════════════════════════════
@@ -252,7 +252,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   const activeToolRef       = useRef('select');
   const strokeSizeRef       = useRef(2);
   const strokeStyleRef      = useRef('solid');
-  const overlayColorRef     = useRef('#FF9600');
+  const overlayColorRef     = useRef('#8B5CF6');
 
   const [interval,          setInterval]          = useState(currentInterval || '1 ngày');
   const [showIntervalMenu,  setShowIntervalMenu]   = useState(false);
@@ -263,7 +263,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   const [activeMain,        setActiveMain]         = useState([]);
   const [activeSub,         setActiveSub]          = useState(['VOL']);
   const [activeOverlay,     setActiveOverlay]      = useState(null);
-  const [overlayColor,      setOverlayColor]       = useState('#FF9600');
+  const [overlayColor,      setOverlayColor]       = useState('#8B5CF6');
   const [strokeSize,        setStrokeSize]         = useState(2);
   const [strokeStyle,       setStrokeStyle]        = useState('solid');
   const [activeTool,        setActiveTool]         = useState('select');
@@ -273,6 +273,11 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
    useEffect(() => { overlayColorRef.current = overlayColor; }, [overlayColor]);
   useEffect(() => { strokeSizeRef.current   = strokeSize;   }, [strokeSize]);
   useEffect(() => { strokeStyleRef.current  = strokeStyle;  }, [strokeStyle]);
+
+  // Đồng bộ khung thời gian hiển thị trên toolbar với khung do tab cha chọn
+  useEffect(() => {
+    if (currentInterval && currentInterval !== interval) setInterval(currentInterval);
+  }, [currentInterval]);
 
   const closeAllMenus = useCallback(() => {
     setShowIntervalMenu(false); setShowTypeMenu(false);
@@ -687,7 +692,7 @@ const menuBase = React.useMemo(() =>
   [isDark]);
   
 const rowBtn = React.useCallback((active) =>
-  `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?'bg-yellow-500 text-black':(isDark?'text-slate-300 hover:bg-yellow-500/80 hover:text-black':'text-slate-700 hover:bg-yellow-500/80 hover:text-black')}`,
+  `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?'bg-violet-600 text-white':(isDark?'text-slate-300 hover:bg-violet-600/80 hover:text-white':'text-slate-700 hover:bg-violet-600/80 hover:text-white')}`,
   [isDark]);
 
   return (
@@ -704,7 +709,7 @@ const rowBtn = React.useCallback((active) =>
           <button
             onClick={() => { setShowIntervalMenu(v=>!v); setShowTypeMenu(false); setShowIndicatorMenu(false); setShowStrokePanel(false); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
-              ${showIntervalMenu?'bg-blue-500 text-white border-blue-500':(isDark?'bg-[#10151C] border-blue-500/30 text-blue-500 hover:bg-blue-500 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-blue-500 hover:text-white hover:border-blue-500')}`}
+              ${showIntervalMenu?'bg-violet-600 text-white border-violet-600':(isDark?'bg-[#10151C] border-violet-500/30 text-violet-400 hover:bg-violet-600 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-violet-600 hover:text-white hover:border-violet-600')}`}
           >
             <Clock size={13}/> {interval} <ChevronDown size={12} className={showIntervalMenu?'rotate-180':''}/>
           </button>
@@ -732,7 +737,7 @@ const rowBtn = React.useCallback((active) =>
           <button
             onClick={()=>{setShowTypeMenu(v=>!v);setShowIndicatorMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
-              ${showTypeMenu?'bg-emerald-500 text-white border-emerald-500':(isDark?'bg-[#10151C] border-emerald-500/30 text-emerald-500 hover:bg-emerald-500 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-emerald-500 hover:text-white hover:border-emerald-500')}`}
+              ${showTypeMenu?'bg-violet-600 text-white border-violet-600':(isDark?'bg-[#10151C] border-violet-500/30 text-violet-400 hover:bg-violet-600 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-violet-600 hover:text-white hover:border-violet-600')}`}
           >
             <BarChart2 size={13}/>
             {{candle_solid:'Nến Đặc',candle_up_stroke:'Nến Rỗng',candle_stroke:'Nến Viền',ohlc:'Thanh',area:'Vùng',heikin_ashi:'Heikin Ashi'}[chartType]||'Nến'}
@@ -742,7 +747,7 @@ const rowBtn = React.useCallback((active) =>
             <div className={`${menuBase} w-48`}>
               {CHART_TYPES.map(tp=>(
                 <button key={tp.id} onClick={()=>{setChartType(tp.id);setShowTypeMenu(false);}}
-                  className={`w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${chartType===tp.id?'bg-emerald-500 text-white':(isDark?'text-slate-300 hover:bg-emerald-500/80 hover:text-white':'text-slate-700 hover:bg-emerald-500/80 hover:text-white')}`}>
+                  className={`w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${chartType===tp.id?'bg-violet-600 text-white':(isDark?'text-slate-300 hover:bg-violet-600/80 hover:text-white':'text-slate-700 hover:bg-violet-600/80 hover:text-white')}`}>
                   {tp.label}{chartType===tp.id&&<Check size={12}/>}
                 </button>
               ))}
@@ -755,7 +760,7 @@ const rowBtn = React.useCallback((active) =>
           <button
             onClick={()=>{setShowIndicatorMenu(v=>!v);setShowTypeMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
-              ${showIndicatorMenu?'bg-yellow-500 text-black border-yellow-500':(isDark?'bg-[#10151C] border-yellow-500/30 text-yellow-500 hover:bg-yellow-500 hover:text-black':'bg-white border-slate-300 text-slate-700 hover:bg-yellow-500 hover:text-black hover:border-yellow-500')}`}
+              ${showIndicatorMenu?'bg-violet-600 text-white border-violet-600':(isDark?'bg-[#10151C] border-violet-500/30 text-violet-400 hover:bg-violet-600 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-violet-600 hover:text-white hover:border-violet-600')}`}
           >
             <Settings2 size={13}/> Chỉ Báo <ChevronDown size={12} className={showIndicatorMenu?'rotate-180':''}/>
           </button>
@@ -791,7 +796,7 @@ const rowBtn = React.useCallback((active) =>
             <button
               onClick={e=>{e.stopPropagation();setShowStrokePanel(v=>!v);}}
               title="Tùy chỉnh nét vẽ"
-              className={`p-1 rounded-lg transition-all ${showStrokePanel?'bg-yellow-500 text-black':(isDark?'text-slate-400 hover:text-yellow-400':'text-slate-500 hover:text-yellow-600')}`}
+              className={`p-1 rounded-lg transition-all ${showStrokePanel?'bg-violet-600 text-white':(isDark?'text-slate-400 hover:text-violet-400':'text-slate-500 hover:text-violet-600')}`}
             >
               <SlidersHorizontal size={14}/>
             </button>
@@ -806,7 +811,7 @@ const rowBtn = React.useCallback((active) =>
                 <div className="flex gap-2 mb-3">
                   {STROKE_SIZES.map(s=>(
                     <button key={s} onClick={()=>setStrokeSize(s)}
-                      className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize===s?'bg-yellow-500 text-black':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
+                      className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize===s?'bg-violet-600 text-white':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
                       <div style={{height:`${s+1}px`,width:'24px',background:'currentColor',borderRadius:1}}/>
                       {s}px
                     </button>
@@ -816,7 +821,7 @@ const rowBtn = React.useCallback((active) =>
                 {/* FIX 4: SVG preview chính xác */}
                 {STROKE_STYLES.map(s=>(
                   <button key={s.val} onClick={()=>setStrokeStyle(s.val)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle===s.val?'bg-yellow-500 text-black':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle===s.val?'bg-violet-600 text-white':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
                     <svg width="32" height="8" viewBox="0 0 32 8">
                       {s.val==='solid'  && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2"/>}
                       {s.val==='dashed' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="6 3"/>}
@@ -845,8 +850,8 @@ const rowBtn = React.useCallback((active) =>
               <button key={name} title={title}
                 onClick={e=>{e.stopPropagation();handleActivateTool(name);}}
                 className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all
-                  ${isActive?'bg-yellow-500 text-black shadow-md shadow-yellow-500/30'
-                    :(isDark?'text-slate-500 hover:bg-white/8 hover:text-yellow-400':'text-slate-500 hover:bg-yellow-400/20 hover:text-yellow-700')}`}
+                  ${isActive?'bg-violet-600 text-white shadow-md shadow-violet-600/30'
+                    :(isDark?'text-slate-500 hover:bg-white/8 hover:text-violet-400':'text-slate-500 hover:bg-violet-500/20 hover:text-violet-700')}`}
               >
                 <Icon size={15}/>
               </button>
@@ -867,9 +872,9 @@ const rowBtn = React.useCallback((active) =>
           {/* SELECTED OVERLAY BAR */}
           {activeOverlay && (
             <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[99] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
-              <div className={`flex items-center gap-2 ${isDark ? 'text-yellow-400' : 'text-amber-600'}`}>
+              <div className={`flex items-center gap-2 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>
                 <Pencil size={12}/>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark?'text-yellow-400':'text-amber-600'}`}>Đã chọn đường vẽ</span>
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark?'text-violet-400':'text-violet-600'}`}>Đã chọn đường vẽ</span>
               </div>
               <div className={`w-px h-4 ${isDark?'bg-white/10':'bg-slate-200'}`}/>
               <button
