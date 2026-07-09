@@ -4,7 +4,7 @@ import vader from 'vader-sentiment';
 import CryptoCoin from '../../models/CryptoCoin.js';
 import { analyzeCryptoSignalWithGemini } from '../services/aiService.js';
 import { buildCryptoSignalMessage, sendTelegramMessage } from '../services/telegramService.js';
-import { cryptoCache, formatLargeNumber, calcTechnicals, calcVolumeProfile, translateFearGreed } from '../services/cryptoService.js';
+import { cryptoCache, formatLargeNumber, calcTechnicals, calcVolumeProfile, translateFearGreed, fetchKlines, fetchTicker24h } from '../services/cryptoService.js';
 
 export const getCryptoNews = async (req, res) => {
     const sym = req.params.symbol.toUpperCase();
@@ -89,30 +89,28 @@ export const getCryptoRadar = async (req, res) => {
 export const getCryptoPrice = async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
     const interval = req.query.interval || '4h';
-    const intervalMap = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w' };
     let lastSignal = null;
     try { const coinRecord = await CryptoCoin.findOne({ symbol }); if (coinRecord?.reports?.length > 0) lastSignal = coinRecord.reports[coinRecord.reports.length - 1]; } catch(e) {}
 
     try {
-        const binanceInterval = intervalMap[interval] || '4h';
-        const limitMap = { '1m': 500, '5m': 500, '15m': 300, '30m': 200, '1h': 200, '4h': 200, '1d': 300, '1w': 200 };
-        const limit = limitMap[binanceInterval] || 200;
+        // Nến + ticker qua tầng nguồn đa dạng (chống geo-block Binance/Bybit)
+        const candles = await fetchKlines(symbol, interval);
+        if (!candles.length) {
+            return res.status(200).json({ success: false, message: `Không lấy được dữ liệu giá cho ${symbol} từ mọi nguồn.` });
+        }
+        const ticker = await fetchTicker24h(symbol, candles);
         const pair = `${symbol}USDT`;
 
-        const [klineRes, tickerRes] = await Promise.all([
-            axios.get(`https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${binanceInterval}&limit=${limit}`, { timeout: 8000 }),
-            axios.get(`https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`, { timeout: 5000 })
-        ]);
-
-        const candles = klineRes.data.map(k => ({ time: new Date(k[0]).toISOString().replace('T', ' ').substring(0, 16), open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]) }));
-        const ticker = tickerRes.data;
-        
+        // Orderbook imbalance: dùng OKX (ít bị chặn ở cloud)
         let orderbookImbalance = null;
         try {
-            const depthRes = await axios.get(`https://api.binance.com/api/v3/depth?symbol=${pair}&limit=20`, { timeout: 3000 });
-            const bids = depthRes.data.bids.reduce((sum, b) => sum + parseFloat(b[1]), 0);
-            const asks = depthRes.data.asks.reduce((sum, a) => sum + parseFloat(a[1]), 0);
-            orderbookImbalance = { bidPct: parseFloat(((bids / (bids+asks)) * 100).toFixed(1)), askPct: parseFloat(((asks / (bids+asks)) * 100).toFixed(1)), ratio: parseFloat((bids / asks).toFixed(2)), spread: parseFloat((parseFloat(depthRes.data.asks[0][0]) - parseFloat(depthRes.data.bids[0][0])).toFixed(2)) };
+            const bookRes = await axios.get(`https://www.okx.com/api/v5/market/books?instId=${symbol}-USDT&sz=20`, { timeout: 3000 });
+            const bk = bookRes.data?.data?.[0];
+            if (bk?.bids?.length && bk?.asks?.length) {
+                const bids = bk.bids.reduce((sum, b) => sum + parseFloat(b[1]), 0);
+                const asks = bk.asks.reduce((sum, a) => sum + parseFloat(a[1]), 0);
+                orderbookImbalance = { bidPct: parseFloat(((bids / (bids + asks)) * 100).toFixed(1)), askPct: parseFloat(((asks / (bids + asks)) * 100).toFixed(1)), ratio: parseFloat((bids / asks).toFixed(2)), spread: parseFloat((parseFloat(bk.asks[0][0]) - parseFloat(bk.bids[0][0])).toFixed(2)) };
+            }
         } catch (e) {}
 
         let marketCap = 0, circulatingSupply = 0, maxSupply = 0, ath = 0, athChange = 0;
@@ -124,12 +122,16 @@ export const getCryptoPrice = async (req, res) => {
         return res.json({
             success: true,
             data: {
-                symbol, pair, currentPrice: parseFloat(ticker.lastPrice), change24h: parseFloat(ticker.priceChangePercent), volume24h: formatLargeNumber(parseFloat(ticker.quoteVolume)),
-                high24h: parseFloat(ticker.highPrice), low24h: parseFloat(ticker.lowPrice), candles, technicals: calcTechnicals(candles), volProfile: calcVolumeProfile(candles.slice(-50)),
+                symbol, pair,
+                currentPrice: ticker?.lastPrice ?? candles[candles.length - 1].close,
+                change24h: ticker?.priceChangePercent ?? 0,
+                volume24h: formatLargeNumber(ticker?.quoteVolume ?? 0),
+                high24h: ticker?.highPrice ?? 0, low24h: ticker?.lowPrice ?? 0,
+                candles, technicals: calcTechnicals(candles), volProfile: calcVolumeProfile(candles.slice(-50)),
                 cvd: Math.round(candles.slice(-20).reduce((sum, c) => sum + (c.close >= c.open ? c.volume : -c.volume), 0)), orderbookImbalance, marketCap, circulatingSupply, maxSupply, ath, athChange, lastSignal
             }
         });
-    } catch (error) { return res.status(500).json({ success: false, message: 'Binance lỗi: ' + error.message }); }
+    } catch (error) { return res.status(200).json({ success: false, message: 'Lỗi tải dữ liệu: ' + error.message }); }
 };
 
 export const saveCryptoSignal = async (req, res) => {
