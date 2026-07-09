@@ -50,17 +50,27 @@ export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400
 
     const avgEntry = entryNotional / entryQty;
     const avgExit = exitNotional / exitQty;
-    const netPnlUSDT = exitNotional - entryNotional;
+    
+    // Sửa lỗi tính PnL cho lệnh SHORT
+    const netPnlUSDT = isLong 
+        ? exitNotional - entryNotional 
+        : entryNotional - exitNotional;
+        
     const pnlPercent = (netPnlUSDT / entryNotional) * 100;
-    const investedVND = Number(trade.investedAmount) || Math.round(entryNotional * usdVndRate);
-    const pnlVND = Math.round(investedVND * (pnlPercent / 100));
+    
+    const isVNStock = trade.assetType === 'VN_STOCK' || trade.marketType === 'VN_STOCK';
+    
+    // AutoTrade.pnl luôn lưu bằng VNĐ trên toàn hệ thống để cộng dồn portfolio.
+    const pnlValue = isVNStock 
+        ? Math.round((Number(trade.investedAmount) || Math.round(entryNotional * usdVndRate)) * (pnlPercent / 100))
+        : Math.round(netPnlUSDT * usdVndRate);
 
     return {
         pnlPercent: Math.round(pnlPercent * 100) / 100,
-        pnl: pnlVND,
+        pnl: pnlValue,
         exitPrice: avgExit,
         entryPrice: avgEntry,
-        source: 'exchange_fills',
+        source: 'LIVE_FILLS'
     };
 };
 
@@ -183,6 +193,11 @@ export const placeOrder = async ({
             side, orderType, purpose,
             quantity: qty,
             price,
+            marketType: isFutures ? 'FUTURES' : 'SPOT',
+            leverage: leverage || 1,
+            direction: isFutures 
+                ? (purpose === 'ENTRY' ? (side === 'BUY' ? 'LONG' : 'SHORT') : (side === 'BUY' ? 'SHORT' : 'LONG')) 
+                : (side === 'BUY' ? 'MUA' : 'BÁN'),
             ...fields,
         });
         await doc.save();
@@ -234,11 +249,11 @@ export const placeOrder = async ({
     // ── Safety guard: giá trị lệnh tối đa ──
     const refPrice = price || estimatedPrice || 0;
     const notionalUSDT = finalQty * refPrice;
-    if (notionalUSDT > limits.maxOrderValueUSDT) {
+    if (refPrice > 0 && notionalUSDT > limits.maxOrderValueUSDT) {
         const doc = await logOrder({ status: 'FAILED', notionalUSDT, errorMessage: `Giá trị lệnh ~${notionalUSDT.toFixed(0)} USDT vượt ngưỡng an toàn ${limits.maxOrderValueUSDT} USDT.` });
         return { success: false, reason: 'MAX_ORDER_VALUE_EXCEEDED', exchangeOrderDoc: doc };
     }
-    if (symbolInfo.minNotional && notionalUSDT < symbolInfo.minNotional) {
+    if (refPrice > 0 && symbolInfo.minNotional && notionalUSDT < symbolInfo.minNotional) {
         const doc = await logOrder({ status: 'FAILED', notionalUSDT, errorMessage: `Giá trị lệnh ~${notionalUSDT.toFixed(2)} USDT nhỏ hơn min notional (${symbolInfo.minNotional}) của sàn.` });
         return { success: false, reason: 'MIN_NOTIONAL', exchangeOrderDoc: doc };
     }
@@ -430,14 +445,17 @@ export const getOrderStatus = async ({ connectionDoc, externalOrderId, symbol })
  */
 export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVnd = null }) => {
     try {
-        if (trade.assetType !== 'CRYPTO') {
-            return { success: false, message: 'Live execution hiện chỉ hỗ trợ CRYPTO.' };
-        }
         const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
 
         const connectionDoc = await ExchangeConnection.findById(userOrder.exchangeConnectionId);
         if (!connectionDoc || connectionDoc.username !== userOrder.username) {
             return { success: false, message: 'Không tìm thấy kết nối sàn hợp lệ của user.' };
+        }
+
+        if (trade.assetType === 'VN_STOCK' && connectionDoc.exchangeName !== 'DNSE') {
+            return { success: false, message: 'Live execution VN_STOCK hiện chỉ hỗ trợ sàn DNSE.' };
+        } else if (trade.assetType !== 'CRYPTO' && trade.assetType !== 'VN_STOCK') {
+            return { success: false, message: 'Live execution hiện chỉ hỗ trợ CRYPTO và VN_STOCK.' };
         }
 
         const direction = trade.direction === 'SHORT' || trade.direction === 'BÁN' ? 'SHORT' : 'LONG';
@@ -480,10 +498,21 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             return { success: false, message: `Đã chạm giới hạn ${limits.maxLiveOrdersPerUser} lệnh live đang chờ.` };
         }
 
-        // Tính qty từ vốn (VND) → USDT → coin. Notional giữ = vốn (đòn bẩy chỉ giảm ký quỹ).
+        // Tính qty
         const effectiveCapital = Number(capitalVnd) > 0 ? Number(capitalVnd) : Number(userOrder.capital);
-        const capitalUSDT = effectiveCapital / (usdVndRate || 25400);
-        const qty = capitalUSDT / Number(trade.entryPrice);
+        let qty;
+        if (trade.assetType === 'VN_STOCK') {
+            // Cổ phiếu Việt Nam: vốn là VNĐ, mua theo lô 100
+            const maxShares = effectiveCapital / Number(trade.entryPrice);
+            qty = Math.floor(maxShares / 100) * 100;
+            if (qty <= 0) {
+                return { success: false, message: `Vốn ${effectiveCapital.toLocaleString()} VNĐ không đủ mua 1 lô (100) cổ phiếu giá ${trade.entryPrice}.` };
+            }
+        } else {
+            // Crypto: vốn quy ra USDT
+            const capitalUSDT = effectiveCapital / (usdVndRate || 25400);
+            qty = capitalUSDT / Number(trade.entryPrice);
+        }
 
         const result = await placeOrder({
             connectionDoc,
@@ -746,5 +775,63 @@ export const executeLivePartialExit = async ({ trade, fraction, exitReason }) =>
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLivePartialExit lỗi: ${err.message}`));
         return { success: false, message: err.message };
+    }
+};
+
+/**
+ * Bán toàn bộ số dư của một asset (khác USDT) sang USDT trên SPOT.
+ * Dùng cho tính năng thanh lý thủ công trên UI.
+ */
+export const sellAssetToUSDT = async (connectionDoc, asset) => {
+    try {
+        if (!asset || String(asset).toUpperCase() === 'USDT') {
+            return { success: false, message: 'Không thể thanh lý USDT.' };
+        }
+        const normalizedAsset = String(asset).toUpperCase();
+
+        // 1. Lấy balance mới nhất
+        const balances = await getBalance(connectionDoc, 'SPOT');
+        const balance = balances[normalizedAsset] || 0;
+        if (balance <= 0) {
+            return { success: false, message: `Số dư ${normalizedAsset} đang bằng 0.` };
+        }
+
+        const symbol = `${normalizedAsset}USDT`;
+
+        // 2. Gửi lệnh MARKET SELL toàn bộ lượng đang có
+        // Hàm placeOrder đã xử lý: check minQty, check symbol exists, stepSize...
+        const result = await placeOrder({
+            connectionDoc,
+            symbol,
+            side: 'SELL',
+            qty: balance,
+            orderType: 'MARKET',
+            purpose: 'MANUAL_LIQUIDATE',
+            marketType: 'SPOT' // Luôn thanh lý spot balance
+        });
+
+        if (!result.success) {
+            return { success: false, message: result.reason || 'Lệnh bán thất bại.' };
+        }
+
+        // Đợi confirm fill 
+        const fillResult = await waitForOrderFill({
+            connectionDoc,
+            externalOrderId: result.externalOrderId,
+            symbol,
+            initial: { success: true }
+        });
+
+        // Lấy lại balance sau khi bán để UI cập nhật ngay
+        await getBalance(connectionDoc, 'SPOT');
+
+        if (fillResult.fillConfirmed) {
+             return { success: true, message: `Đã bán thành công ${result.finalQty} ${normalizedAsset} sang USDT.` };
+        } else {
+             return { success: true, message: `Lệnh bán đã gửi nhưng chưa xác nhận khớp: ${fillResult.message}` };
+        }
+    } catch (err) {
+        console.error(`[sellAssetToUSDT] lỗi:`, err);
+        return { success: false, message: `Lỗi hệ thống: ${err.message}` };
     }
 };

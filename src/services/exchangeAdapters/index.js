@@ -2,6 +2,7 @@ import binanceAdapter from './binanceAdapter.js';
 import binanceFuturesAdapter from './binanceFuturesAdapter.js';
 import okxAdapter from './okxAdapter.js';
 import bybitAdapter from './bybitAdapter.js';
+import * as dnseAdapter from './dnseAdapter.js';
 
 /**
  * ADAPTER FACTORY — trả về đúng adapter theo tên sàn + loại thị trường.
@@ -14,6 +15,7 @@ const ADAPTERS = {
     BINANCE: binanceAdapter,
     OKX: okxAdapter,
     BYBIT: bybitAdapter,
+    DNSE: dnseAdapter,
 };
 
 const FUTURES_ADAPTERS = {

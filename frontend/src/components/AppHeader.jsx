@@ -35,8 +35,8 @@ const AppHeader = ({
     <header className={`relative z-[99999] border-b px-3 sm:px-6 py-2 sm:py-1 flex items-center justify-between shrink-0 w-full transition-colors duration-300 ${UI.header}`}>
         {/*CONTAINER BRAND LOGO */}
         <div className="flex items-center gap-2 sm:gap-4 sm:w-[300px] xl:w-[350px] shrink-0">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-yellow-400 flex items-center justify-center text-black font-black shadow-lg shadow-yellow-400/20">
-            <TrendingUp size={20} className="sm:w-[22px] sm:h-[22px]" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 drop-shadow-md">
+            <img src="/favicon.svg" alt="Omni Duck Logo" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
           </div>
           <div className="hidden lg:block">
             <h1 className={`text-xl font-black tracking-tight leading-none ${UI.textBold}`}>

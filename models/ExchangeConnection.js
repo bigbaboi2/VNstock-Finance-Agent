@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
  */
 const ExchangeConnectionSchema = new mongoose.Schema({
     username:            { type: String, required: true, index: true, trim: true },
-    exchangeName:        { type: String, required: true, enum: ['BINANCE', 'OKX', 'BYBIT'] },
+    exchangeName:        { type: String, required: true, enum: ['BINANCE', 'OKX', 'BYBIT', 'DNSE'] },
     label:               { type: String, required: true, trim: true, maxlength: 60 },
 
     apiKeyEncrypted:     { type: String, required: true },

@@ -7,6 +7,7 @@ import {
     toggleConnection,
     getLiveBalance,
     getExchangeOrders,
+    sellBalanceToUSDT,
 } from '../controllers/exchangeConnection.controller.js';
 
 const router = express.Router();
@@ -20,5 +21,6 @@ router.delete('/:id', deleteConnection);
 router.post('/:id/test', testConnectionEndpoint);
 router.patch('/:id/toggle', toggleConnection);
 router.get('/:id/balance', getLiveBalance);
+router.post('/:id/sell-to-usdt', sellBalanceToUSDT);
 
 export default router;

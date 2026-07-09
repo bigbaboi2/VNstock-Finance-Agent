@@ -18,6 +18,12 @@ const EXCHANGES = [
         apiUrl: 'https://www.bybit.com/app/user/api-management',
         needsPassphrase: false,
     },
+    {
+        id: 'DNSE', name: 'DNSE', color: '#F26A44',
+        apiUrl: 'https://entradex.dnse.com.vn/',
+        needsPassphrase: true,
+        isVNStock: true,
+    },
 ];
 
 export default function ConnectExchangeForm({ username, isDark, UI, onClose, onCreated }) {
@@ -42,11 +48,11 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.apiKey || !form.secret) {
-            setResult({ success: false, message: 'Vui lòng nhập đầy đủ API Key và Secret Key.' });
+            setResult({ success: false, message: exchange.isVNStock ? 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu.' : 'Vui lòng nhập đầy đủ API Key và Secret Key.' });
             return;
         }
         if (exchange.needsPassphrase && !form.passphrase) {
-            setResult({ success: false, message: 'OKX bắt buộc phải có Passphrase.' });
+            setResult({ success: false, message: exchange.isVNStock ? 'Vui lòng nhập Mã PIN (bắt buộc cho Trading Token).' : 'Sàn này bắt buộc phải có Passphrase.' });
             return;
         }
         setLoading(true);
@@ -82,7 +88,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 {/* CHỌN SÀN */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                     {EXCHANGES.map(ex => (
                         <button
                             key={ex.id}
@@ -103,7 +109,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {/* HƯỚNG DẪN LẤY KEY */}
                 <a href={exchange.apiUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:underline">
-                    <ExternalLink size={12} /> Hướng dẫn: Tạo API key trên {exchange.name} tại đây
+                    <ExternalLink size={12} /> Hướng dẫn: {exchange.isVNStock ? 'Mở tài khoản DNSE tại đây' : `Tạo API key trên ${exchange.name} tại đây`}
                 </a>
 
                 {/* KHUYẾN NGHỊ QUYỀN */}
@@ -120,9 +126,11 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                         value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} />
                 </div>
 
-                {/* API KEY */}
+                {/* API KEY / USERNAME */}
                 <div>
-                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>API Key</label>
+                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
+                        {exchange.isVNStock ? 'Tên đăng nhập (Email / SĐT)' : 'API Key'}
+                    </label>
                     <div className="relative">
                         <input className={inputCls} type={showKey ? 'text' : 'password'} autoComplete="off"
                             value={form.apiKey} onChange={e => setForm({ ...form, apiKey: e.target.value.trim() })} />
@@ -133,9 +141,11 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                     </div>
                 </div>
 
-                {/* SECRET */}
+                {/* SECRET / PASSWORD */}
                 <div>
-                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Secret Key</label>
+                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
+                        {exchange.isVNStock ? 'Mật khẩu' : 'Secret Key'}
+                    </label>
                     <div className="relative">
                         <input className={inputCls} type={showSecret ? 'text' : 'password'} autoComplete="off"
                             value={form.secret} onChange={e => setForm({ ...form, secret: e.target.value.trim() })} />
@@ -146,10 +156,12 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                     </div>
                 </div>
 
-                {/* PASSPHRASE (OKX) */}
+                {/* PASSPHRASE / PIN */}
                 {exchange.needsPassphrase && (
                     <div>
-                        <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Passphrase (OKX bắt buộc)</label>
+                        <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
+                            {exchange.isVNStock ? 'Mã PIN (Dùng để xác thực Trading Token)' : 'Passphrase (OKX bắt buộc)'}
+                        </label>
                         <input className={inputCls} type="password" autoComplete="off"
                             value={form.passphrase} onChange={e => setForm({ ...form, passphrase: e.target.value })} />
                     </div>
