@@ -121,31 +121,117 @@ export const calcVolumeProfile = (candles, bins = 12) => {
     return { bins: buckets.reverse(), maxVol, pocPrice };
 };
 
-export const fetchCryptoData = async (symbol, interval) => {
-    const intervalMap = { '1 phút': '1m', '5 phút': '5m', '15 phút': '15m', '30 phút': '30m', '1 giờ': '1h', '4 giờ': '4h', '1 ngày': '1d', '1 tuần': '1w' };
-    const limitMap = { '1m': 500, '5m': 300, '15m': 200, '30m': 200, '1h': 200, '4h': 200, '1d': 365, '1w': 200 };
-    const binanceInterval = intervalMap[interval] || '1d';
-    const limit = limitMap[binanceInterval] || 200;
-    const pair = `${symbol}USDT`;
+// ─────────────────────────────────────────────────────────────
+// KLINE / TICKER — NGUỒN DỮ LIỆU ĐA TẦNG (chống geo-block 451/403)
+// Nhiều sàn (api.binance.com, api.bybit.com) chặn IP datacenter/cloud
+// → thử lần lượt nhiều nguồn cho tới khi có dữ liệu:
+//   1. data-api.binance.vision  (mirror công khai của Binance — cùng format, ít bị chặn)
+//   2. api.binance.com          (thường hoạt động ở mạng local)
+//   3. OKX                      (ít bị chặn ở cloud)
+//   4. Bybit                    (dự phòng cuối)
+// ─────────────────────────────────────────────────────────────
 
+// Chuẩn hoá mọi kiểu nhập khung thời gian về giá trị API chuẩn.
+// Chấp nhận: giá trị API ('1d', '1h', '5m'...), nhãn tiếng Việt của nút chọn
+// khung trong CryptoTab VÀ của thanh công cụ biểu đồ ('1 phút', '2 giờ', '1 tháng'...).
+const INTERVAL_CANON = {
+    '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
+    '1h': '1h', '2h': '2h', '4h': '4h', '1d': '1d', '1w': '1w', '1M': '1M',
+    '1 phút': '1m', '3 phút': '3m', '5 phút': '5m', '15 phút': '15m', '30 phút': '30m',
+    '1 giờ': '1h', '2 giờ': '2h', '4 giờ': '4h',
+    '1 ngày': '1d', '1 tuần': '1w', '1 tháng': '1M', '1 năm': '1M',
+};
+export const normalizeInterval = (interval) =>
+    INTERVAL_CANON[interval] || INTERVAL_CANON[String(interval || '').trim()] || '1d';
+
+const KLINE_LIMIT = { '1m': 500, '3m': 400, '5m': 400, '15m': 300, '30m': 300, '1h': 300, '2h': 250, '4h': 250, '1d': 365, '1w': 200, '1M': 120 };
+const isDailyLike = (iv) => ['1d', '1w', '1M'].includes(iv);
+const fmtKlineTime = (ms, iv) => new Date(ms).toISOString().replace('T', ' ').substring(0, isDailyLike(iv) ? 10 : 16);
+
+// Nguồn định dạng Binance (mirror vision + api chính)
+const fetchBinanceStyle = async (base, pair, iv, limit) => {
     try {
-        const kRes = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${binanceInterval}&limit=${limit}`, { timeout: 8000 });
-        return kRes.data.map(k => ({
-            time: new Date(k[0]).toISOString().replace('T', ' ').substring(0, ['1d','1w'].includes(binanceInterval) ? 10 : 16),
-            open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5])
-        }));
-    } catch (error) {
-        try {
-            const bvMap = { '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
-            const bybitInt = bvMap[binanceInterval] || 'D';
-            const bRes = await axios.get(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=${bybitInt}&limit=${limit}`, { timeout: 8000 });
-            if (bRes.data?.result?.list) {
-                return bRes.data.result.list.reverse().map(k => ({
-                    time: new Date(parseInt(k[0])).toISOString().substring(0, 16).replace('T', ' '),
-                    open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5])
-                }));
-            }
-        } catch (e) {}
-        throw new Error('Lỗi lấy dữ liệu từ cả Binance và Bybit');
+        const r = await axios.get(`${base}/api/v3/klines?symbol=${pair}&interval=${iv}&limit=${limit}`, { timeout: 8000 });
+        if (!Array.isArray(r.data) || r.data.length === 0) return null;
+        return r.data.map(k => ({ time: fmtKlineTime(k[0], iv), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+    } catch { return null; }
+};
+
+const OKX_BAR = { '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '1H', '2h': '2H', '4h': '4H', '1d': '1D', '1w': '1W', '1M': '1M' };
+const fetchOkxKlines = async (symbol, iv, limit) => {
+    try {
+        const r = await axios.get(`https://www.okx.com/api/v5/market/candles?instId=${symbol}-USDT&bar=${OKX_BAR[iv] || '1D'}&limit=${Math.min(limit, 300)}`, { timeout: 8000 });
+        const list = r.data?.data;
+        if (!Array.isArray(list) || list.length === 0) return null;
+        // OKX trả mới→cũ, cần đảo lại
+        return list.map(k => ({ time: fmtKlineTime(+k[0], iv), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })).reverse();
+    } catch { return null; }
+};
+
+const BYBIT_INT = { '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D', '1w': 'W', '1M': 'M' };
+const fetchBybitKlines = async (symbol, iv, limit) => {
+    try {
+        const r = await axios.get(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}USDT&interval=${BYBIT_INT[iv] || 'D'}&limit=${Math.min(limit, 1000)}`, { timeout: 8000 });
+        const list = r.data?.result?.list;
+        if (!Array.isArray(list) || list.length === 0) return null;
+        return list.map(k => ({ time: fmtKlineTime(+k[0], iv), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })).reverse();
+    } catch { return null; }
+};
+
+// Lấy nến từ nguồn khả dụng đầu tiên. Trả về [] nếu mọi nguồn đều fail.
+export const fetchKlines = async (symbol, interval) => {
+    const iv = normalizeInterval(interval);
+    const limit = KLINE_LIMIT[iv] || 300;
+    const pair = `${symbol}USDT`;
+    const sources = [
+        () => fetchBinanceStyle('https://data-api.binance.vision', pair, iv, limit),
+        () => fetchBinanceStyle('https://api.binance.com', pair, iv, limit),
+        () => fetchOkxKlines(symbol, iv, limit),
+        () => fetchBybitKlines(symbol, iv, limit),
+    ];
+    for (const src of sources) {
+        const data = await src();
+        if (data && data.length) return data;
     }
+    return [];
+};
+
+// Ticker 24h chuẩn hoá — nhiều nguồn, fallback tính từ nến nếu cần.
+export const fetchTicker24h = async (symbol, candles = []) => {
+    const pair = `${symbol}USDT`;
+    for (const base of ['https://data-api.binance.vision', 'https://api.binance.com']) {
+        try {
+            const r = await axios.get(`${base}/api/v3/ticker/24hr?symbol=${pair}`, { timeout: 5000 });
+            const t = r.data;
+            if (t?.lastPrice) return { lastPrice: +t.lastPrice, priceChangePercent: +t.priceChangePercent, quoteVolume: +t.quoteVolume, highPrice: +t.highPrice, lowPrice: +t.lowPrice };
+        } catch {}
+    }
+    try {
+        const r = await axios.get(`https://www.okx.com/api/v5/market/ticker?instId=${symbol}-USDT`, { timeout: 5000 });
+        const t = r.data?.data?.[0];
+        if (t?.last) {
+            const last = +t.last, open = +t.open24h || last;
+            return { lastPrice: last, priceChangePercent: open ? ((last - open) / open) * 100 : 0, quoteVolume: +t.volCcy24h || 0, highPrice: +t.high24h || last, lowPrice: +t.low24h || last };
+        }
+    } catch {}
+    // Fallback: ước lượng từ nến đã có
+    if (candles.length) {
+        const last = candles[candles.length - 1];
+        const recent = candles.slice(-Math.min(candles.length, 24));
+        const first = recent[0];
+        return {
+            lastPrice: last.close,
+            priceChangePercent: first.open ? ((last.close - first.open) / first.open) * 100 : 0,
+            quoteVolume: recent.reduce((s, c) => s + c.volume * c.close, 0),
+            highPrice: Math.max(...recent.map(c => c.high)),
+            lowPrice: Math.min(...recent.map(c => c.low)),
+        };
+    }
+    return null;
+};
+
+export const fetchCryptoData = async (symbol, interval) => {
+    const data = await fetchKlines(symbol, interval);
+    if (!data.length) throw new Error('Không lấy được dữ liệu nến từ mọi nguồn');
+    return data;
 };
