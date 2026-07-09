@@ -4,8 +4,8 @@ import {
   ArrowLeft, MessageSquare, FileJson, ExternalLink,
   TrendingUp, TrendingDown, Minus, ShieldAlert, Radio, Newspaper, Bot,
   Loader2, CheckCircle2, XCircle, Globe, Clock, RefreshCw,
-  Sparkles, ChevronRight, Pause, Play, RotateCcw, Target,
-  AlertTriangle, Info, Copy, BookOpen, Layers, X, Download
+  Sparkles, ChevronRight, ChevronLeft, Pause, Play, RotateCcw, Target,
+  AlertTriangle, Info, Copy, BookOpen, Layers, X, Download, Plus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,10 +14,12 @@ import rehypeRaw from 'rehype-raw';
 import TradingChart from './TradingChart';
 import MarketOverview from './MarketOverview';
 import MarketRadar from './MarketRadar';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import StockAiChat from './StockAiChat';
 import AtomLoader from './AtomLoader';
 import MarketInsightPanel from './MarketInsightPanel';
+import { tcbsPdfEmbedUrl } from '../lib/apiBase';
+import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
 // =====================================================================
 // SHARED SUB-COMPONENTS (đồng bộ với DerivativesTab)
 // =====================================================================
@@ -273,9 +275,44 @@ const LiveDebatePreview = React.memo(({ liveDebate, isDark }) => {
 // =====================================================================
 // COMPONENT: DEBATE PANEL - KẾT QUẢ TRANH LUẬN
 // =====================================================================
-const DebatePanel = React.memo(({ debateResult, isDark, UI }) => {
-  const [open, setOpen] = useState(false);
+const LIVE_DEBATE_KEY_MAP = {
+  tech: 'techAnalysis',
+  fund: 'fundAnalysis',
+  news: 'newsAnalysis',
+  bull: 'bullCase',
+  bear: 'bearCase',
+  def: 'bullDefense',
+  pm: 'pmDecision',
+};
+
+const coerceDebateResult = (debateResult, liveDebate) => {
+  if (debateResult) return debateResult;
+  if (!liveDebate || typeof liveDebate !== 'object') return null;
+  const out = {};
+  for (const [key, value] of Object.entries(liveDebate)) {
+    const field = LIVE_DEBATE_KEY_MAP[key];
+    if (field && value) out[field] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+};
+
+const DebatePanel = React.memo(({ debateResult, isDark, UI, forceCollapsed = false, defaultOpen = false, dockMode = false, hideDockHeader = false, open: openProp, onOpenChange, onLayoutChange }) => {
+  const [openInternal, setOpenInternal] = useState(defaultOpen);
+  const open = openProp !== undefined ? openProp : openInternal;
+  const setOpen = onOpenChange ?? setOpenInternal;
   const [activeTab, setActiveTab] = useState('pm');
+
+  useEffect(() => {
+    if (forceCollapsed && !dockMode) setOpen(false);
+  }, [forceCollapsed, dockMode, setOpen]);
+
+  useEffect(() => {
+    if (defaultOpen && debateResult && openProp === undefined) setOpen(true);
+  }, [defaultOpen, debateResult, openProp, setOpen]);
+
+  useEffect(() => {
+    if (dockMode) onLayoutChange?.(open);
+  }, [open, activeTab, dockMode, onLayoutChange]);
 
   if (!debateResult) return null;
 
@@ -298,15 +335,16 @@ const DebatePanel = React.memo(({ debateResult, isDark, UI }) => {
   };
 
   return (
-    <div className={`w-full rounded-2xl border mb-6 overflow-hidden transition-all duration-300 ${
-      isDark ? 'bg-[#0a0f18] border-yellow-400/15' : 'bg-slate-50 border-yellow-400/30'
-    }`}>
-      {/* Collapse Toggle */}
+    <div className={`w-full rounded-2xl border overflow-hidden transition-all duration-300 ${
+      dockMode ? 'mb-0' : 'mb-6'
+    } ${isDark ? 'bg-[#0a0f18] border-yellow-400/15' : 'bg-slate-50 border-yellow-400/30'}`}>
+      {!(dockMode && hideDockHeader) && (
       <button
-        onClick={() => setOpen(v => !v)}
-        className={`w-full flex items-center justify-between px-5 py-4 transition-all ${
-          isDark ? 'hover:bg-white/3' : 'hover:bg-slate-100'
-        }`}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`w-full flex items-center justify-between transition-all ${
+          dockMode ? 'px-3 py-2' : 'px-5 py-4'
+        } ${isDark ? 'hover:bg-white/3' : 'hover:bg-slate-100'}`}
       >
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
@@ -336,6 +374,7 @@ const DebatePanel = React.memo(({ debateResult, isDark, UI }) => {
           }
         </div>
       </button>
+      )}
 
       {open && (
         <div className={`border-t animate-in slide-in-from-top-2 duration-300 ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
@@ -688,9 +727,30 @@ const AiAnalysisLoader = React.memo(({
 // =====================================================================
 // COMPONENT
 // ======================================================================
-const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, aiAnalysisDuration, vnReportTimestamp, setShowPdfModal, scrollContainerRef, setIsChatOpen, aiReport, setShowFullReportModal }) => {
+const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, aiAnalysisDuration, vnReportTimestamp, setShowPdfModal, scrollContainerRef, setIsChatOpen, aiReport, setShowFullReportModal, compact = false, dockMode = false, externalToolbar = false, showMore: showMoreProp, onShowMoreChange, onScrollToTop, onLayoutChange }) => {
   const [copied, setCopied] = useState(false);
+  const [showMoreInternal, setShowMoreInternal] = useState(false);
+  const showMore = showMoreProp !== undefined ? showMoreProp : showMoreInternal;
+  const setShowMore = onShowMoreChange ?? setShowMoreInternal;
   const sym = marketData?.stockInfo?.symbol;
+  const showFullLayout = dockMode || !compact;
+
+  useEffect(() => {
+    if (!compact && !dockMode) setShowMore(false);
+  }, [compact, dockMode, setShowMore]);
+
+  useEffect(() => {
+    if (compact) onLayoutChange?.(showMore);
+  }, [showMore, compact, onLayoutChange]);
+
+  useEffect(() => {
+    if (dockMode) onLayoutChange?.(true);
+  }, [dockMode, onLayoutChange]);
+
+  const scrollToTop = () => {
+    if (onScrollToTop) onScrollToTop();
+    else scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleCopy = () => {
     if (aiReport) {
@@ -711,100 +771,160 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
       }) 
     : null;
 
-  const isFresh = aiAnalysisDuration != null || (isValidDate && (Date.now() - safeTime.getTime() < 5 * 60 * 1000));
+  const isFresh = aiAnalysisDuration != null || (isValidDate && (Date.now() - safeTime.getTime() < AI_REPORT_COOLDOWN_MS));
 
   const timeColorClass = isFresh 
       ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50')
       : (isDark ? 'text-slate-400 border-white/10 bg-white/5' : 'text-slate-500 border-slate-200 bg-slate-50');
 
-  return (
-    <div className={`w-full rounded-2xl border mb-4 overflow-hidden ${isDark ? 'bg-[#080c14] border-yellow-400/15' : 'bg-white border-yellow-400/20 shadow-sm'}`}>
-      <div className="h-0.5 w-full bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500" />
-      <div className="px-5 py-4">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isDark ? 'bg-yellow-400/10 border border-yellow-400/20' : 'bg-yellow-50 border border-yellow-200'}`}>
-              <Sparkles size={16} className="text-yellow-400" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-yellow-500">Báo cáo Omni Duck AI</p>
-              <p className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {sym} · {marketData?.companyProfile?.companyName || ''}
-              </p>
-            </div>
+  if (compact && externalToolbar && !showMore) return null;
+
+  const paddingClass = dockMode ? 'px-4 py-3' : compact ? 'px-3 py-2' : 'px-5 py-4';
+  const marginClass = dockMode ? 'mb-0' : compact ? 'mb-2' : 'mb-4';
+
+  const fullLayout = (
+    <>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-yellow-400/10 border border-yellow-400/20' : 'bg-yellow-50 border border-yellow-200'}`}>
+            <Sparkles size={16} className="text-yellow-400" />
           </div>
-          {/* Meta chips */}
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-            {displayTime && (
-              <span className={`flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-full border transition-colors duration-500 ${timeColorClass}`}>
-                <Clock size={10} className={isFresh ? 'animate-pulse' : ''} />
-                {isFresh ? 'Báo cáo vừa tạo:' : 'Báo cáo tạo ngày:'} {displayTime}
-              </span>
-            )}
-            {aiAnalysisDuration && (
-              <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-full border ${isDark ? 'text-sky-400 border-sky-500/20 bg-sky-500/5' : 'text-sky-600 border-sky-200 bg-sky-50'}`}>
-                <Zap size={9} />
-                {aiAnalysisDuration}s
-              </span>
-            )}
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-yellow-500">Báo cáo Omni Duck AI</p>
+            <p className={`text-[11px] font-bold truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {sym} · {marketData?.companyProfile?.companyName || ''}
+            </p>
           </div>
         </div>
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {displayTime && (
+            <span className={`flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-full border transition-colors duration-500 ${timeColorClass}`}>
+              <Clock size={10} className={isFresh ? 'animate-pulse' : ''} />
+              {isFresh ? 'Báo cáo vừa tạo:' : 'Báo cáo tạo ngày:'} {displayTime}
+            </span>
+          )}
+          {aiAnalysisDuration && (
+            <span className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-full border ${isDark ? 'text-sky-400 border-sky-500/20 bg-sky-500/5' : 'text-sky-600 border-sky-200 bg-sky-50'}`}>
+              <Zap size={9} />
+              {aiAnalysisDuration}s
+            </span>
+          )}
+        </div>
+      </div>
 
-        {/* Action buttons row */}
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setIsChatOpen(true)}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
+            isDark ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/25 hover:bg-yellow-400/20' : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'
+          }`}
+        >
+          <MessageSquare size={13} /> Chat về báo cáo này
+        </button>
+
+        {marketData?.reportPdf && (
           <button
-            onClick={() => setIsChatOpen(true)}
+            type="button"
+            onClick={() => setShowPdfModal(true)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-              isDark ? 'bg-yellow-400/10 text-yellow-400 border-yellow-500/25 hover:bg-yellow-400/20' : 'bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100'
+              isDark ? 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            <MessageSquare size={13} /> Chat về báo cáo này
+            <FileText size={13} /> Xem PDF TCBS
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowFullReportModal(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
+              isDark ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25' : 'bg-sky-50 text-sky-600 border-sky-300 hover:bg-sky-100'
+            }`}
+          >
+            <BookOpen size={13} /> Đọc toàn bộ báo cáo
           </button>
 
-          {marketData?.reportPdf && (
-            <button
-              onClick={() => setShowPdfModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-                isDark ? 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <FileText size={13} /> Xem PDF TCBS
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
+              copied
+                ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
+                : (isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600')
+            }`}
+          >
+            {copied ? <><CheckCircle2 size={13} /> Đã sao chép!</> : <><Copy size={13} /> Copy báo cáo</>}
+          </button>
 
-          {/* Dồn các nút còn lại sang bên phải */}
-          <div className="ml-auto flex items-center gap-2">
+          {!dockMode && (
             <button
-              onClick={() => setShowFullReportModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-                isDark ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25' : 'bg-sky-50 text-sky-600 border-sky-300 hover:bg-sky-100'
-              }`}
-            >
-              <BookOpen size={13} /> Đọc toàn bộ báo cáo
-            </button>
-
-            <button
-              onClick={handleCopy}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
-                copied
-                  ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
-                  : (isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600')
-              }`}
-            >
-              {copied ? <><CheckCircle2 size={13} /> Đã sao chép!</> : <><Copy size={13} /> Copy báo cáo</>}
-            </button>
-
-            <button
-              onClick={() => scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+              type="button"
+              onClick={scrollToTop}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 border ${
                 isDark ? 'bg-white/5 text-slate-500 border-white/8 hover:text-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600'
               }`}
             >
               <ChevronUp size={13} /> Lên đầu
             </button>
-          </div>
+          )}
         </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div
+      className={`w-full rounded-2xl border overflow-hidden ${marginClass} ${isDark ? 'border-yellow-400/15' : 'border-yellow-400/20 shadow-sm'}`}
+      style={{ backgroundColor: isDark ? '#080c14' : '#ffffff' }}
+    >
+      <div className="h-0.5 w-full bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500" />
+      <div className={paddingClass}>
+        {showFullLayout ? fullLayout : (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Sparkles size={14} className="text-yellow-400 shrink-0" />
+              <div className="min-w-0">
+                <p className={`text-[11px] font-black uppercase tracking-widest truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{sym}</p>
+                {marketData?.companyProfile?.companyName && (
+                  <p className={`text-[9px] font-semibold truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {marketData.companyProfile.companyName}
+                  </p>
+                )}
+              </div>
+              {displayTime && (
+                <span className={`hidden sm:flex items-center gap-1 text-[8px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${timeColorClass}`}>
+                  <Clock size={9} />
+                  {displayTime}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button type="button" onClick={() => setIsChatOpen(true)} title="Chat" className={`w-10 h-10 rounded-xl flex items-center justify-center border ${isDark ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/50' : 'bg-yellow-50 text-yellow-700 border-yellow-500/55'}`}>
+                <MessageSquare size={16} />
+              </button>
+              <button type="button" onClick={() => setShowMore(!showMore)} title="Thêm" className={`w-10 h-10 rounded-xl flex items-center justify-center border ${showMore ? (isDark ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/55' : 'bg-yellow-100 text-yellow-800 border-yellow-500/60') : (isDark ? 'bg-white/8 text-slate-200 border-white/15' : 'bg-white text-slate-600 border-slate-300')}`}>
+                <Plus size={17} className={`transition-transform ${showMore ? 'rotate-45' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )}
+        {compact && showMore && (
+          <div className={`flex items-center gap-2 flex-wrap ${externalToolbar ? 'pt-1' : 'mt-2 pt-2 border-t border-white/6'}`}>
+            {marketData?.reportPdf && (
+              <button type="button" onClick={() => setShowPdfModal(true)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase border ${isDark ? 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
+                <FileText size={13} /> PDF
+              </button>
+            )}
+            <button type="button" onClick={() => setShowFullReportModal(true)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase border ${isDark ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25' : 'bg-sky-50 text-sky-600 border-sky-300 hover:bg-sky-100'}`}>
+              <BookOpen size={13} /> Full
+            </button>
+            <button type="button" onClick={handleCopy} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase border ${copied ? (isDark ? 'text-emerald-400 border-emerald-500/25 bg-emerald-500/10' : 'text-emerald-600 border-emerald-200 bg-emerald-50') : (isDark ? 'text-slate-400 border-white/10 hover:bg-white/5' : 'text-slate-500 border-slate-200 hover:bg-slate-50')}`}>
+              {copied ? <><CheckCircle2 size={13} /> Đã copy</> : <><Copy size={13} /> Copy</>}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -813,8 +933,18 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
 // =====================================================================
 // COMPONENT: ACTION SIGNAL CARD 
 // =====================================================================
-const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI, forceCollapsed = false, defaultCollapsed = false, dockMode = false, hideDockHeader = false, collapsed: collapsedProp, onCollapsedChange, className = '', onLayoutChange }) => {
+  const [isCollapsedInternal, setIsCollapsedInternal] = useState(defaultCollapsed || (forceCollapsed && !dockMode));
+  const isCollapsed = collapsedProp !== undefined ? collapsedProp : isCollapsedInternal;
+  const setIsCollapsed = onCollapsedChange ?? setIsCollapsedInternal;
+
+  useEffect(() => {
+    if (forceCollapsed && !dockMode) setIsCollapsed(true);
+  }, [forceCollapsed, dockMode, setIsCollapsed]);
+
+  useEffect(() => {
+    if (dockMode) onLayoutChange?.(!isCollapsed);
+  }, [isCollapsed, dockMode, onLayoutChange]);
 
   if (!actionData?.action) return null;
 
@@ -823,15 +953,17 @@ const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
   const isHold = !isBuy && !isSell;
 
   const colorCfg = isBuy
-    ? { border: 'border-emerald-500/60', bg: isDark ? 'bg-[#071a10]' : 'bg-emerald-50', badge: 'bg-emerald-500 shadow-emerald-500/50', glow: isDark ? 'shadow-[0_0_30px_rgba(16,185,129,0.15)]' : '' }
+    ? { border: 'border-emerald-500/60', bg: isDark ? 'bg-[#071a10]' : 'bg-emerald-50', bgSolid: isDark ? '#071a10' : '#ecfdf5', badge: 'bg-emerald-500 shadow-emerald-500/50', glow: isDark ? 'shadow-[0_0_30px_rgba(16,185,129,0.15)]' : '' }
     : isSell
-    ? { border: 'border-red-500/60',     bg: isDark ? 'bg-[#130c0c]' : 'bg-red-50',     badge: 'bg-red-500 shadow-red-500/50',         glow: isDark ? 'shadow-[0_0_30px_rgba(239,68,68,0.15)]' : '' }
-    : { border: 'border-yellow-500/50',  bg: isDark ? 'bg-[#12100a]' : 'bg-yellow-50',  badge: 'bg-yellow-500 shadow-yellow-500/50',    glow: isDark ? 'shadow-[0_0_30px_rgba(234,179,8,0.15)]'  : '' };
+    ? { border: 'border-red-500/60',     bg: isDark ? 'bg-[#130c0c]' : 'bg-red-50',     bgSolid: isDark ? '#130c0c' : '#fef2f2', badge: 'bg-red-500 shadow-red-500/50',         glow: isDark ? 'shadow-[0_0_30px_rgba(239,68,68,0.15)]' : '' }
+    : { border: 'border-yellow-500/50',  bg: isDark ? 'bg-[#12100a]' : 'bg-yellow-50',  bgSolid: isDark ? '#12100a' : '#fefce8', badge: 'bg-yellow-500 shadow-yellow-500/50',    glow: isDark ? 'shadow-[0_0_30px_rgba(234,179,8,0.15)]'  : '' };
 
   return (
-    <div className={`w-full rounded-2xl border-2 overflow-hidden animate-in slide-in-from-top-3 duration-500 mb-6 ${colorCfg.border} ${colorCfg.bg} ${colorCfg.glow}`}>
-      
-      {/* Signal Header acts as toggle */}
+    <div
+      className={`w-full rounded-2xl border-2 overflow-hidden ${dockMode ? 'mb-0' : 'mb-6 animate-in slide-in-from-top-3 duration-500'} ${colorCfg.border} ${colorCfg.bg} ${colorCfg.glow} ${className}`}
+      style={{ backgroundColor: colorCfg.bgSolid }}
+    >
+      {!(dockMode && hideDockHeader) && (
       <div 
         onClick={() => setIsCollapsed(!isCollapsed)}
         className={`px-5 py-3 flex items-center gap-3 cursor-pointer group transition-colors select-none ${isCollapsed ? '' : 'border-b ' + (isDark ? 'border-white/5' : 'border-black/5')} ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}
@@ -898,6 +1030,15 @@ const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
           </div>
         </div>
       </div>
+      )}
+
+      {dockMode && hideDockHeader && isCollapsed && actionData.reason && (
+        <div className={`px-4 py-2.5 border-b ${isDark ? 'border-white/5' : 'border-black/5'}`}>
+          <p className={`text-[10px] font-medium leading-relaxed italic line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <span className="font-black not-italic text-yellow-500">Lý do: </span>{actionData.reason}
+          </p>
+        </div>
+      )}
 
       {/* Expandable Content (Chỉ hiển thị khi đang mở) */}
       {!isCollapsed && (
@@ -955,6 +1096,342 @@ const ActionSignalCard = ({ actionData, isUpdatingAction, isDark, UI }) => {
     </div>
   );
 };
+
+// =====================================================================
+// COMPONENT: REPORT READING STICKY SHELL (stable DOM for scroll-driven height)
+// =====================================================================
+const ReportReadingStickyShell = React.memo(function ReportReadingStickyShell({
+  stickyStackRef,
+  chartSlotRef,
+  chartClipRef,
+  pinnedDockRef,
+  savedChartHeight,
+  chartHandleH,
+  reportShellBg,
+  isDark,
+  chartCard,
+  dock,
+  scrollLayoutLocked = false,
+}) {
+  const shellClass = 'hidden lg:block sticky top-0 z-40 isolate -mx-2 [overflow-anchor:none] overflow-visible rounded-2xl border-2 border-yellow-400/45 ring-2 ring-yellow-400/15 ring-inset';
+  const shellStyle = {
+    backgroundColor: reportShellBg,
+    boxShadow: isDark
+      ? '0 0 0 1px rgba(250,204,21,0.12), 0 14px 36px rgba(0,0,0,0.55)'
+      : '0 0 0 1px rgba(250,204,21,0.2), 0 14px 36px rgba(0,0,0,0.08)',
+  };
+
+  if (scrollLayoutLocked) {
+    return (
+      <div ref={stickyStackRef} className={shellClass} style={shellStyle}>
+        <div className="shrink-0">{chartCard}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={stickyStackRef} className={shellClass} style={shellStyle}>
+      <div ref={chartSlotRef} className="overflow-hidden shrink-0">
+        <div ref={chartClipRef} className="shrink-0">
+          {chartCard}
+        </div>
+      </div>
+      <div ref={pinnedDockRef} className="shrink-0 overflow-visible relative z-[2]">
+        {dock}
+      </div>
+    </div>
+  );
+});
+
+// =====================================================================
+// COMPONENT: REPORT READING PINNED DOCK (scroll-driven tab)
+// =====================================================================
+const REPORT_PINNED_TABS = [
+  { id: 'report', label: 'Omni Duck AI', emoji: '✨' },
+  { id: 'action', label: 'Action Panel', emoji: '⚡' },
+  { id: 'debate', label: 'Tranh luận AI', emoji: '⚔️' },
+];
+
+const ReportDockToolbar = React.memo(({
+  isDark,
+  UI,
+  marketData,
+  actionData,
+  isUpdatingAction,
+  debateResult,
+  vnReportTimestamp,
+  aiAnalysisDuration,
+  activeTab,
+  isExpanded,
+  onChat,
+  onToggleExpand,
+}) => {
+  const sym = marketData?.stockInfo?.symbol;
+  const companyName = marketData?.companyProfile?.companyName;
+  const safeTime = vnReportTimestamp ? new Date(vnReportTimestamp) : null;
+  const isValidDate = safeTime && !isNaN(safeTime.getTime());
+  const displayTime = isValidDate
+    ? safeTime.toLocaleTimeString('vi-VN', {
+        hour: '2-digit', minute: '2-digit',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+      })
+    : null;
+  const isFresh = aiAnalysisDuration != null || (isValidDate && (Date.now() - safeTime.getTime() < AI_REPORT_COOLDOWN_MS));
+  const timeColorClass = isFresh
+    ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50')
+    : (isDark ? 'text-slate-400 border-white/10 bg-white/5' : 'text-slate-500 border-slate-200 bg-slate-50');
+
+  const btnPrimary = isDark
+    ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/50 hover:bg-yellow-400/25 shadow-[0_0_12px_rgba(250,204,21,0.12)]'
+    : 'bg-yellow-50 text-yellow-700 border-yellow-500/55 hover:bg-yellow-100 shadow-sm';
+  const btnSecondary = isExpanded
+    ? (isDark ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/55' : 'bg-yellow-100 text-yellow-800 border-yellow-500/60')
+    : (isDark ? 'bg-white/8 text-slate-200 border-white/15 hover:bg-white/12 hover:border-yellow-400/35' : 'bg-white text-slate-600 border-slate-300 hover:border-yellow-400/50 hover:bg-yellow-50');
+
+  const tabIcons = ['✨', '⚡', '⚔️'];
+  const tabSubtitles = [
+    'Báo cáo Omni Duck AI',
+    'Live Signal · Entry / SL / Target',
+    debateResult ? '7 chuyên gia AI · Bull vs Bear' : 'Tranh luận AI',
+  ];
+  const expandTitles = ['Thêm tác vụ', 'Mở rộng Action Panel', 'Mở tranh luận AI'];
+
+  const isBuy = actionData?.action?.includes('MUA');
+  const isSell = actionData?.action?.includes('BÁN');
+  const actionBadgeClass = isBuy
+    ? 'bg-emerald-500 shadow-emerald-500/40'
+    : isSell
+    ? 'bg-red-500 shadow-red-500/40'
+    : 'bg-yellow-500 shadow-yellow-500/40';
+
+  return (
+    <div className={`flex items-center justify-between gap-2 px-3 py-2.5 border-b ${isDark ? 'border-yellow-400/15 bg-[#080c14]/80' : 'border-yellow-400/25 bg-white/90'}`}>
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border text-base ${isDark ? 'bg-yellow-400/10 border-yellow-400/30' : 'bg-yellow-50 border-yellow-300/60'}`}>
+          {tabIcons[activeTab] ?? '✨'}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={`text-[12px] font-black uppercase tracking-wider truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{sym}</p>
+            {displayTime && (
+              <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${timeColorClass}`}>
+                <Clock size={10} />
+                {displayTime}
+              </span>
+            )}
+          </div>
+          {companyName && (
+            <p className={`text-[10px] font-semibold truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {companyName}
+            </p>
+          )}
+          <p className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 truncate ${isDark ? 'text-yellow-500/80' : 'text-yellow-600'}`}>
+            {tabSubtitles[activeTab]}
+          </p>
+        </div>
+      </div>
+
+      {activeTab === 1 && actionData?.action && (
+        <div className="flex items-center gap-2.5 shrink-0 max-w-[50%] overflow-x-auto no-scrollbar">
+          <div className="flex flex-col items-center gap-0.5 shrink-0">
+            <span className={`text-[9px] font-black uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              Hành động
+            </span>
+            <span className={`px-3 py-1.5 rounded-lg text-[11px] font-black tracking-wider text-white shadow-md ${actionBadgeClass}`}>
+              {actionData.action}
+            </span>
+          </div>
+          {!isExpanded && (
+            <div className="flex items-end gap-2 shrink-0">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className={`text-[9px] font-black uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Entry</span>
+                <span className={`text-[13px] font-black leading-none ${UI?.textBold ?? ''} ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {actionData.entry ?? 'N/A'}
+                </span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-red-400/80">SL</span>
+                <span className="text-[13px] font-black text-red-400 leading-none">{actionData.stoploss ?? 'N/A'}</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400/80">T1</span>
+                <span className="text-[13px] font-black text-emerald-400 leading-none">{actionData.target1 ?? 'N/A'}</span>
+              </div>
+            </div>
+          )}
+          {actionData.conviction && (
+            <div className="flex flex-col items-center gap-0.5 shrink-0">
+              <span className={`text-[9px] font-black uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                Độ tin cậy
+              </span>
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                actionData.conviction === 'Cao'
+                  ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' : 'bg-emerald-50 text-emerald-600 border-emerald-200')
+                  : (isDark ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' : 'bg-yellow-50 text-yellow-600 border-yellow-200')
+              }`}>
+                {actionData.conviction}
+              </span>
+            </div>
+          )}
+          {isUpdatingAction && (
+            <Loader2 size={16} className="animate-spin text-yellow-400 shrink-0 mb-1" />
+          )}
+        </div>
+      )}
+
+      {activeTab === 2 && !isExpanded && (
+        <span className={`hidden md:inline text-[9px] font-bold uppercase tracking-wider shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          Nhấn + để xem
+        </span>
+      )}
+
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onChat}
+          title="Chat về báo cáo"
+          aria-label="Chat về báo cáo"
+          className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center border transition-all active:scale-95 ${btnPrimary}`}
+        >
+          <MessageSquare size={17} strokeWidth={2.2} />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          title={expandTitles[activeTab] ?? 'Mở rộng'}
+          aria-label={expandTitles[activeTab] ?? 'Mở rộng'}
+          aria-expanded={isExpanded}
+          className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center border transition-all active:scale-95 ${btnSecondary}`}
+        >
+          {isExpanded
+            ? <ChevronUp size={18} strokeWidth={2.5} />
+            : <ChevronDown size={18} strokeWidth={2.5} />
+          }
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const ReportReadingPinnedDock = React.memo(({
+  isDark,
+  UI,
+  marketData,
+  actionData,
+  isUpdatingAction,
+  aiAnalysisDuration,
+  vnReportTimestamp,
+  setShowPdfModal,
+  scrollContainerRef,
+  setIsChatOpen,
+  aiReport,
+  setShowFullReportModal,
+  debateResult,
+  dockPanelExpandHandlers,
+  onTabClick,
+  activeTab = 0,
+  dockReportMore = false,
+  onDockReportMoreChange,
+  dockActionOpen = false,
+  onDockActionOpenChange,
+  dockDebateOpen = false,
+  onDockDebateOpenChange,
+}) => {
+  const tabActive = isDark
+    ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/50 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
+    : 'bg-yellow-50 text-yellow-700 border-yellow-500/60 shadow-sm';
+  const tabIdle = isDark
+    ? 'text-slate-400 border-yellow-400/20 opacity-75 hover:border-yellow-400/45 hover:text-yellow-300/90 hover:bg-yellow-400/5'
+    : 'text-slate-500 border-yellow-400/25 opacity-75 hover:border-yellow-500/50 hover:text-yellow-700 hover:bg-yellow-50';
+
+  return (
+  <div className={`shrink-0 border-t-2 ${isDark ? 'border-yellow-400/30' : 'border-yellow-400/40'}`}>
+    <div className={`flex gap-1.5 px-2 py-1.5 border-b ${isDark ? 'bg-[#080c14]/95 border-yellow-400/20' : 'bg-slate-50 border-yellow-400/30'}`}>
+      {REPORT_PINNED_TABS.map((tab, i) => (
+        <button
+          type="button"
+          key={tab.id}
+          data-tab-pill={i}
+          onClick={() => onTabClick?.(i)}
+          aria-label={tab.label}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border cursor-pointer transition-all duration-200 active:scale-[0.98] ${
+            i === 0 ? tabActive : tabIdle
+          }`}
+        >
+          <span>{tab.emoji}</span>
+          <span className="truncate hidden sm:inline">{tab.label}</span>
+        </button>
+      ))}
+    </div>
+    {activeTab !== 0 && (
+    <ReportDockToolbar
+      isDark={isDark}
+      UI={UI}
+      marketData={marketData}
+      actionData={actionData}
+      isUpdatingAction={isUpdatingAction}
+      debateResult={debateResult}
+      vnReportTimestamp={vnReportTimestamp}
+      aiAnalysisDuration={aiAnalysisDuration}
+      activeTab={activeTab}
+      isExpanded={activeTab === 1 ? dockActionOpen : dockDebateOpen}
+      onChat={() => setIsChatOpen(true)}
+      onToggleExpand={() => {
+        if (activeTab === 1) onDockActionOpenChange?.(!dockActionOpen);
+        else onDockDebateOpenChange?.(!dockDebateOpen);
+      }}
+    />
+    )}
+    <div data-dock-panels className={`relative px-2 pb-2 pt-1 overflow-visible border-t ${isDark ? 'border-yellow-400/15' : 'border-yellow-400/25'}`}>
+      <div data-dock-panel="0" className="relative z-[2]">
+        <AiReportHeader
+          isDark={isDark}
+          UI={UI}
+          marketData={marketData}
+          actionData={actionData}
+          isUpdatingAction={isUpdatingAction}
+          aiAnalysisDuration={aiAnalysisDuration}
+          vnReportTimestamp={vnReportTimestamp}
+          setShowPdfModal={setShowPdfModal}
+          scrollContainerRef={scrollContainerRef}
+          setIsChatOpen={setIsChatOpen}
+          aiReport={aiReport}
+          setShowFullReportModal={setShowFullReportModal}
+          dockMode
+          onLayoutChange={dockPanelExpandHandlers?.[0]}
+        />
+      </div>
+      <div data-dock-panel="1" className="absolute left-2 right-2 top-1 z-[1] opacity-0 invisible pointer-events-none">
+        <ActionSignalCard
+          actionData={actionData}
+          isUpdatingAction={isUpdatingAction}
+          isDark={isDark}
+          UI={UI}
+          defaultCollapsed
+          dockMode
+          hideDockHeader
+          collapsed={!dockActionOpen}
+          onCollapsedChange={(v) => onDockActionOpenChange?.(!v)}
+          onLayoutChange={dockPanelExpandHandlers?.[1]}
+        />
+      </div>
+      <div data-dock-panel="2" className="absolute left-2 right-2 top-1 z-[1] opacity-0 invisible pointer-events-none">
+        <DebatePanel
+          debateResult={debateResult}
+          isDark={isDark}
+          UI={UI}
+          defaultOpen={false}
+          dockMode
+          hideDockHeader
+          open={dockDebateOpen}
+          onOpenChange={onDockDebateOpenChange}
+          onLayoutChange={dockPanelExpandHandlers?.[2]}
+        />
+      </div>
+    </div>
+  </div>
+  );
+});
 
 // =====================================================================
 // CONSTANTS — Định nghĩa ngoài component để không tạo lại mỗi render
@@ -1060,22 +1537,484 @@ export default function VnStocksTab({
     }
   }, [isRightColOpen]);
 
+  const LEFT_COL_STORAGE_KEY = 'vnstock-left-col';
+  const LEFT_COL_MIN = 320;
+  const LEFT_COL_MAX = 720;
+  const LEFT_COL_DEFAULT = 500;
+  const [leftColWidth, setLeftColWidth] = useState(LEFT_COL_DEFAULT);
+  const [isLeftColOpen, setIsLeftColOpen] = useState(true);
+  const [isLeftColVisible, setIsLeftColVisible] = useState(true);
+  const [isDraggingLeftCol, setIsDraggingLeftCol] = useState(false);
+  const leftDragStartX = useRef(0);
+  const leftStartWidth = useRef(LEFT_COL_DEFAULT);
+
+  useEffect(() => {
+    if (isLeftColOpen) {
+      setIsLeftColVisible(true);
+    } else {
+      const t = setTimeout(() => setIsLeftColVisible(false), 300);
+      return () => clearTimeout(t);
+    }
+  }, [isLeftColOpen]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LEFT_COL_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (typeof saved.width === 'number') {
+        setLeftColWidth(Math.max(LEFT_COL_MIN, Math.min(LEFT_COL_MAX, saved.width)));
+      }
+      if (typeof saved.open === 'boolean') {
+        setIsLeftColOpen(saved.open);
+        setIsLeftColVisible(saved.open);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LEFT_COL_STORAGE_KEY, JSON.stringify({ width: leftColWidth, open: isLeftColOpen }));
+    } catch { /* ignore */ }
+  }, [leftColWidth, isLeftColOpen]);
+
   const [elapsedTime, setElapsedTime] = useState(0);
   const scrollContainerRef = useRef(null);
   const mobileScrollRef = useRef(null);
   const [isDraggingChart, setIsDraggingChart] = useState(false);
   const dragStartY = useRef(0);
   const startHeight = useRef(600);
+  const resizeDragStartHeightRef = useRef(600);
   const chartWrapperRef = useRef(null);
+  const chartWrapperEmbeddedRef = useRef(null);
   const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [isDebateOpen, setIsDebateOpen] = useState(false);
   const tooltipRef = useRef(null);
   const newsScrollRef = useRef(null);
   const [showNewsScroll, setShowNewsScroll] = useState(false);
   const [showFullReportModal, setShowFullReportModal] = useState(false);
+  const [analysisNotice, setAnalysisNotice] = useState(null);
+  const [showForceConfirm, setShowForceConfirm] = useState(false);
   // ─── STATE ĐIỀU KHIỂN THU GỌN KHỐI PDF VÀ NEWS ────────────────────
   const [isPdfConfigOpen, setIsPdfConfigOpen] = useState(false);
   const [isNewsConfigOpen, setIsNewsConfigOpen] = useState(false);
+
+  const isFocusLayout = !isLeftColOpen && !isRightColOpen;
+  const isReportReadingMode = !!(aiReport && !analyzing && marketData);
+  const [savedChartHeight, setSavedChartHeight] = useState(600);
+  const savedChartHeightRef = useRef(600);
+  const [chartScrollLayoutLocked, setChartScrollLayoutLocked] = useState(false);
+  const chartScrollLayoutLockedRef = useRef(false);
+  const isScrollDrivenLayout = isReportReadingMode && !chartScrollLayoutLocked;
+  const scrollPhaseRef = useRef('top');
+  const visualChartHeightRef = useRef(600);
+  const chartClipRef = useRef(null);
+  const chartSlotRef = useRef(null);
+  const stickyStackRef = useRef(null);
+  const pinnedDockRef = useRef(null);
+  const scrollRafRef = useRef(null);
+  const lastSlotHRef = useRef(-1);
+  const lastCropRef = useRef(-1);
+  const lastScrollTopRef = useRef(0);
+  const pinnedTabIndexRef = useRef(0);
+  const pinnedDockThemeRef = useRef({ isDark: true });
+  const dockPanelHeightRef = useRef(0);
+  const chartChromeHRef = useRef(14);
+  const chartInnerFullHRef = useRef(0);
+  const suppressChartResizeRef = useRef(false);
+  const scrollSettleTimerRef = useRef(null);
+  const pendingPinRef = useRef(0);
+  const pinStableFramesRef = useRef(0);
+  const scrollDirRef = useRef('same');
+  const isScrollingRef = useRef(false);
+  const pin1SinceRef = useRef(0);
+  const dockExpandedRef = useRef(false);
+  const dockPanelExpandRef = useRef([false, false, false]);
+  const pinnedTabManualUntilRef = useRef(0);
+  const [dockActiveTab, setDockActiveTab] = useState(0);
+  const [dockReportMore, setDockReportMore] = useState(false);
+  const [dockActionOpen, setDockActionOpen] = useState(false);
+  const [dockDebateOpen, setDockDebateOpen] = useState(false);
+
+  const chartHandleH = 14;
+
+  const effectiveDebateResult = useMemo(
+    () => coerceDebateResult(debateResult, liveDebate),
+    [debateResult, liveDebate]
+  );
+
+  const getVisualHeightPx = useCallback((scrollTop, focus) => {
+    const savedH = savedChartHeightRef.current;
+    const topH = savedH;
+    const minH = focus ? 56 : 80;
+    const scrollRange = Math.max(220, topH - minH + 60);
+    if (scrollTop <= 0) return topH;
+    const t = Math.min(1, Math.max(0, scrollTop / scrollRange));
+    const eased = t * t * (3 - 2 * t);
+    return topH - (topH - minH) * eased;
+  }, []);
+
+  const getPinnedTabIndex = useCallback((crop, maxSlotH, minSlotH, current, direction = 'same', snap = false) => {
+    const shrinkSpan = Math.max(1, maxSlotH - minSlotH);
+    const shrinkT = Math.min(1, Math.max(0, crop / shrinkSpan));
+    const enterAction = 0.22;
+    const exitAction = 0.08;
+    const enterDebate = 0.78;
+    const exitDebate = 0.66;
+
+    let next = current;
+    if (direction === 'up' && !snap) {
+      if (current === 2) next = shrinkT < exitDebate ? 1 : 2;
+      else if (current === 1) next = shrinkT < exitAction ? 0 : 1;
+      else next = 0;
+    } else {
+      if (current === 0) next = shrinkT > enterAction ? 1 : 0;
+      else if (current === 1) {
+        if (shrinkT < exitAction) next = 0;
+        else if (shrinkT > enterDebate) next = 2;
+        else next = 1;
+      } else {
+        next = shrinkT < exitDebate ? 1 : 2;
+      }
+    }
+
+    if (!snap && next === 2 && current === 1) {
+      const dwellMs = Date.now() - (pin1SinceRef.current || 0);
+      if (dwellMs < 700) next = 1;
+    }
+
+    if (!snap) {
+      if (next > current + 1) next = current + 1;
+      if (next < current - 1) next = current - 1;
+    }
+
+    return next;
+  }, []);
+
+  const setupChartClipLayout = useCallback(() => {
+    if (chartScrollLayoutLockedRef.current) return;
+    const slot = chartSlotRef.current;
+    const clip = chartClipRef.current;
+    if (!slot || !clip) return;
+    slot.style.position = 'relative';
+    slot.style.overflow = 'hidden';
+    clip.style.position = 'absolute';
+    clip.style.top = '0';
+    clip.style.left = '0';
+    clip.style.right = '0';
+    clip.style.width = '100%';
+    clip.style.willChange = 'transform';
+  }, []);
+
+  const resetScrollDrivenChartDOM = useCallback(() => {
+    const slot = chartSlotRef.current;
+    const clip = chartClipRef.current;
+    const dock = pinnedDockRef.current;
+    if (slot) {
+      slot.style.height = '';
+      slot.style.position = '';
+      slot.style.overflow = '';
+    }
+    if (clip) {
+      clip.style.height = '';
+      clip.style.transform = '';
+      clip.style.position = '';
+      clip.style.top = '';
+      clip.style.left = '';
+      clip.style.right = '';
+      clip.style.width = '';
+      clip.style.willChange = '';
+    }
+    if (dock) dock.style.marginTop = '';
+    lastCropRef.current = -1;
+    lastSlotHRef.current = -1;
+  }, []);
+
+  const lockChartScrollLayout = useCallback(() => {
+    if (chartScrollLayoutLockedRef.current) return;
+    chartScrollLayoutLockedRef.current = true;
+    setChartScrollLayoutLocked(true);
+    resetScrollDrivenChartDOM();
+    scrollPhaseRef.current = 'top';
+    pinnedTabIndexRef.current = 0;
+    dockExpandedRef.current = false;
+    dockPanelExpandRef.current = [false, false, false];
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = 0;
+  }, [resetScrollDrivenChartDOM]);
+
+  const measureChartInnerMetrics = useCallback(() => {
+    if (chartScrollLayoutLockedRef.current) return;
+    setupChartClipLayout();
+    const clip = chartClipRef.current;
+    const slot = chartSlotRef.current;
+    if (!clip) return;
+    const fullInner = clip.offsetHeight;
+    const savedH = savedChartHeightRef.current;
+    if (fullInner > 0) {
+      chartInnerFullHRef.current = fullInner;
+      chartChromeHRef.current = Math.max(chartHandleH, fullInner - savedH);
+      if (slot) slot.style.height = `${fullInner}px`;
+    }
+  }, [chartHandleH, setupChartClipLayout]);
+
+  const measureDockPanelsHeight = useCallback(() => {
+    const root = pinnedDockRef.current;
+    const container = root?.querySelector('[data-dock-panels]');
+    const panels = root?.querySelectorAll('[data-dock-panel]');
+    if (!container || !panels?.length) return 0;
+    let h = 0;
+    panels.forEach((panel) => {
+      if (!panel.classList.contains('invisible')) {
+        h = Math.max(h, panel.scrollHeight, panel.offsetHeight);
+      }
+    });
+    container.style.height = 'auto';
+    container.style.minHeight = h > 0 ? `${h}px` : '';
+    container.style.overflow = 'visible';
+    dockPanelHeightRef.current = h;
+    return h;
+  }, []);
+
+  const syncDockExpandedFromActiveTab = useCallback(() => {
+    dockExpandedRef.current = !!dockPanelExpandRef.current[pinnedTabIndexRef.current];
+  }, []);
+
+  const getScrollTopForPinnedTab = useCallback((tabIndex, focus) => {
+    const savedH = savedChartHeightRef.current;
+    const minH = focus ? 56 : 80;
+    const scrollRange = Math.max(220, savedH - minH + 60);
+    const ratios = [0, 0.48, 0.98];
+    return (ratios[tabIndex] ?? 0) * scrollRange;
+  }, []);
+
+  const handleDockExpand = useCallback((expanded, panelIndex) => {
+    if (panelIndex >= 0 && panelIndex < 3) {
+      dockPanelExpandRef.current[panelIndex] = !!expanded;
+      if (panelIndex === 0) setDockReportMore(!!expanded);
+      else if (panelIndex === 1) setDockActionOpen(!!expanded);
+      else if (panelIndex === 2) setDockDebateOpen(!!expanded);
+    }
+    syncDockExpandedFromActiveTab();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        measureDockPanelsHeight();
+        const el = scrollContainerRef.current;
+        const focus = !isLeftColOpen && !isRightColOpen;
+        const dockExpanded = dockExpandedRef.current;
+        if (dockExpanded) {
+          const chromeH = chartChromeHRef.current;
+          const maxSlotH = chartInnerFullHRef.current || savedChartHeightRef.current + chromeH;
+          const minSlotH = (focus ? 56 : 80) + chromeH;
+          lastCropRef.current = maxSlotH - minSlotH;
+        }
+        applyScrollLayoutRef.current?.(el?.scrollTop ?? 0, focus, true);
+      });
+    });
+  }, [measureDockPanelsHeight, isLeftColOpen, isRightColOpen, syncDockExpandedFromActiveTab]);
+
+  const dockPanelExpandHandlers = useMemo(
+    () => [0, 1, 2].map((i) => (expanded) => handleDockExpand(expanded, i)),
+    [handleDockExpand]
+  );
+
+  const syncPinnedDockUI = useCallback((index, fromIndex = null) => {
+    const root = pinnedDockRef.current;
+    if (!root) return;
+    const prevIndex = fromIndex ?? pinnedTabIndexRef.current;
+    setDockActiveTab(index);
+
+    const isDarkTheme = pinnedDockThemeRef.current.isDark;
+    const tabActive = isDarkTheme
+      ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/50 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
+      : 'bg-yellow-50 text-yellow-700 border-yellow-500/60 shadow-sm';
+    const tabIdle = isDarkTheme
+      ? 'text-slate-400 border-yellow-400/20 opacity-75 hover:border-yellow-400/45 hover:text-yellow-300/90 hover:bg-yellow-400/5'
+      : 'text-slate-500 border-yellow-400/25 opacity-75 hover:border-yellow-500/50 hover:text-yellow-700 hover:bg-yellow-50';
+    root.querySelectorAll('[data-tab-pill]').forEach((pill) => {
+      const i = Number(pill.getAttribute('data-tab-pill'));
+      const active = i === index;
+      pill.className = `flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border cursor-pointer transition-all duration-200 active:scale-[0.98] ${
+        active ? tabActive : tabIdle
+      }`;
+    });
+    root.querySelectorAll('[data-dock-panel]').forEach((panel) => {
+      const i = Number(panel.getAttribute('data-dock-panel'));
+      const active = i === index;
+      panel.className = active
+        ? 'relative z-[2]'
+        : 'absolute left-2 right-2 top-1 z-[1] opacity-0 invisible pointer-events-none';
+    });
+
+    measureDockPanelsHeight();
+    syncDockExpandedFromActiveTab();
+
+    if (prevIndex !== index) {
+      if (index === 1) pin1SinceRef.current = Date.now();
+      applyScrollLayoutRef.current?.(
+        scrollContainerRef.current?.scrollTop ?? 0,
+        !isLeftColOpen && !isRightColOpen,
+        true
+      );
+    }
+  }, [measureDockPanelsHeight, syncDockExpandedFromActiveTab, isLeftColOpen, isRightColOpen]);
+
+  const getUiPhaseFromScroll = useCallback((scrollTop, focus, current) => {
+    if (scrollTop < 8) return 'top';
+    const enterCompact = focus ? 40 : 50;
+    const exitCompact = focus ? 18 : 25;
+    if (current === 'top') return scrollTop > enterCompact ? 'reading' : 'top';
+    return scrollTop < exitCompact ? 'top' : 'reading';
+  }, []);
+
+  const applyChartVisual = useCallback((scrollTop, focus, snap = false) => {
+    if (chartScrollLayoutLockedRef.current) return;
+    const savedH = savedChartHeightRef.current;
+    const chromeH = chartChromeHRef.current;
+    const maxSlotH = chartInnerFullHRef.current || savedH + chromeH;
+    const minSlotH = (focus ? 56 : 80) + chromeH;
+    const direction = scrollDirRef.current;
+
+    const targetVisualH = getVisualHeightPx(scrollTop, focus);
+    let targetSlotH = targetVisualH + chromeH;
+    targetSlotH = Math.max(minSlotH, Math.min(maxSlotH, targetSlotH));
+    if (scrollTop <= 20) {
+      targetSlotH = Math.min(maxSlotH, savedH + chromeH);
+    }
+
+    let targetCrop = Math.max(0, maxSlotH - targetSlotH);
+    const prevCrop = lastCropRef.current >= 0 ? lastCropRef.current : targetCrop;
+
+    if (direction === 'up' && scrollTop > 40) {
+      targetCrop = Math.min(targetCrop, prevCrop);
+    }
+
+    const lerp = snap ? 1 : (direction === 'down' ? 0.36 : 0.48);
+    let crop = prevCrop + (targetCrop - prevCrop) * lerp;
+    if (Math.abs(crop - targetCrop) < 0.35) crop = targetCrop;
+
+    const appliedSlotH = maxSlotH - crop;
+    const shrinkSpan = Math.max(1, maxSlotH - minSlotH);
+    const layoutShrink = dockExpandedRef.current && crop > shrinkSpan * 0.55;
+    const slot = chartSlotRef.current;
+    const clip = chartClipRef.current;
+    const dock = pinnedDockRef.current;
+
+    if (slot && maxSlotH > 0) {
+      slot.style.height = layoutShrink
+        ? `${Math.max(minSlotH, appliedSlotH).toFixed(2)}px`
+        : `${maxSlotH}px`;
+    }
+    if (clip && maxSlotH > 0) {
+      clip.style.height = `${maxSlotH}px`;
+      clip.style.transform = crop > 0.5 ? `translate3d(0,${-crop.toFixed(2)}px,0)` : 'none';
+    }
+    if (dock) {
+      dock.style.marginTop = layoutShrink ? '0px' : (crop > 0.5 ? `-${crop.toFixed(2)}px` : '0px');
+    }
+    lastCropRef.current = crop;
+    lastSlotHRef.current = appliedSlotH;
+    visualChartHeightRef.current = targetVisualH;
+
+    let candidatePin = getPinnedTabIndex(
+      crop,
+      maxSlotH,
+      minSlotH,
+      pinnedTabIndexRef.current,
+      direction,
+      snap
+    );
+    if (Date.now() < pinnedTabManualUntilRef.current) {
+      candidatePin = pinnedTabIndexRef.current;
+    }
+    if (candidatePin === pendingPinRef.current) {
+      pinStableFramesRef.current += 1;
+    } else {
+      pendingPinRef.current = candidatePin;
+      pinStableFramesRef.current = 0;
+    }
+    const pinFramesNeeded = snap
+      ? 1
+      : (candidatePin === 2 && pinnedTabIndexRef.current === 1 ? 6 : 3);
+    if (pinStableFramesRef.current >= pinFramesNeeded && pinnedTabIndexRef.current !== candidatePin) {
+      const prevPin = pinnedTabIndexRef.current;
+      pinnedTabIndexRef.current = candidatePin;
+      syncPinnedDockUI(candidatePin, prevPin);
+    }
+  }, [getVisualHeightPx, getPinnedTabIndex, syncPinnedDockUI]);
+
+  const applyScrollLayout = useCallback((scrollTop, focus, snap = false) => {
+    if (chartScrollLayoutLockedRef.current) return;
+    applyChartVisual(scrollTop, focus, snap);
+    const uiPhase = getUiPhaseFromScroll(scrollTop, focus, scrollPhaseRef.current);
+    scrollPhaseRef.current = uiPhase;
+  }, [getUiPhaseFromScroll, applyChartVisual]);
+
+  const applyScrollLayoutRef = useRef(null);
+  applyScrollLayoutRef.current = applyScrollLayout;
+  const syncPinnedDockUIRef = useRef(null);
+  syncPinnedDockUIRef.current = syncPinnedDockUI;
+  const measureDockPanelsHeightRef = useRef(null);
+  measureDockPanelsHeightRef.current = measureDockPanelsHeight;
+  const measureChartInnerMetricsRef = useRef(null);
+  measureChartInnerMetricsRef.current = measureChartInnerMetrics;
+
+  useLayoutEffect(() => {
+    savedChartHeightRef.current = savedChartHeight;
+  }, [savedChartHeight]);
+
+  useLayoutEffect(() => {
+    pinnedDockThemeRef.current.isDark = isDark;
+  }, [isDark]);
+
+  useLayoutEffect(() => {
+    if (!isReportReadingMode) return;
+    if (chartScrollLayoutLocked) {
+      resetScrollDrivenChartDOM();
+      return;
+    }
+    const el = scrollContainerRef.current;
+    const st = el?.scrollTop ?? 0;
+    lastSlotHRef.current = -1;
+    lastCropRef.current = -1;
+    measureChartInnerMetricsRef.current?.();
+    measureDockPanelsHeightRef.current?.();
+    applyScrollLayoutRef.current?.(st, isFocusLayout);
+    syncPinnedDockUIRef.current?.(0);
+  }, [isReportReadingMode, savedChartHeight, isFocusLayout, chartScrollLayoutLocked, resetScrollDrivenChartDOM]);
+
+  useLayoutEffect(() => {
+    if (!isScrollDrivenLayout) return;
+    measureDockPanelsHeightRef.current?.();
+  }, [isScrollDrivenLayout, actionData, effectiveDebateResult]);
+
+  useEffect(() => {
+    if (!isScrollDrivenLayout) return;
+    const root = pinnedDockRef.current;
+    if (!root) return;
+    const ro = new ResizeObserver(() => {
+      if (isScrollingRef.current) return;
+      measureDockPanelsHeightRef.current?.();
+    });
+    root.querySelectorAll('[data-dock-panel]').forEach((panel) => ro.observe(panel));
+    return () => ro.disconnect();
+  }, [isScrollDrivenLayout, actionData, effectiveDebateResult]);
+
+  useEffect(() => {
+    if (!aiReport) {
+      scrollPhaseRef.current = 'top';
+      lastSlotHRef.current = -1;
+      lastCropRef.current = -1;
+      pinnedTabIndexRef.current = 0;
+      chartScrollLayoutLockedRef.current = false;
+      setChartScrollLayoutLocked(false);
+      setDockActiveTab(0);
+      setDockReportMore(false);
+      setDockActionOpen(false);
+      setDockDebateOpen(false);
+    }
+  }, [aiReport]);
+
   // Format chart data for price chart component
   const priceChartData = useMemo(() => {
        if (!Array.isArray(chartData) || chartData.length === 0) return [];
@@ -1140,16 +2079,36 @@ export default function VnStocksTab({
         title: n.title, date: n.date, sentiment: n.sentiment || 'neutral', link: n.link || null,
         content: n.content && n.content !== n.title && n.content.length > 80 ? n.content.substring(0, 2000) : null,
       }));
-      const payload = { stockInfo: marketData.stockInfo, companyProfile: { overview: marketData.companyProfile?.overview, companyName: marketData.companyProfile?.companyName }, technicalData: chartData.slice(-30), marketContext: vnIndexData.slice(-5), news: optimizedNews, user: currentUser, timestamp: new Date().toISOString() };
+      const payload = {
+        stockInfo: marketData.stockInfo,
+        companyProfile: { overview: marketData.companyProfile?.overview, companyName: marketData.companyProfile?.companyName },
+        technicalData: chartData.slice(-30),
+        marketContext: vnIndexData.slice(-5),
+        news: optimizedNews,
+        user: currentUser,
+        pdfMode,
+        timestamp: new Date().toISOString(),
+      };
+      if (aiReport?.trim()) {
+        payload.aiReport = aiReport.trim();
+        if (vnReportTimestamp) payload.aiReportTimestamp = vnReportTimestamp;
+      }
       const res = await fetch(`/api/debug-feed/${sym}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error(`Lỗi ${res.status}`);
       const json = await res.json();
-      const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+      if (!json.success || !json.data) throw new Error(json.message || 'Export thất bại');
+      const blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `ai-full-feed-${sym}.json`; a.click(); URL.revokeObjectURL(url);
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}h${String(now.getMinutes()).padStart(2, '0')}m`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sym}_export_${stamp}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
       setExportStatus('success'); setTimeout(() => setExportStatus(null), 3000);
     } catch (err) { setExportStatus('error'); setTimeout(() => setExportStatus(null), 4000); } finally { setIsExporting(false); }
-  }, [isExporting, marketData, chartData, vnIndexData, currentUser]);
+  }, [isExporting, marketData, chartData, vnIndexData, currentUser, pdfMode, aiReport, vnReportTimestamp]);
 
   // HANDLE DOWNLOAD MD REPORT
   const handleDownloadReport = useCallback(() => {
@@ -1165,16 +2124,75 @@ export default function VnStocksTab({
     URL.revokeObjectURL(url);
   }, [aiReport, marketData]);
 
+  // HANDLE LEFT COL DRAG TO RESIZE
+  const handleLeftColDragStart = useCallback((e) => {
+    if (!isLeftColOpen || (typeof window !== 'undefined' && window.innerWidth < 1024)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget?.setPointerCapture?.(e.pointerId);
+    setIsDraggingLeftCol(true);
+    leftDragStartX.current = e.clientX;
+    leftStartWidth.current = leftColWidth;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  }, [isLeftColOpen, leftColWidth]);
+
+  const getActiveChartWrapper = useCallback(() => {
+    if (isReportReadingMode && typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      return chartWrapperEmbeddedRef.current ?? chartWrapperRef.current;
+    }
+    return chartWrapperRef.current;
+  }, [isReportReadingMode]);
+
   // HANDLE CHART DRAG TO RESIZE
   const handleDragStart = useCallback((e) => {
+    if (isScrollDrivenLayout) {
+      const el = scrollContainerRef.current;
+      if (el && el.scrollTop > 0) {
+        el.scrollTop = 0;
+        applyScrollLayoutRef.current?.(0, isFocusLayout, true);
+        scrollPhaseRef.current = 'top';
+      }
+    }
     e.preventDefault();
+    e.stopPropagation();
     e.currentTarget?.setPointerCapture?.(e.pointerId);
     setIsDraggingChart(true);
     dragStartY.current = e.clientY;
-    startHeight.current = chartWrapperRef.current ? chartWrapperRef.current.offsetHeight : 600;
+    const wrapper = getActiveChartWrapper();
+    startHeight.current = wrapper ? wrapper.offsetHeight : savedChartHeightRef.current;
+    resizeDragStartHeightRef.current = startHeight.current;
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'row-resize';
-  }, []);
+  }, [isScrollDrivenLayout, isFocusLayout, getActiveChartWrapper]);
+
+  const handleReportScrollToTop = useCallback(() => {
+    if (isScrollDrivenLayout) {
+      pinnedTabManualUntilRef.current = Date.now() + 700;
+      pinnedTabIndexRef.current = 0;
+      syncPinnedDockUI(0);
+      applyScrollLayout(0, isFocusLayout, true);
+    }
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [isFocusLayout, isScrollDrivenLayout, applyScrollLayout, syncPinnedDockUI]);
+
+  const handlePinnedTabClick = useCallback((tabIndex) => {
+    pinnedTabManualUntilRef.current = Date.now() + 900;
+    const prevPin = pinnedTabIndexRef.current;
+    pinnedTabIndexRef.current = tabIndex;
+    setDockActiveTab(tabIndex);
+    if (tabIndex === 1) pin1SinceRef.current = Date.now();
+    syncPinnedDockUI(tabIndex, prevPin);
+
+    const el = scrollContainerRef.current;
+    const focus = !isLeftColOpen && !isRightColOpen;
+    const targetTop = getScrollTopForPinnedTab(tabIndex, focus);
+
+    requestAnimationFrame(() => {
+      applyScrollLayoutRef.current?.(targetTop, focus, true);
+      el?.scrollTo({ top: targetTop, behavior: 'smooth' });
+    });
+  }, [getScrollTopForPinnedTab, syncPinnedDockUI, isLeftColOpen, isRightColOpen]);
 
   const handleNewsScroll = useCallback((e) => {
     setShowNewsScroll(e.target.scrollTop > 300);
@@ -1209,6 +2227,12 @@ export default function VnStocksTab({
   }, [onRequestCloseChat]);
 
   useEffect(() => {
+    if (!analysisNotice) return;
+    const t = setTimeout(() => setAnalysisNotice(null), 7000);
+    return () => clearTimeout(t);
+  }, [analysisNotice]);
+
+  useEffect(() => {
     const handleGlobalMouseMove = (e) => {
       if (!isDraggingChart) return;
       const delta = e.clientY - dragStartY.current;
@@ -1216,13 +2240,24 @@ export default function VnStocksTab({
       const minHeight = isMobile ? 220 : 300;
       const maxHeight = isMobile ? Math.min(window.innerHeight * 0.78, 720) : 1200;
       const newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight.current + delta));
-      if (chartWrapperRef.current) {
-        chartWrapperRef.current.style.height = `${newHeight}px`;
-        chartWrapperRef.current.style.flexBasis = `${newHeight}px`;
+      const wrapper = getActiveChartWrapper();
+      if (wrapper) {
+        wrapper.style.height = `${newHeight}px`;
+        wrapper.style.flexBasis = `${newHeight}px`;
       }
     };
     const handleGlobalMouseUp = () => {
       if (isDraggingChart) {
+        const wrapper = getActiveChartWrapper();
+        if (wrapper) {
+          const h = wrapper.offsetHeight;
+          const didResize = Math.abs(h - resizeDragStartHeightRef.current) > 2;
+          savedChartHeightRef.current = h;
+          setSavedChartHeight(h);
+          if (isReportReadingMode && didResize) {
+            lockChartScrollLayout();
+          }
+        }
         setIsDraggingChart(false);
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
@@ -1238,15 +2273,71 @@ export default function VnStocksTab({
       window.removeEventListener('pointerup', handleGlobalMouseUp);
       window.removeEventListener('pointercancel', handleGlobalMouseUp);
     };
-  }, [isDraggingChart]);
+  }, [isDraggingChart, isReportReadingMode, lockChartScrollLayout, getActiveChartWrapper]);
+
+  useEffect(() => {
+    const handleLeftColMove = (e) => {
+      if (!isDraggingLeftCol) return;
+      const delta = e.clientX - leftDragStartX.current;
+      const newWidth = Math.max(LEFT_COL_MIN, Math.min(LEFT_COL_MAX, leftStartWidth.current + delta));
+      setLeftColWidth(newWidth);
+    };
+    const handleLeftColUp = () => {
+      if (isDraggingLeftCol) {
+        setIsDraggingLeftCol(false);
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      }
+    };
+    if (isDraggingLeftCol) {
+      window.addEventListener('pointermove', handleLeftColMove);
+      window.addEventListener('pointerup', handleLeftColUp);
+      window.addEventListener('pointercancel', handleLeftColUp);
+    }
+    return () => {
+      window.removeEventListener('pointermove', handleLeftColMove);
+      window.removeEventListener('pointerup', handleLeftColUp);
+      window.removeEventListener('pointercancel', handleLeftColUp);
+    };
+  }, [isDraggingLeftCol]);
 
   const handleScroll = useCallback((e) => {
-    if (!analyzing) return;
-    const { scrollTop, clientHeight, scrollHeight } = e.target;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-    if (!isAtBottom && isAutoScroll) setIsAutoScroll(false);
-    else if (isAtBottom && !isAutoScroll) setIsAutoScroll(true);
+    if (analyzing) {
+      const { scrollTop, clientHeight, scrollHeight } = e.target;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      if (!isAtBottom && isAutoScroll) setIsAutoScroll(false);
+      else if (isAtBottom && !isAutoScroll) setIsAutoScroll(true);
+    }
   }, [analyzing, isAutoScroll]);
+
+  const handleReportScroll = useCallback((e) => {
+    handleScroll(e);
+    if (!isScrollDrivenLayout) return;
+
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      const st0 = el.scrollTop;
+      const prevSt = lastScrollTopRef.current;
+      const direction = st0 < prevSt - 0.5 ? 'up' : st0 > prevSt + 0.5 ? 'down' : 'same';
+      scrollDirRef.current = direction;
+      lastScrollTopRef.current = st0;
+      isScrollingRef.current = true;
+      suppressChartResizeRef.current = true;
+      clearTimeout(scrollSettleTimerRef.current);
+      scrollSettleTimerRef.current = setTimeout(() => {
+        suppressChartResizeRef.current = false;
+        isScrollingRef.current = false;
+        const el2 = scrollContainerRef.current;
+        if (el2) {
+          applyScrollLayout(el2.scrollTop, !isLeftColOpen && !isRightColOpen, true);
+        }
+      }, 300);
+      applyScrollLayout(st0, !isLeftColOpen && !isRightColOpen);
+    });
+  }, [handleScroll, isScrollDrivenLayout, isLeftColOpen, isRightColOpen, applyScrollLayout]);
 
   const handleHeatmapMouseMove = useCallback((e) => {
     if (tooltipRef.current) {
@@ -1296,6 +2387,113 @@ export default function VnStocksTab({
   const [hmMetric, setHmMetric] = useState('volume');
   const [hmHovered, setHmHovered] = useState(null);
 
+  const reportShellBg = isDark ? '#0a0f18' : '#ffffff';
+
+  const reportReadingDock = (
+    <ReportReadingPinnedDock
+      isDark={isDark}
+      UI={UI}
+      marketData={marketData}
+      actionData={actionData}
+      isUpdatingAction={isUpdatingAction}
+      aiAnalysisDuration={aiAnalysisDuration}
+      vnReportTimestamp={vnReportTimestamp}
+      setShowPdfModal={setShowPdfModal}
+      scrollContainerRef={scrollContainerRef}
+      setIsChatOpen={setIsChatOpen}
+      aiReport={aiReport}
+      setShowFullReportModal={setShowFullReportModal}
+      debateResult={effectiveDebateResult}
+      dockPanelExpandHandlers={dockPanelExpandHandlers}
+      onTabClick={handlePinnedTabClick}
+      activeTab={dockActiveTab}
+      dockReportMore={dockReportMore}
+      onDockReportMoreChange={setDockReportMore}
+      dockActionOpen={dockActionOpen}
+      onDockActionOpenChange={setDockActionOpen}
+      dockDebateOpen={dockDebateOpen}
+      onDockDebateOpenChange={setDockDebateOpen}
+    />
+  );
+
+  const renderChartCard = (embedded = false) => {
+    const heightStyle = isDraggingChart
+      ? undefined
+      : { height: savedChartHeight, flexBasis: savedChartHeight };
+    const heightClass = embedded ? '' : 'shrink-0 min-h-0';
+    return (
+      <div className={`px-2 ${embedded ? 'pt-0' : 'pt-2'} ${embedded ? '' : 'shrink-0'}`}>
+        <div className={`w-full relative flex flex-col border rounded-2xl overflow-hidden ${
+          embedded ? '' : (!isDraggingChart ? 'transition-all duration-300' : '')
+        } ${
+          isDark
+            ? 'bg-[#0a0f18] border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.1),_0_0_60px_rgba(34,197,94,0.05)]'
+            : 'bg-white border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+        }`}>
+          <div
+            ref={embedded ? chartWrapperEmbeddedRef : chartWrapperRef}
+            style={heightStyle}
+            className={`w-full shrink-0 relative flex flex-col ${heightClass} ${isDark ? 'bg-[#0a0f18]' : 'bg-white'}`}
+          >
+            <TradingChart
+              key={isDark ? 'chart-dark' : 'chart-light'}
+              data={chartData}
+              theme={isDark ? 'dark' : 'light'}
+              onIntervalChange={handleIntervalChange}
+              currentInterval={activeInterval}
+              suppressResizeRef={isReportReadingMode ? suppressChartResizeRef : null}
+            />
+          </div>
+          <div
+            onPointerDown={handleDragStart}
+            className={`relative z-[60] h-5 lg:h-3.5 w-full cursor-row-resize flex items-center justify-center shrink-0 transition-colors border-t rounded-b-2xl touch-none select-none pointer-events-auto ${
+              isDraggingChart
+                ? 'bg-yellow-400/20 border-yellow-400/50'
+                : isDark
+                ? 'bg-white/5 border-yellow-400/40 hover:bg-yellow-400/10'
+                : 'bg-slate-50 border-blue-200 hover:bg-blue-100'
+            }`}
+            title="Kéo để thay đổi kích thước biểu đồ"
+          >
+            <div className={`w-16 h-1 rounded-full ${isDraggingChart ? 'bg-yellow-400' : isDark ? 'bg-yellow-400/40' : 'bg-blue-300'}`} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderReportMetaPanels = () => (
+    <>
+      <AiReportHeader
+        isDark={isDark}
+        UI={UI}
+        marketData={marketData}
+        actionData={actionData}
+        isUpdatingAction={isUpdatingAction}
+        aiAnalysisDuration={aiAnalysisDuration}
+        vnReportTimestamp={vnReportTimestamp}
+        setShowPdfModal={setShowPdfModal}
+        scrollContainerRef={scrollContainerRef}
+        setIsChatOpen={setIsChatOpen}
+        aiReport={aiReport}
+        setShowFullReportModal={setShowFullReportModal}
+        compact={false}
+      />
+      <ActionSignalCard
+        actionData={actionData}
+        isUpdatingAction={isUpdatingAction}
+        isDark={isDark}
+        UI={UI}
+      />
+      <DebatePanel debateResult={effectiveDebateResult} isDark={isDark} UI={UI} defaultOpen={!!effectiveDebateResult} />
+    </>
+  );
+
+  const renderChartBlock = (opts = {}) => {
+    const { wrapperClass = '' } = opts;
+    return <div className={wrapperClass}>{renderChartCard(false)}</div>;
+  };
+
   // ─────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────
@@ -1309,6 +2507,77 @@ export default function VnStocksTab({
       </div>
 
       <div className="flex-1 flex flex-row w-full min-h-0 relative">
+
+      {/* ── BOOKMARK TOGGLE COL 1 (desktop only) ── */}
+      <button
+        onClick={() => setIsLeftColOpen(v => !v)}
+        title={isLeftColOpen ? 'Thu gọn bảng Dữ liệu' : 'Mở bảng Dữ liệu'}
+        className="fixed z-[200] hidden lg:flex flex-col items-center justify-center"
+        style={{
+          top: '50%',
+          transform: 'translateY(-50%)',
+          left: isLeftColOpen ? `${leftColWidth}px` : '0px',
+          opacity: 1,
+          transition: isDraggingLeftCol
+            ? 'none'
+            : 'left 300ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease',
+        }}
+      >
+        <div
+          className="flex flex-col items-center justify-center gap-1.5 px-2 py-5 rounded-r-2xl active:scale-95"
+          style={{
+            transition: 'background 200ms, box-shadow 200ms, transform 100ms',
+            borderTopWidth: '1px',
+            borderBottomWidth: '1px',
+            borderRightWidth: '1px',
+            borderLeftWidth: '0px',
+            borderStyle: 'solid',
+            ...(isDark
+              ? isLeftColOpen
+                ? {
+                    background: '#0d1219',
+                    borderColor: 'rgba(250,204,21,0.22)',
+                    color: '#facc15',
+                    boxShadow: '4px 0 18px rgba(250,204,21,0.10)',
+                  }
+                : {
+                    background: '#facc15',
+                    borderColor: '#fde047',
+                    color: '#000',
+                    boxShadow: '4px 0 28px rgba(250,204,21,0.55)',
+                  }
+              : isLeftColOpen
+                ? {
+                    background: '#fff',
+                    borderColor: '#cbd5e1',
+                    color: '#475569',
+                    boxShadow: '4px 0 12px rgba(0,0,0,0.10)',
+                  }
+                : {
+                    background: '#facc15',
+                    borderColor: '#fde047',
+                    color: '#000',
+                    boxShadow: '4px 0 20px rgba(250,204,21,0.45)',
+                  }
+            ),
+          }}
+        >
+          <Database size={13} />
+          <span
+            className="text-[9px] font-black uppercase tracking-[0.18em] leading-none"
+            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+          >
+            {isLeftColOpen ? 'Đóng' : 'Dữ liệu'}
+          </span>
+          <ChevronLeft
+            size={11}
+            style={{
+              transition: 'transform 300ms',
+              transform: isLeftColOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+            }}
+          />
+        </div>
+      </button>
 
       {/* ── BOOKMARK TOGGLE COL 3 (desktop only) ──
            Khi col3 MỞ  → nút nằm ở cạnh TRÁI col3 (giữa col2 & col3), rounded-l
@@ -1386,9 +2655,21 @@ export default function VnStocksTab({
         </div>
       </button>
       {/* ========================================================= */}
-      {/* GRID COLUMN 1: MARKET DATA (GIỮ NGUYÊN - KHÔNG THAY ĐỔI) */}
+      {/* GRID COLUMN 1: MARKET DATA */}
       {/* ========================================================= */}
-      <div className={`${mobileTab === 'market' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[500px] xl:w-[550px] border-r flex-col shrink-0 relative h-full min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'}`}>
+      <div
+        className={`${mobileTab === 'market' ? 'flex' : 'hidden'} ${isLeftColVisible ? 'lg:flex' : 'lg:hidden'} w-full lg:w-[var(--left-col-w)] border-r flex-col shrink-0 relative h-full min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'}`}
+        style={{
+          '--left-col-w': isLeftColOpen ? `${leftColWidth}px` : '0px',
+          transition: isDraggingLeftCol
+            ? 'opacity 280ms ease, transform 280ms cubic-bezier(0.4,0,0.2,1)'
+            : 'opacity 280ms ease, transform 280ms cubic-bezier(0.4,0,0.2,1), width 300ms cubic-bezier(0.4,0,0.2,1)',
+          opacity: isLeftColOpen ? 1 : 0,
+          transform: isLeftColOpen ? 'translateX(0)' : 'translateX(-24px)',
+          pointerEvents: isLeftColOpen ? 'auto' : 'none',
+          overflow: 'hidden',
+        }}
+      >
           
         {/* Loading bar */}
         <div className={`h-[6px] w-full shrink-0 z-50 relative overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-300'}`}>
@@ -1765,23 +3046,26 @@ export default function VnStocksTab({
                   )}
                   {/* EXPORT BUTTON */}
                   <button onClick={handleExportData} disabled={isExporting} className={`w-full h-9 mb-3 rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 border text-[10px] uppercase tracking-widest ${isExporting ? 'opacity-50 cursor-not-allowed' : exportStatus === 'success' ? (isDark ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' : 'bg-emerald-50 text-emerald-600 border-emerald-300') : exportStatus === 'error' ? (isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-500 border-red-200') : (isDark ? 'bg-white/5 text-slate-400 border-white/10 hover:text-emerald-400 hover:border-emerald-500/30' : 'bg-white text-slate-500 border-slate-200 hover:text-emerald-600 hover:border-emerald-300')}`}>
-                    {isExporting ? <><Loader2 size={12} className="animate-spin" /> Đang tải...</> : exportStatus === 'success' ? <><CheckCircle2 size={12} /> Xuất thành công!</> : exportStatus === 'error' ? <><XCircle size={12} /> Xuất thất bại</> : <><FileJson size={12} /> Xuất Server Data (JSON)</>}
+                    {isExporting ? <><Loader2 size={12} className="animate-spin" /> Đang bóc PDF & tổng hợp...</> : exportStatus === 'success' ? <><CheckCircle2 size={12} /> Xuất thành công!</> : exportStatus === 'error' ? <><XCircle size={12} /> Xuất thất bại</> : <><FileJson size={12} /> Xuất Server Data (JSON)</>}
                   </button>
 
                   {/* AI BUTTONS */}
                   {(() => {
                     const elapsed = lastAiVnTime ? Date.now() - lastAiVnTime : Infinity;
-                    const canCall = elapsed >= 5 * 60 * 1000;
-                    const remainSec = Math.max(0, Math.floor((5 * 60 * 1000 - elapsed) / 1000));
+                    const canCall = elapsed >= AI_REPORT_COOLDOWN_MS;
+                    const remainSec = Math.max(0, Math.floor((AI_REPORT_COOLDOWN_MS - elapsed) / 1000));
                     const remainMin = Math.floor(remainSec / 60);
                     const remainSecStr = String(remainSec % 60).padStart(2, '0');
 
                     return (
                       <div className={`flex flex-col gap-3 mt-4 pt-4 border-t ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
-                        <button onClick={() => { 
-                            handleAiAnalysis(false);
+                        <button onClick={async () => { 
                             setIsRightColOpen(false);
-                            setMobileTab('ai'); // Tự động nhảy sang tab AI khi bắt đầu phân tích
+                            setMobileTab('ai');
+                            const result = await handleAiAnalysis(false);
+                            if (result === 'cached') {
+                              setAnalysisNotice('Mã vừa được phân tích gần đây. Phân tích lại quá gần sẽ không có thay đổi đáng kể — dùng "Quét lại ngay" nếu bạn vẫn muốn chạy lại.');
+                            }
                         }} disabled={analyzing} className={`w-full h-12 rounded-xl font-black text-[12px] tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-95 ${analyzing ? 'bg-black/40 text-slate-500 cursor-not-allowed border border-white/6 hidden' : isDark ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.2)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] hover:-translate-y-0.5' : 'bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5'}`}>
                           <BrainCircuit size={18} className={analyzing ? 'animate-pulse' : ''} />
                           {analyzing ? 'OMNI DUCK ĐANG TƯ DUY...' : 'PHÂN TÍCH VỚI OMNI DUCK'}
@@ -1806,12 +3090,8 @@ export default function VnStocksTab({
                               : <span className="text-amber-500 flex items-center gap-1 font-bold"><Clock size={12} /> Tối ưu lại sau: {remainMin}:{remainSecStr}</span>
                             }
                           </span>
-                          {lastAiVnTime && (
-                            <button onClick={() => { 
-                                handleAiAnalysis(true);
-                                setIsRightColOpen(false);
-                                setMobileTab('ai'); 
-                            }} disabled={analyzing} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'}`} title="Bỏ qua thời gian làm mát và ép AI quét lại">
+                          {(lastAiVnTime || aiReport) && (
+                            <button onClick={() => setShowForceConfirm(true)} disabled={analyzing} className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded transition-all opacity-30 hover:opacity-100 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-black hover:bg-black/10'}`} title="Bỏ qua thời gian làm mát và ép AI quét lại">
                               ↻ Quét lại ngay
                             </button>
                           )}
@@ -1930,47 +3210,36 @@ export default function VnStocksTab({
         <div className={`shrink-0 border-t z-20 ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-[#F1F5F9] border-slate-300'}`}>
           <MarketOverview isDark={isDark} UI={UI} marketIntel={marketIntel} vnIndexData={vnIndexData} />
         </div>
+
+        {/* Resize handle (desktop only) */}
+        {isLeftColOpen && (
+          <div
+            onPointerDown={handleLeftColDragStart}
+            className={`hidden lg:flex absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-30 touch-none select-none items-center justify-center group ${isDraggingLeftCol ? 'bg-yellow-400/40' : 'hover:bg-yellow-400/25'}`}
+            title="Kéo để điều chỉnh độ rộng"
+          >
+            <div className={`w-0.5 h-12 rounded-full transition-colors ${isDark ? 'bg-white/20 group-hover:bg-yellow-400/60' : 'bg-slate-300 group-hover:bg-yellow-500/60'}`} />
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* GRID COLUMN 2: CHART + AI ANALYSIS */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-all duration-300 ${isDark ? 'bg-[#0a0f18]' : 'bg-white'} ${isRightColOpen ? `border-r ${isDark ? 'border-white/8' : 'border-slate-200'}` : ''}`}>
+      <div className={`${mobileTab === 'ai' ? 'flex' : 'hidden'} lg:flex flex-1 h-full min-h-0 flex-col overflow-hidden relative transition-all duration-300 ${isDark ? 'bg-[#0a0f18]' : 'bg-white'} ${isLeftColOpen ? `border-l ${isDark ? 'border-white/8' : 'border-slate-200'}` : ''} ${isRightColOpen ? `border-r ${isDark ? 'border-white/8' : 'border-slate-200'}` : ''}`}>
 
-        {/* ── CHART (PINNED) ── */}
-        {marketData && (
-          <div className="px-2 pt-2 shrink-0">
-            <div className={`w-full relative flex flex-col border rounded-2xl transition-all duration-300 overflow-hidden ${
-              isDark
-                ? 'bg-[#0a0f18] border-yellow-400/40 shadow-[0_0_25px_rgba(34,197,94,0.1),_0_0_60px_rgba(34,197,94,0.05)]'
-                : 'bg-white border-blue-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
-            }`}>
-              <div ref={chartWrapperRef} className={`w-full shrink-0 relative flex flex-col h-[260px] sm:h-[320px] lg:h-[600px] lg:basis-[600px] ${isDark ? 'bg-[#0a0f18]' : 'bg-white'}`}>
-                <TradingChart
-                  key={isDark ? 'chart-dark' : 'chart-light'}
-                  data={chartData}
-                  theme={isDark ? 'dark' : 'light'}
-                  onIntervalChange={handleIntervalChange}
-                  currentInterval={activeInterval}
-                />
-              </div>
-              {/* Resize handle */}
-              <div
-                onPointerDown={handleDragStart}
-                className={`h-5 lg:h-3.5 w-full cursor-row-resize flex items-center justify-center shrink-0 z-10 transition-colors border-t rounded-b-2xl touch-none select-none ${
-                  isDraggingChart
-                    ? 'bg-yellow-400/20 border-yellow-400/50'
-                    : isDark
-                    ? 'bg-white/5 border-yellow-400/40 hover:bg-yellow-400/10'
-                    : 'bg-slate-50 border-blue-200 hover:bg-blue-100'
-                }`}
-                title="Kéo để thay đổi kích thước biểu đồ"
-              >
-                <div className={`w-16 h-1 rounded-full ${isDraggingChart ? 'bg-yellow-400' : isDark ? 'bg-yellow-400/40' : 'bg-blue-300'}`} />
-              </div>
-            </div>
+        {analysisNotice && (
+          <div className={`shrink-0 mx-3 mt-2 px-4 py-3 rounded-xl border flex items-start gap-2 text-[11px] z-30 animate-in fade-in slide-in-from-top-2 duration-300 ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+            <Info size={14} className="shrink-0 mt-0.5 text-amber-400" />
+            <span className="leading-relaxed flex-1">{analysisNotice}</span>
+            <button onClick={() => setAnalysisNotice(null)} className={`shrink-0 p-1 rounded-md transition-colors ${isDark ? 'hover:bg-white/10 text-amber-300' : 'hover:bg-amber-100 text-amber-700'}`}>
+              <X size={12} />
+            </button>
           </div>
         )}
+
+        {/* ── CHART (PINNED) — ẩn trên desktop khi đọc báo cáo ── */}
+        {marketData && renderChartBlock({ wrapperClass: isReportReadingMode ? 'lg:hidden' : '' })}
         {/* CUỘN TỰ ĐỘNG */}
         {!isAutoScroll && analyzing && aiReport && (
           <button
@@ -1994,10 +3263,37 @@ export default function VnStocksTab({
         {/* ── SCROLLABLE MAIN CONTENT ── */}
         <div
           ref={scrollContainerRef}
-          onScroll={handleScroll}
-           className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar relative transition-all duration-300 scroll-smooth"
+          onScroll={handleReportScroll}
+           className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar relative"
         >
-           <div className="px-3 sm:px-5 lg:px-8 pb-24 lg:pb-16 pt-1">
+           <div className={`px-3 sm:px-5 pb-24 lg:pb-16 pt-1 ${isReportReadingMode && isFocusLayout ? 'lg:px-14' : 'lg:px-8'}`}>
+          {/* Chart trong scroll — desktop + đọc báo cáo */}
+          {isReportReadingMode && aiReport && (
+            <>
+            <ReportReadingStickyShell
+              stickyStackRef={stickyStackRef}
+              chartSlotRef={chartSlotRef}
+              chartClipRef={chartClipRef}
+              pinnedDockRef={pinnedDockRef}
+              savedChartHeight={savedChartHeight}
+              chartHandleH={chartHandleH}
+              reportShellBg={reportShellBg}
+              isDark={isDark}
+              chartCard={renderChartCard(true)}
+              dock={isScrollDrivenLayout ? reportReadingDock : null}
+              scrollLayoutLocked={chartScrollLayoutLocked}
+            />
+            {isScrollDrivenLayout && (
+            <div className="hidden lg:flex items-center gap-3 px-2 py-3 mt-1 mb-0">
+              <div className={`flex-1 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-yellow-400/70 to-yellow-400/25' : 'bg-gradient-to-r from-transparent via-yellow-500/60 to-yellow-400/20'}`} />
+              <span className={`text-[9px] font-black uppercase tracking-[0.22em] shrink-0 px-2 py-1 rounded-full border ${isDark ? 'text-yellow-400/90 border-yellow-400/35 bg-yellow-400/5' : 'text-yellow-700 border-yellow-400/40 bg-yellow-50'}`}>
+                Nội dung báo cáo
+              </span>
+              <div className={`flex-1 h-px ${isDark ? 'bg-gradient-to-r from-yellow-400/25 via-yellow-400/70 to-transparent' : 'bg-gradient-to-r from-yellow-400/20 via-yellow-500/60 to-transparent'}`} />
+            </div>
+            )}
+            </>
+          )}
           {/* ── HOME SCREEN: History + Heatmap ── */}
           {!analyzing && !aiReport && (
             <div className="flex flex-col gap-5 lg:gap-6 animate-in fade-in duration-700 pt-4 lg:pt-5">
@@ -2518,43 +3814,21 @@ export default function VnStocksTab({
 
           {/* ── AI REPORT ── */}
           {aiReport && (
-                <div className="w-full flex flex-col gap-0 mt-4 relative">
+                <div className={`w-full flex flex-col gap-0 relative ${isReportReadingMode ? 'mt-0' : 'mt-4'}`}>
 
-                   <div className={`lg:sticky lg:top-0 z-40 pt-2 pb-1 -mt-2 backdrop-blur-2xl ${isDark ? 'bg-[#0a0f18]/95' : 'bg-slate-50/95'}`}>
-                    {/* 1. Meta Header & Quick Actions */}
-                    <AiReportHeader
-                      isDark={isDark}
-                      UI={UI}
-                      marketData={marketData}
-                      actionData={actionData}
-                      isUpdatingAction={isUpdatingAction}
-                      aiAnalysisDuration={aiAnalysisDuration}
-                      vnReportTimestamp={vnReportTimestamp}
-                      setShowPdfModal={setShowPdfModal}
-                      scrollContainerRef={scrollContainerRef}
-                      setIsChatOpen={setIsChatOpen}
-                      aiReport={aiReport}
-                      setShowFullReportModal={setShowFullReportModal}
-                    />
-
-                    {/* 2. Debate Panel */}
-                    <DebatePanel debateResult={debateResult} isDark={isDark} UI={UI} />
-
-                    {/* 3. Action Signal */}
-                    <ActionSignalCard
-                      actionData={actionData}
-                      isUpdatingAction={isUpdatingAction}
-                      isDark={isDark}
-                      UI={UI}
-                    />
-                    
-                     <div className={`absolute -bottom-4 left-0 right-0 h-4 bg-gradient-to-b ${isDark ? 'from-[#0a0f18]/95' : 'from-slate-50/95'} to-transparent pointer-events-none`} />
+                  {/* Meta panels — mobile only in report reading mode */}
+                  <div className={`${
+                    isReportReadingMode
+                      ? (chartScrollLayoutLocked ? 'hidden lg:block' : 'lg:hidden')
+                      : ''
+                  } pt-2 pb-2 ${isDark ? 'bg-[#0a0f18]' : 'bg-slate-50'}`}>
+                    {renderReportMetaPanels()}
                   </div>
 
-                  {/* 4. Main Report Content */}
-                  <div className={`w-full border rounded-2xl lg:rounded-[32px] p-4 sm:p-6 lg:p-10 shadow-2xl transition-all duration-300 relative overflow-hidden mb-6 mt-4 ${
+                  {/* Main Report Content */}
+                  <div className={`w-full border rounded-2xl lg:rounded-[32px] p-4 sm:p-6 lg:p-10 shadow-2xl transition-all duration-300 overflow-hidden mb-6 ${isReportReadingMode ? 'mt-0 lg:mt-2' : 'mt-4'} relative z-0 [overflow-anchor:auto] ${
                     isDark ? 'bg-[#0a0e14] border-yellow-400/15' : 'bg-white border-yellow-400/20'
-                  }`}>
+                  } ${isReportReadingMode ? 'lg:border-2 lg:border-sky-400/35 lg:shadow-[0_0_28px_rgba(56,189,248,0.1)] lg:ring-1 lg:ring-sky-400/15' : ''}`}>
                 {/* Subtle top border glow */}
                 <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-yellow-400/30 to-transparent" />
 
@@ -2627,18 +3901,21 @@ export default function VnStocksTab({
         {/* ── FLOATING: SCROLL TO TOP ── */}
         {aiReport && (
           <button
+            type="button"
             onClick={() => {
-              scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              if (isReportReadingMode) handleReportScrollToTop();
+              else scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
               mobileScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`fixed bottom-6 right-8 z-50 p-3 rounded-full shadow-[0_8px_25px_rgba(250,204,21,0.4)] transition-all duration-300 hover:-translate-y-1.5 active:scale-95 border-2 ${
+            aria-label="Lên đầu báo cáo"
+            className={`absolute bottom-5 right-5 z-[120] w-12 h-12 rounded-2xl flex items-center justify-center border-2 shadow-lg transition-all duration-200 hover:scale-105 hover:-translate-y-0.5 active:scale-95 ${
               isDark
-                ? 'bg-yellow-500 text-black border-yellow-400 hover:bg-yellow-400'
-                : 'bg-yellow-400 text-black border-yellow-500 hover:bg-yellow-300'
+                ? 'bg-[#0a0f18]/95 text-yellow-400 border-yellow-400/50 shadow-yellow-400/15 hover:bg-yellow-400/10 backdrop-blur-sm'
+                : 'bg-white/95 text-yellow-700 border-yellow-400/60 shadow-yellow-400/20 hover:bg-yellow-50 backdrop-blur-sm'
             }`}
-            title="Cuộn thẳng lên đầu trang"
+            title="Lên đầu báo cáo"
           >
-            <ChevronUp size={22} strokeWidth={3} />
+            <ChevronUp size={22} strokeWidth={2.5} />
           </button>
         )}
 
@@ -2702,7 +3979,12 @@ export default function VnStocksTab({
           </div>
           <div className={`flex-1 relative ${isDark ? 'bg-[#242424]' : 'bg-slate-100'}`}>
             {marketData?.reportPdf ? (
-              <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(marketData.reportPdf)}&embedded=true`} className="w-full h-full border-none" title="TCBS Report Viewer" />
+              <iframe
+                key={marketData.stockInfo?.symbol || 'tcbs-pdf'}
+                src={tcbsPdfEmbedUrl(marketData.reportPdf)}
+                className="absolute inset-0 w-full h-full border-none bg-white"
+                title="TCBS Report Preview"
+              />
             ) : (
               <div className="h-full flex flex-col items-center justify-center opacity-20">
                 <FileText size={32} className="mb-2" />
@@ -2770,6 +4052,46 @@ export default function VnStocksTab({
              </div>
            </div>
          </div>
+      )}
+      {showForceConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 999998 }}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowForceConfirm(false)} />
+          <div className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl animate-in zoom-in-95 duration-200 ${isDark ? 'bg-[#0f1520] border-yellow-500/25' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-600'}`}>
+                <AlertTriangle size={18} />
+              </div>
+              <div>
+                <h3 className={`text-sm font-black uppercase tracking-widest ${UI.textBold}`}>Ép phân tích lại?</h3>
+                <p className={`text-[12px] mt-2 leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  Mã <strong>{marketData?.stockInfo?.symbol}</strong> vừa được phân tích gần đây. Phân tích lại quá gần thường <strong>không có thay đổi đáng kể</strong> và tốn thêm tài nguyên AI.
+                </p>
+                <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Bạn vẫn muốn chạy lại phân tích ngay bây giờ?
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowForceConfirm(false)}
+                className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 ${isDark ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  setShowForceConfirm(false);
+                  setIsRightColOpen(false);
+                  setMobileTab('ai');
+                  await handleAiAnalysis(true);
+                }}
+                className="px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest bg-yellow-400 text-black hover:bg-yellow-300 transition-all active:scale-95 shadow-lg shadow-yellow-400/20"
+              >
+                Phân tích lại
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       </div>
       {/* AI Chat Panel */}
