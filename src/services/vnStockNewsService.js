@@ -30,6 +30,13 @@ export const isBadNewsRecord = (n) => {
 
 export const filterValidNews = (items = []) => items.filter(n => !isBadNewsRecord(n));
 
+/** Tin đã cào body đủ dùng cho tab phân tích / AI (khác prefetch chỉ headline). */
+export const hasRichNewsContent = (n) => {
+    const content = String(n?.content || '').trim();
+    const title = String(n?.title || '').trim();
+    return content.length > 80 && content !== title;
+};
+
 export const mergeDeepNews = (existing = [], incoming = []) => {
     const combined = [...incoming, ...existing];
     const seen = new Set();
@@ -44,13 +51,28 @@ export const mergeDeepNews = (existing = [], incoming = []) => {
         .slice(0, MAX_NEWS_DB);
 };
 
-export const isDeepNewsFresh = (record) => {
-    if (!record?.deepNewsFetchedAt) return false;
+/** Prefetch cron: headline-only, dùng deepNewsPrefetchedAt. */
+export const isPrefetchNewsFresh = (record) => {
+    const ts = record?.deepNewsPrefetchedAt || record?.deepNewsFetchedAt;
+    if (!ts) return false;
     const validCount = filterValidNews(record.deepNewsData || []).length;
     if (validCount < MIN_VALID_NEWS) return false;
+    const ageMs = Date.now() - new Date(ts).getTime();
+    return ageMs < getVnNewsCacheTtlMs();
+};
+
+/** Tab VN / user search: cần body đầy đủ + deepNewsFetchedAt. */
+export const isUserNewsCacheFresh = (record) => {
+    if (!record?.deepNewsFetchedAt) return false;
+    const valid = filterValidNews(record.deepNewsData || []);
+    const richCount = valid.filter(hasRichNewsContent).length;
+    if (richCount < MIN_VALID_NEWS) return false;
     const ageMs = Date.now() - new Date(record.deepNewsFetchedAt).getTime();
     return ageMs < getVnNewsCacheTtlMs();
 };
+
+/** @deprecated — dùng isPrefetchNewsFresh hoặc isUserNewsCacheFresh */
+export const isDeepNewsFresh = isUserNewsCacheFresh;
 
 const normalizeHeadlineItem = (item, mode = 'balanced') => ({
     title: item.title,
@@ -66,13 +88,20 @@ const normalizeHeadlineItem = (item, mode = 'balanced') => ({
 
 export const saveDeepNewsForSymbol = async (symbol, incoming = [], options = {}) => {
     const ticker = String(symbol).toUpperCase();
-    const { touchFetchedAt = true } = options;
+    const {
+        touchFetchedAt = false,
+        touchPrefetchedAt = false,
+        mode = 'balanced',
+    } = options;
 
     let masterRecord = await Stock.findOne({ symbol: ticker });
     if (!masterRecord) masterRecord = new Stock({ symbol: ticker, deepNewsData: [] });
 
-    const normalized = incoming.map(item => normalizeHeadlineItem(item, options.mode || 'balanced'));
+    const normalized = incoming.map(item => normalizeHeadlineItem(item, mode));
     masterRecord.deepNewsData = mergeDeepNews(masterRecord.deepNewsData || [], normalized);
+    if (touchPrefetchedAt) {
+        masterRecord.deepNewsPrefetchedAt = new Date();
+    }
     if (touchFetchedAt) {
         masterRecord.deepNewsFetchedAt = new Date();
     }
@@ -94,7 +123,11 @@ export const prefetchVnStockNews = async (symbol, options = {}) => {
             .filter(item => item?.link && !seenLinks.has(item.link))
             .map(item => normalizeHeadlineItem(item, mode));
 
-        await saveDeepNewsForSymbol(ticker, newItems, { mode, touchFetchedAt: true });
+        await saveDeepNewsForSymbol(ticker, newItems, {
+            mode,
+            touchPrefetchedAt: true,
+            touchFetchedAt: false,
+        });
         return { symbol: ticker, added: newItems.length, ok: true };
     } catch (err) {
         console.log(chalk.yellow(`[VN NEWS PREFETCH] ${ticker}: ${err.message}`));

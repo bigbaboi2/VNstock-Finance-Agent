@@ -4,8 +4,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
 
+const BUBBLE_W = 260;
+const BUBBLE_H = 52;
+const MINIMIZE_MS = 380;
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const MAX_HISTORY_MESSAGES = 40;    
+const MAX_HISTORY_MESSAGES = 40;
 const MAX_TICKERS_STORED   = 15;   
 const STORAGE_PREFIX       = 'omni_chat_';
 
@@ -198,13 +202,17 @@ export default function StockAiChat({
   // ── DRAG STATE ───────────────────────────────────────────
   const dragRef    = useRef(null);
   const isDragging = useRef(false);
+  const didDrag    = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
+  const dragStartPos = useRef({ x: 0, y: 0 });
   const [pos, setPos] = useState({ x: null, y: null });
 
   // ── DRAG  ────────────────────
   useEffect(() => {
     const onMouseMove = (e) => {
       if (isDragging.current) {
+        const moved = Math.abs(e.clientX - dragStartPos.current.x) + Math.abs(e.clientY - dragStartPos.current.y);
+        if (moved > 4) didDrag.current = true;
         setPos({
           x: e.clientX - dragOffset.current.x,
           y: e.clientY - dragOffset.current.y,
@@ -219,7 +227,11 @@ export default function StockAiChat({
         });
       }
     };
-    const onMouseUp = () => {
+    const onMouseUp = (e) => {
+      if (isDragging.current) {
+        const moved = Math.abs((e?.clientX ?? dragStartPos.current.x) - dragStartPos.current.x) + Math.abs((e?.clientY ?? dragStartPos.current.y) - dragStartPos.current.y);
+        if (moved > 4) didDrag.current = true;
+      }
       isDragging.current = false;
       isResizing.current = false;
     };
@@ -234,13 +246,20 @@ export default function StockAiChat({
   // ── DRAG: handler ────────────────────────────────────────
   const startDrag = (e) => {
     if (e.target.closest('button')) return;
+    didDrag.current = false;
     isDragging.current = true;
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
     const rect = dragRef.current.getBoundingClientRect();
     dragOffset.current = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     };
     e.preventDefault();
+  };
+
+  const handleBubbleClick = () => {
+    if (!didDrag.current) setIsMinimized(false);
+    didDrag.current = false;
   };
 
   // ── RESIZE: handler ──────────────────────────────────────
@@ -388,78 +407,86 @@ export default function StockAiChat({
     ? { left: pos.x, top: pos.y }
     : { bottom: '24px', right: '24px' };
 
+  const shellTransition = isDragging.current
+    ? 'none'
+    : `width ${MINIMIZE_MS}ms cubic-bezier(0.32, 1.12, 0.52, 1), height ${MINIMIZE_MS}ms cubic-bezier(0.32, 1.12, 0.52, 1), border-radius ${MINIMIZE_MS * 0.85}ms ease, box-shadow ${MINIMIZE_MS * 0.85}ms ease`;
+
   if (!isOpen) return null;
 
-  // ════════════════════════════════════════════════════════
-  // MINIMIZED STATE
-  // ════════════════════════════════════════════════════════
-  if (isMinimized) {
   return (
     <div
       ref={dragRef}
-      onMouseDown={startDrag}
-      className={`fixed z-[9999] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl cursor-move border-2 transition-shadow select-none
-        ${isDark
-          ? 'bg-[#0f1520] border-yellow-500/40 shadow-black/50'
-          : 'bg-white border-yellow-400 shadow-yellow-100/80 shadow-lg'
-        }`}
+      onMouseDown={isMinimized ? startDrag : undefined}
+      onClick={isMinimized ? handleBubbleClick : undefined}
       style={{
         ...posStyle,
-        boxShadow: isDark
-          ? '0 0 18px 2px rgba(234,179,8,0.18), 0 8px 32px rgba(0,0,0,0.5)'
-          : '0 0 16px 2px rgba(234,179,8,0.22), 0 4px 16px rgba(0,0,0,0.10)',
+        width: isMinimized ? BUBBLE_W : size.w,
+        height: isMinimized ? BUBBLE_H : size.h,
+        transition: shellTransition,
+        boxShadow: isMinimized
+          ? (isDark
+            ? '0 0 18px 2px rgba(234,179,8,0.18), 0 8px 32px rgba(0,0,0,0.5)'
+            : '0 0 16px 2px rgba(234,179,8,0.22), 0 4px 16px rgba(0,0,0,0.10)')
+          : (isDark
+            ? '0 0 24px 3px rgba(234,179,8,0.18), 0 0 0 1.5px rgba(234,179,8,0.10), 0 16px 48px rgba(0,0,0,0.65)'
+            : '0 0 20px 3px rgba(234,179,8,0.20), 0 0 0 1.5px rgba(234,179,8,0.12), 0 8px 32px rgba(0,0,0,0.12)'),
       }}
-      onClick={(e) => {
-        if (!isDragging.current) setIsMinimized(false);
-      }}
+      className={`fixed z-[9999] border-2 overflow-hidden select-none
+        ${isMinimized ? 'cursor-move rounded-2xl' : 'rounded-3xl'}
+        ${isDark
+          ? isMinimized ? 'bg-[#0f1520] border-yellow-500/40' : 'bg-[#080d14] border-yellow-500/30'
+          : isMinimized ? 'bg-white border-yellow-400' : 'bg-[#f8fafc] border-yellow-400/60'
+        }`}
     >
+      <style>{`
+        .chat-shell-full {
+          transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.32, 1.1, 0.52, 1);
+        }
+        .chat-shell-full.is-minimized {
+          opacity: 0;
+          transform: scale(0.94);
+          pointer-events: none;
+        }
+        .chat-shell-bubble {
+          transition: opacity 0.26s ease 0.1s, transform 0.32s cubic-bezier(0.34, 1.2, 0.64, 1) 0.06s;
+        }
+        .chat-shell-bubble.is-minimized {
+          opacity: 1;
+          transform: scale(1);
+        }
+        .chat-shell-bubble:not(.is-minimized) {
+          opacity: 0;
+          transform: scale(0.88);
+          pointer-events: none;
+        }
+      `}</style>
+
+      {/* ── MINIMIZED BUBBLE LAYER ── */}
+      <div
+        className={`chat-shell-bubble absolute inset-0 flex items-center gap-3 px-4 ${isMinimized ? 'is-minimized' : ''}`}
+        aria-hidden={!isMinimized}
+      >
         <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-[#f5f0e8]">
           <ChatIcon size={34} />
         </div>
-        <div className="select-none">
-          <p className={`text-[11px] font-black uppercase tracking-widest leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+        <div className="select-none min-w-0 flex-1">
+          <p className={`text-[11px] font-black uppercase tracking-widest leading-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
             AI Chat — {ticker}
           </p>
           {messages.filter(m => m.role !== 'system-separator').length > 1 && (
-            <p className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-[10px] mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {messages.filter(m => m.role !== 'system-separator').length - 1} tin nhắn
             </p>
           )}
         </div>
-        <ChevronDown size={14} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+        <ChevronDown size={14} className={`shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
       </div>
-    );
-  }
 
-  // ════════════════════════════════════════════════════════
-  // FULL CHAT WINDOW
-  // ════════════════════════════════════════════════════════
-  return (
-    <div
-      ref={dragRef}
-      style={{
-        ...posStyle,
-        width: size.w,
-        height: size.h,
-        animation: 'chatSlideIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        boxShadow: isDark
-          ? '0 0 24px 3px rgba(234,179,8,0.18), 0 0 0 1.5px rgba(234,179,8,0.10), 0 16px 48px rgba(0,0,0,0.65)'
-          : '0 0 20px 3px rgba(234,179,8,0.20), 0 0 0 1.5px rgba(234,179,8,0.12), 0 8px 32px rgba(0,0,0,0.12)',
-      }}
-      className={`fixed z-[9999] flex flex-col rounded-3xl border-2 overflow-hidden
-        ${isDark
-          ? 'bg-[#080d14] border-yellow-500/30'
-          : 'bg-[#f8fafc] border-yellow-400/60'
-        }`}
-    >
-      <style>{`
-        @keyframes chatSlideIn {
-          from { opacity: 0; transform: translateY(20px) scale(0.95); }
-          to   { opacity: 1; transform: translateY(0)   scale(1);    }
-        }
-      `}</style>
-
-      {/* ── HEADER  ── */}
+      {/* ── FULL CHAT LAYER ── */}
+      <div
+        className={`chat-shell-full absolute inset-0 flex flex-col ${isMinimized ? 'is-minimized' : ''}`}
+        aria-hidden={isMinimized}
+      >
       <div
         onMouseDown={startDrag}
         className={`shrink-0 px-4 py-3 border-b-2 flex items-center gap-3 cursor-move select-none
@@ -674,6 +701,7 @@ export default function StockAiChat({
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path d="M11 1L1 11M11 6L6 11M11 11" stroke={isDark ? '#eab308' : '#92400e'} strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
+      </div>
       </div>
     </div>
   );

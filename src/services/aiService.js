@@ -16,6 +16,8 @@ import {
     resetProviderBlock
 } from './multiProviderRouter.js';
 import { sendTelegramMessage, buildSystemAlertMessage } from './telegramService.js';
+import { fetchTcbsPdfMeta, getTcbsPdfUrl } from '../fetchers/tcbsService.js';
+import { parseLlmJson } from '../utils/parseLlmJson.js';
 
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -336,6 +338,7 @@ const TcbsMarkdownCacheSchema = new mongoose.Schema({
     ticker: { type: String, required: true, uppercase: true, trim: true },
     mode: { type: String, required: true, trim: true, default: 'turbo' },
     markdown: { type: String, required: true },
+    pdfRevision: { type: String, default: null },
     timestamp: { type: Date, default: Date.now, expires: TCBS_PDF_TTL_SECONDS }
 });
 
@@ -357,11 +360,27 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
     const emitProgress = (payload) => {
     if (typeof onProgress === 'function') onProgress(payload);
     };
+
+    const pdfMeta = await fetchTcbsPdfMeta(tickerUpper);
+    if (!pdfMeta.exists) {
+        console.log(chalk.yellow(`[HỆ THỐNG] ${tickerUpper}: TCBS chưa có PDF — bỏ qua bóc tách.`));
+        return null;
+    }
+    const currentRevision = pdfMeta.revision;
+
+    const isCacheRevisionValid = (cachedRevision) => (
+        !currentRevision || !cachedRevision || cachedRevision === currentRevision
+    );
+
     const cached = _tcbsPdfCache.get(cacheKey);
-    if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL) {
+    if (cached && (Date.now() - cached.ts) < TCBS_PDF_TTL && isCacheRevisionValid(cached.revision)) {
         console.log(chalk.yellowBright(`[HỆ THỐNG] Dùng cache RAM TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cached.ts)) / 60000)} phút)`));
         emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache RAM', progress: 28 });
         return cached.markdown;
+    }
+    if (cached && !isCacheRevisionValid(cached.revision)) {
+        console.log(chalk.cyan(`[HỆ THỐNG] ${tickerUpper}: PDF TCBS đã đổi (revision) — làm mới cache bóc tách.`));
+        _tcbsPdfCache.delete(cacheKey);
     }
      if (mongoose.connection.readyState === 1) {
         try {
@@ -371,19 +390,27 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
                 mongoCached?.markdown
                 && cachedTimestamp
                 && (Date.now() - cachedTimestamp) < TCBS_PDF_TTL
+                && isCacheRevisionValid(mongoCached.pdfRevision)
             );
 
             if (isMongoCacheValid) {
-                _tcbsPdfCache.set(cacheKey, { markdown: mongoCached.markdown, ts: cachedTimestamp });
+                _tcbsPdfCache.set(cacheKey, {
+                    markdown: mongoCached.markdown,
+                    ts: cachedTimestamp,
+                    revision: mongoCached.pdfRevision || currentRevision,
+                });
                 console.log(chalk.yellow(`[HỆ THỐNG] Dùng cache MongoDB TCBS PDF cho ${tickerUpper} mode=${safeMode} (còn ${Math.round((TCBS_PDF_TTL - (Date.now() - cachedTimestamp)) / 60000)} phút)`));
                 emitProgress({ step: 'TCBS_PDF_CACHE_HIT', message: 'Đã có dữ liệu BCTC PDF trong cache MongoDB', progress: 28 });
                 return mongoCached.markdown;
+            }
+            if (mongoCached?.markdown && !isCacheRevisionValid(mongoCached.pdfRevision)) {
+                console.log(chalk.cyan(`[HỆ THỐNG] ${tickerUpper}: Mongo cache PDF cũ — TCBS đã cập nhật file.`));
             }
         } catch (error) {
             console.log(chalk.yellow(`[CẢNH BÁO] Không đọc được cache MongoDB TCBS PDF: ${error.message}`));
         }
     }
-    const pdfUrl = `https://static.tcbs.com.vn/oneclick/${tickerUpper}.pdf`;
+    const pdfUrl = pdfMeta.url || getTcbsPdfUrl(tickerUpper);
     
     try {
         console.log(chalk.cyan(`[HỆ THỐNG] Đang tải PDF ${tickerUpper} từ TCBS...`));
@@ -434,13 +461,23 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
                 cleanMarkdown = cleanMarkdown.replace(/\n{3,}/g, '\n\n').trim();
 
                 const cacheTimestamp = Date.now();
-                _tcbsPdfCache.set(cacheKey, { markdown: cleanMarkdown, ts: cacheTimestamp });
+                _tcbsPdfCache.set(cacheKey, {
+                    markdown: cleanMarkdown,
+                    ts: cacheTimestamp,
+                    revision: currentRevision,
+                });
 
                 if (mongoose.connection.readyState === 1) {
                     try {
                         await TcbsMarkdownCacheModel.findOneAndUpdate(
                             { ticker: tickerUpper, mode: safeMode },
-                            { $set: { ticker: tickerUpper, mode: safeMode, markdown: cleanMarkdown, timestamp: new Date(cacheTimestamp) } },
+                            { $set: {
+                                ticker: tickerUpper,
+                                mode: safeMode,
+                                markdown: cleanMarkdown,
+                                pdfRevision: currentRevision,
+                                timestamp: new Date(cacheTimestamp),
+                            } },
                             { upsert: true, setDefaultsOnInsert: true }
                         );
                         console.log(chalk.yellow(`[CACHE SAVE] Đã lưu nội dung PDF bóc tách của ${tickerUpper} vào RAM và MongoDB!`));
@@ -477,7 +514,27 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
                 ]);
 
                 const aiMarkdown = result.response.text();
-                _tcbsPdfCache.set(cacheKey, { markdown: aiMarkdown, ts: Date.now() });
+                const cacheTimestamp = Date.now();
+                _tcbsPdfCache.set(cacheKey, {
+                    markdown: aiMarkdown,
+                    ts: cacheTimestamp,
+                    revision: currentRevision,
+                });
+                if (mongoose.connection.readyState === 1) {
+                    try {
+                        await TcbsMarkdownCacheModel.findOneAndUpdate(
+                            { ticker: tickerUpper, mode: safeMode },
+                            { $set: {
+                                ticker: tickerUpper,
+                                mode: safeMode,
+                                markdown: aiMarkdown,
+                                pdfRevision: currentRevision,
+                                timestamp: new Date(cacheTimestamp),
+                            } },
+                            { upsert: true, setDefaultsOnInsert: true }
+                        );
+                    } catch (_) {}
+                }
                 console.log(chalk.green(`[THÀNH CÔNG] Gemini Vision đã bóc tách PDF thành công thay cho Docling!`));
                 return aiMarkdown;
 
@@ -701,7 +758,10 @@ Trả về JSON array, không có text thừa:
         }
 
         text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const newsArray = JSON.parse(text);
+        const newsArray = parseLlmJson(text, []);
+        if (!Array.isArray(newsArray)) {
+            throw new Error('AI news response không phải mảng JSON');
+        }
 
         console.log(chalk.green(`[THÀNH CÔNG] AI săn ${newsArray.length} bài | mode: ${mode}`));
         return newsArray;
@@ -742,7 +802,9 @@ export async function getQuickActionWithGemini(ticker, liveData, strategicContex
             responseFormat: 'json_object',
             temperature: 0.3,
         });
-        return JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
+        const parsed = parseLlmJson(text);
+        if (!parsed) throw new Error('Không parse được Action Panel JSON');
+        return parsed;
     } catch (error) {
         console.error(chalk.red("[LỖI] AI Action Panel thất bại: "), error.message);
         return null;
@@ -819,8 +881,8 @@ try {
             responseFormat: 'json_object',
         });
 
-        const cleanJsonString = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const parsedData = JSON.parse(cleanJsonString);
+        const parsedData = parseLlmJson(text);
+        if (!parsedData) throw new Error('Không parse được JSON phái sinh');
         return parsedData;
 
     } catch (error) {
@@ -869,7 +931,9 @@ export async function analyzeCryptoSignalWithGemini(symbol, liveData) {
         const text = await generateWithRole('crypto', [prompt], {
             responseFormat: 'json_object',
         });
-        return JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
+        const parsed = parseLlmJson(text);
+        if (!parsed) throw new Error('Không parse được JSON crypto');
+        return parsed;
     } catch (error) {
         return { signal: "WAIT", confidence: "0%", advice: "Lỗi AI: " + error.message };
     }

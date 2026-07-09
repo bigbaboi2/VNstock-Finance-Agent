@@ -240,7 +240,7 @@ const STROKE_SIZES   = [1,2,3,4];
 /* ════════════════════════════════════════════════════════════════════
    COMPONENT
 ════════════════════════════════════════════════════════════════════ */
-export default React.memo(function TradingChart({ data, theme, onIntervalChange, currentInterval,isMini = false }) {
+export default React.memo(function TradingChart({ data, theme, onIntervalChange, currentInterval, isMini = false, suppressResizeRef = null }) {
   const chartContainerRef   = useRef(null);
   const chartInstance       = useRef(null);
   const topBarRef           = useRef(null);
@@ -488,6 +488,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
       // Dùng requestAnimationFrame để batch resize, tránh gọi liên tục gây lag
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
+        if (suppressResizeRef?.current) return;
         if (chartInstance.current) chartInstance.current.resize();
       });
     });

@@ -12,6 +12,8 @@ import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
 import AutoDuckTab from './components/AutoDuckTab';
 import BrokerConnectionTab from './components/BrokerConnectionTab';
+import { tcbsPdfEmbedUrl } from './lib/apiBase';
+import { AI_REPORT_COOLDOWN_MS } from './constants/aiReportCooldown';
 
 // Khi chạy dev (Vite): để baseURL rỗng → request đi qua proxy '/api' (same-origin, không dính CORS).
 // Khi build production: dùng VITE_API_BASE_URL (URL backend đã deploy).
@@ -174,6 +176,7 @@ useEffect(() => {
 
   const eventSourceRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const draftReportRef = useRef(null);
   const lastActionPriceRef = useRef(null); 
   const lastNewsCountRef = useRef(0);
   const lastActionNewsKeysRef = useRef([]);
@@ -220,6 +223,7 @@ useEffect(() => {
   const [lastAiVnSnapshot, setLastAiVnSnapshot] = useState(null);
   const [debateResult, setDebateResult] = useState(null);
   const [liveDebate, setLiveDebate] = useState({});
+  const [vnReportLayoutActive, setVnReportLayoutActive] = useState(false);
 //=======================================================================
   //STATE: AI DERIVATIVES TAB
   //=======================================================================
@@ -293,7 +297,7 @@ const handleAiDerivAnalysis = async (forceRefresh = false) => {
     if (!derivRadar || !derivChartData) return addLog('[CẢNH BÁO] Trống dữ liệu phái sinh VN. AI từ chối phân tích.');
  
     const now = Date.now();
-    const MIN_INTERVAL_MS = 5 * 60 * 1000;  
+    const MIN_INTERVAL_MS = AI_REPORT_COOLDOWN_MS;
  
     const currentSnapshot = {
         score:       derivAnalysis.score,
@@ -826,6 +830,10 @@ const derivAnalysis = React.useMemo(() => {
         setAnalysisStep('Đã hủy phân tích.');
         setAnalyzing(false);
         setAnalysisProgress(0);
+        if (draftReportRef.current) {
+          setAiReport(draftReportRef.current);
+          draftReportRef.current = null;
+        }
         addLog('[SYSTEM] Người dùng đã hủy luồng phân tích AI.');
     }
   };
@@ -1060,6 +1068,8 @@ useEffect(() => {
       lastNewsCountRef.current = 0;
       lastActionNewsKeysRef.current = [];
       setAiReport(null);
+      setDebateResult(null);
+      setVnReportLayoutActive(false);
       setVnReportTimestamp(null);
       
       if (currentUser) {
@@ -1067,11 +1077,18 @@ useEffect(() => {
               .then(res => {
                   if (res.data.success && res.data.data) {
                       const dbReport = res.data.data;
-                      setAiReport(dbReport.aiReport || dbReport.reportContent);  
+                      const reportContent = dbReport.aiReport || dbReport.reportContent;
+                      if (reportContent) setAiReport(reportContent);
                       if (dbReport.actionData) setActionData(dbReport.actionData);
+                      if (dbReport.debateResult) setDebateResult(dbReport.debateResult);
+                      setVnReportLayoutActive(true);
                       
-                      const timeStr = new Date(dbReport.createdAt || dbReport.timestamp).toLocaleString('vi-VN');
+                      const reportDate = new Date(dbReport.createdAt || dbReport.timestamp);
+                      const timeStr = reportDate.toLocaleString('vi-VN');
                       setVnReportTimestamp(timeStr);
+                      if (!Number.isNaN(reportDate.getTime())) {
+                        setLastAiVnTime(reportDate.getTime());
+                      }
                       
                       addLog(`[DB CACHE] Đã khôi phục báo cáo AI từ MongoDB cho mã ${symbol}.`);
                   }
@@ -1143,7 +1160,7 @@ useEffect(() => {
             setMarketData(prev => ({
             ...prev,
             ...res.data.data,
-            deepNewsData: prev?.deepNewsData || [],  
+            deepNewsData: (res.data.data?.deepNewsData || []).filter(n => !n.isMacro),
             }));
             if (res.data.logs && res.data.logs.length > 0) {
             res.data.logs.forEach(logMsg => addLog(logMsg));
@@ -1199,6 +1216,9 @@ useEffect(() => {
     },
     signal: controller.signal,
   }).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -1222,7 +1242,16 @@ useEffect(() => {
             setMarketData(prev => {
               if (!prev) return prev;
               const currentNews = prev.deepNewsData || [];
-              if (currentNews.some(n => n.link === data.link)) return prev;
+              const idx = currentNews.findIndex(n => n.link === data.link);
+              if (idx >= 0) {
+                const existing = currentNews[idx];
+                const newLen = String(data.content || '').length;
+                const oldLen = String(existing.content || '').length;
+                if (newLen <= oldLen) return prev;
+                const updated = [...currentNews];
+                updated[idx] = { ...existing, ...data };
+                return { ...prev, deepNewsData: updated };
+              }
               return { ...prev, deepNewsData: [data, ...currentNews] };
             });
           } catch {}
@@ -1256,14 +1285,44 @@ useEffect(() => {
   }
 };
 //Logic ai button
+const loadLatestVnReportFromDb = async (symbol) => {
+    if (!currentUser || !symbol) return null;
+    try {
+        const res = await axios.get(`/api/ai/analyze/latest/${symbol}?user=${currentUser}`);
+        if (!res.data.success || !res.data.data) return null;
+        const dbReport = res.data.data;
+        const reportContent = dbReport.aiReport || dbReport.reportContent;
+        if (!reportContent) return null;
+        setAiReport(reportContent);
+        if (dbReport.actionData) setActionData(dbReport.actionData);
+        if (dbReport.debateResult) setDebateResult(dbReport.debateResult);
+        setVnReportLayoutActive(true);
+        const reportDate = new Date(dbReport.createdAt || dbReport.timestamp);
+        if (!Number.isNaN(reportDate.getTime())) {
+            setLastAiVnTime(reportDate.getTime());
+            setVnReportTimestamp(reportDate.toLocaleString('vi-VN'));
+        }
+        return reportContent;
+    } catch {
+        return null;
+    }
+};
+
 const handleAiAnalysis = async (forceRefresh = false) => {
     if (!marketData || !chartData) {
        addLog(`[CẢNH BÁO] Trống dữ liệu biểu đồ. AI từ chối phân tích.`);
-        return;
+        return 'no_data';
+    }
+
+    setVnReportLayoutActive(true);
+
+    let activeReport = aiReport;
+    if (!activeReport && marketData.stockInfo?.symbol) {
+        activeReport = await loadLatestVnReportFromDb(marketData.stockInfo.symbol);
     }
 
     const now = Date.now();
-    const MIN_INTERVAL_MS = 5 * 60 * 1000;
+    const MIN_INTERVAL_MS = AI_REPORT_COOLDOWN_MS;
     const currentPrice = marketData.stockInfo.currentPrice;
     const priceNum = parsePriceToNumber(currentPrice);
     const currentNews = marketData.deepNewsData || [];
@@ -1293,12 +1352,13 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     const timeSinceLast = lastAiVnTime ? now - lastAiVnTime : Infinity;
     const enoughTimeElapsed = timeSinceLast >= MIN_INTERVAL_MS;
 
-    if (!forceRefresh && aiReport && !isSignificantChange && !enoughTimeElapsed) {
+    if (!forceRefresh && activeReport && !isSignificantChange && !enoughTimeElapsed) {
         const remainSec = Math.round((MIN_INTERVAL_MS - timeSinceLast) / 1000);
-        addLog(`[AI CACHE] Truy xuất báo cáo AI đã lưu. Thử lại sau ${remainSec}s.`);
-        return;
+        addLog(`[AI CACHE] Hiển thị báo cáo gần đây. Phân tích lại sau ${remainSec}s (hoặc bấm Quét lại ngay).`);
+        return 'cached';
     }
     
+    draftReportRef.current = activeReport || aiReport;
     setAnalyzing(true);
     setAiReport('');
     setLiveDebate({});   
@@ -1466,13 +1526,20 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         // ------------------------------------------------
 
         if (currentUser) fetchUserHistory();
+        draftReportRef.current = null;
+        return 'started';
     } catch (err) {
         if (err.name === 'AbortError' || err.message.includes('abort')) {
              console.log('[HỆ THỐNG] Đã hủy luồng stream AI do người dùng chuyển trang.');
-             return; 
+             return 'cancelled';
+        }
+        if (draftReportRef.current) {
+            setAiReport(draftReportRef.current);
+            draftReportRef.current = null;
         }
         addLog('[LỖI] Xử lý AI thất bại: Tràn bộ nhớ hoặc mất kết nối API.');
         console.error(err);
+        return 'error';
     } finally {
         setAnalyzing(false);
         setAnalysisStep('');
@@ -1757,7 +1824,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             aiAnalysisDuration={aiAnalysisDuration}
             vnReportTimestamp={vnReportTimestamp}
             debateResult={debateResult}
-            liveDebate={liveDebate}  
+            liveDebate={liveDebate}
         />
         )}
         {/*========================================================= */}
@@ -1885,7 +1952,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 </div>
                 <div className="flex-1 w-full relative bg-white">
                     <iframe 
-                        src={`https://docs.google.com/viewer?url=${encodeURIComponent(marketData.reportPdf)}&embedded=true`} 
+                        src={tcbsPdfEmbedUrl(marketData.reportPdf)} 
                         className="absolute inset-0 w-full h-full border-none" 
                         title="PDF Full Viewer"
                    />

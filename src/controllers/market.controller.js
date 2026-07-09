@@ -3,7 +3,7 @@ import axios from 'axios';
 import Stock from '../../models/Stock.js';
 import CryptoCoin from '../../models/CryptoCoin.js';
 import { fetchCafefData } from '../fetchers/cafefService.js';
-import { fetchTcbsData } from '../fetchers/tcbsService.js';
+import { fetchTcbsData, getTcbsPdfUrl, TCBS_HTTP_HEADERS } from '../fetchers/tcbsService.js';
 import { getCachedData, saveToCache } from '../services/cacheService.js';
 import { updateSymbolsDatabase } from '../services/symbolUpdater.js';
 import { updateCryptoSymbols } from '../services/cryptoSymbolUpdater.js';
@@ -108,6 +108,8 @@ export const getStockInfo = async (req, res) => {
                 description:     cafefRes.profileData?.description || null,
             },
             reportPdf: tcbsRes.validPdfUrl || null,
+            reportPdfLastModified: tcbsRes.pdfMeta?.lastModified || null,
+            reportPdfRevision: tcbsRes.pdfMeta?.revision || null,
             deepNewsData: masterRecord?.deepNewsData || [],
         };
 
@@ -115,6 +117,45 @@ export const getStockInfo = async (req, res) => {
         return res.json({ success: true, logs: systemLogs, data: responseData });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/** Proxy PDF TCBS — tránh Google Viewer và tải file "viewer" lỗi trên trình duyệt. */
+export const streamTcbsPdf = async (req, res) => {
+    const ticker = String(req.params.ticker || '').toUpperCase();
+    if (!ticker) {
+        return res.status(400).json({ success: false, message: 'Thiếu mã cổ phiếu' });
+    }
+
+    const pdfUrl = getTcbsPdfUrl(ticker);
+    try {
+        const upstream = await axios.get(pdfUrl, {
+            responseType: 'stream',
+            timeout: 20000,
+            headers: TCBS_HTTP_HEADERS,
+            validateStatus: (status) => status < 500,
+        });
+
+        if (upstream.status !== 200) {
+            return res.status(404).json({
+                success: false,
+                message: `TCBS chưa có báo cáo PDF cho mã ${ticker}`,
+            });
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${ticker}_tcbs.pdf"`);
+        res.setHeader('Cache-Control', 'public, max-age=900');
+        if (upstream.headers['last-modified']) {
+            res.setHeader('Last-Modified', upstream.headers['last-modified']);
+        }
+        if (upstream.headers.etag) {
+            res.setHeader('ETag', upstream.headers.etag);
+        }
+
+        upstream.data.pipe(res);
+    } catch (error) {
+        return res.status(502).json({ success: false, message: error.message });
     }
 };
 
