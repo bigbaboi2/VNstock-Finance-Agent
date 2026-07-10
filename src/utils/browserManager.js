@@ -55,7 +55,7 @@ export const getBrowser = async () => {
 
     console.log(chalk.yellowBright('+ [BrowserManager] Khởi động Chromium Engine dùng chung...'));
 
-    _launchingPromise = puppeteer.launch({
+    const launchOptions = {
         headless: 'new',
         args: [
             '--no-sandbox',
@@ -64,7 +64,13 @@ export const getBrowser = async () => {
             '--disable-gpu',
             '--no-zygote',
         ],
-    }).then(browser => {
+    };
+
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
+    _launchingPromise = puppeteer.launch(launchOptions).then(browser => {
         _browser = browser;
         _launchingPromise = null;
         _crashCount = 0; 
