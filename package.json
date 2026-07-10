@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev:backend": "nodemon --exec \"node --use-system-ca\" src/server.js",
+    "dev:backend": "nodemon --exec \"node --max-old-space-size=4096 --use-system-ca\" src/server.js",
     "diag:autotrade": "node --use-system-ca scripts/diag_autotrade.mjs",
     "diag:deep": "node --use-system-ca scripts/diag_deep.mjs",
     "test:entry-setup": "node scripts/test_entry_setup.mjs",
