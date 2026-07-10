@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Loader2, RefreshCw, Trash2, Wallet, Check, AlertTriangle } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, Wallet, Check, AlertTriangle, Info } from 'lucide-react';
+import ExchangeGuideModal from './ExchangeGuideModal';
 
 const EXCHANGE_COLORS = {
     BINANCE: '#F0B90B',
@@ -22,6 +23,7 @@ const timeAgo = (date) => {
 export default function ConnectionCard({ conn, username, isDark, UI, onChanged }) {
     const [busy, setBusy] = useState(null); // 'test' | 'balance' | 'delete' | 'toggle'
     const [flash, setFlash] = useState(null);
+    const [showGuide, setShowGuide] = useState(false);
     const color = EXCHANGE_COLORS[conn.exchangeName] || '#888';
 
     const showFlash = (msg, isError = false) => {
@@ -89,7 +91,7 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
     };
 
     const balances = Object.entries(conn.balanceSnapshot || {})
-        .filter(([, v]) => v > 0)
+        .filter(([k, v]) => Number(v) > 0 || ((k === 'USDT' || k === 'VND') && Number(v) === 0))
         .sort((a, b) => {
             if (a[0] === 'USDT' || a[0] === 'VND') return -1;
             if (b[0] === 'USDT' || b[0] === 'VND') return 1;
@@ -108,9 +110,14 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
                         conn.environment === 'LIVE' ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'
                     }`}>{conn.environment}</span>
                 </div>
-                <span className={`text-[10px] font-black flex items-center gap-1 ${conn.isActive ? 'text-emerald-400' : UI.textMuted}`}>
-                    ● {conn.isActive ? 'Active' : 'Off'}
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-black flex items-center gap-1 ${conn.isActive ? 'text-emerald-400' : UI.textMuted}`}>
+                        ● {conn.isActive ? 'Active' : 'Off'}
+                    </span>
+                    <button onClick={() => setShowGuide(true)} className={`${UI.textMuted} hover:text-blue-400 transition-colors`} title="Xem hướng dẫn API">
+                        <Info size={12} />
+                    </button>
+                </div>
             </div>
 
             <div>
@@ -197,6 +204,14 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
                 }`}>
                 {busy === 'toggle' ? <Loader2 size={13} className="animate-spin inline" /> : (conn.isActive ? '⏻ Đang BẬT — bấm để tắt' : '⏻ Đang TẮT — bấm để bật')}
             </button>
+            {showGuide && (
+                <ExchangeGuideModal
+                    exchangeName={conn.exchangeName}
+                    isDark={isDark}
+                    UI={UI}
+                    onClose={() => setShowGuide(false)}
+                />
+            )}
         </div>
     );
 }
