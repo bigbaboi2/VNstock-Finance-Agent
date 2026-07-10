@@ -1,13 +1,14 @@
 import axios from 'axios';
+import crypto from 'crypto';
 
 /**
- * DNSE ENTRADE X ADAPTER
- * Dùng Username/Password để login lấy JWT Token.
+ * DNSE LightSpeed API ADAPTER
+ * Dùng API Key / API Secret để xác thực.
  */
 
 const BASE_URLS = {
-    LIVE: 'https://services.entrade.com.vn',
-    TESTNET: 'https://services.entrade.com.vn', // DNSE often uses same domain or specific test domain
+    LIVE: 'https://openapi.dnse.com.vn',
+    TESTNET: 'https://openapi.dnse.com.vn', // DNSE hiện không cung cấp môi trường Testnet
 };
 
 const mapError = (err) => {
@@ -19,74 +20,95 @@ const mapError = (err) => {
 };
 
 /**
- * Lấy JWT Token từ Username & Password
+ * Tạo Header xác thực theo chuẩn DNSE LightSpeed API
  */
-const getToken = async (username, password, environment) => {
-    const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
-    try {
-        const res = await axios.post(`${base}/entrade-api/v2/auth`, {
-            username: username,
-            password: password
-        });
-        // API response format có thể là res.data.token
-        if (res.data && res.data.token) {
-            return res.data.token;
-        }
-        throw new Error('Không lấy được Token từ DNSE');
-    } catch (err) {
-        if (err.response?.status === 401 || err.response?.status === 403) {
-            throw new Error('Sai tên đăng nhập hoặc mật khẩu DNSE.');
-        }
-        throw new Error(mapError(err));
-    }
+const getAuthHeaders = (method, path, apiKey, secret) => {
+    const date = new Date().toUTCString().replace('GMT', '+0000');
+    const nonce = crypto.randomBytes(16).toString('hex'); // 32 hex chars
+    
+    // Bước 1: Xây dựng Signing String
+    const methodLower = method.toLowerCase();
+    const signingString = `(request-target): ${methodLower} ${path}\ndate: ${date}\nnonce: ${nonce}`;
+    
+    // Bước 2: Tạo chuỗi Signature
+    const rawSignature = crypto.createHmac('sha256', secret).update(signingString, 'utf8').digest('base64');
+    // URL-encode +, /, =
+    const encodedSignature = rawSignature.replace(/\+/g, '%2B').replace(/\//g, '%2F').replace(/=/g, '%3D');
+    
+    // Bước 3: Đóng gói Header X-Signature
+    const xSignature = `Signature keyId="${apiKey}",algorithm="hmac-sha256",headers="(request-target) date",signature="${encodedSignature}",nonce="${nonce}"`;
+    
+    return {
+        'Accept': 'application/json',
+        'x-api-key': apiKey,
+        'Date': date,
+        'x-signature': xSignature,
+        'version': '2026-05-07'
+    };
 };
 
 /**
  * 1. testConnection: Ping login
  */
-export const testConnection = async (credentials) => {
-    const { apiKey, secret, environment } = credentials; // apiKey = username, secret = password
+export const testConnection = async (apiKey, secret, passphrase, environment) => {
     try {
         const start = Date.now();
-        const token = await getToken(apiKey, secret, environment);
+        const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+        
+        // Dùng API lấy thông tin tài khoản để test connection
+        const path = '/accounts';
+        const headers = getAuthHeaders('GET', path, apiKey, secret);
+        
+        const res = await axios.get(`${base}${path}`, { headers });
         const latencyMs = Date.now() - start;
+        
+        // Kiểm tra xem có tài khoản nào không
+        const accounts = res.data?.accounts || res.data;
+        if (!accounts || (Array.isArray(accounts) && accounts.length === 0)) {
+             throw new Error('API Key hợp lệ nhưng không tìm thấy tiểu khoản nào.');
+        }
+
         return {
             success: true,
             message: 'Đăng nhập DNSE thành công.',
             latencyMs,
             permissions: ['READ', 'TRADE'],
-            balances: await getBalances(credentials) // Test luôn việc lấy balance
+            balances: await getBalances(apiKey, secret, passphrase, environment) // Test luôn việc lấy balance
         };
     } catch (err) {
-        return { success: false, message: err.message };
+        if (err.response?.status === 401 || err.response?.status === 403) {
+            return { success: false, message: 'Sai API Key hoặc API Secret.' };
+        }
+        return { success: false, message: mapError(err) };
     }
 };
 
 /**
  * 2. getBalances: Lấy số dư VNĐ và list cổ phiếu
  */
-export const getBalances = async (credentials) => {
-    const { apiKey, secret, environment } = credentials;
+export const getBalances = async (apiKey, secret, passphrase, environment) => {
     try {
-        const token = await getToken(apiKey, secret, environment);
         const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
         
-        // Lấy danh sách tài khoản
-        const accRes = await axios.get(`${base}/dnse-order-service/accounts`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-
+        // 1. Lấy danh sách tài khoản
+        const accountsPath = '/accounts';
+        const accHeaders = getAuthHeaders('GET', accountsPath, apiKey, secret);
+        const accRes = await axios.get(`${base}${accountsPath}`, { headers: accHeaders });
+        
         const balances = { VND: 0 };
         const accounts = accRes.data?.accounts || accRes.data;
+        
         if (Array.isArray(accounts) && accounts.length > 0) {
+            // Lấy tiểu khoản đầu tiên
             const defaultAcc = accounts[0].id;
             
-            // Lấy số dư tiền
+            // 2. Lấy số dư tiểu khoản
             try {
-                const balRes = await axios.get(`${base}/dnse-order-service/account-balances/${defaultAcc}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const balData = balRes.data?.accountBalances || balRes.data;
+                const balPath = `/accounts/${defaultAcc}/balances`;
+                const balHeaders = getAuthHeaders('GET', balPath, apiKey, secret);
+                const balRes = await axios.get(`${base}${balPath}`, { headers: balHeaders });
+                
+                const balData = balRes.data?.stock || balRes.data; // Theo docs, data.stock.availableCash
                 balances['VND'] = balData.availableCash || balData.cashBalance || 0;
             } catch (e) {
                 console.error("DNSE get balance error:", e.message);
@@ -101,12 +123,8 @@ export const getBalances = async (credentials) => {
 /**
  * 3. placeOrder
  */
-export const placeOrder = async (credentials, trade) => {
-    const { apiKey, secret, environment } = credentials;
-    // const { symbol, direction, quantity, price, orderType } = trade;
-    
-    // TODO: Triển khai logic place order thực sự khi có OTP/Pin cơ chế.
-    // Tạm thời Return mock thành công để bot ghi nhận.
+export const placeOrder = async (apiKey, secret, passphrase, environment, trade) => {
+    // API LightSpeed cần cấu hình OTP (SmartOTP/Email OTP) để lấy Trading Token trước khi đặt lệnh.
     return {
         success: true,
         message: 'DNSE Mock Order Placed (API requires Trading Token / PIN implementation)',
@@ -119,6 +137,7 @@ export const placeOrder = async (credentials, trade) => {
 /**
  * 4. cancelOrder
  */
-export const cancelOrder = async (credentials, orderId) => {
+export const cancelOrder = async (apiKey, secret, passphrase, environment, orderId) => {
     return { success: true, message: 'DNSE Mock Order Canceled' };
 };
+

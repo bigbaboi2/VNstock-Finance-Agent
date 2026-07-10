@@ -338,11 +338,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
         try {
             if (formData.executionMode === 'LIVE') {
-                if (formData.assetType !== 'CRYPTO') {
-                    setActionMessage({ text: 'Chế độ LIVE hiện chỉ hỗ trợ thị trường CRYPTO.', isError: true });
-                    setLoading(false);
-                    return;
-                }
+
                 if (!formData.exchangeConnectionId) {
                     setActionMessage({ text: 'Hãy chọn một kết nối sàn để dùng chế độ LIVE (tab Kết nối sàn / Broker).', isError: true });
                     setLoading(false);
@@ -897,48 +893,47 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                     🧪 Mô phỏng
                                 </button>
                                 <button type="button"
-                                    onClick={() => {
-                                        if (formData.assetType !== 'CRYPTO') {
-                                            setActionMessage({ text: 'Chế độ LIVE chỉ hỗ trợ CRYPTO — hãy chọn thị trường Crypto trước.', isError: true });
-                                            return;
-                                        }
-                                        setFormData({ ...formData, executionMode: 'LIVE' });
-                                    }}
+                                    onClick={() => setFormData({ ...formData, executionMode: 'LIVE' })}
                                     className={`py-2 rounded-lg text-[11px] font-black border-2 transition-all ${
                                         formData.executionMode === 'LIVE'
                                             ? 'bg-red-500 border-red-500 text-white'
                                             : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300 text-slate-600')
-                                    } ${formData.assetType !== 'CRYPTO' ? 'opacity-40' : ''}`}>
+                                    }`}>
                                     🔴 Live (gửi lệnh thực)
                                 </button>
                             </div>
 
-                            {formData.executionMode === 'LIVE' && (
-                                <div className="flex flex-col gap-2 animate-in fade-in duration-200">
-                                    {liveConnections.length === 0 ? (
-                                        <p className="text-[11px] font-bold text-amber-500">
-                                            Chưa có kết nối sàn nào active có quyền TRADE. Hãy thêm ở tab <b>7. Kết nối sàn / Broker</b>.
+                            {formData.executionMode === 'LIVE' && (() => {
+                                const filteredConnections = liveConnections.filter(c => 
+                                    formData.assetType === 'VN_STOCK' ? c.exchangeName === 'DNSE' : c.exchangeName !== 'DNSE'
+                                );
+                                return (
+                                    <div className="flex flex-col gap-2 animate-in fade-in duration-200">
+                                        {filteredConnections.length === 0 ? (
+                                            <p className="text-[11px] font-bold text-amber-500">
+                                                Chưa có kết nối {formData.assetType === 'VN_STOCK' ? 'chứng khoán (DNSE)' : 'Crypto'} nào active có quyền TRADE. Hãy thêm ở tab <b>7. Kết nối sàn</b>.
+                                            </p>
+                                        ) : (
+                                            <select
+                                                value={formData.exchangeConnectionId}
+                                                onChange={e => setFormData({ ...formData, exchangeConnectionId: e.target.value })}
+                                                className={`w-full px-2 py-2 rounded-lg border font-bold text-xs outline-none cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-200 border-slate-700' : 'bg-white text-slate-700 border-slate-300'}`}
+                                            >
+                                                <option value="">— Chọn kết nối sàn —</option>
+                                                {filteredConnections.map(c => (
+                                                    <option key={c._id} value={c._id}>
+                                                        {c.exchangeName} · {c.label} · {c.environment === 'LIVE' ? '⚠️ LIVE' : 'Testnet'}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        <p className="text-[10px] font-bold text-red-400 leading-relaxed">
+                                            ⚠️ Cảnh báo: Khi engine khớp tín hiệu, lệnh sẽ được gửi thực tế đến sàn giao dịch.
+                                            Spot chỉ hỗ trợ LONG/MUA. Đảm bảo bạn hiểu rõ rủi ro trước khi kích hoạt.
                                         </p>
-                                    ) : (
-                                        <select
-                                            value={formData.exchangeConnectionId}
-                                            onChange={e => setFormData({ ...formData, exchangeConnectionId: e.target.value })}
-                                            className={`w-full px-2 py-2 rounded-lg border font-bold text-xs outline-none cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-200 border-slate-700' : 'bg-white text-slate-700 border-slate-300'}`}
-                                        >
-                                            <option value="">— Chọn kết nối sàn —</option>
-                                            {liveConnections.map(c => (
-                                                <option key={c._id} value={c._id}>
-                                                    {c.exchangeName} · {c.label} · {c.environment === 'LIVE' ? '⚠️ LIVE' : 'Testnet'}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )}
-                                    <p className="text-[10px] font-bold text-red-400 leading-relaxed">
-                                        ⚠️ Cảnh báo: Khi engine khớp tín hiệu, lệnh sẽ được gửi thực tế đến sàn giao dịch.
-                                        Spot chỉ hỗ trợ LONG/MUA. Đảm bảo bạn hiểu rõ rủi ro trước khi kích hoạt.
-                                    </p>
-                                </div>
-                            )}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         <button type="submit" disabled={loading}
@@ -1529,7 +1524,7 @@ function MechanismGuideModal({ isDark, UI, onClose }) {
                     {/* 3. SIMULATED vs LIVE */}
                     <Section color="#06b6d4" icon="⚙️" title="3. Chế độ thực thi">
                         <p>· <Tag color="#06b6d4">Mô phỏng</Tag> Không gửi ra sàn. Engine theo dõi giá thật (Binance/Entrade), tính PnL <b>giấy</b> theo vốn bạn nhập. Dùng để test chiến lược + nuôi AI học.</p>
-                        <p>· <Tag color="#ef4444">Live</Tag> Vốn ánh xạ sang <b>số dư USDT thật trên sàn</b>. Khi engine khớp tín hiệu, lệnh được gửi THỰC. Chỉ hỗ trợ CRYPTO, spot chỉ LONG/MUA.</p>
+                        <p>· <Tag color="#ef4444">Live</Tag> Vốn ánh xạ sang <b>số dư thật trên sàn</b> (USDT hoặc VNĐ). Khi engine khớp tín hiệu, lệnh được gửi THỰC (hiện đã hỗ trợ Crypto và Chứng khoán VN qua DNSE LightSpeed).</p>
                         <p className={UI.textMuted}>Nếu live thất bại (sai symbol, thiếu số dư) → lệnh tự lùi về chạy mô phỏng, vẫn được theo dõi.</p>
                     </Section>
 

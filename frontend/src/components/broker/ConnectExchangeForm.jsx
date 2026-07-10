@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Eye, EyeOff, Loader2, ShieldAlert, ShieldCheck, X, ExternalLink } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ShieldAlert, ShieldCheck, X, ExternalLink, Info } from 'lucide-react';
+import ExchangeGuideModal from './ExchangeGuideModal';
 
 const EXCHANGES = [
     {
@@ -21,7 +22,7 @@ const EXCHANGES = [
     {
         id: 'DNSE', name: 'DNSE', color: '#F26A44',
         apiUrl: 'https://entradex.dnse.com.vn/',
-        needsPassphrase: true,
+        needsPassphrase: false,
         isVNStock: true,
     },
 ];
@@ -39,6 +40,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
     const [showSecret, setShowSecret] = useState(false);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
+    const [showGuide, setShowGuide] = useState(false);
 
     const exchange = EXCHANGES.find(e => e.id === form.exchangeName);
     const inputCls = `w-full px-3 py-2.5 rounded-xl border text-sm font-mono outline-none transition-colors ${
@@ -52,7 +54,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
             return;
         }
         if (exchange.needsPassphrase && !form.passphrase) {
-            setResult({ success: false, message: exchange.isVNStock ? 'Vui lòng nhập Mã PIN (bắt buộc cho Trading Token).' : 'Sàn này bắt buộc phải có Passphrase.' });
+            setResult({ success: false, message: 'Sàn này bắt buộc phải có Passphrase.' });
             return;
         }
         setLoading(true);
@@ -107,10 +109,10 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 </div>
 
                 {/* HƯỚNG DẪN LẤY KEY */}
-                <a href={exchange.apiUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:underline">
-                    <ExternalLink size={12} /> Hướng dẫn: {exchange.isVNStock ? 'Mở tài khoản DNSE tại đây' : `Tạo API key trên ${exchange.name} tại đây`}
-                </a>
+                <button type="button" onClick={() => setShowGuide(true)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:underline w-fit">
+                    <Info size={14} /> Hướng dẫn: Xem cách tạo API key trên {exchange.name} tại đây
+                </button>
 
                 {/* KHUYẾN NGHỊ QUYỀN */}
                 <div className={`rounded-xl p-3 text-xs font-semibold border ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
@@ -129,7 +131,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {/* API KEY / USERNAME */}
                 <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
-                        {exchange.isVNStock ? 'Tên đăng nhập (Email / SĐT)' : 'API Key'}
+                        API Key
                     </label>
                     <div className="relative">
                         <input className={inputCls} type={showKey ? 'text' : 'password'} autoComplete="off"
@@ -144,7 +146,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {/* SECRET / PASSWORD */}
                 <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
-                        {exchange.isVNStock ? 'Mật khẩu' : 'Secret Key'}
+                        Secret Key
                     </label>
                     <div className="relative">
                         <input className={inputCls} type={showSecret ? 'text' : 'password'} autoComplete="off"
@@ -218,6 +220,14 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                     {loading ? <><Loader2 size={16} className="animate-spin" /> Đang kiểm tra kết nối với sàn...</> : 'Lưu & Kiểm tra kết nối'}
                 </button>
             </form>
+            {showGuide && (
+                <ExchangeGuideModal
+                    exchangeName={exchange.id}
+                    isDark={isDark}
+                    UI={UI}
+                    onClose={() => setShowGuide(false)}
+                />
+            )}
         </div>
     );
 }
