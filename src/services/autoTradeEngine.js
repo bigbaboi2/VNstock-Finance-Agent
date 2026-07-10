@@ -3155,6 +3155,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             event: 'pipeline_cycle_end',
             source: 'autoTradeEngine',
         }).catch(() => {});
+        Setting.findOneAndUpdate(
+            { key: 'lastAutoTradePipelineRun' },
+            { value: Date.now() },
+            { upsert: true }
+        ).catch(() => {});
     }
 };
 
@@ -3562,7 +3567,18 @@ export const startAutoDuckScheduler = () => {
         }
     };
 
-    runScheduledPipeline('ALL');
+    Setting.findOne({ key: 'lastAutoTradePipelineRun' }).then(setting => {
+        const lastRun = setting ? Number(setting.value) : 0;
+        const now = Date.now();
+        if (now - lastRun > 10 * 60 * 1000) {
+            runScheduledPipeline('ALL');
+        } else {
+            console.log(chalk.yellow(`[AUTODUCK] Bỏ qua lần chạy khởi động do mới quét cách đây ${Math.round((now - lastRun) / 60000)} phút.`));
+        }
+    }).catch(err => {
+        console.log(chalk.yellow(`[AUTODUCK] Lỗi check lastAutoTradePipelineRun, vẫn chạy mặc định: ${err.message}`));
+        runScheduledPipeline('ALL');
+    });
 
     setInterval(() => runIntervalTask('CRYPTO', async () => {
         await runScheduledPipeline('CRYPTO', 'CRYPTO');

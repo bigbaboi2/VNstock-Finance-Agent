@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function CyberpunkClock({ marketOpen, theme }) {
+export default function CyberpunkClock({ marketOpen, theme, is3D = true }) {
   const isDark = theme === 'dark';
   
   const [h, setH] = useState('00')
@@ -67,6 +67,22 @@ export default function CyberpunkClock({ marketOpen, theme }) {
       <div className={`w-full h-[1px] absolute top-1/2 -translate-y-1/2 rotate-45 ${isDark ? 'bg-white/30' : 'bg-black/20'}`}></div>
     </div>
   )
+
+  if (!is3D) {
+    return (
+      <div className={`px-4 py-2 rounded-2xl border-2 flex items-center justify-center gap-2 
+        ${marketOpen 
+          ? (isDark ? 'bg-emerald-900/10 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'bg-emerald-50 border-emerald-200 shadow-sm') 
+          : (isDark ? 'bg-red-900/10 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : 'bg-red-50 border-red-200 shadow-sm')}`}>
+        <style>{`
+          @font-face { font-family: 'Technology'; src: url('/fonts/Technology.ttf') format('truetype'); }
+        `}</style>
+        <div className={`text-2xl font-black ${textColor} translate-y-[2px]`} style={{ fontFamily: 'Technology', letterSpacing: '4px', textShadow: isDark ? `0 0 10px ${themeColor}, 0.5)` : 'none' }}>
+          {h}<span className="animate-pulse mx-[2px]">:</span>{m}<span className="animate-pulse opacity-70 mx-[2px]">:</span>{s}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

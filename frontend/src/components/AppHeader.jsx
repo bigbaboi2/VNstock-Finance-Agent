@@ -1,5 +1,5 @@
 //====  AppHeader.jsx ====
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Search, TrendingUp, Globe, Zap, TerminalSquare, Home, Sun, Moon, Menu } from 'lucide-react';
 import CyberpunkClock from './CyberpunkClock';
 import UserMenu from './UserMenu';
@@ -20,6 +20,7 @@ const AppHeader = ({
   fetchMarketData, executePaperSearch,
 }) => {
    const searchWrapperRef = useRef(null);
+   const [is3DClock, setIs3DClock] = useState(true);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -151,7 +152,7 @@ const AppHeader = ({
         </div>
 
           <div className="hidden xl:flex items-center gap-4 shrink-0 select-none ml-20">
-            <CyberpunkClock marketOpen={marketOpen} theme={isDark ? 'dark' : 'light'} />
+            <CyberpunkClock marketOpen={marketOpen} theme={isDark ? 'dark' : 'light'} is3D={is3DClock} />
             <div
               className={`px-4 py-2 rounded-2xl border font-black uppercase tracking-widest text-[11px]
               ${marketOpen
@@ -169,6 +170,15 @@ const AppHeader = ({
 
         {/*CONTAINER UTILITIES & ACCOUNT DROPDOWN */}
         <div className="flex items-center justify-end gap-1.5 sm:gap-3 sm:w-[300px] xl:w-[350px] shrink-0 relative">
+          <button 
+            onClick={() => setIs3DClock(!is3DClock)}
+            className={`relative flex items-center w-11 h-6 rounded-full p-[2px] transition-colors duration-300 border ${isDark ? 'border-white/10' : 'border-slate-300'} ${is3DClock ? 'bg-emerald-500/20' : 'bg-slate-500/10'}`}
+            title="Toggle 3D/2D Clock"
+          >
+            <div className={`h-full aspect-square rounded-full flex items-center justify-center shadow-md transition-transform duration-300 ${is3DClock ? 'translate-x-5 bg-emerald-500 text-white' : 'translate-x-0 bg-slate-400 text-white'}`}>
+              <span className="text-[8px] font-black leading-none">{is3DClock ? '3D' : '2D'}</span>
+            </div>
+          </button>
           <button onClick={handleToggleTheme} className={`p-2 sm:p-2.5 rounded-xl border transition-all ${UI.btnLog}`}>
             {isDark ? <Sun size={16} className="text-yellow-400 sm:w-[18px] sm:h-[18px]" /> : <Moon size={16} className="sm:w-[18px] sm:h-[18px]" />}
           </button>

@@ -7,6 +7,7 @@ import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { getBrowser } from '../utils/browserManager.js';
 import { decodeGoogleNewsUrl } from '../utils/googleNewsDecoder.js';
 import { detectSentiment } from '../scrapers/vnNewsSearch.js';
+import Setting from '../../models/Setting.js';
 
 export let lastNewsSyncTime = new Date();
  
@@ -344,6 +345,12 @@ export const fetchAndSaveNews = async () => {
 
         lastNewsSyncTime = new Date();
         cleanupCircuitState(); 
+        
+        await Setting.findOneAndUpdate(
+            { key: 'lastNewsCronRun' },
+            { value: Date.now() },
+            { upsert: true }
+        ).catch(() => {});
     } catch (error) {
         console.error('[CRON-LỖI]', error.message);
     }
@@ -352,9 +359,23 @@ export const fetchAndSaveNews = async () => {
 //─── Start ────────────────────────────────────────────────────────────────────
 
 export const startCronJobs = () => {
-    fetchAndSaveNews().catch(err =>
-        console.error(chalk.red('[CRON] Lỗi fetch lần đầu boot:'), err.message)
-    );
+    Setting.findOne({ key: 'lastNewsCronRun' }).then(setting => {
+        const lastRun = setting ? Number(setting.value) : 0;
+        const now = Date.now();
+        if (now - lastRun > 120 * 60 * 1000) {
+            fetchAndSaveNews().catch(err =>
+                console.error(chalk.red('[CRON] Lỗi fetch lần đầu boot:'), err.message)
+            );
+        } else {
+            console.log(chalk.yellow(`[CRON] Bỏ qua cào tin khởi động do mới quét cách đây ${Math.round((now - lastRun) / 60000)} phút.`));
+        }
+    }).catch(err => {
+        console.error(chalk.yellow(`[CRON] Lỗi kiểm tra cooldown, vẫn chạy mặc định:`), err.message);
+        fetchAndSaveNews().catch(err =>
+            console.error(chalk.red('[CRON] Lỗi fetch lần đầu boot:'), err.message)
+        );
+    });
+
     cron.schedule('0 */3 * * *', fetchAndSaveNews);
     console.log(chalk.gray('[CRON] Đã lên lịch lấy dữ liệu tin vĩ mô mỗi 3h.'));
 };

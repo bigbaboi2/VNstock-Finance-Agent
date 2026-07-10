@@ -111,8 +111,12 @@ app.listen(PORT, async () => {
         await updateSymbolsDatabase();
         await updateCryptoSymbols();
         startCronJobs();
-        startVnStockNewsPrefetch();
+        setTimeout(() => {
+            console.log(chalk.yellow('[HỆ THỐNG] Bắt đầu khởi động VN News Prefetch sau khi delay...'));
+            startVnStockNewsPrefetch();
+        }, 30000);
     } catch (error) {
         console.error(chalk.red('[LỖI] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
     }
 });
+// trigger restart

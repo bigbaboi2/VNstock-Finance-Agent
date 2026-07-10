@@ -477,8 +477,10 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 </div>
             </div>
 
+            <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-8 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
+
             {/* THẺ QUẢN LÝ PHÂN BỔ VỐN AI */}
-            <div className={`p-6 rounded-3xl border shadow-lg mb-6 ${isDark ? 'bg-[#0f141e] border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`p-6 rounded-3xl border-2 shadow-lg mb-6 ${isDark ? 'bg-[#0f141e] !border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'bg-white border-slate-300'}`}>
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3">
                         <Briefcase className="text-purple-500" />
@@ -732,13 +734,15 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             </>
             )}
 
+            <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-10 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
+
             {/* ═══════ GÓI LỆNH ỦY THÁC CÁ NHÂN (SIMULATED / LIVE) ═══════ */}
             <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 border-emerald-500`}>
                 <span className={`ml-2 text-xs font-black uppercase tracking-widest ${UI.textBold}`}>Gói lệnh ủy thác cá nhân</span>
                 <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Tạo lệnh để bot khớp & vào lệnh tự động (mô phỏng hoặc LIVE trên sàn)</span>
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
-                <section className={`xl:col-span-5 rounded-xl border p-5 ${UI.card}`}>
+                <section className={`xl:col-span-5 rounded-xl border-2 p-5 ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
                     <div className={`flex items-center gap-2 mb-4 pb-3 border-b ${UI.border}`}>
                         <Briefcase size={16} className="text-emerald-500" />
                         <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Tạo gói lệnh ủy thác</span>
@@ -746,7 +750,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
                     <form onSubmit={handleFormSubmit} className="flex flex-col gap-3">
                         {/* ── CHẾ ĐỘ ỦY THÁC VỐN ── */}
-                        <div className={`p-3 rounded-lg border flex flex-col gap-2 ${UI.searchBg}`}>
+                        <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col gap-2 ${UI.searchBg}`}>
                             <label className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>
                                 Chế độ ủy thác vốn
                                 <button type="button" onClick={() => setShowGuide(true)} className="text-cyan-400 hover:text-cyan-300">
@@ -759,7 +763,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                     className={`py-2 rounded-lg text-[11px] font-black border-2 transition-all ${
                                         formData.allocationMode === 'FIXED'
                                             ? 'bg-emerald-500 border-emerald-500 text-white'
-                                            : (isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-600')
+                                            : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300 text-slate-600')
                                     }`}>
                                     📌 Cố định / lệnh
                                 </button>
@@ -768,7 +772,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                     className={`py-2 rounded-lg text-[11px] font-black border-2 transition-all ${
                                         formData.allocationMode === 'PORTFOLIO'
                                             ? 'bg-violet-500 border-violet-500 text-white'
-                                            : (isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-600')
+                                            : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300 text-slate-600')
                                     }`}>
                                     💼 Portfolio — bot tự chia
                                 </button>
@@ -875,7 +879,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         </FieldShell>
 
                         {/* CHẾ ĐỘ THỰC THI */}
-                        <div className={`p-3 rounded-lg border flex flex-col gap-2 ${UI.searchBg}`}>
+                        <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col gap-2 ${UI.searchBg}`}>
                             <label className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>
                                 Chế độ thực thi
                                 <button type="button" onClick={() => setShowGuide(true)} className="text-cyan-400 hover:text-cyan-300">
@@ -888,7 +892,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                     className={`py-2 rounded-lg text-[11px] font-black border-2 transition-all ${
                                         formData.executionMode === 'SIMULATED'
                                             ? 'bg-cyan-500 border-cyan-500 text-white'
-                                            : (isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-600')
+                                            : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300 text-slate-600')
                                     }`}>
                                     🧪 Mô phỏng
                                 </button>
@@ -903,7 +907,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                     className={`py-2 rounded-lg text-[11px] font-black border-2 transition-all ${
                                         formData.executionMode === 'LIVE'
                                             ? 'bg-red-500 border-red-500 text-white'
-                                            : (isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-600')
+                                            : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300 text-slate-600')
                                     } ${formData.assetType !== 'CRYPTO' ? 'opacity-40' : ''}`}>
                                     🔴 Live (gửi lệnh thực)
                                 </button>
@@ -954,7 +958,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                     </form>
                 </section>
 
-                <section className={`xl:col-span-7 rounded-xl border flex flex-col max-h-[560px] overflow-hidden ${UI.card}`}>
+                <section className={`xl:col-span-7 rounded-xl border-2 flex flex-col h-full overflow-hidden ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
                     <div className={`px-5 py-4 flex flex-col gap-1 border-b ${UI.border} shrink-0`}>
                         <div className="flex items-center gap-2">
                             <Target size={16} className="text-yellow-500 shrink-0" />
@@ -998,12 +1002,14 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 </section>
             </div>
 
+            <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-10 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
+
             <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 border-violet-500`}>
                 <span className={`ml-2 text-xs font-black uppercase tracking-widest ${UI.textBold}`}>Nhật ký tín hiệu AI</span>
                 <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Lệnh mô phỏng chạy nền để AI học · Xem lệnh thực ở tab Broker</span>
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
-                <section className={`xl:col-span-12 rounded-xl border flex flex-col h-[720px] overflow-hidden ${UI.card}`}>
+                <section className={`xl:col-span-12 rounded-xl border-2 flex flex-col h-[720px] overflow-hidden ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
                     <div className={`px-5 py-4 flex items-center justify-between border-b ${UI.border} shrink-0`}>
                         <div className="flex items-center gap-2">
                             <Activity size={16} className="text-cyan-500" />
@@ -1096,7 +1102,7 @@ function ResultCard({ UI, isDark, label, value, tone, detail }) {
 
 function FieldShell({ UI, label, children, action }) {
     return (
-        <div className={`p-3 rounded-lg border flex flex-col justify-center ${UI.searchBg}`}>
+        <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col justify-center ${UI.searchBg}`}>
             <div className="flex items-center justify-between mb-2">
                 <label className={`block text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>{label}</label>
                 {action}
@@ -1303,7 +1309,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
         ? (isDark ? 'ring-2 ring-cyan-500/35 border-2 border-cyan-500/25 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]' : 'ring-2 ring-cyan-400/50 border-2 border-cyan-300 shadow-sm')
         : isPortfolio
             ? (isDark ? 'ring-1 ring-violet-500/30 border-2 border-violet-500/20' : 'ring-1 ring-violet-300/60 border-2 border-violet-200')
-            : (isDark ? 'ring-1 ring-white/10 border-2 border-white/10' : 'ring-1 ring-slate-200 border-2 border-slate-200');
+            : (isDark ? 'ring-1 ring-white/80 border-2 border-white/80' : 'ring-1 ring-slate-200 border-2 border-slate-200');
 
     const packageBg = isPortfolio
         ? (isDark ? 'bg-violet-500/[0.04]' : 'bg-violet-50/40')
@@ -1312,7 +1318,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
     return (
         <div className={`rounded-xl p-4 ${packageBg} ${packageOutline}`}>
             {/* ── Header gói: số thứ tự + trạng thái lệnh đang chạy ── */}
-            <div className={`flex items-center justify-between gap-2 mb-3 pb-2.5 border-b ${isDark ? 'border-white/8' : 'border-slate-200'}`}>
+            <div className={`flex items-center justify-between gap-2 mb-3 pb-2.5 border-b ${isDark ? 'border-white/80' : 'border-slate-200'}`}>
                 <div className="flex items-center gap-2 min-w-0">
                     <span className={`flex shrink-0 items-center justify-center w-8 h-8 rounded-lg text-xs font-black border ${isDark ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' : 'bg-yellow-50 border-yellow-300 text-yellow-700'}`}>
                         #{index}
