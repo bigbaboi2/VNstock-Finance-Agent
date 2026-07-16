@@ -608,6 +608,65 @@ export const buildDeterministicView = ({
     };
 };
 
+const isUsefulDisplayName = (name, symbol) => {
+    const s = String(name || '').trim();
+    if (!s) return false;
+    if (s.toUpperCase() === String(symbol || '').toUpperCase()) return false;
+    if (s === 'N/A' || s === 'n/a' || s === '---') return false;
+    return true;
+};
+
+/** Cache map symbol → company title từ CafeF company.json (TTL 6h). */
+let _cafefCompanyMap = null;
+let _cafefCompanyMapAt = 0;
+const CAFEF_COMPANY_TTL_MS = 6 * 60 * 60 * 1000;
+
+const loadCafefCompanyMap = async () => {
+    if (_cafefCompanyMap && Date.now() - _cafefCompanyMapAt < CAFEF_COMPANY_TTL_MS) {
+        return _cafefCompanyMap;
+    }
+    try {
+        const res = await axios.get('https://cafefnew.mediacdn.vn/Search/company.json', { timeout: 10000 });
+        const map = new Map();
+        if (Array.isArray(res.data)) {
+            for (const item of res.data) {
+                const sym = String(item.Symbol || item.a || '').toUpperCase();
+                const title = String(item.Title || item.Description || item.b || '').trim();
+                if (sym && title) map.set(sym, title);
+            }
+        }
+        _cafefCompanyMap = map;
+        _cafefCompanyMapAt = Date.now();
+        return map;
+    } catch (err) {
+        console.log(chalk.gray(`[INFO] CafeF company.json: ${err.message}`));
+        return _cafefCompanyMap || new Map();
+    }
+};
+
+const resolveVnCompanyName = async (symbol, stockDoc, cafef) => {
+    const candidates = [
+        stockDoc?.companyName,
+        stockDoc?.name,
+        cafef?.companyName,
+    ];
+    for (const c of candidates) {
+        if (isUsefulDisplayName(c, symbol)) return String(c).trim();
+    }
+    const map = await loadCafefCompanyMap();
+    const fromJson = map.get(String(symbol).toUpperCase());
+    if (isUsefulDisplayName(fromJson, symbol)) {
+        // Persist nhẹ để lần sau đọc DB
+        Stock.updateOne(
+            { symbol },
+            { $set: { companyName: fromJson, lastUpdated: new Date() } },
+            { upsert: true }
+        ).catch(() => {});
+        return fromJson;
+    }
+    return null;
+};
+
 const findInsightPick = (symbol, insight) => {
     const picks = Array.isArray(insight?.topPicks) ? insight.topPicks : [];
     const sym = String(symbol || '').toUpperCase();
@@ -729,10 +788,12 @@ const getVnSymbolInfo = async (symbol) => {
         ? overviewArr.filter(Boolean).slice(0, 3).join(' · ')
         : (cafef?.overview || null);
 
+    const companyName = await resolveVnCompanyName(symbol, stockDoc, cafef);
+
     return {
         asset: 'VN_STOCK',
         symbol,
-        name: cafef?.companyName || stockDoc?.companyName || stockDoc?.name || symbol,
+        name: companyName || symbol,
         industry: cafef?.profileData?.industry || null,
         fundamentals: {
             pe: cafef?.pe || '---',
@@ -828,6 +889,9 @@ const getCryptoSymbolInfo = async (symbol) => {
 
     const cachedAi = readCachedAiCrypto(coinDoc);
     const now = new Date();
+    const cryptoName = isUsefulDisplayName(coinDoc?.name, symbol)
+        ? String(coinDoc.name).trim()
+        : null;
 
     const view = buildDeterministicView({
         asset: 'CRYPTO',
@@ -844,7 +908,7 @@ const getCryptoSymbolInfo = async (symbol) => {
     return {
         asset: 'CRYPTO',
         symbol,
-        name: coinDoc?.name || symbol,
+        name: cryptoName || symbol,
         industry: 'Crypto',
         fundamentals: {
             pe: '---',
