@@ -462,7 +462,7 @@ const buildVolatilityAlertMessage = (asset, symbol, currentPrice, changePct, tim
     const frame       = escapeMarkdownV2(timeFrame);
     const cleanNote   = escapeMarkdownV2(truncate(note || '', 200));
     const isUp        = changePct >= 0;
-    const alertIcon   = isUp ? '🚀' : '💥';
+    const alertIcon   = isUp ? '🟢' : '🔴';
 
     return [
         `${alertIcon} *CẢNH BÁO BIẾN ĐỘNG*`,
@@ -473,6 +473,72 @@ const buildVolatilityAlertMessage = (asset, symbol, currentPrice, changePct, tim
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
         `📝 *Ghi chú:* ${cleanNote}`,
     ].join('\n');
+};
+
+/** Gộp nhiều cảnh báo biến động thành 1 tin (tránh spam khi quét hàng loạt). */
+const buildVolatilityDigestMessage = (alerts = []) => {
+    const items = Array.isArray(alerts) ? alerts : [];
+    if (!items.length) return '';
+
+    const sortByAbs = (list) =>
+        [...list].sort((a, b) => Math.abs(Number(b.changePct)) - Math.abs(Number(a.changePct)));
+
+    const vnItems = sortByAbs(items.filter((a) => a.asset === 'VN_STOCK' || a.asset === 'DERIVATIVES'));
+    const cryptoItems = sortByAbs(items.filter((a) => a.asset === 'CRYPTO'));
+
+    const countUD = (list) => ({
+        up: list.filter((a) => Number(a.changePct) >= 0).length,
+        down: list.filter((a) => Number(a.changePct) < 0).length,
+    });
+
+    const appendRows = (lines, list) => {
+        for (const a of list) {
+            const pct = Number(a.changePct);
+            const icon = pct >= 0 ? '🟢' : '🔴';
+            const tag = a.asset === 'DERIVATIVES' ? 'PS' : a.asset === 'CRYPTO' ? 'CRYPTO' : 'CP';
+            lines.push(
+                `${icon} <b>${escapeHtml(a.symbol)}</b> [${escapeHtml(tag)}] ${escapeHtml(formatSignedPct(pct, 2))} · ${escapeHtml(formatPrice(a.price, a.asset))}`
+            );
+            if (a.note) lines.push(`   <i>${escapeHtml(truncate(a.note, 80))}</i>`);
+        }
+    };
+
+    const totalUp = items.filter((a) => Number(a.changePct) >= 0).length;
+    const totalDown = items.length - totalUp;
+
+    const lines = [
+        `⚡ <b>CẢNH BÁO BIẾN ĐỘNG</b> — ${items.length} mã`,
+        `<i>${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} · khung ~1H</i>`,
+        PLAIN_DIVIDER,
+        `🟢 Tăng: <b>${totalUp}</b> · 🔴 Giảm: <b>${totalDown}</b>`,
+    ];
+
+    if (vnItems.length) {
+        const { up, down } = countUD(vnItems);
+        lines.push(
+            '',
+            `<b>🏢 THỊ TRƯỜNG VN</b> <i>(cổ phiếu + phái sinh · ${vnItems.length})</i>`,
+            `🟢 ${up} · 🔴 ${down}`,
+        );
+        appendRows(lines, vnItems);
+    }
+
+    if (cryptoItems.length) {
+        const { up, down } = countUD(cryptoItems);
+        lines.push(
+            '',
+            `<b>🪙 CRYPTO</b> <i>(${cryptoItems.length})</i>`,
+            `🟢 ${up} · 🔴 ${down}`,
+        );
+        appendRows(lines, cryptoItems);
+    }
+
+    if (items.length >= 12) {
+        lines.push('', `<i>Chỉ hiện top biến động mạnh nhất trong chu kỳ quét.</i>`);
+    }
+    lines.push('', `💡 Gõ /info &lt;mã&gt; để xem chi tiết`);
+
+    return packPlainLines(lines);
 };
 
 const buildSystemAlertMessage = (moduleName, issue, details) => {
@@ -1449,6 +1515,7 @@ export {
     buildCryptoSignalMessage,
     buildMarketRadarMessage,
     buildVolatilityAlertMessage,
+    buildVolatilityDigestMessage,
     buildSystemAlertMessage,
     buildDailyPnLReportMessage,
     buildStatusMessage,
