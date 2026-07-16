@@ -10,6 +10,7 @@ import { updateSymbolsDatabase } from '../services/symbolUpdater.js';
 import { updateCryptoSymbols } from '../services/cryptoSymbolUpdater.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
 import { analyzeMarketIntelligence } from '../services/quantEngine.js';
+import { findIndustryPeers } from '../services/symbolInfoService.js';
 
 // ─── Lock: chống block event loop khi quant đang chạy ───────────────────────
 let _isQuantRunning = false;
@@ -36,7 +37,7 @@ export const getStockInfo = async (req, res) => {
     }
     try {
         const to = Math.floor(Date.now() / 1000);
-        const from = to - (15 * 24 * 60 * 60);
+        const from = to - (90 * 24 * 60 * 60); // 90 ngày để tính Risk Metrics
         let systemLogs = [];
 
         const [dnseRes, cafefRes, tcbsRes] = await Promise.all([
@@ -49,6 +50,7 @@ export const getStockInfo = async (req, res) => {
         if (tcbsRes.logs) systemLogs.push(...tcbsRes.logs);
 
         let currentPrice = 0, change = 0, changePercent = 0, totalVolume = '---', dnseVol = 0;
+        let riskMetrics = { maxDrawdown: 0, volatility: 0 };
         const dnseData = dnseRes?.data || {};
 
         if (dnseData.t && dnseData.t.length > 0) {
@@ -58,6 +60,25 @@ export const getStockInfo = async (req, res) => {
             change = currentPrice - prevPrice;
             changePercent = prevPrice ? (change / prevPrice) * 100 : 0;
             dnseVol = dnseData.v[len - 1] || 0;
+            
+            // Tính Risk Metrics (Volatility & Max Drawdown)
+            const closes = dnseData.c.map(c => Number(c));
+            if (closes.length >= 2) {
+                const returns = [];
+                for (let i = 1; i < closes.length; i++) returns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
+                const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+                const variance = returns.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / returns.length;
+                riskMetrics.volatility = Math.round(Math.sqrt(variance) * 100 * 100) / 100;
+                
+                let maxDrawdown = 0;
+                let peak = closes[0];
+                for (let i = 1; i < closes.length; i++) {
+                    if (closes[i] > peak) peak = closes[i];
+                    const drawdown = (peak - closes[i]) / peak * 100;
+                    if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+                }
+                riskMetrics.maxDrawdown = Math.round(maxDrawdown * 100) / 100;
+            }
             totalVolume = dnseVol.toLocaleString('vi-VN');
         }
 
@@ -90,11 +111,15 @@ export const getStockInfo = async (req, res) => {
         masterRecord.tcbs = tcbsRes.rawData || null;
         await masterRecord.save();
 
+        const peersContext = await findIndustryPeers(ticker, cafefRes.profileData?.industry, cafefRes.mktCap);
+
         const responseData = {
-            stockInfo: { symbol: ticker, currentPrice: currentPrice ? currentPrice.toLocaleString('vi-VN') : '---', change, changePercent, marketCap: cafefRes.mktCap || '---', pe: cafefRes.pe || '---', eps, pb, bvps, totalVolume, buyVolume, sellVolume, companyName: companyFullName, exchange: cafefRes.exchange || 'VNX' },
+            stockInfo: { symbol: ticker, currentPrice: currentPrice ? currentPrice.toLocaleString('vi-VN') : '---', change, changePercent, marketCap: cafefRes.mktCap || '---', pe: cafefRes.pe || '---', eps, pb, bvps, totalVolume, buyVolume, sellVolume, companyName: companyFullName, exchange: cafefRes.exchange || 'VNX', riskMetrics },
             companyProfile: {
                 companyName:     companyFullName,
                 overview:        cafefRes.overview || 'Hệ thống đang cập nhật...',
+                shareholders:    cafefRes.shareholdersContext || null,
+                peers:           peersContext || null,
                 marketCap:       cafefRes.mktCap || '---',
                 peRatio:         cafefRes.pe || '---',
                 exchange:        cafefRes.exchange || '---',

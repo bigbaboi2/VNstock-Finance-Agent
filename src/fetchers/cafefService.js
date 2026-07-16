@@ -132,6 +132,22 @@ export const fetchCafefData = async (symbol) => {
             logs.push(`[✅] CafeF: Đã lấy fulldata Cơ cấu sở hữu.`);
         }
 
+        // === PROCESS SHAREHOLDERS ===
+        let shareholdersContext = null;
+        if (rawData.ownership?.CoDongSoHuu && Array.isArray(rawData.ownership.CoDongSoHuu)) {
+            const holders = rawData.ownership.CoDongSoHuu
+                .map(h => ({
+                    name: h.Name,
+                    rate: parseFloat(String(h.AssetRate || '0').replace(',', '.'))
+                }))
+                .filter(h => h.rate > 0)
+                .sort((a, b) => b.rate - a.rate)
+                .slice(0, 5);
+            if (holders.length > 0) {
+                shareholdersContext = 'Cổ đông lớn: ' + holders.map(h => `${h.name} (${h.rate}%)`).join(', ');
+            }
+        }
+
         // === BUILD OVERVIEW STRING ===
         const overview = [
             industry     ? `🏭 Ngành: ${industry}`                          : null,
@@ -142,6 +158,7 @@ export const fetchCafefData = async (symbol) => {
             phone        ? `📞 ${phone}`                                     : null,
             email        ? `✉️ ${email}`                                     : null,
             website      ? `🌐 ${website}`                                   : null,
+            shareholdersContext ? `👥 ${shareholdersContext}`                : null,
             description  ? description                                       : null,
         ].filter(Boolean).join('\n');
 
@@ -153,6 +170,7 @@ export const fetchCafefData = async (symbol) => {
             companyName,
             exchange,
             overview,
+            shareholdersContext,
             logs,
             profileData: { industry, listingDate, capital, sharesListed, address, phone, email, website, description }
         };

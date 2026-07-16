@@ -625,7 +625,10 @@ BẠN PHẢI ĐỌC HIỂU TOÀN BỘ CÁC BẢNG SỐ LIỆU TÀI CHÍNH MÀU S
 
 YÊU CẦU PHÂN TÍCH FILE PDF ĐẦU VÀO CỰC KỲ CHI TIẾT:
 1. Rút ra các chỉ số tài chính cốt lõi: Biên lãi thuần (NIM), Hiệu quả vốn (ROE, ROA), Tăng trưởng LNST. Đối chiếu số liệu quá khứ và dự phóng tương lai có trong văn bản.
-2. Bóc tách chất lượng tài sản: Tỷ lệ nợ xấu (NPL), Tỷ lệ bao phủ nợ xấu. Đánh giá bộ đệm rủi ro của doanh nghiệp tăng hay giảm qua các quý.
+2. Phân tích Rủi ro Toàn diện (Yêu cầu chia làm 3 nhóm rõ ràng):
+   - Rủi ro thị trường chung & Vĩ mô: Đánh giá lãi suất, tỷ giá, xu hướng khối ngoại, hoặc bối cảnh VN-Index.
+   - Rủi ro đặc thù ngành: Đánh giá chu kỳ ngành, rủi ro chính sách, biến động nguyên vật liệu đầu vào/đầu ra.
+   - Rủi ro nội tại (Ngắn & Dài hạn): Bóc tách tỷ lệ nợ xấu (NPL), tỷ lệ bao phủ nợ xấu, thanh khoản, rủi ro pha loãng cổ phiếu, rủi ro cơ cấu cổ đông (nếu có biến động cổ đông lớn). Kết hợp với chỉ số rủi ro định lượng (Volatility, Max Drawdown) để đưa ra kết luận.
 3. Tìm kiếm xung đột số liệu: Đối chiếu giữa nhận định định tính (văn bản báo cáo) và dữ liệu định lượng (các con số thực tế trong bảng số liệu). Chỉ ra điểm sáng và góc tối ngầm.
 
 Xưng "tôi" và gọi người dùng là "bạn" với thái độ là người bạn đồng hành, hỗ trợ, trợ lý quản gia cung cấp lập luận sắc bén, chuyên nghiệp, ngôn phong thực chiến, không lý thuyết suông.
@@ -656,13 +659,24 @@ QUY TẮC TÔ MÀU (KỶ LUẬT THÉP - TIẾT CHẾ TỐI ĐA):
  
 ${actionPlanInstruction}`;
 
+    const overview = data?.companyProfile?.overview || "Chưa có thông tin tổng quan";
+    const shareholders = data?.companyProfile?.shareholders || data?.fundamentals?.shareholders || "";
+    const peers = data?.companyProfile?.peers || data?.fundamentals?.peers || "";
+
+    const riskMetricsStr = data?.stockInfo?.riskMetrics 
+        ? `Max Drawdown (90 ngày): -${data.stockInfo.riskMetrics.maxDrawdown}%, Volatility: ${data.stockInfo.riskMetrics.volatility}%` 
+        : (data?.technicals?.riskMetrics ? `Max Drawdown: -${data.technicals.riskMetrics.maxDrawdown}%, Volatility: ${data.technicals.riskMetrics.volatility}%` : 'Chưa có dữ liệu rủi ro định lượng');
+
     const userPrompt = `DỮ LIỆU ĐẦU VÀO TỪ HỆ THỐNG:
 1. Thông tin doanh nghiệp: ${companyName}
 2. Cốt lõi kinh doanh: ${overview}
+   ${shareholders}
+   ${peers}
 3. Giá giao dịch hiện tại: ${currentPrice} VNĐ
 4. Dòng tiền (Mua/Bán chủ động): Mua ${buyVol} - Bán ${sellVol}
-5. Lịch sử nhận định cũ: ${data?.previousAnalysis || 'Chưa có dữ liệu'}
-6. Tin tức mới nhất:
+5. Chỉ số rủi ro định lượng: ${riskMetricsStr}
+6. Lịch sử nhận định cũ: ${data?.previousAnalysis || 'Chưa có dữ liệu'}
+7. Tin tức mới nhất:
 ${newsSummary || 'Không có tin tức nổi bật.'}`;
 
     const promptParts = [
