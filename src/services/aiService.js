@@ -432,7 +432,8 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
         emitProgress({ step: 'DOCLING_PARSE', message: `Đang xử lý PDF bằng AI Docling (${safeMode.toUpperCase()})`, progress: 32 });
         
         try {
-            const doclingResponse = await axios.post(`http://localhost:8000/parse-pdf?mode=${safeMode}`, formData, {
+            const pdfConverterUrl = process.env.PDF_CONVERTER_URL || 'http://localhost:8000';
+            const doclingResponse = await axios.post(`${pdfConverterUrl}/parse-pdf?mode=${safeMode}`, formData, {
                 headers: formData.getHeaders(),
                 timeout: 300000 
             });
