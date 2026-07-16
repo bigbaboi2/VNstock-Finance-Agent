@@ -24,6 +24,7 @@ import {
     buildVnMacroSnapshot,
     getCryptoMacroContext,
 } from './tradeContextService.js';
+import { getCachedMarketInsight } from './marketInsightService.js';
 
 const POSITIVE_WORDS = [
     'tăng', 'vượt', 'lãi', 'lợi nhuận', 'kỷ lục', 'bứt phá', 'mua ròng',
@@ -230,6 +231,10 @@ const fetchVnQuote = async (symbol) => {
         volume,
         prevClose: ref,
         source: intra.length ? 'ENTRADE_15M' : 'ENTRADE_1D',
+        fetchedAt: new Date(),
+        priceAt: intra.length
+            ? new Date(intra[intra.length - 1].time * 1000)
+            : (todayBar?.time ? new Date(todayBar.time * 1000) : new Date()),
     };
 };
 
@@ -452,7 +457,8 @@ const readCachedAiCrypto = (coinDoc) => {
 };
 
 /**
- * Deterministic action from technicals + news sentiment + optional macro bias.
+ * Deterministic action from technicals + news + macro + insight Home + AI cache DB.
+ * Trọng số: tech 40% · tin 20% · vĩ mô 10% · insight Home 20% · AI đã lưu 10%.
  */
 export const buildDeterministicView = ({
     asset,
@@ -462,67 +468,130 @@ export const buildDeterministicView = ({
     newsSentiment,
     macroBias = 'neutral',
     levels,
+    insightPick = null,
+    cachedAi = null,
 }) => {
     const score = Number(techScore) || 0;
     const newsBias = newsSentiment?.bias || 'neutral';
     const newsScore = Number(newsSentiment?.score) || 0;
     const dir = String(techDirection || 'NEUTRAL').toUpperCase();
-
-    let action = 'ĐỨNG NGOÀI';
+    const sideways = Number(adx) > 0 && Number(adx) < 18;
     const reasons = [];
+    const weights = [];
 
+    // Tech component −1..+1
+    let techW = 0;
     const techBull = dir === 'LONG' || dir.includes('LONG') || dir === 'MUA';
     const techBear = dir === 'SHORT' || dir.includes('SHORT') || dir === 'BÁN';
-    const newsBull = newsBias === 'positive';
-    const newsBear = newsBias === 'negative';
-    const sideways = Number(adx) > 0 && Number(adx) < 18;
-
     if (sideways) {
-        action = asset === 'CRYPTO' ? 'WAIT' : 'ĐỨNG NGOÀI';
-        reasons.push(`ADX ${Number(adx).toFixed(0)} — thị trường sideway`);
-    } else if (techBull && score >= 55) {
-        if (newsBear && newsScore <= -2) {
-            action = asset === 'CRYPTO' ? 'WAIT' : 'ĐỨNG NGOÀI';
-            reasons.push('Kỹ thuật tăng nhưng tin xấu mạnh');
-        } else {
-            action = asset === 'CRYPTO' ? 'CANH LONG' : 'MUA';
-            reasons.push(`Tech ${dir} score ${score}`);
-            if (newsBull) reasons.push('Tin ủng hộ');
-        }
-    } else if (techBear && score >= 55) {
-        if (asset === 'VN_STOCK') {
-            action = newsBull && newsScore >= 2 ? 'ĐỨNG NGOÀI' : 'BÁN / GIẢM TỶ TRỌNG';
-            reasons.push(`Tech bearish score ${score} (VN không short)`);
-        } else if (newsBull && newsScore >= 2) {
-            action = 'WAIT';
-            reasons.push('Kỹ thuật giảm nhưng tin tốt');
-        } else {
-            action = 'CANH SHORT';
-            reasons.push(`Tech ${dir} score ${score}`);
-        }
+        techW = 0;
+        reasons.push(`ADX ${Number(adx).toFixed(0)} — sideway`);
+    } else if (techBull) {
+        techW = score >= 70 ? 1 : score >= 55 ? 0.6 : 0.25;
+        reasons.push(`Tech ${dir} score ${score}`);
+    } else if (techBear) {
+        techW = score >= 70 ? -1 : score >= 55 ? -0.6 : -0.25;
+        reasons.push(`Tech ${dir} score ${score}`);
     } else {
-        action = asset === 'CRYPTO' ? 'WAIT' : 'ĐỨNG NGOÀI';
-        reasons.push(score < 55 ? `Score thấp (${score})` : 'Tín hiệu trung lập');
+        reasons.push(score < 55 ? `Score thấp (${score})` : 'Tech trung lập');
+    }
+    weights.push(`Tech ${(techW * 40).toFixed(0)}`);
+
+    // News −1..+1
+    let newsW = 0;
+    if (newsBias === 'positive') newsW = Math.min(1, 0.35 + Math.abs(newsScore) * 0.2);
+    else if (newsBias === 'negative') newsW = -Math.min(1, 0.35 + Math.abs(newsScore) * 0.2);
+    if (newsW !== 0) reasons.push(`Tin ${newsBias} (${newsScore >= 0 ? '+' : ''}${newsScore})`);
+    weights.push(`Tin ${(newsW * 20).toFixed(0)}`);
+
+    // Macro −1..+1
+    let macroW = 0;
+    if (macroBias === 'bullish') macroW = 0.6;
+    else if (macroBias === 'bearish') macroW = -0.6;
+    if (macroW !== 0) reasons.push(`Vĩ mô ${macroBias}`);
+    weights.push(`Macro ${(macroW * 10).toFixed(0)}`);
+
+    // Insight Home (topPicks) −1..+1 — trọng số cao vì không có AI live
+    let insightW = 0;
+    if (insightPick?.action) {
+        const ia = String(insightPick.action).toUpperCase();
+        const iscore = Number(insightPick.score);
+        const boost = Number.isFinite(iscore) ? Math.min(1, Math.max(0.4, iscore / 100)) : 0.7;
+        if (ia.includes('MUA')) {
+            insightW = boost;
+            reasons.push(`Insight Home: MUA${Number.isFinite(iscore) ? ` (${iscore})` : ''}`);
+        } else if (ia.includes('TRÁNH')) {
+            insightW = -boost;
+            reasons.push(`Insight Home: TRÁNH${Number.isFinite(iscore) ? ` (${iscore})` : ''}`);
+        } else if (ia.includes('THEO')) {
+            insightW = 0.15;
+            reasons.push('Insight Home: THEO DÕI');
+        }
+        if (insightPick.horizon) reasons.push(`Horizon insight: ${insightPick.horizon}`);
+    } else {
+        reasons.push('Insight Home: không có mã này');
+    }
+    weights.push(`Insight ${(insightW * 20).toFixed(0)}`);
+
+    // Cached AI report DB −1..+1
+    let aiW = 0;
+    if (cachedAi?.action) {
+        const aa = String(cachedAi.action).toUpperCase();
+        if (aa.includes('MUA') || aa.includes('LONG') || aa.includes('BUY')) {
+            aiW = 0.8;
+            reasons.push(`AI DB: ${cachedAi.action}`);
+        } else if (aa.includes('BÁN') || aa.includes('SHORT') || aa.includes('SELL') || aa.includes('TRÁNH')) {
+            aiW = -0.8;
+            reasons.push(`AI DB: ${cachedAi.action}`);
+        } else if (aa.includes('ĐỨNG') || aa.includes('WAIT') || aa.includes('QUAN')) {
+            aiW = 0;
+            reasons.push(`AI DB: ${cachedAi.action}`);
+        }
+    }
+    weights.push(`AI-DB ${(aiW * 10).toFixed(0)}`);
+
+    // Composite −1..+1
+    const composite =
+        techW * 0.40
+        + newsW * 0.20
+        + macroW * 0.10
+        + insightW * 0.20
+        + aiW * 0.10;
+
+    let action = asset === 'CRYPTO' ? 'WAIT' : 'ĐỨNG NGOÀI';
+    if (composite >= 0.35) {
+        action = asset === 'CRYPTO' ? 'CANH LONG' : 'MUA';
+    } else if (composite <= -0.35) {
+        action = asset === 'CRYPTO' ? 'CANH SHORT' : 'BÁN / GIẢM TỶ TRỌNG';
+    } else if (composite >= 0.15) {
+        action = asset === 'CRYPTO' ? 'QUAN SÁT LONG' : 'THEO DÕI (thiên mua)';
+    } else if (composite <= -0.15) {
+        action = asset === 'CRYPTO' ? 'QUAN SÁT SHORT' : 'THEO DÕI (thiên bán)';
     }
 
-    if (macroBias === 'bearish' && (action === 'MUA' || action === 'CANH LONG')) {
-        reasons.push('Vĩ mô thận trọng — hạ conviction');
-        if (score < 70) action = asset === 'CRYPTO' ? 'WAIT' : 'ĐỨNG NGOÀI';
-    } else if (macroBias === 'bullish' && (action.includes('SHORT') || action.includes('BÁN'))) {
-        reasons.push('Vĩ mô hỗ trợ — cân nhắc chờ');
+    // Conflict guard: insight TRÁNH mạnh + tech mua yếu → đứng ngoài
+    if (insightW <= -0.6 && techW > 0 && techW < 0.8 && composite < 0.45) {
+        action = asset === 'CRYPTO' ? 'WAIT' : 'ĐỨNG NGOÀI';
+        reasons.push('Insight TRÁNH ưu tiên — hạ khuyến nghị');
+    }
+    // Insight MUA mạnh có thể kéo nhẹ lên theo dõi nếu đang đứng ngoài
+    if (insightW >= 0.6 && composite > -0.1 && composite < 0.35 && action.includes('ĐỨNG')) {
+        action = 'THEO DÕI (thiên mua)';
+        reasons.push('Insight MUA — nâng lên theo dõi');
     }
 
     let shortHorizon = '1–5 phiên / vài ngày';
     let longHorizon = 'Quan sát 4–12 tuần';
-    if (sideways) {
-        shortHorizon = 'Chờ breakout (không ưu tiên vào lệnh)';
-        longHorizon = 'Theo dõi tích lũy';
-    } else if (score >= 70 && !sideways) {
-        shortHorizon = 'Ngắn hạn: 2–7 ngày (theo ATR/TP1)';
-        longHorizon = 'Khung dài: theo EMA50 / 1–3 tháng nếu xu hướng giữ';
-    } else if (score >= 55) {
-        shortHorizon = 'Swing ngắn: 3–10 ngày';
-        longHorizon = 'Xác nhận thêm 2–4 tuần';
+    if (Math.abs(composite) < 0.15 || sideways) {
+        shortHorizon = 'Chờ xác nhận thêm (không ưu tiên vào lệnh)';
+        longHorizon = 'Theo dõi tích lũy / phân hóa';
+    } else if (Math.abs(composite) >= 0.5) {
+        shortHorizon = insightPick?.horizon === 'DÀI HẠN'
+            ? 'Ưu tiên khung trung–dài (theo insight)'
+            : 'Ngắn hạn: 2–7 ngày (ATR/TP1)';
+        longHorizon = insightPick?.horizon === 'NGẮN HẠN'
+            ? 'Không giữ dài nếu thesis ngắn hạn'
+            : '1–3 tháng nếu xu hướng/insight giữ';
     }
 
     return {
@@ -530,11 +599,19 @@ export const buildDeterministicView = ({
         shortHorizon,
         longHorizon,
         reason: reasons.join('; '),
+        weightSummary: `Trọng số ≈ ${weights.join(' · ')} → tổng ${(composite * 100).toFixed(0)}`,
+        composite: Math.round(composite * 100) / 100,
         entry: levels?.entry ?? null,
         sl: levels?.sl ?? null,
         tp1: levels?.tp1 ?? null,
         tp2: levels?.tp2 ?? null,
     };
+};
+
+const findInsightPick = (symbol, insight) => {
+    const picks = Array.isArray(insight?.topPicks) ? insight.topPicks : [];
+    const sym = String(symbol || '').toUpperCase();
+    return picks.find((p) => String(p.symbol || '').toUpperCase() === sym) || null;
 };
 
 const macroBiasFromVn = (snapshot) => {
@@ -553,7 +630,7 @@ const getVnSymbolInfo = async (symbol) => {
     // Dynamic import avoids circular dependency with autoTradeEngine → symbolInfoService
     const { analyzeTechnicalSignal } = await import('./autoTradeEngine.js');
 
-    const [quote, cafef, candles, newsSummary, vnCtx, stockDoc] = await Promise.all([
+    const [quote, cafef, candles, newsSummary, vnCtx, stockDoc, insight] = await Promise.all([
         fetchVnQuote(symbol),
         fetchCafefData(symbol).catch(() => null),
         fetchVnAnalysisCandles(symbol).catch((err) => {
@@ -566,7 +643,11 @@ const getVnSymbolInfo = async (symbol) => {
             { symbol },
             { companyName: 1, name: 1, reports: { $slice: -1 }, cafeF: 1 }
         ).lean().catch(() => null),
+        getCachedMarketInsight().catch(() => null),
     ]);
+
+    const cachedAi = readCachedAiVn(stockDoc);
+    const insightPick = findInsightPick(symbol, insight);
 
     const closes = candles.map((c) => c.close);
     let techSignal = { direction: 'NEUTRAL', score: 0, atr: null, rsi: null, breakdown: {} };
@@ -639,6 +720,8 @@ const getVnSymbolInfo = async (symbol) => {
         newsSentiment: newsSummary,
         macroBias,
         levels,
+        insightPick,
+        cachedAi,
     });
 
     const overviewArr = cafef?.overview;
@@ -661,6 +744,9 @@ const getVnSymbolInfo = async (symbol) => {
         change: quote.change,
         changePercent: quote.changePercent,
         volume: quote.volume,
+        priceAt: quote.priceAt || quote.fetchedAt,
+        fetchedAt: quote.fetchedAt,
+        priceSource: quote.source,
         technicals: {
             rsi: rsiDisplay,
             macd: macdDisplay,
@@ -680,8 +766,10 @@ const getVnSymbolInfo = async (symbol) => {
                 counts: newsSummary.counts,
             },
         },
+        insightPick,
+        insightDate: insight?.date || null,
         view,
-        cachedAi: readCachedAiVn(stockDoc),
+        cachedAi,
     };
 };
 
@@ -738,6 +826,9 @@ const getCryptoSymbolInfo = async (symbol) => {
             ? 'SHORT'
             : 'NEUTRAL';
 
+    const cachedAi = readCachedAiCrypto(coinDoc);
+    const now = new Date();
+
     const view = buildDeterministicView({
         asset: 'CRYPTO',
         techDirection,
@@ -746,6 +837,8 @@ const getCryptoSymbolInfo = async (symbol) => {
         newsSentiment: newsSummary,
         macroBias,
         levels,
+        insightPick: null,
+        cachedAi,
     });
 
     return {
@@ -763,6 +856,9 @@ const getCryptoSymbolInfo = async (symbol) => {
         change: null,
         changePercent,
         volume: ticker?.quoteVolume ?? null,
+        priceAt: now,
+        fetchedAt: now,
+        priceSource: 'EXCHANGE_TICKER',
         technicals: {
             rsi: tech?.rsi ?? null,
             macd: tech?.macdLine ?? null,
@@ -783,8 +879,10 @@ const getCryptoSymbolInfo = async (symbol) => {
                 counts: newsSummary.counts,
             },
         },
+        insightPick: null,
+        insightDate: null,
         view,
-        cachedAi: readCachedAiCrypto(coinDoc),
+        cachedAi,
     };
 };
 

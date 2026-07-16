@@ -3906,7 +3906,7 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
                 vnIndex,
                 vnMarketOpen: isVNMarketOpen(),
             });
-            await reply(m);
+            await reply(m, { parseMode: 'HTML' });
             return m;
         } catch (err) {
             const m = `❌ Lỗi /market: ${err.message}`;
@@ -4105,7 +4105,7 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
         try {
             const insight = await getTodayInsight();
             const msg = buildInsightMessage(insight);
-            await reply(msg);
+            await reply(msg, { parseMode: 'HTML' });
             return msg;
         } catch (err) {
             const errMsg = `❌ Lỗi /insight: ${err.message}`;
@@ -4225,7 +4225,7 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
             console.log(chalk.cyan(`[TELEGRAM CMD] /info ${symbol}`));
             const data = await getSymbolInfo(symbol);
             const msg = buildSymbolInfoMessage(data);
-            await reply(msg);
+            await reply(msg, { parseMode: 'HTML' });
             console.log(chalk.green(`[TELEGRAM CMD] /info ${symbol} — done (${data.asset})`));
             return msg;
         } catch (err) {
@@ -4239,7 +4239,7 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
     // ── /help ──
     if (firstWord === 'help' || cmd === '') {
         const msg = buildHelpMessage();
-        await reply(msg);
+        await reply(msg, { parseMode: 'HTML' });
         return msg;
     }
 
