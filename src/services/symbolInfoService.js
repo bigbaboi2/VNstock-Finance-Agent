@@ -56,8 +56,15 @@ const classifyWithVader = (text = '') => {
 };
 
 const summarizeNewsItems = (items = []) => {
+    const seen = new Set();
     const cleanItems = items
         .filter((n) => n?.title)
+        .filter((n) => {
+            const key = String(n.title).trim().toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
         .slice(0, 8)
         .map((n) => ({
             title: String(n.title).trim(),
@@ -147,37 +154,121 @@ export const resolveAssetType = async (symbol) => {
     throw new Error(`Không tìm thấy mã ${sym} (cổ phiếu VN hoặc crypto)`);
 };
 
-const fetchVnQuote = async (symbol) => {
+const ENTRADE_STOCK = 'https://services.entrade.com.vn/chart-api/v2/ohlcs/stock';
+
+/** Parse Entrade OHLCV → candles in VND (×1000). */
+const parseEntradeCandles = (data) => {
+    if (!data?.t?.length) return [];
+    return data.t.map((ts, i) => ({
+        time: ts,
+        open: Number(data.o[i]) * 1000,
+        high: Number(data.h[i]) * 1000,
+        low: Number(data.l[i]) * 1000,
+        close: Number(data.c[i]) * 1000,
+        volume: Number(data.v[i]) || 0,
+    }));
+};
+
+const fetchEntradeOhlcv = async (symbol, resolution, days) => {
     const to = Math.floor(Date.now() / 1000);
-    const from = to - 15 * 24 * 60 * 60;
-    const dnseRes = await axios.get(
-        `https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${symbol}&resolution=1D`,
-        { timeout: 8000 }
-    ).catch(() => null);
+    const from = to - days * 24 * 60 * 60;
+    const res = await axios.get(
+        `${ENTRADE_STOCK}?from=${from}&to=${to}&symbol=${symbol}&resolution=${resolution}`,
+        { timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+    return parseEntradeCandles(res.data);
+};
 
-    const dnseData = dnseRes?.data || {};
-    let currentPrice = 0;
-    let change = 0;
-    let changePercent = 0;
-    let volume = 0;
+/**
+ * Live quote: 15m last close (realtime trong phiên) + % so với close phiên trước (1D).
+ * Volume: max(nến ngày, tổng volume 15m trong ngày) — daily Entrade đôi khi chậm hơn UI.
+ */
+const fetchVnQuote = async (symbol) => {
+    const [daily, intra] = await Promise.all([
+        fetchEntradeOhlcv(symbol, '1D', 10).catch(() => []),
+        fetchEntradeOhlcv(symbol, '15', 3).catch(() => []),
+    ]);
 
-    if (dnseData.t?.length > 0) {
-        const len = dnseData.c.length;
-        currentPrice = dnseData.c[len - 1] * 1000;
-        const prevPrice = (dnseData.c[len - 2] || dnseData.c[len - 1]) * 1000;
-        change = currentPrice - prevPrice;
-        changePercent = prevPrice ? (change / prevPrice) * 100 : 0;
-        volume = dnseData.v?.[len - 1] || 0;
+    if (!daily.length && !intra.length) {
+        throw new Error(`Không lấy được giá Entrade cho ${symbol}`);
     }
 
-    if (!currentPrice) throw new Error(`Không lấy được giá Entrade cho ${symbol}`);
+    const prevClose = daily.length >= 2
+        ? daily[daily.length - 2].close
+        : daily[0]?.close;
+    const todayBar = daily[daily.length - 1];
+
+    // Ưu tiên 15m (live); fallback close ngày
+    const liveClose = intra.length
+        ? intra[intra.length - 1].close
+        : todayBar?.close;
+
+    if (!liveClose) throw new Error(`Không lấy được giá Entrade cho ${symbol}`);
+
+    const ref = prevClose || todayBar?.open || liveClose;
+    const change = liveClose - ref;
+    const changePercent = ref ? (change / ref) * 100 : 0;
+
+    // Volume trong phiên: cộng nến 15m từ 0h VN (UTC+7) hôm nay
+    let intraVol = 0;
+    if (intra.length) {
+        const now = new Date();
+        const vnOffsetMs = 7 * 60 * 60 * 1000;
+        const vnNow = new Date(now.getTime() + vnOffsetMs);
+        const startVn = Date.UTC(vnNow.getUTCFullYear(), vnNow.getUTCMonth(), vnNow.getUTCDate()) - vnOffsetMs;
+        const startSec = Math.floor(startVn / 1000);
+        intraVol = intra
+            .filter((c) => c.time >= startSec)
+            .reduce((s, c) => s + (c.volume || 0), 0);
+    }
+    const volume = Math.max(todayBar?.volume || 0, intraVol);
 
     return {
-        price: currentPrice,
+        price: liveClose,
         change,
         changePercent,
         volume,
+        prevClose: ref,
+        source: intra.length ? 'ENTRADE_15M' : 'ENTRADE_1D',
     };
+};
+
+/** Đủ nến cho analyzeTechnicalSignal (≥ 52+26). */
+const fetchVnAnalysisCandles = async (symbol) => {
+    // ~180 ngày lịch ≈ 120+ phiên — vượt ngưỡng 78 nến
+    const candles = await fetchEntradeOhlcv(symbol, '1D', 180);
+    if (candles.length < 30) {
+        throw new Error(`Không đủ nến phân tích cho ${symbol} (${candles.length})`);
+    }
+    return candles;
+};
+
+/** MACD line đơn giản để hiển thị (EMA12 − EMA26). */
+const calcMacdLine = (closes = []) => {
+    if (closes.length < 26) return null;
+    const ema = (data, period) => {
+        const k = 2 / (period + 1);
+        let val = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        for (let i = period; i < data.length; i++) val = data[i] * k + val * (1 - k);
+        return val;
+    };
+    return Math.round((ema(closes, 12) - ema(closes, 26)) * 100) / 100;
+};
+
+/** RSI fallback nếu analyzeTechnicalSignal early-return. */
+const calcRsiSimple = (closes = [], period = 14) => {
+    if (closes.length < period + 1) return null;
+    let gains = 0;
+    let losses = 0;
+    for (let i = closes.length - period; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        if (diff > 0) gains += diff;
+        else losses += Math.abs(diff);
+    }
+    const avgGain = gains / period;
+    const avgLoss = losses / period;
+    if (avgLoss === 0) return 100;
+    return Math.round((100 - 100 / (1 + avgGain / avgLoss)) * 10) / 10;
 };
 
 const buildVnLevels = (price, atr, direction) => {
@@ -460,12 +551,15 @@ const macroBiasFromVn = (snapshot) => {
 
 const getVnSymbolInfo = async (symbol) => {
     // Dynamic import avoids circular dependency with autoTradeEngine → symbolInfoService
-    const { fetchAnalysisCandles, analyzeTechnicalSignal } = await import('./autoTradeEngine.js');
+    const { analyzeTechnicalSignal } = await import('./autoTradeEngine.js');
 
     const [quote, cafef, candles, newsSummary, vnCtx, stockDoc] = await Promise.all([
         fetchVnQuote(symbol),
         fetchCafefData(symbol).catch(() => null),
-        fetchAnalysisCandles(symbol, 'VN_STOCK', 'daily').catch(() => []),
+        fetchVnAnalysisCandles(symbol).catch((err) => {
+            console.log(chalk.yellow(`[INFO] Nến VN ${symbol}: ${err.message}`));
+            return [];
+        }),
         fetchVnMicroNews(symbol),
         getVnMarketContext().catch(() => null),
         Stock.findOne(
@@ -474,13 +568,60 @@ const getVnSymbolInfo = async (symbol) => {
         ).lean().catch(() => null),
     ]);
 
-    const techSignal = candles?.length
-        ? analyzeTechnicalSignal(candles)
-        : { direction: 'NEUTRAL', score: 0, atr: null, rsi: null, breakdown: {} };
+    const closes = candles.map((c) => c.close);
+    let techSignal = { direction: 'NEUTRAL', score: 0, atr: null, rsi: null, breakdown: {} };
+    if (candles.length >= 78) {
+        techSignal = analyzeTechnicalSignal(candles);
+    } else if (candles.length >= 26) {
+        // Không đủ cho full engine — vẫn tính RSI/MACD/ATR đơn giản để /info không trống
+        const rsi = calcRsiSimple(closes);
+        const macdLine = calcMacdLine(closes);
+        const atrRough = candles.length >= 15
+            ? candles.slice(-15).reduce((sum, c, i, arr) => {
+                if (i === 0) return sum;
+                const tr = Math.max(
+                    c.high - c.low,
+                    Math.abs(c.high - arr[i - 1].close),
+                    Math.abs(c.low - arr[i - 1].close)
+                );
+                return sum + tr;
+            }, 0) / 14
+            : quote.price * 0.02;
+        const emaBias = closes.length >= 50
+            ? (closes[closes.length - 1] > closes.slice(-50).reduce((a, b) => a + b, 0) / 50 ? 'LONG' : 'SHORT')
+            : 'NEUTRAL';
+        let score = 50;
+        if (rsi != null) {
+            if (rsi > 50 && rsi < 70) score += 15;
+            else if (rsi >= 70) score -= 10;
+            else if (rsi < 30) score += 10;
+        }
+        if (macdLine != null && macdLine > 0) score += 15;
+        if (emaBias === 'LONG') score += 10;
+        else if (emaBias === 'SHORT') score -= 10;
+        score = Math.min(100, Math.max(0, score));
+        const direction = score >= 62 ? 'LONG' : score <= 38 ? 'SHORT' : 'NEUTRAL';
+        techSignal = {
+            direction,
+            score,
+            atr: atrRough,
+            rsi,
+            breakdown: { macdLine, fallback: true },
+        };
+    }
+
+    const macdDisplay = techSignal.breakdown?.macdLine
+        ?? calcMacdLine(closes)
+        ?? (techSignal.breakdown?.macdLong != null
+            ? (techSignal.breakdown.macdLong >= techSignal.breakdown.macdShort ? 'bullish' : 'bearish')
+            : null);
+    const rsiDisplay = techSignal.rsi ?? calcRsiSimple(closes);
 
     // VN: never emit SHORT levels as trade plan
     const planDirection = techSignal.direction === 'SHORT' ? 'NEUTRAL' : techSignal.direction;
-    const levels = buildVnLevels(quote.price, techSignal.atr, planDirection);
+    // ATR đã theo VND (nến ×1000); nếu null → 2% giá live
+    const atrVnd = techSignal.atr && techSignal.atr > 0 ? techSignal.atr : quote.price * 0.02;
+    const levels = buildVnLevels(quote.price, atrVnd, planDirection);
 
     const macro = buildVnMacroSnapshot(vnCtx || {});
     const macroBias = macroBiasFromVn(macro);
@@ -521,15 +662,13 @@ const getVnSymbolInfo = async (symbol) => {
         changePercent: quote.changePercent,
         volume: quote.volume,
         technicals: {
-            rsi: techSignal.rsi ?? null,
-            macd: techSignal.breakdown?.macdLong != null
-                ? (techSignal.breakdown.macdLong >= techSignal.breakdown.macdShort ? 'bullish' : 'bearish')
-                : null,
+            rsi: rsiDisplay,
+            macd: macdDisplay,
             trend: techSignal.direction,
             score: techSignal.score,
             direction: techSignal.direction,
             adx: techSignal.breakdown?.adx ?? techSignal.adx?.adx ?? null,
-            atr: techSignal.atr,
+            atr: atrVnd,
         },
         levels,
         news: {
