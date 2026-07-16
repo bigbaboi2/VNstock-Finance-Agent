@@ -42,7 +42,6 @@ def parse_pdf(file_path: str, mode: str):
     
     return markdown_text
 
-# Create a Gradio interface
 demo = gr.Interface(
     fn=parse_pdf,
     inputs=[
@@ -53,4 +52,7 @@ demo = gr.Interface(
     title="Omni Duck PDF API (Gradio)",
     description="A pure Gradio API for Docling PDF Conversion."
 )
+
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0", server_port=7860)
 
