@@ -697,58 +697,89 @@ export const debugFeed = async (req, res) => {
             }
         }
 
-        try {
-            const marketScraped = await scrapeCafefMarketOverview();
-            const to = Math.floor(Date.now() / 1000);
-            const from = to - (15 * 24 * 60 * 60);
-            const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
-            if (vnRes.data?.t && marketScraped.success) {
-                const d = vnRes.data;
-                const rawVnIndex = d.t.map((ts, i) => ({ close: Number(d.c[i]), volume: Number(d.v[i]) || 0 }));
-                const symbolsDb = await Stock.find({});
-                const mi = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
-                if (mi.success) fullData.marketContext = mi.intelligence;
-            }
-        } catch { fullData.marketContext = 'Không lấy được dữ liệu thị trường'; }
-
         const pdfMode = fullData.pdfMode || 'turbo';
-        const markdownData = await getMarkdownFromTcbsPdf(ticker, pdfMode);
-        if (markdownData) fullData.tcbsMarkdownData = markdownData;
-        console.log(chalk.cyan(`[DEBUG EXPORT] PDF mode=${pdfMode}, hasTcbsData=${!!markdownData}`));
-        // Export FireAnt & Reddit sentiment
-        try {
-            console.log(chalk.cyan(`[DEBUG EXPORT] Đang cào dữ liệu FireAnt & Reddit cho mã ${ticker}...`));
-            const [fireAntReport, redditReport] = await Promise.all([
-                fetchFireAntSocial(ticker).catch(e => `[LỖI FIREANT] ${e.message}`),
-                fetchRedditMacro(ticker).catch(e => `[LỖI REDDIT] ${e.message}`)
-            ]);
-            
-            fullData.socialSentiment = {
-                fireAnt: fireAntReport,
-                reddit: redditReport
-            };
-            console.log(chalk.green(`[DEBUG EXPORT] Đã nạp thành công FireAnt & Reddit vào file JSON.`));
-        } catch (err) {
-            console.log(chalk.red(`[DEBUG EXPORT] Lỗi khi lấy Social: ${err.message}`));
+        console.log(chalk.cyan(`[DEBUG EXPORT] Khởi chạy song song MarketContext + PDF Docling + Social + MacroNews cho mã ${ticker}...`));
+
+        const marketPromise = (async () => {
+            try {
+                const marketScraped = await scrapeCafefMarketOverview();
+                const to = Math.floor(Date.now() / 1000);
+                const from = to - (15 * 24 * 60 * 60);
+                const vnRes = await axios.get(`https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${from}&to=${to}&symbol=VNINDEX&resolution=1D`);
+                if (vnRes.data?.t && marketScraped.success) {
+                    const d = vnRes.data;
+                    const rawVnIndex = d.t.map((ts, i) => ({ close: Number(d.c[i]), volume: Number(d.v[i]) || 0 }));
+                    const symbolsDb = await Stock.find({});
+                    const mi = analyzeMarketIntelligence(rawVnIndex, marketScraped, symbolsDb);
+                    if (mi.success) return mi.intelligence;
+                }
+            } catch { return 'Không lấy được dữ liệu thị trường'; }
+            return 'Không lấy được dữ liệu thị trường';
+        })();
+
+        const pdfPromise = getMarkdownFromTcbsPdf(ticker, pdfMode).catch(e => {
+            console.log(chalk.red(`[DEBUG EXPORT] Lỗi PDF Docling: ${e.message}`));
+            return null;
+        });
+
+        const socialPromise = (async () => {
+            try {
+                const [fireAntReport, redditReport] = await Promise.all([
+                    fetchFireAntSocial(ticker).catch(e => `[LỖI FIREANT] ${e.message}`),
+                    fetchRedditMacro(ticker).catch(e => `[LỖI REDDIT] ${e.message}`)
+                ]);
+                return { fireAnt: fireAntReport, reddit: redditReport };
+            } catch (err) {
+                console.log(chalk.red(`[DEBUG EXPORT] Lỗi khi lấy Social: ${err.message}`));
+                return null;
+            }
+        })();
+
+        const macroPromise = (async () => {
+            try {
+                const macroNews = await DerivNews.find().sort({ timestamp: -1 }).limit(20).lean();
+                if (macroNews && macroNews.length > 0) {
+                    return macroNews.map(n => ({
+                        title:     n.title,
+                        source:    n.source,
+                        sentiment: n.sentiment,
+                        timestamp: n.timestamp,
+                        content:   n.content || n.title,
+                    }));
+                }
+                return null;
+            } catch (macroErr) {
+                console.log(chalk.redBright(`[DEBUG EXPORT] Không lấy được macroNews: ${macroErr.message}`));
+                return null;
+            }
+        })();
+
+        const [marketContext, markdownData, socialSentiment, macroNews] = await Promise.all([
+            marketPromise,
+            pdfPromise,
+            socialPromise,
+            macroPromise
+        ]);
+
+        if (marketContext && marketContext !== 'Không lấy được dữ liệu thị trường') {
+            fullData.marketContext = marketContext;
+        } else {
+            fullData.marketContext = 'Không lấy được dữ liệu thị trường';
         }
 
-         try {
-            const macroNews = await DerivNews.find()
-                .sort({ timestamp: -1 })
-                .limit(20)
-                .lean();
-            if (macroNews.length > 0) {
-                fullData.macroNews = macroNews.map(n => ({
-                    title:     n.title,
-                    source:    n.source,
-                    sentiment: n.sentiment,
-                    timestamp: n.timestamp,
-                    content:   n.content || n.title,
-                }));
-            }
-        } catch (macroErr) {
-            console.log(chalk.redBright(`[DEBUG] Không lấy được macroNews: ${macroErr.message}`));
+        if (markdownData) {
+            fullData.tcbsMarkdownData = markdownData;
+            console.log(chalk.cyan(`[DEBUG EXPORT] PDF mode=${pdfMode}, hasTcbsData=true`));
+        } else {
+            console.log(chalk.cyan(`[DEBUG EXPORT] PDF mode=${pdfMode}, hasTcbsData=false`));
         }
+
+        if (socialSentiment) {
+            fullData.socialSentiment = socialSentiment;
+            console.log(chalk.green(`[DEBUG EXPORT] Đã nạp thành công FireAnt & Reddit vào file JSON.`));
+        }
+
+        if (macroNews) fullData.macroNews = macroNews;
 
         const jsonStr = JSON.stringify(fullData, null, 2);
         const sizeKB = (Buffer.byteLength(jsonStr, 'utf8') / 1024).toFixed(1);

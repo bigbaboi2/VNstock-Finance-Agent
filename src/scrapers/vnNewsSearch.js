@@ -420,7 +420,7 @@ export async function fetchRedditMacro(ticker) {
             const url = `https://www.reddit.com/r/${sub}/search.rss?q=${encodeURIComponent(query)}&restrict_sr=on&sort=new&t=week&limit=3`;
             const response = await axios.get(url, { 
                 headers: { 
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'User-Agent': 'OmniDuckBot/1.0.0 (by /u/OmniDuck)',
                     'Accept': 'application/rss+xml, application/xml, text/xml',
                     'Referer': `https://www.reddit.com/r/${sub}/`
                 },
@@ -442,8 +442,9 @@ export async function fetchRedditMacro(ticker) {
                 });
             }
         } catch (error) {
-            console.log(chalk.gray(`[REDDIT] Bỏ qua r/${sub} do kết nối RSS từ chối.`));
+            console.log(chalk.gray(`[REDDIT] Bỏ qua r/${sub} do kết nối RSS từ chối (${error.response?.status || error.message}).`));
         }
+        await new Promise(resolve => setTimeout(resolve, 1500));
     }
     return foundPosts > 0 ? macroReport : '[REDDIT] Không có tin vĩ mô đáng chú ý tuần này.';
 }
