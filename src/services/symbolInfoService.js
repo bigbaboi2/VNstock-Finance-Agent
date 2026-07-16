@@ -276,6 +276,38 @@ const calcRsiSimple = (closes = [], period = 14) => {
     return Math.round((100 - 100 / (1 + avgGain / avgLoss)) * 10) / 10;
 };
 
+const calcRiskMetrics = (closes = []) => {
+    if (closes.length < 2) return { maxDrawdown: 0, volatility: 0 };
+    
+    const returns = [];
+    for (let i = 1; i < closes.length; i++) {
+        returns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
+    }
+    const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((a, b) => a + Math.pow(b - meanReturn, 2), 0) / returns.length;
+    const volatility = Math.sqrt(variance) * 100;
+    
+    const period = Math.min(60, closes.length);
+    const recentCloses = closes.slice(-period);
+    let maxDrawdown = 0;
+    let peak = recentCloses[0];
+    
+    for (let i = 1; i < recentCloses.length; i++) {
+        if (recentCloses[i] > peak) {
+            peak = recentCloses[i];
+        }
+        const drawdown = (peak - recentCloses[i]) / peak * 100;
+        if (drawdown > maxDrawdown) {
+            maxDrawdown = drawdown;
+        }
+    }
+    
+    return {
+        maxDrawdown: Math.round(maxDrawdown * 100) / 100,
+        volatility: Math.round(volatility * 100) / 100
+    };
+};
+
 const buildVnLevels = (price, atr, direction) => {
     const entry = roundPrice(price, 'VN_STOCK');
     const a = atr && atr > 0 ? atr : price * 0.02;
@@ -454,6 +486,53 @@ const readCachedAiCrypto = (coinDoc) => {
         timestamp: latest.timestamp || null,
         excerpt: String(latest.advice || latest.tech_analysis || '').slice(0, 220) || null,
     };
+};
+
+export const findIndustryPeers = async (currentSymbol, currentIndustry, currentCapStr) => {
+    if (!currentIndustry) return null;
+    try {
+        const Stock = (await import('../../models/Stock.js')).default;
+        const peers = await Stock.find({ 'cafeF.profile.Data.Nganh': currentIndustry }, { symbol: 1, companyName: 1, 'cafeF.finance': 1 }).lean();
+        
+        if (!peers || peers.length < 2) return null;
+        
+        const parseCap = (financeArray) => {
+            if (!Array.isArray(financeArray)) return 0;
+            const capItem = financeArray.find(item => item.Code === 'VonHoaThiTruong');
+            if (!capItem?.Value) return 0;
+            return parseFloat(capItem.Value.replace(/,/g, '')) || 0;
+        };
+        
+        const currentCap = parseFloat(currentCapStr?.replace(/,/g, '')) || 0;
+        
+        const parsedPeers = peers.map(p => ({
+            symbol: p.symbol,
+            name: p.companyName || p.symbol,
+            cap: parseCap(p.cafeF?.finance)
+        })).filter(p => p.cap > 0 && p.symbol !== currentSymbol);
+        
+        if (parsedPeers.length === 0) return null;
+        
+        parsedPeers.sort((a, b) => b.cap - a.cap);
+        const top3 = parsedPeers.slice(0, 3);
+        
+        const similarPeers = [...parsedPeers]
+            .filter(p => !top3.some(t => t.symbol === p.symbol))
+            .sort((a, b) => Math.abs(a.cap - currentCap) - Math.abs(b.cap - currentCap))
+            .slice(0, 3);
+            
+        let peerContext = `Doanh nghiệp cùng ngành (${currentIndustry}):\n`;
+        if (top3.length > 0) {
+            peerContext += `- Top vốn hóa: ${top3.map(p => `${p.symbol} (${Math.round(p.cap)} Tỷ)`).join(', ')}\n`;
+        }
+        if (similarPeers.length > 0) {
+            peerContext += `- Cùng quy mô: ${similarPeers.map(p => `${p.symbol} (${Math.round(p.cap)} Tỷ)`).join(', ')}\n`;
+        }
+        return peerContext.trim();
+    } catch (error) {
+        console.error(`[findIndustryPeers] Lỗi:`, error.message);
+        return null;
+    }
 };
 
 /**
@@ -789,17 +868,21 @@ const getVnSymbolInfo = async (symbol) => {
         : (cafef?.overview || null);
 
     const companyName = await resolveVnCompanyName(symbol, stockDoc, cafef);
+    const industry = cafef?.profileData?.industry || null;
+    const peersContext = await findIndustryPeers(symbol, industry, cafef?.mktCap);
 
     return {
         asset: 'VN_STOCK',
         symbol,
         name: companyName || symbol,
-        industry: cafef?.profileData?.industry || null,
+        industry,
         fundamentals: {
             pe: cafef?.pe || '---',
             mktCap: cafef?.mktCap || '---',
             exchange: cafef?.exchange || 'VNX',
-            overview: overview ? String(overview).slice(0, 200) : null,
+            overview: overview ? String(overview).slice(0, 500) : null,
+            shareholders: cafef?.shareholdersContext || null,
+            peers: peersContext,
         },
         price: quote.price,
         change: quote.change,
@@ -815,6 +898,7 @@ const getVnSymbolInfo = async (symbol) => {
             score: techSignal.score,
             direction: techSignal.direction,
             adx: techSignal.breakdown?.adx ?? techSignal.adx?.adx ?? null,
+            riskMetrics: calcRiskMetrics(closes),
             atr: atrVnd,
         },
         levels,
