@@ -1,4 +1,19 @@
 import os
+import asyncio
+import sys
+
+# Suppress Hugging Face / Gradio 5 false-positive ValueError in Python 3.12
+try:
+    original_del = asyncio.base_events.BaseEventLoop.__del__
+    def safe_del(self):
+        try:
+            original_del(self)
+        except Exception:
+            pass
+    asyncio.base_events.BaseEventLoop.__del__ = safe_del
+except Exception:
+    pass
+
 os.environ["GRADIO_SSR_MODE"] = "False"
 import gradio as gr
 from Convertpdf import build_converter
