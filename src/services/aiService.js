@@ -659,7 +659,6 @@ QUY TẮC TÔ MÀU (KỶ LUẬT THÉP - TIẾT CHẾ TỐI ĐA):
  
 ${actionPlanInstruction}`;
 
-    const overview = data?.companyProfile?.overview || "Chưa có thông tin tổng quan";
     const shareholders = data?.companyProfile?.shareholders || data?.fundamentals?.shareholders || "";
     const peers = data?.companyProfile?.peers || data?.fundamentals?.peers || "";
 
