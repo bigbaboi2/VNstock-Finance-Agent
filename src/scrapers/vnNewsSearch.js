@@ -414,6 +414,7 @@ export async function fetchRedditMacro(ticker) {
     const subreddits = ['VietNam', 'investing', 'Economics'];
     let macroReport = `--- TIN VĨ MÔ TỪ REDDIT (${query}) ---\n`;
     let foundPosts = 0;
+    let fallbackNeeded = false;
 
     for (const sub of subreddits) {
         try {
@@ -443,9 +444,33 @@ export async function fetchRedditMacro(ticker) {
             }
         } catch (error) {
             console.log(chalk.gray(`[REDDIT] Bỏ qua r/${sub} do kết nối RSS từ chối (${error.response?.status || error.message}).`));
+            if (error.response?.status === 429 || error.response?.status === 403) fallbackNeeded = true;
         }
         await new Promise(resolve => setTimeout(resolve, 1500));
     }
+
+    if (foundPosts === 0 && fallbackNeeded) {
+        console.log(chalk.yellow(`[REDDIT] Bị Rate Limit toàn bộ, đang chuyển hướng sang PullPush API (Fallback)...`));
+        try {
+            // Sử dụng api.pullpush.io như một proxy/archive lấy tin Reddit
+            const fallbackUrl = `https://api.pullpush.io/reddit/search/submission/?q=${encodeURIComponent(query)}&size=5`;
+            const r = await axios.get(fallbackUrl, { timeout: 8000 });
+            if (r.data?.data && r.data.data.length > 0) {
+                let fallbackReport = `--- TIN VĨ MÔ TỪ REDDIT (VIA PULLPUSH) ---\n`;
+                r.data.data.forEach(p => {
+                    const title = p.title || '';
+                    const date = new Date(p.created_utc * 1000).toLocaleDateString('vi-VN');
+                    const subreddit = p.subreddit || 'unknown';
+                    fallbackReport += `  [${date}] [r/${subreddit}] ${title}\n`;
+                    foundPosts++;
+                });
+                return fallbackReport;
+            }
+        } catch (e) {
+            console.log(chalk.red(`[FALLBACK] Lỗi lấy tin PullPush: ${e.message}`));
+        }
+    }
+
     return foundPosts > 0 ? macroReport : '[REDDIT] Không có tin vĩ mô đáng chú ý tuần này.';
 }
 //─────────────────────────────────────────────────────────────────────────────
