@@ -18,6 +18,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { API_BASE_URL } from '../lib/apiBase';
 import {
   BrainCircuit, TrendingUp, TrendingDown, Minus,
   RefreshCw, ChevronDown, ChevronUp, Clock, Zap,
@@ -228,7 +229,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
         ? '/api/market-insight/today?force=true'
         : '/api/market-insight/today';
 
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetch(API_BASE_URL + url, { credentials: 'include' });
 
       if (res.status === 429) {
         // Cooldown từ force-scan — KHÔNG show error đỏ, chỉ show timer
