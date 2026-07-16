@@ -16,6 +16,31 @@ const getTradeCloseIcon = (pnlValue) => {
 
 const PLAIN_DIVIDER = '━━━━━━━━━━━━━━━━━━━━';
 
+/** Frontend (Vercel) — deep link tra cứu mã trên web. */
+const getWebAppBaseUrl = () => {
+    const raw = process.env.FRONTEND_URL
+        || process.env.WEB_APP_URL
+        || process.env.VITE_APP_URL
+        || 'https://your-frontend.example.com';
+    return String(raw).replace(/\/+$/, '');
+};
+
+const buildWebAppLink = ({ symbol, mode } = {}) => {
+    const base = getWebAppBaseUrl();
+    const params = new URLSearchParams();
+    if (mode && String(mode).toUpperCase() !== 'VN_STOCKS') {
+        params.set('mode', String(mode).toUpperCase());
+    }
+    if (symbol) params.set('symbol', String(symbol).toUpperCase());
+    const qs = params.toString();
+    return qs ? `${base}/?${qs}` : `${base}/`;
+};
+
+const moreInfoLine = ({ symbol, mode, label } = {}) => {
+    const url = buildWebAppLink({ symbol, mode });
+    return `🔗 ${label || 'Xem thêm trên web'}: ${url}`;
+};
+
 const escapeMarkdownV2 = (text = '') =>
     String(text)
         .replace(/\\/g, '\\\\')
@@ -793,24 +818,102 @@ const buildSimDetailMessage = (data = {}) => {
     return packPlainLines(lines);
 };
 
+const pickActionIcon = (action = '') => {
+    const a = String(action).toUpperCase();
+    if (a.includes('MUA')) return '🟢';
+    if (a.includes('TRÁNH')) return '🔴';
+    if (a.includes('THEO')) return '🟡';
+    return '⚪';
+};
+
+const appendInsightPicksSection = (lines, insight) => {
+    if (!insight) {
+        lines.push(
+            PLAIN_DIVIDER,
+            `🎯 KHUYẾN NGHỊ AI (Home VN)`,
+            `  Chưa có báo cáo AI trong DB.`,
+            `  Gõ /insight sau 7:00 T2–T6 hoặc xem trên web.`,
+        );
+        return;
+    }
+
+    const picks = Array.isArray(insight.topPicks) ? insight.topPicks : [];
+    const buy = picks.filter((p) => String(p.action).toUpperCase() === 'MUA');
+    const watch = picks.filter((p) => String(p.action).toUpperCase().includes('THEO'));
+    const avoid = picks.filter((p) => String(p.action).toUpperCase().includes('TRÁNH'));
+
+    const staleNote = insight.isStale || insight.isWeekend
+        ? ` (bản ${insight.date || 'gần nhất'})`
+        : '';
+
+    lines.push(
+        PLAIN_DIVIDER,
+        `🎯 KHUYẾN NGHỊ AI — ${insight.date || 'N/A'}${staleNote}`,
+        `Sentiment: ${insight.marketSentiment || 'N/A'} | Model: ${insight.model || 'N/A'}`,
+    );
+    if (insight.summary) {
+        lines.push(`📝 ${truncate(insight.summary, 280)}`);
+    }
+
+    const pushGroup = (title, list, limit = 4) => {
+        lines.push(``, title);
+        if (!list.length) {
+            lines.push(`  (không có)`);
+            return;
+        }
+        for (const p of list.slice(0, limit)) {
+            lines.push(
+                `  ${pickActionIcon(p.action)} ${p.symbol} [${p.horizon || '—'}] score ${p.score ?? '--'}`
+            );
+            if (p.reason) lines.push(`     ${truncate(p.reason, 90)}`);
+        }
+        if (list.length > limit) lines.push(`  … +${list.length - limit} mã nữa`);
+    };
+
+    pushGroup(`🟢 MUA (${buy.length})`, buy, 5);
+    pushGroup(`🟡 THEO DÕI (${watch.length})`, watch, 3);
+    pushGroup(`🔴 TRÁNH (${avoid.length})`, avoid, 3);
+
+    lines.push(
+        '',
+        moreInfoLine({ label: 'Chi tiết báo cáo trên web' }),
+        `💡 Gõ /info <mã> để xem giá + kỹ thuật + tin (VD: /info ${buy[0]?.symbol || watch[0]?.symbol || 'TCB'})`,
+    );
+};
+
 const buildMarketOverviewMessage = (data = {}) => {
     const vn = data.vn || {};
     const intel = vn.intelligence || {};
     const crypto = data.crypto || {};
+    const insight = data.insight || null;
+
     const lines = [
         `🌐 TỔNG QUAN THỊ TRƯỜNG`,
         `🕒 ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
         PLAIN_DIVIDER,
         `🏢 CHỨNG KHOÁN VN`,
         `  Trạng thái: ${intel.marketStatus || 'N/A'}`,
-        `  Breadth: ${intel.breadthRatio ?? 'N/A'}% | Loại: ${intel.statusType || 'N/A'}`,
+        `  Breadth: ${intel.breadthRatio ?? 'N/A'}% ↑ | Loại: ${intel.statusType || 'N/A'}`,
+        `  Phiên: ${data.vnMarketOpen ? '🟢 ĐANG MỞ' : '⚪ ĐÓNG / ngoài giờ'}`,
     ];
-    if (intel.diagnosticDesc) lines.push(`  ${truncate(intel.diagnosticDesc, 200)}`);
-    lines.push(`  Phiên mở cửa: ${data.vnMarketOpen ? 'CÓ' : 'KHÔNG'}`);
+    if (data.vnIndex) lines.push(`  VNINDEX: ${data.vnIndex}`);
+    if (intel.diagnosticDesc) lines.push(`  ${truncate(intel.diagnosticDesc, 220)}`);
+
+    if (Array.isArray(intel.strongSectors) && intel.strongSectors.length) {
+        lines.push(`  Ngành mạnh: ${intel.strongSectors.slice(0, 3).map((s) => s.name || s).join(', ')}`);
+    }
+    if (Array.isArray(intel.weakSectors) && intel.weakSectors.length) {
+        lines.push(`  Ngành yếu: ${intel.weakSectors.slice(0, 3).map((s) => s.name || s).join(', ')}`);
+    }
+
+    appendInsightPicksSection(lines, insight);
 
     lines.push(PLAIN_DIVIDER, `🪙 CRYPTO MACRO`);
     lines.push(`  Trạng thái: ${crypto.marketStatus || 'N/A'}`);
     lines.push(`  Breadth: ${crypto.breadthRatio ?? 'N/A'}%`);
+    if (crypto.fearGreed != null) {
+        lines.push(`  Fear&Greed: ${crypto.fearGreed} (${crypto.fearGreedLabel || '—'})`);
+    }
     if (crypto.diagnosticDesc) lines.push(`  ${truncate(crypto.diagnosticDesc, 200)}`);
 
     lines.push(PLAIN_DIVIDER, `💹 GIÁ NỔI BẬT`);
@@ -821,6 +924,8 @@ const buildMarketOverviewMessage = (data = {}) => {
         lines.push(PLAIN_DIVIDER, `📊 PHÁI SINH VN30`);
         lines.push(`  ${data.derivStatus}`);
     }
+
+    lines.push('', moreInfoLine({ label: 'Mở terminal web' }));
 
     return packPlainLines(lines);
 };
@@ -926,10 +1031,16 @@ const buildFunnelMessage = (funnel, assetLabel = 'CRYPTO') => {
 
 const buildInsightMessage = (insight) => {
     if (!insight) {
-        return `📰 BÁO CÁO AI THỊ TRƯỜNG\n${PLAIN_DIVIDER}\nChưa có báo cáo. Hệ thống quét lúc 7:00 sáng T2–T6.`;
+        return packPlainLines([
+            `📰 BÁO CÁO AI THỊ TRƯỜNG`,
+            PLAIN_DIVIDER,
+            `Chưa có báo cáo. Hệ thống quét lúc 7:00 sáng T2–T6.`,
+            '',
+            moreInfoLine({ label: 'Xem trên web' }),
+        ]);
     }
     const lines = [
-        `📰 BÁO CÁO AI — ${insight.date || 'N/A'}${insight.isWeekend ? ' (cuối tuần — bản gần nhất)' : ''}`,
+        `📰 BÁO CÁO AI — ${insight.date || 'N/A'}${insight.isWeekend ? ' (cuối tuần — bản gần nhất)' : ''}${insight.isStale ? ' (chưa có bản hôm nay)' : ''}`,
         `Sentiment: ${insight.marketSentiment || 'N/A'} | Model: ${insight.model || 'N/A'}`,
         PLAIN_DIVIDER,
     ];
@@ -937,11 +1048,12 @@ const buildInsightMessage = (insight) => {
     const picks = Array.isArray(insight.topPicks) ? insight.topPicks : [];
     if (picks.length) {
         lines.push(PLAIN_DIVIDER, `🎯 TOP PICKS`);
-        for (const p of picks.slice(0, 5)) {
-            lines.push(`  ${p.action || '?'} ${p.symbol} [${p.horizon || ''}] score ${p.score ?? '--'}`);
+        for (const p of picks.slice(0, 8)) {
+            lines.push(`  ${pickActionIcon(p.action)} ${p.action || '?'} ${p.symbol} [${p.horizon || ''}] score ${p.score ?? '--'}`);
             if (p.reason) lines.push(`    ${truncate(p.reason, 100)}`);
         }
     }
+    lines.push('', moreInfoLine({ label: 'Xem đầy đủ trên web' }));
     return packPlainLines(lines);
 };
 
@@ -1230,42 +1342,60 @@ const buildSymbolInfoMessage = (data = {}) => {
 
     lines.push(
         '',
+        moreInfoLine({
+            symbol: data.symbol,
+            mode: asset === 'CRYPTO' ? 'CRYPTO' : 'VN_STOCKS',
+            label: `Chi tiết ${data.symbol || ''} trên web`,
+        }),
         `⚠️ Nhận định trên dựa trên kỹ thuật & tin tức — chưa phải phân tích AI mới nhất.`,
     );
 
     return packPlainLines(lines);
 };
 
-const buildHelpMessage = () => [
-    `🦆 OMNI DUCK — LỆNH TELEGRAM`,
-    PLAIN_DIVIDER,
-    `📊 GIÁM SÁT & THỊ TRƯỜNG`,
-    `/check      — Dashboard tổng hợp (vốn, auto/manual, LIVE/SIM)`,
-    `/live       — Vị thế LIVE chi tiết + log sàn`,
-    `/sim        — Lệnh mô phỏng + stats training`,
-    `/market     — Tổng quan VN + Crypto macro`,
-    `/info <mã>  — Giá, kỹ thuật, tin/sentiment, nhận định (VD: /info MBB | /info BTC)`,
-    `/insight    — Báo cáo AI thị trường hôm nay`,
-    `/stats [7]  — Thống kê win rate: tổng / auto / manual`,
-    `/funnel     — Kết quả chu kỳ quét (crypto/vn/deriv)`,
-    `/pnl        — Tổng kết PnL hôm nay`,
-    `/portfolio  — Gói quỹ bot tự quản lý`,
-    ``,
-    `⚙️ HỆ THỐNG`,
-    `/health     — Pipeline, AI providers, adaptive guards`,
-    `/settings   — Cấu hình auto-trade`,
-    `/ai         — Bài học AI gần nhất`,
-    `/broker     — Trạng thái kết nối sàn`,
-    ``,
-    `🙋 LỆNH THỦ CÔNG`,
-    `/trade ...  — Đặt lệnh khớp sàn (xem /help trên web)`,
-    `/close <mã> — Đóng lệnh manual`,
-    `/manual     — Danh sách lệnh manual đang mở`,
-    ``,
-    `🎛 ĐIỀU KHIỂN`,
-    `/stop /start — Tắt/bật auto-trade pipeline`,
-    `/help       — Danh sách lệnh này`,
-].join('\n');
+const buildHelpMessage = () => {
+    const web = getWebAppBaseUrl();
+    return [
+        `🦆 OMNI DUCK — HƯỚNG DẪN LỆNH`,
+        `🕒 ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+        PLAIN_DIVIDER,
+        `🌐 Terminal web: ${web}`,
+        ``,
+        `🔍 TRA CỨU NHANH`,
+        `/market          Tổng quan VN + Crypto + khuyến nghị AI`,
+        `/info <mã>       Giá, kỹ thuật, tin, nhận định`,
+        `                 VD: /info TCB   |  /info BTC`,
+        `/insight         Báo cáo AI thị trường (Home VN Stock)`,
+        ``,
+        `📊 GIÁM SÁT GIAO DỊCH`,
+        `/check           Dashboard vốn + lệnh đang mở`,
+        `/live            Chi tiết vị thế LIVE + log sàn`,
+        `/sim             Lệnh mô phỏng + stats training`,
+        `/pnl             PnL đã đóng hôm nay`,
+        `/portfolio       Các gói quỹ AutoDuck`,
+        `/stats [7]       Win rate / PnL (mặc định 30 ngày)`,
+        `/funnel          Kết quả chu kỳ quét mã`,
+        ``,
+        `🙋 LỆNH THỦ CÔNG`,
+        `/trade ...       Đặt lệnh khớp sàn LIVE`,
+        `/close <mã>      Đóng lệnh manual theo mã`,
+        `/manual          Danh sách lệnh manual đang mở`,
+        ``,
+        `⚙️ HỆ THỐNG`,
+        `/health          Pipeline, AI providers, guards`,
+        `/settings        Cấu hình auto-trade`,
+        `/broker          Kết nối sàn`,
+        `/ai              Bài học AI gần nhất`,
+        `/stop  /start    Tắt / bật pipeline auto-trade`,
+        ``,
+        `💡 MẸO`,
+        `• Alias: /mkt = /market · /i = /info · /baocao = /insight`,
+        `• Link web ở cuối lệnh tra cứu — bấm để mở terminal`,
+        `• /info không gọi AI live; dùng báo cáo AI đã lưu nếu có`,
+        PLAIN_DIVIDER,
+        `Gõ /help bất cứ lúc nào để xem lại danh sách này.`,
+    ].join('\n');
+};
 
 export {
     isTelegramConfigured,

@@ -164,7 +164,7 @@ useEffect(() => {
   const [allStocks, setAllStocks] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [loadingSymbols, setLoadingSymbols] = useState(false);
+  const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [loadingMarket, setLoadingMarket] = useState(false);
   const [showExtraStats, setShowExtraStats] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -181,6 +181,8 @@ useEffect(() => {
   const lastNewsCountRef = useRef(0);
   const lastActionNewsKeysRef = useRef([]);
   const vnStocksCloseChatRef = useRef(null);
+  const deepLinkHandledRef = useRef(false);
+  const [cryptoDeepSymbol, setCryptoDeepSymbol] = useState(null);
 
   //LOGIC: PERSIST NEWS MODE SELECTION
   useEffect(() => {
@@ -1284,8 +1286,44 @@ useEffect(() => {
     eventSourceRef.current = null;
   }
 };
+
+  // Telegram / web deep link: ?symbol=TCB or ?mode=CRYPTO&symbol=BTC
+  useEffect(() => {
+    if (!currentUser || deepLinkHandledRef.current) return;
+    if (loadingSymbols) return;
+
+    let params;
+    try {
+      params = new URLSearchParams(window.location.search);
+    } catch (_) {
+      return;
+    }
+    const rawSymbol = (params.get('symbol') || params.get('s') || '').trim().toUpperCase();
+    const rawMode = (params.get('mode') || '').trim().toUpperCase();
+    if (!rawSymbol && !rawMode) {
+      deepLinkHandledRef.current = true;
+      return;
+    }
+
+    deepLinkHandledRef.current = true;
+
+    const isKnownVn = rawSymbol && allStocks.some((s) => s.symbol === rawSymbol);
+    if (rawMode === 'CRYPTO' || (rawSymbol && !isKnownVn && rawMode !== 'VN_STOCKS')) {
+      setActiveMode('CRYPTO');
+      if (rawSymbol) setCryptoDeepSymbol(rawSymbol.replace(/USDT$/i, ''));
+      return;
+    }
+
+    if (rawSymbol) {
+      setActiveMode('VN_STOCKS');
+      setInput(rawSymbol);
+      fetchMarketData(rawSymbol);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, loadingSymbols, allStocks]);
+
 //Logic ai button
-const loadLatestVnReportFromDb = async (symbol) => {
+  const loadLatestVnReportFromDb = async (symbol) => {
     if (!currentUser || !symbol) return null;
     try {
         const res = await axios.get(`/api/ai/analyze/latest/${symbol}?user=${currentUser}`);
@@ -1866,6 +1904,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 isDark={isDark}
                 UI={UI}
                 addLog={addLog}
+                initialSymbol={cryptoDeepSymbol}
             />
         )}
         {/*========================================================= */}

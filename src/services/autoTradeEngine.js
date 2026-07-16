@@ -88,7 +88,7 @@ import {
 import { appendAuditEvent, getAuditStatus } from './auditLogService.js';
 import { getPipelineLogs } from './pipelineLogService.js';
 import { getRateLimitStatus } from './multiProviderRouter.js';
-import { getTodayInsight } from './marketInsightService.js';
+import { getTodayInsight, getCachedMarketInsight } from './marketInsightService.js';
 
 // ── CONSTANTS & HELPERS
 
@@ -3872,24 +3872,38 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
     // ── /market (/mkt) ──
     if (firstWord === 'market' || firstWord === 'mkt') {
         try {
-            const [vn, crypto] = await Promise.all([
+            const [vn, crypto, insight] = await Promise.all([
                 getVnMarketContext().catch(() => null),
                 getCryptoMacroContext().catch(() => null),
+                getCachedMarketInsight().catch(() => null),
             ]);
-            let btc = 'N/A', eth = 'N/A';
+            let btc = 'N/A', eth = 'N/A', vnIndex = null;
             try {
-                const [b, e] = await Promise.all([
+                const [b, e, idx] = await Promise.all([
                     axios.get('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', { timeout: 6000 }),
                     axios.get('https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT', { timeout: 6000 }),
+                    axios.get(
+                        `https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=${Math.floor(Date.now() / 1000) - 5 * 86400}&to=${Math.floor(Date.now() / 1000)}&symbol=VNINDEX&resolution=1D`,
+                        { timeout: 6000 }
+                    ).catch(() => null),
                 ]);
                 btc = `${Number(b.data.lastPrice).toLocaleString('en-US')} (${Number(b.data.priceChangePercent).toFixed(2)}%)`;
                 eth = `${Number(e.data.lastPrice).toLocaleString('en-US')} (${Number(e.data.priceChangePercent).toFixed(2)}%)`;
+                const closes = idx?.data?.c;
+                if (closes?.length >= 2) {
+                    const last = closes[closes.length - 1];
+                    const prev = closes[closes.length - 2];
+                    const pct = prev ? ((last - prev) / prev) * 100 : 0;
+                    vnIndex = `${Number(last).toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+                }
             } catch (_) {}
             const m = buildMarketOverviewMessage({
                 vn,
                 crypto: crypto || {},
+                insight,
                 btc,
                 eth,
+                vnIndex,
                 vnMarketOpen: isVNMarketOpen(),
             });
             await reply(m);

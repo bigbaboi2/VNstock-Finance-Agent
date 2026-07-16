@@ -609,6 +609,23 @@ export async function getTodayInsight() {
     return await MarketInsight.findOne({}).sort({ date: -1 }).lean() || null;
 }
 
+/**
+ * Chỉ đọc DB — không kích hoạt quét AI.
+ * Dùng cho /market và các lệnh tra cứu (tránh tốn quota).
+ */
+export async function getCachedMarketInsight() {
+    const dateStr = getVNDateStr();
+    const today = await MarketInsight.findOne({ date: dateStr }).lean();
+    if (today) return today;
+    const recent = await MarketInsight.findOne({}).sort({ date: -1 }).lean();
+    if (!recent) return null;
+    return {
+        ...recent,
+        isStale: recent.date !== dateStr,
+        isWeekend: !isWorkday(new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))),
+    };
+}
+
 // ── Lịch sử reports ───────────────────────────────────────────────────────────
 export async function getInsightHistory(days = 7) {
     return await MarketInsight.find({})
