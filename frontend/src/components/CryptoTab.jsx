@@ -280,14 +280,15 @@ function Skeleton({ isDark, h = 'h-4', w = 'w-full', className = '' }) {
 // ─────────────────────────────────────────────────────────────
 // MAIN EXPORT: CryptoTab
 // ─────────────────────────────────────────────────────────────
-export default function CryptoTab({ isDark, UI, addLog = [] }) {
+export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = null }) {
 
     // ── STATE: SEARCH & SYMBOL ──
+    const bootSymbol = (initialSymbol || 'BTC').toUpperCase().replace(/USDT$/i, '');
     const [allCryptos, setAllCryptos]         = useState([]);
-    const [searchInput, setSearchInput]       = useState('BTC');
+    const [searchInput, setSearchInput]       = useState(bootSymbol);
     const [suggestions, setSuggestions]       = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [symbol, setSymbol]                 = useState('BTC');
+    const [symbol, setSymbol]                 = useState(bootSymbol);
     const [cryptoInterval, setCryptoInterval] = useState('1 ngày');
 
     // ── STATE: DATA ──
