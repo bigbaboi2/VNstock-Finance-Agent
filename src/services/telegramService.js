@@ -1286,8 +1286,13 @@ const buildSymbolInfoMessage = (data = {}) => {
     const priceTime = formatVnDateTime(data.priceAt || data.fetchedAt);
     const fetchTime = formatVnDateTime(data.fetchedAt);
 
+    const displayName = data.name && data.name !== data.symbol ? data.name : null;
+    const titleCore = displayName
+        ? `INFO — ${data.symbol || '???'} (${assetLabel}) — ${displayName}`
+        : `INFO — ${data.symbol || '???'} (${assetLabel})`;
+
     const lines = [
-        `🦆 ${htmlBold(`INFO — ${data.symbol || '???'} (${assetLabel})`)}`,
+        `🦆 ${htmlBold(titleCore)}`,
         PLAIN_DIVIDER,
         `💰 ${htmlBold('Giá')}: ${escapeHtml(formatInfoPrice(data.price, asset))}  (${escapeHtml(changeLine)})`,
     ];
@@ -1307,7 +1312,6 @@ const buildSymbolInfoMessage = (data = {}) => {
     }
 
     const nameBits = [
-        data.name && data.name !== data.symbol ? data.name : null,
         data.industry || null,
         fund.pe && fund.pe !== '---' ? `P/E ${fund.pe}` : null,
         fund.mktCap && fund.mktCap !== '---' ? `Cap ${fund.mktCap}` : null,
