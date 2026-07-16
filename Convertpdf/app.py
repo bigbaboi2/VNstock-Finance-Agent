@@ -3,19 +3,16 @@ from Convertpdf import build_converter
 import time
 import os
 
-_converters = {
-    "turbo": build_converter("turbo"),
-    "fast": None,
-    "balanced": None,
-    "full": None,
-}
+_converters = {}
 
 def parse_pdf(file_path: str, mode: str):
     start_time = time.time()
-    if mode not in _converters:
+    valid_modes = ["turbo", "fast", "balanced", "full"]
+    if mode not in valid_modes:
         mode = "turbo"
         
-    if _converters[mode] is None:
+    if mode not in _converters:
+        # Lazy load to prevent Hugging Face timeout during startup
         _converters[mode] = build_converter(mode)
         
     converter = _converters[mode]
