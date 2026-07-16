@@ -1,3 +1,5 @@
+import os
+os.environ["GRADIO_SSR_MODE"] = "False"
 import gradio as gr
 from Convertpdf import build_converter
 import time
