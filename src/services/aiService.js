@@ -432,7 +432,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
             const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
             
             const client = await Client.connect(pdfConverterUrl);
-            const result = await client.predict("/predict", [
+            const result = await client.predict("/parse_pdf", [
                 pdfBlob,
                 safeMode,
             ]);
