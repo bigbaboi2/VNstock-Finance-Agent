@@ -27,6 +27,7 @@ import {
     buildAutoTradeOpenMessage,
     buildMarketRadarMessage,
     buildVolatilityAlertMessage,
+    buildVolatilityDigestMessage,
     buildDailyPnLReportMessage,
     buildCheckDashboardMessage,
     buildLiveDetailMessage,
@@ -159,6 +160,10 @@ let autoTradePipelineRunning = false;
 let autoTradeManuallyStopped = false;
 let exitPipelineRunning = false;
 const volatilityAlertCooldown = new Map();
+/** Buffer cảnh báo trong 1 chu kỳ pipeline → gửi 1 tin digest, tránh spam. */
+const volatilityAlertBuffer = [];
+const VOL_ALERT_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3h / mã
+const VOL_DIGEST_MAX_ITEMS = 12;
 
 const IDLE_FAST_SCAN_INTERVAL_MS = Number(process.env.AUTODUCK_IDLE_FAST_SCAN_MS) || 3 * 60 * 1000;
 const IDLE_RELAX_TARGETS = (process.env.AUTODUCK_IDLE_RELAX_TARGETS || '1,3,5')
@@ -2138,9 +2143,9 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
     if (!candles || candles.length < 5) return;
     const now = Date.now();
     const cooldownKey = `${asset}_${symbol}`;
-    
+
     if (volatilityAlertCooldown.has(cooldownKey) && now < volatilityAlertCooldown.get(cooldownKey)) {
-        return; 
+        return;
     }
 
     if (asset === 'CRYPTO') {
@@ -2158,19 +2163,51 @@ const checkVolatilityAndAlert = async (symbol, asset, candles) => {
     let note = '';
 
     if (asset === 'CRYPTO' && absPct >= 5.5) {
-        isAnomalous = true; note = `Biến động giật mạnh vượt ngưỡng 5.5% của khung 1H.`;
+        isAnomalous = true; note = `Giật mạnh >5.5%/1H`;
     } else if (asset === 'DERIVATIVES' && Math.abs(priceDiff) >= 7) {
-        isAnomalous = true; note = `Thị trường phái sinh giật mạnh ${Math.abs(priceDiff).toFixed(1)} điểm.`;
+        isAnomalous = true; note = `Phái sinh giật ${Math.abs(priceDiff).toFixed(1)} điểm`;
     } else if (asset === 'VN_STOCK' && absPct >= 4.5) {
-        isAnomalous = true; note = `Cổ phiếu có dấu hiệu kéo/xả bất thường (biến động > 4.5%).`;
+        isAnomalous = true; note = `Kéo/xả bất thường >4.5%`;
     }
 
-    if (isAnomalous) {
-        const msg = buildVolatilityAlertMessage(asset, symbol, currentCandle.close, pctDiff, '1 giờ (4 nến 15m)', note);
-        await sendTelegramMessage(msg).catch(() => {});
-        console.log(chalk.magenta.bold(`[VOLATILITY] Đã cảnh báo Telegram biến động mạnh cho ${symbol} (${pctDiff.toFixed(2)}%)`));
-        volatilityAlertCooldown.set(cooldownKey, now + 2 * 60 * 60 * 1000);
+    if (!isAnomalous) return;
+
+    // Gom vào buffer — không gửi Telegram ngay
+    volatilityAlertBuffer.push({
+        asset,
+        symbol,
+        price: currentCandle.close,
+        changePct: pctDiff,
+        note,
+        timeFrame: '1 giờ (4 nến 15m)',
+    });
+    volatilityAlertCooldown.set(cooldownKey, now + VOL_ALERT_COOLDOWN_MS);
+    console.log(chalk.magenta(`[VOLATILITY] Queue ${symbol} (${pctDiff.toFixed(2)}%) — sẽ gộp digest cuối chu kỳ`));
+};
+
+/** Gửi 1 tin tổng hợp các mã biến động mạnh trong chu kỳ quét. */
+const flushVolatilityAlerts = async () => {
+    if (!volatilityAlertBuffer.length) return;
+
+    const batch = volatilityAlertBuffer.splice(0, volatilityAlertBuffer.length);
+    const byKey = new Map();
+    for (const a of batch) {
+        const k = `${a.asset}_${a.symbol}`;
+        const prev = byKey.get(k);
+        if (!prev || Math.abs(a.changePct) > Math.abs(prev.changePct)) byKey.set(k, a);
     }
+    const items = [...byKey.values()]
+        .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+        .slice(0, VOL_DIGEST_MAX_ITEMS);
+
+    if (!items.length) return;
+
+    const msg = buildVolatilityDigestMessage(items);
+    if (!msg) return;
+    await sendTelegramMessage(msg, { parseMode: 'HTML' }).catch(() => {});
+    console.log(chalk.magenta.bold(
+        `[VOLATILITY] Đã gửi digest ${items.length}/${batch.length} mã (gộp 1 tin, tránh spam)`
+    ));
 };
 
 export const runAutoTradePipeline = async (forcedAssetType = null, options = {}) => {
@@ -3100,6 +3137,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             }
         }
 
+        // Gửi 1 tin biến động gộp sau khi quét xong mọi asset (tránh spam từng mã)
+        await flushVolatilityAlerts();
+
         for (const asset of Object.keys(radarCandidates)) {
             radarCandidates[asset].sort((a, b) => {
                 if (Number(b.aiConfirmed) !== Number(a.aiConfirmed)) {
@@ -3150,6 +3190,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             source: 'autoTradeEngine',
         }).catch(() => {});
     } finally {
+        // Nếu lỗi giữa chu kỳ vẫn cố gửi digest đã gom được
+        await flushVolatilityAlerts().catch(() => {});
         autoTradePipelineRunning = false;
         appendAuditEvent('pipeline', {
             forcedAssetType: forcedAssetType || 'ALL',
