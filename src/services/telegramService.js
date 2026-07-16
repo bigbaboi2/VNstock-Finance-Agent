@@ -1124,6 +1124,118 @@ const buildPortfolioMessage = (portfolios = []) => {
     return packPlainLines(lines);
 };
 
+const sentimentTag = (s) => {
+    if (s === 'positive') return '+';
+    if (s === 'negative') return '-';
+    return '=';
+};
+
+const formatInfoPrice = (value, asset) => {
+    if (asset === 'VN_STOCK') {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '--';
+        return `${n.toLocaleString('vi-VN')} ₫`;
+    }
+    return formatPrice(value, asset);
+};
+
+const buildSymbolInfoMessage = (data = {}) => {
+    const asset = data.asset || 'VN_STOCK';
+    const assetLabel = asset === 'CRYPTO' ? 'CRYPTO' : 'VN';
+    const tech = data.technicals || {};
+    const news = data.news || {};
+    const sent = news.sentiment || {};
+    const counts = sent.counts || {};
+    const view = data.view || {};
+    const levels = data.levels || {};
+    const fund = data.fundamentals || {};
+    const cachedAi = data.cachedAi;
+
+    const changeLine = Number.isFinite(Number(data.changePercent))
+        ? `${formatSignedPct(data.changePercent, 2)}${
+            data.change != null && asset === 'VN_STOCK'
+                ? ` / ${Number(data.change) >= 0 ? '+' : ''}${Number(data.change).toLocaleString('vi-VN')} ₫`
+                : ''
+        }`
+        : '--';
+
+    const lines = [
+        `🦆 INFO — ${data.symbol || '???'} (${assetLabel})`,
+        PLAIN_DIVIDER,
+        `💰 Giá: ${formatInfoPrice(data.price, asset)}  (${changeLine})`,
+    ];
+
+    if (data.volume != null && Number(data.volume) > 0) {
+        const volStr = asset === 'CRYPTO'
+            ? formatNumber(data.volume, 0)
+            : Number(data.volume).toLocaleString('vi-VN');
+        lines.push(`📊 Volume: ${volStr}`);
+    }
+
+    const nameBits = [
+        data.name && data.name !== data.symbol ? data.name : null,
+        data.industry || null,
+        fund.pe && fund.pe !== '---' ? `P/E ${fund.pe}` : null,
+        fund.mktCap && fund.mktCap !== '---' ? `Cap ${fund.mktCap}` : null,
+    ].filter(Boolean);
+    if (nameBits.length) lines.push(`🏢 ${nameBits.join(' · ')}`);
+    if (fund.overview) lines.push(`📝 ${truncate(fund.overview, 160)}`);
+
+    lines.push(
+        '',
+        `📈 KỸ THUẬT`,
+        `RSI ${tech.rsi ?? '--'} · MACD ${tech.macd ?? '--'} · Score ${tech.score ?? '--'}`,
+        `Trend ${tech.trend || tech.direction || '--'}${tech.adx != null ? ` · ADX ${Number(tech.adx).toFixed(0)}` : ''}`,
+        `→ ${tech.direction || tech.action || 'NEUTRAL'}`,
+        '',
+        `🎯 NHẬN ĐỊNH (kỹ thuật + tin)`,
+        `Action: ${view.action || 'ĐỨNG NGOÀI'}`,
+        `Entry: ${formatInfoPrice(view.entry ?? levels.entry, asset)} | SL: ${formatInfoPrice(view.sl ?? levels.sl, asset)}`,
+        `TP1: ${formatInfoPrice(view.tp1 ?? levels.tp1, asset)} | TP2: ${formatInfoPrice(view.tp2 ?? levels.tp2, asset)}`,
+        `Ngắn hạn: ${view.shortHorizon || '--'}`,
+        `Dài hạn: ${view.longHorizon || '--'}`,
+    );
+    if (view.reason) lines.push(`Lý do: ${truncate(view.reason, 200)}`);
+
+    lines.push(
+        '',
+        `📰 TIN & SENTIMENT`,
+        `Score: +${counts.positive || 0}/-${counts.negative || 0}/=${counts.neutral || 0} → ${sent.bias || 'neutral'}`,
+    );
+    const micro = Array.isArray(news.micro) ? news.micro.slice(0, 5) : [];
+    if (micro.length) {
+        for (const n of micro) {
+            lines.push(`  [${sentimentTag(n.sentiment)}] ${truncate(n.title, 90)}`);
+        }
+    } else {
+        lines.push(`  (Chưa có tin mới)`);
+    }
+    if (news.macroHint) lines.push(`Vĩ mô: ${truncate(news.macroHint, 160)}`);
+
+    if (cachedAi) {
+        lines.push('', `📦 AI ĐÃ LƯU (cache DB)`);
+        const ts = cachedAi.timestamp
+            ? new Date(cachedAi.timestamp).toLocaleString('vi-VN')
+            : 'không rõ thời điểm';
+        lines.push(`Action: ${cachedAi.action || '--'} · lúc: ${ts}`);
+        const ad = cachedAi.actionData || {};
+        const entry = ad.entry || ad.Entry;
+        const sl = ad.stoploss || ad.sl || ad.SL;
+        const tp = ad.target || ad.tp || ad.TP || ad.target1;
+        if (entry || sl || tp) {
+            lines.push(`Entry ${entry || '--'} | SL ${sl || '--'} | TP ${tp || '--'}`);
+        }
+        if (cachedAi.excerpt) lines.push(truncate(cachedAi.excerpt, 180));
+    }
+
+    lines.push(
+        '',
+        `⚠️ Nhận định trên dựa trên kỹ thuật & tin tức — chưa phải phân tích AI mới nhất.`,
+    );
+
+    return packPlainLines(lines);
+};
+
 const buildHelpMessage = () => [
     `🦆 OMNI DUCK — LỆNH TELEGRAM`,
     PLAIN_DIVIDER,
@@ -1132,6 +1244,7 @@ const buildHelpMessage = () => [
     `/live       — Vị thế LIVE chi tiết + log sàn`,
     `/sim        — Lệnh mô phỏng + stats training`,
     `/market     — Tổng quan VN + Crypto macro`,
+    `/info <mã>  — Giá, kỹ thuật, tin/sentiment, nhận định (VD: /info MBB | /info BTC)`,
     `/insight    — Báo cáo AI thị trường hôm nay`,
     `/stats [7]  — Thống kê win rate: tổng / auto / manual`,
     `/funnel     — Kết quả chu kỳ quét (crypto/vn/deriv)`,
@@ -1181,5 +1294,6 @@ export {
     buildBrokerStatusMessage,
     buildTodayPnLMessage,
     buildPortfolioMessage,
+    buildSymbolInfoMessage,
     buildHelpMessage,
 };

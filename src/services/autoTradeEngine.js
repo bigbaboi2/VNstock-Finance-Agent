@@ -41,10 +41,12 @@ import {
     buildBrokerStatusMessage,
     buildTodayPnLMessage,
     buildPortfolioMessage,
+    buildSymbolInfoMessage,
     buildHelpMessage,
     sendTelegramMessage,
     escapeHtml,
 } from './telegramService.js';
+import { getSymbolInfo } from './symbolInfoService.js';
 import axios from 'axios';
 import { executeLiveEntry, executeLiveExit, executeLivePartialExit, computeLivePnlFromExchangeOrders } from './exchangeBrokerService.js';
 import { createManualTrade, closeManualTrade, listOpenManualTrades, monitorManualTrades } from './manualTradeService.js';
@@ -4193,6 +4195,30 @@ export const handleTelegramCommand = async (text = '', meta = {}) => {
             const errMsg = `❌ Lỗi /pnl: ${err.message}`;
             await reply(errMsg);
             return errMsg;
+        }
+    }
+
+    // ── /info (/i) — giá + kỹ thuật + tin/sentiment (không gọi AI live) ──
+    if (firstWord === 'info' || firstWord === 'i') {
+        const symbol = String(secondArg || '').toUpperCase().replace(/USDT$/i, '');
+        if (!symbol) {
+            const m = `❌ Cú pháp: /info <mã>\nVD: /info MBB  |  /info BTC`;
+            await reply(m);
+            return m;
+        }
+        try {
+            await reply(`⏳ Đang lấy dữ liệu ${symbol}...`);
+            console.log(chalk.cyan(`[TELEGRAM CMD] /info ${symbol}`));
+            const data = await getSymbolInfo(symbol);
+            const msg = buildSymbolInfoMessage(data);
+            await reply(msg);
+            console.log(chalk.green(`[TELEGRAM CMD] /info ${symbol} — done (${data.asset})`));
+            return msg;
+        } catch (err) {
+            const m = `❌ Lỗi /info ${symbol}: ${err.message}`;
+            await reply(m);
+            console.log(chalk.red(`[TELEGRAM CMD] /info lỗi: ${err.message}`));
+            return m;
         }
     }
 
