@@ -5,8 +5,11 @@ from Convertpdf import app as fastapi_app
 def read_root():
     return {"status": "ok"}
 
+def check_status():
+    return "System Online"
+
 demo = gr.Interface(
-    fn=lambda: "System Online",
+    fn=check_status,
     inputs=None,
     outputs="text",
     title="Service"
