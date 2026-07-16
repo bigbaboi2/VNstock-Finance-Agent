@@ -133,11 +133,11 @@ const PickCard = React.memo(({ pick, isDark, onSelect }) => {
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className={`text-base font-black tracking-tight ${isDark ? 'text-yellow-400' : 'text-yellow-600'} group-hover:underline`}>
           {pick.symbol}
         </span>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {/* Horizon badge */}
           <span className={`flex items-center gap-1 text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border ${
             isDark ? 'text-slate-400 border-white/10' : 'text-slate-500 border-slate-200'
