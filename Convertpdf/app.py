@@ -16,12 +16,14 @@ except Exception:
 
 os.environ["GRADIO_SSR_MODE"] = "False"
 import gradio as gr
+import spaces
 from Convertpdf import build_converter
 import time
 import os
 
 _converters = {}
 
+@spaces.GPU
 def parse_pdf(file_path: str, mode: str):
     start_time = time.time()
     valid_modes = ["turbo", "fast", "balanced", "full"]
@@ -52,5 +54,3 @@ demo = gr.Interface(
     description="A pure Gradio API for Docling PDF Conversion."
 )
 
-if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
