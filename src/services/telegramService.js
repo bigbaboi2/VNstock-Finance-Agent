@@ -38,7 +38,18 @@ const buildWebAppLink = ({ symbol, mode } = {}) => {
 
 const moreInfoLine = ({ symbol, mode, label } = {}) => {
     const url = buildWebAppLink({ symbol, mode });
-    return `🔗 ${label || 'Xem thêm trên web'}: ${url}`;
+    return `🔗 <b>${escapeHtml(label || 'Xem thêm trên web')}</b>: ${escapeHtml(url)}`;
+};
+
+const htmlSection = (title) => `<b>${escapeHtml(title)}</b>`;
+const htmlItalic = (text) => `<i>${escapeHtml(text)}</i>`;
+const htmlBold = (text) => `<b>${escapeHtml(text)}</b>`;
+
+const formatVnDateTime = (value) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 };
 
 const escapeMarkdownV2 = (text = '') =>
@@ -830,8 +841,8 @@ const appendInsightPicksSection = (lines, insight) => {
     if (!insight) {
         lines.push(
             PLAIN_DIVIDER,
-            `🎯 KHUYẾN NGHỊ AI (Home VN)`,
-            `  Chưa có báo cáo AI trong DB.`,
+            htmlSection('🎯 KHUYẾN NGHỊ AI (Home VN)'),
+            `  ${htmlItalic('Chưa có báo cáo AI trong DB.')}`,
             `  Gõ /insight sau 7:00 T2–T6 hoặc xem trên web.`,
         );
         return;
@@ -848,24 +859,24 @@ const appendInsightPicksSection = (lines, insight) => {
 
     lines.push(
         PLAIN_DIVIDER,
-        `🎯 KHUYẾN NGHỊ AI — ${insight.date || 'N/A'}${staleNote}`,
-        `Sentiment: ${insight.marketSentiment || 'N/A'} | Model: ${insight.model || 'N/A'}`,
+        htmlSection(`🎯 KHUYẾN NGHỊ AI — ${insight.date || 'N/A'}${staleNote}`),
+        `Sentiment: ${htmlBold(insight.marketSentiment || 'N/A')} | Model: ${escapeHtml(insight.model || 'N/A')}`,
     );
     if (insight.summary) {
-        lines.push(`📝 ${truncate(insight.summary, 280)}`);
+        lines.push(`📝 ${escapeHtml(truncate(insight.summary, 280))}`);
     }
 
     const pushGroup = (title, list, limit = 4) => {
-        lines.push(``, title);
+        lines.push('', htmlBold(title));
         if (!list.length) {
-            lines.push(`  (không có)`);
+            lines.push(`  ${htmlItalic('(không có)')}`);
             return;
         }
         for (const p of list.slice(0, limit)) {
             lines.push(
-                `  ${pickActionIcon(p.action)} ${p.symbol} [${p.horizon || '—'}] score ${p.score ?? '--'}`
+                `  ${pickActionIcon(p.action)} ${htmlBold(p.symbol || '?')} [${escapeHtml(p.horizon || '—')}] score ${escapeHtml(String(p.score ?? '--'))}`
             );
-            if (p.reason) lines.push(`     ${truncate(p.reason, 90)}`);
+            if (p.reason) lines.push(`     ${escapeHtml(truncate(p.reason, 90))}`);
         }
         if (list.length > limit) lines.push(`  … +${list.length - limit} mã nữa`);
     };
@@ -877,7 +888,7 @@ const appendInsightPicksSection = (lines, insight) => {
     lines.push(
         '',
         moreInfoLine({ label: 'Chi tiết báo cáo trên web' }),
-        `💡 Gõ /info <mã> để xem giá + kỹ thuật + tin (VD: /info ${buy[0]?.symbol || watch[0]?.symbol || 'TCB'})`,
+        `💡 Gõ /info &lt;mã&gt; để xem giá + kỹ thuật + tin (VD: /info ${escapeHtml(buy[0]?.symbol || watch[0]?.symbol || 'TCB')})`,
     );
 };
 
@@ -888,41 +899,41 @@ const buildMarketOverviewMessage = (data = {}) => {
     const insight = data.insight || null;
 
     const lines = [
-        `🌐 TỔNG QUAN THỊ TRƯỜNG`,
-        `🕒 ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+        `🌐 ${htmlBold('TỔNG QUAN THỊ TRƯỜNG')}`,
+        `🕒 ${escapeHtml(new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }))}`,
         PLAIN_DIVIDER,
-        `🏢 CHỨNG KHOÁN VN`,
-        `  Trạng thái: ${intel.marketStatus || 'N/A'}`,
-        `  Breadth: ${intel.breadthRatio ?? 'N/A'}% ↑ | Loại: ${intel.statusType || 'N/A'}`,
+        htmlSection('🏢 CHỨNG KHOÁN VN'),
+        `  Trạng thái: ${htmlBold(intel.marketStatus || 'N/A')}`,
+        `  Breadth: ${escapeHtml(String(intel.breadthRatio ?? 'N/A'))}% | Loại: ${escapeHtml(intel.statusType || 'N/A')}`,
         `  Phiên: ${data.vnMarketOpen ? '🟢 ĐANG MỞ' : '⚪ ĐÓNG / ngoài giờ'}`,
     ];
-    if (data.vnIndex) lines.push(`  VNINDEX: ${data.vnIndex}`);
-    if (intel.diagnosticDesc) lines.push(`  ${truncate(intel.diagnosticDesc, 220)}`);
+    if (data.vnIndex) lines.push(`  VNINDEX: ${htmlBold(String(data.vnIndex))}`);
+    if (intel.diagnosticDesc) lines.push(`  ${escapeHtml(truncate(intel.diagnosticDesc, 220))}`);
 
     if (Array.isArray(intel.strongSectors) && intel.strongSectors.length) {
-        lines.push(`  Ngành mạnh: ${intel.strongSectors.slice(0, 3).map((s) => s.name || s).join(', ')}`);
+        lines.push(`  Ngành mạnh: ${escapeHtml(intel.strongSectors.slice(0, 3).map((s) => s.name || s).join(', '))}`);
     }
     if (Array.isArray(intel.weakSectors) && intel.weakSectors.length) {
-        lines.push(`  Ngành yếu: ${intel.weakSectors.slice(0, 3).map((s) => s.name || s).join(', ')}`);
+        lines.push(`  Ngành yếu: ${escapeHtml(intel.weakSectors.slice(0, 3).map((s) => s.name || s).join(', '))}`);
     }
 
     appendInsightPicksSection(lines, insight);
 
-    lines.push(PLAIN_DIVIDER, `🪙 CRYPTO MACRO`);
-    lines.push(`  Trạng thái: ${crypto.marketStatus || 'N/A'}`);
-    lines.push(`  Breadth: ${crypto.breadthRatio ?? 'N/A'}%`);
+    lines.push(PLAIN_DIVIDER, htmlSection('🪙 CRYPTO MACRO'));
+    lines.push(`  Trạng thái: ${htmlBold(crypto.marketStatus || 'N/A')}`);
+    lines.push(`  Breadth: ${escapeHtml(String(crypto.breadthRatio ?? 'N/A'))}%`);
     if (crypto.fearGreed != null) {
-        lines.push(`  Fear&Greed: ${crypto.fearGreed} (${crypto.fearGreedLabel || '—'})`);
+        lines.push(`  Fear&Greed: ${htmlBold(String(crypto.fearGreed))} (${escapeHtml(crypto.fearGreedLabel || '—')})`);
     }
-    if (crypto.diagnosticDesc) lines.push(`  ${truncate(crypto.diagnosticDesc, 200)}`);
+    if (crypto.diagnosticDesc) lines.push(`  ${escapeHtml(truncate(crypto.diagnosticDesc, 200))}`);
 
-    lines.push(PLAIN_DIVIDER, `💹 GIÁ NỔI BẬT`);
-    lines.push(`  BTC: ${data.btc || 'N/A'}`);
-    lines.push(`  ETH: ${data.eth || 'N/A'}`);
+    lines.push(PLAIN_DIVIDER, htmlSection('💹 GIÁ NỔI BẬT'));
+    lines.push(`  BTC: ${escapeHtml(String(data.btc || 'N/A'))}`);
+    lines.push(`  ETH: ${escapeHtml(String(data.eth || 'N/A'))}`);
 
     if (data.derivStatus) {
-        lines.push(PLAIN_DIVIDER, `📊 PHÁI SINH VN30`);
-        lines.push(`  ${data.derivStatus}`);
+        lines.push(PLAIN_DIVIDER, htmlSection('📊 PHÁI SINH VN30'));
+        lines.push(`  ${escapeHtml(String(data.derivStatus))}`);
     }
 
     lines.push('', moreInfoLine({ label: 'Mở terminal web' }));
@@ -1032,25 +1043,25 @@ const buildFunnelMessage = (funnel, assetLabel = 'CRYPTO') => {
 const buildInsightMessage = (insight) => {
     if (!insight) {
         return packPlainLines([
-            `📰 BÁO CÁO AI THỊ TRƯỜNG`,
+            `📰 ${htmlBold('BÁO CÁO AI THỊ TRƯỜNG')}`,
             PLAIN_DIVIDER,
-            `Chưa có báo cáo. Hệ thống quét lúc 7:00 sáng T2–T6.`,
+            htmlItalic('Chưa có báo cáo. Hệ thống quét lúc 7:00 sáng T2–T6.'),
             '',
             moreInfoLine({ label: 'Xem trên web' }),
         ]);
     }
     const lines = [
-        `📰 BÁO CÁO AI — ${insight.date || 'N/A'}${insight.isWeekend ? ' (cuối tuần — bản gần nhất)' : ''}${insight.isStale ? ' (chưa có bản hôm nay)' : ''}`,
-        `Sentiment: ${insight.marketSentiment || 'N/A'} | Model: ${insight.model || 'N/A'}`,
+        `📰 ${htmlBold(`BÁO CÁO AI — ${insight.date || 'N/A'}`)}${insight.isWeekend ? htmlItalic(' (cuối tuần — bản gần nhất)') : ''}${insight.isStale ? htmlItalic(' (chưa có bản hôm nay)') : ''}`,
+        `Sentiment: ${htmlBold(insight.marketSentiment || 'N/A')} | Model: ${escapeHtml(insight.model || 'N/A')}`,
         PLAIN_DIVIDER,
     ];
-    if (insight.summary) lines.push(truncate(insight.summary, 800));
+    if (insight.summary) lines.push(escapeHtml(truncate(insight.summary, 800)));
     const picks = Array.isArray(insight.topPicks) ? insight.topPicks : [];
     if (picks.length) {
-        lines.push(PLAIN_DIVIDER, `🎯 TOP PICKS`);
+        lines.push(PLAIN_DIVIDER, htmlSection('🎯 TOP PICKS'));
         for (const p of picks.slice(0, 8)) {
-            lines.push(`  ${pickActionIcon(p.action)} ${p.action || '?'} ${p.symbol} [${p.horizon || ''}] score ${p.score ?? '--'}`);
-            if (p.reason) lines.push(`    ${truncate(p.reason, 100)}`);
+            lines.push(`  ${pickActionIcon(p.action)} ${htmlBold(p.action || '?')} ${htmlBold(p.symbol || '?')} [${escapeHtml(p.horizon || '')}] score ${escapeHtml(String(p.score ?? '--'))}`);
+            if (p.reason) lines.push(`    ${escapeHtml(truncate(p.reason, 100))}`);
         }
     }
     lines.push('', moreInfoLine({ label: 'Xem đầy đủ trên web' }));
@@ -1262,6 +1273,7 @@ const buildSymbolInfoMessage = (data = {}) => {
     const levels = data.levels || {};
     const fund = data.fundamentals || {};
     const cachedAi = data.cachedAi;
+    const insightPick = data.insightPick;
 
     const changeLine = Number.isFinite(Number(data.changePercent))
         ? `${formatSignedPct(data.changePercent, 2)}${
@@ -1271,17 +1283,27 @@ const buildSymbolInfoMessage = (data = {}) => {
         }`
         : '--';
 
+    const priceTime = formatVnDateTime(data.priceAt || data.fetchedAt);
+    const fetchTime = formatVnDateTime(data.fetchedAt);
+
     const lines = [
-        `🦆 INFO — ${data.symbol || '???'} (${assetLabel})`,
+        `🦆 ${htmlBold(`INFO — ${data.symbol || '???'} (${assetLabel})`)}`,
         PLAIN_DIVIDER,
-        `💰 Giá: ${formatInfoPrice(data.price, asset)}  (${changeLine})`,
+        `💰 ${htmlBold('Giá')}: ${escapeHtml(formatInfoPrice(data.price, asset))}  (${escapeHtml(changeLine)})`,
     ];
+
+    if (priceTime) {
+        lines.push(`🕒 ${htmlItalic(`Giá lúc: ${priceTime}`)}${data.priceSource ? ` · ${escapeHtml(data.priceSource)}` : ''}`);
+    }
+    if (fetchTime && fetchTime !== priceTime) {
+        lines.push(`📥 ${htmlItalic(`Lấy lúc: ${fetchTime}`)}`);
+    }
 
     if (data.volume != null && Number(data.volume) > 0) {
         const volStr = asset === 'CRYPTO'
             ? formatNumber(data.volume, 0)
             : Number(data.volume).toLocaleString('vi-VN');
-        lines.push(`📊 Volume: ${volStr}`);
+        lines.push(`📊 Volume: ${escapeHtml(volStr)}`);
     }
 
     const nameBits = [
@@ -1290,55 +1312,70 @@ const buildSymbolInfoMessage = (data = {}) => {
         fund.pe && fund.pe !== '---' ? `P/E ${fund.pe}` : null,
         fund.mktCap && fund.mktCap !== '---' ? `Cap ${fund.mktCap}` : null,
     ].filter(Boolean);
-    if (nameBits.length) lines.push(`🏢 ${nameBits.join(' · ')}`);
-    if (fund.overview) lines.push(`📝 ${truncate(fund.overview, 160)}`);
+    if (nameBits.length) lines.push(`🏢 ${escapeHtml(nameBits.join(' · '))}`);
+    if (fund.overview) lines.push(`📝 ${escapeHtml(truncate(fund.overview, 160))}`);
 
     lines.push(
         '',
-        `📈 KỸ THUẬT`,
-        `RSI ${tech.rsi ?? '--'} · MACD ${tech.macd ?? '--'} · Score ${tech.score ?? '--'}`,
-        `Trend ${tech.trend || tech.direction || '--'}${tech.adx != null ? ` · ADX ${Number(tech.adx).toFixed(0)}` : ''}`,
-        `→ ${tech.direction || tech.action || 'NEUTRAL'}`,
-        '',
-        `🎯 NHẬN ĐỊNH (kỹ thuật + tin)`,
-        `Action: ${view.action || 'ĐỨNG NGOÀI'}`,
-        `Entry: ${formatInfoPrice(view.entry ?? levels.entry, asset)} | SL: ${formatInfoPrice(view.sl ?? levels.sl, asset)}`,
-        `TP1: ${formatInfoPrice(view.tp1 ?? levels.tp1, asset)} | TP2: ${formatInfoPrice(view.tp2 ?? levels.tp2, asset)}`,
-        `Ngắn hạn: ${view.shortHorizon || '--'}`,
-        `Dài hạn: ${view.longHorizon || '--'}`,
+        htmlSection('📈 KỸ THUẬT'),
+        `RSI ${escapeHtml(String(tech.rsi ?? '--'))} · MACD ${escapeHtml(String(tech.macd ?? '--'))} · Score ${escapeHtml(String(tech.score ?? '--'))}`,
+        `Trend ${escapeHtml(String(tech.trend || tech.direction || '--'))}${tech.adx != null ? ` · ADX ${Number(tech.adx).toFixed(0)}` : ''}`,
+        `→ ${htmlBold(String(tech.direction || tech.action || 'NEUTRAL'))}`,
     );
-    if (view.reason) lines.push(`Lý do: ${truncate(view.reason, 200)}`);
 
     lines.push(
         '',
-        `📰 TIN & SENTIMENT`,
-        `Score: +${counts.positive || 0}/-${counts.negative || 0}/=${counts.neutral || 0} → ${sent.bias || 'neutral'}`,
+        htmlSection('📰 TIN & SENTIMENT'),
+        `Score: +${counts.positive || 0}/-${counts.negative || 0}/=${counts.neutral || 0} → ${htmlBold(sent.bias || 'neutral')}`,
     );
     const micro = Array.isArray(news.micro) ? news.micro.slice(0, 5) : [];
     if (micro.length) {
         for (const n of micro) {
-            lines.push(`  [${sentimentTag(n.sentiment)}] ${truncate(n.title, 90)}`);
+            lines.push(`  [${sentimentTag(n.sentiment)}] ${escapeHtml(truncate(n.title, 90))}`);
         }
     } else {
-        lines.push(`  (Chưa có tin mới)`);
+        lines.push(`  ${htmlItalic('(Chưa có tin mới)')}`);
     }
-    if (news.macroHint) lines.push(`Vĩ mô: ${truncate(news.macroHint, 160)}`);
+    if (news.macroHint) lines.push(`Vĩ mô: ${escapeHtml(truncate(news.macroHint, 160))}`);
+
+    if (insightPick) {
+        lines.push(
+            '',
+            htmlSection('🏠 INSIGHT HOME (AI thị trường)'),
+            `${pickActionIcon(insightPick.action)} ${htmlBold(insightPick.action || '?')} · score ${escapeHtml(String(insightPick.score ?? '--'))} · ${escapeHtml(insightPick.horizon || '—')}`,
+        );
+        if (insightPick.reason) lines.push(escapeHtml(truncate(insightPick.reason, 140)));
+        if (data.insightDate) lines.push(htmlItalic(`Báo cáo ngày ${data.insightDate}`));
+    }
 
     if (cachedAi) {
-        lines.push('', `📦 AI ĐÃ LƯU (cache DB)`);
+        lines.push('', htmlSection('📦 AI ĐÃ LƯU (cache DB)'));
         const ts = cachedAi.timestamp
             ? new Date(cachedAi.timestamp).toLocaleString('vi-VN')
             : 'không rõ thời điểm';
-        lines.push(`Action: ${cachedAi.action || '--'} · lúc: ${ts}`);
+        lines.push(`Action: ${htmlBold(String(cachedAi.action || '--'))} · lúc: ${escapeHtml(ts)}`);
         const ad = cachedAi.actionData || {};
         const entry = ad.entry || ad.Entry;
         const sl = ad.stoploss || ad.sl || ad.SL;
         const tp = ad.target || ad.tp || ad.TP || ad.target1;
         if (entry || sl || tp) {
-            lines.push(`Entry ${entry || '--'} | SL ${sl || '--'} | TP ${tp || '--'}`);
+            lines.push(`Entry ${escapeHtml(String(entry || '--'))} | SL ${escapeHtml(String(sl || '--'))} | TP ${escapeHtml(String(tp || '--'))}`);
         }
-        if (cachedAi.excerpt) lines.push(truncate(cachedAi.excerpt, 180));
+        if (cachedAi.excerpt) lines.push(escapeHtml(truncate(cachedAi.excerpt, 180)));
     }
+
+    // Nhận định tổng hợp — đặt cuối cùng
+    lines.push(
+        '',
+        htmlSection('🎯 NHẬN ĐỊNH (kỹ thuật + tin + insight + AI DB)'),
+        `Action: ${htmlBold(view.action || 'ĐỨNG NGOÀI')}`,
+        `Entry: ${escapeHtml(formatInfoPrice(view.entry ?? levels.entry, asset))} | SL: ${escapeHtml(formatInfoPrice(view.sl ?? levels.sl, asset))}`,
+        `TP1: ${escapeHtml(formatInfoPrice(view.tp1 ?? levels.tp1, asset))} | TP2: ${escapeHtml(formatInfoPrice(view.tp2 ?? levels.tp2, asset))}`,
+        `Ngắn hạn: ${escapeHtml(view.shortHorizon || '--')}`,
+        `Dài hạn: ${escapeHtml(view.longHorizon || '--')}`,
+    );
+    if (view.weightSummary) lines.push(htmlItalic(view.weightSummary));
+    if (view.reason) lines.push(`Lý do: ${escapeHtml(truncate(view.reason, 280))}`);
 
     lines.push(
         '',
@@ -1347,7 +1384,7 @@ const buildSymbolInfoMessage = (data = {}) => {
             mode: asset === 'CRYPTO' ? 'CRYPTO' : 'VN_STOCKS',
             label: `Chi tiết ${data.symbol || ''} trên web`,
         }),
-        `⚠️ Nhận định trên dựa trên kỹ thuật & tin tức — chưa phải phân tích AI mới nhất.`,
+        `⚠️ ${htmlItalic('Nhận định dựa trên kỹ thuật, tin tức, Insight Home & AI đã lưu — chưa phải phân tích AI mới nhất.')}`,
     );
 
     return packPlainLines(lines);
@@ -1356,18 +1393,18 @@ const buildSymbolInfoMessage = (data = {}) => {
 const buildHelpMessage = () => {
     const web = getWebAppBaseUrl();
     return [
-        `🦆 OMNI DUCK — HƯỚNG DẪN LỆNH`,
-        `🕒 ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`,
+        `🦆 ${htmlBold('OMNI DUCK — HƯỚNG DẪN LỆNH')}`,
+        `🕒 ${escapeHtml(new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }))}`,
         PLAIN_DIVIDER,
-        `🌐 Terminal web: ${web}`,
+        `🌐 Terminal web: ${escapeHtml(web)}`,
         ``,
-        `🔍 TRA CỨU NHANH`,
+        htmlSection('🔍 TRA CỨU NHANH'),
         `/market          Tổng quan VN + Crypto + khuyến nghị AI`,
-        `/info <mã>       Giá, kỹ thuật, tin, nhận định`,
-        `                 VD: /info TCB   |  /info BTC`,
+        `/info &lt;mã&gt;       Giá, kỹ thuật, tin, nhận định`,
+        `                 ${htmlItalic('VD: /info TCB   |  /info BTC')}`,
         `/insight         Báo cáo AI thị trường (Home VN Stock)`,
         ``,
-        `📊 GIÁM SÁT GIAO DỊCH`,
+        htmlSection('📊 GIÁM SÁT GIAO DỊCH'),
         `/check           Dashboard vốn + lệnh đang mở`,
         `/live            Chi tiết vị thế LIVE + log sàn`,
         `/sim             Lệnh mô phỏng + stats training`,
@@ -1376,24 +1413,24 @@ const buildHelpMessage = () => {
         `/stats [7]       Win rate / PnL (mặc định 30 ngày)`,
         `/funnel          Kết quả chu kỳ quét mã`,
         ``,
-        `🙋 LỆNH THỦ CÔNG`,
+        htmlSection('🙋 LỆNH THỦ CÔNG'),
         `/trade ...       Đặt lệnh khớp sàn LIVE`,
-        `/close <mã>      Đóng lệnh manual theo mã`,
+        `/close &lt;mã&gt;      Đóng lệnh manual theo mã`,
         `/manual          Danh sách lệnh manual đang mở`,
         ``,
-        `⚙️ HỆ THỐNG`,
+        htmlSection('⚙️ HỆ THỐNG'),
         `/health          Pipeline, AI providers, guards`,
         `/settings        Cấu hình auto-trade`,
         `/broker          Kết nối sàn`,
         `/ai              Bài học AI gần nhất`,
         `/stop  /start    Tắt / bật pipeline auto-trade`,
         ``,
-        `💡 MẸO`,
+        htmlSection('💡 MẸO'),
         `• Alias: /mkt = /market · /i = /info · /baocao = /insight`,
         `• Link web ở cuối lệnh tra cứu — bấm để mở terminal`,
-        `• /info không gọi AI live; dùng báo cáo AI đã lưu nếu có`,
+        `• ${htmlItalic('/info không gọi AI live; dùng Insight Home + AI đã lưu nếu có')}`,
         PLAIN_DIVIDER,
-        `Gõ /help bất cứ lúc nào để xem lại danh sách này.`,
+        htmlItalic('Gõ /help bất cứ lúc nào để xem lại danh sách này.'),
     ].join('\n');
 };
 
