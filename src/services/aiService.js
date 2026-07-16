@@ -6,7 +6,7 @@ import path from 'path';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import FormData from 'form-data';
+import { Client } from '@gradio/client';
 import mongoose from 'mongoose';
 import {
     injectGeminiGenerators,
@@ -420,27 +420,26 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
         const pdfBuffer = Buffer.from(response.data);
         emitProgress({ step: 'TCBS_PDF_DOWNLOADED', message: 'Đã tải PDF, đang bóc tách dữ liệu BCTC', progress: 24 });
 
-        console.log(chalk.yellow(`[HỆ THỐNG] Đang chuyển tệp sang Trạm Python Docling để làm sạch...`));
+        console.log(chalk.yellow(`[HỆ THỐNG] Đang chuyển tệp sang Trạm Gradio Docling để làm sạch...`));
         
-        const formData = new FormData();
-        formData.append('file', pdfBuffer, { 
-            filename: `${tickerUpper}_Report.pdf`, 
-            contentType: 'application/pdf' 
-        });
-
         console.log(chalk.cyan(`[HỆ THỐNG] Gọi Docling với mode=${safeMode.toUpperCase()}...`));
         emitProgress({ step: 'DOCLING_PARSE', message: `Đang xử lý PDF bằng AI Docling (${safeMode.toUpperCase()})`, progress: 32 });
         
         try {
-            const pdfConverterUrl = process.env.PDF_CONVERTER_URL || 'http://localhost:8000';
-            const doclingResponse = await axios.post(`${pdfConverterUrl}/parse-pdf?mode=${safeMode}`, formData, {
-                headers: formData.getHeaders(),
-                timeout: 300000 
-            });
+            const pdfConverterUrl = process.env.PDF_CONVERTER_URL || 'http://127.0.0.1:7860/';
+            
+            // Convert Buffer to Blob for Gradio Client
+            const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
+            
+            const client = await Client.connect(pdfConverterUrl);
+            const result = await client.predict("/predict", [
+                pdfBlob,
+                safeMode,
+            ]);
 
             // --- 1. NẾU DOCLING THÀNH CÔNG ---
-            if (doclingResponse.data.success) {
-                let rawMarkdown = doclingResponse.data.markdown;
+            if (result && result.data && result.data[0]) {
+                let rawMarkdown = result.data[0];
                 let cleanMarkdown = rawMarkdown;
                 
                 cleanMarkdown = cleanMarkdown
@@ -489,7 +488,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
                 console.log(chalk.green(`[THÀNH CÔNG] Trạm Docling đã bóc tách PDF hoàn tất!`));
                 return cleanMarkdown;
             } else {
-                throw new Error(doclingResponse.data.error || "Lỗi không xác định từ Docling");
+                throw new Error("Lỗi không nhận được markdown hợp lệ từ Gradio API");
             }
         } 
         // --- 2. NẾU DOCLING  ---
