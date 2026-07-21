@@ -1458,6 +1458,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             headers: {
                 'Content-Type': 'application/json',
                 Accept: 'text/event-stream',
+                'ngrok-skip-browser-warning': 'true',
             },
             body: JSON.stringify(aiPayload),
             signal: abortControllerRef.current.signal,

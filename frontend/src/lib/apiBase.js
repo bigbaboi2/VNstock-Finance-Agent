@@ -2,6 +2,9 @@ export const API_BASE_URL = import.meta.env.DEV
     ? ''
     : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
 
+/** Bypass ngrok free interstitial so browser CORS sees real API headers. */
+export const API_FETCH_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
+
 /** Embed PDF TCBS trực tiếp trong iframe (cách cũ, không qua Google Viewer / proxy). */
 export const tcbsPdfEmbedUrl = (reportPdf) => {
     if (!reportPdf) return '';
