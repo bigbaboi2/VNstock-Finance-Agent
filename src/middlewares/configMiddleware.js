@@ -10,7 +10,8 @@ export const corsOptions = {
             'http://localhost:5173'
          ];
          const localOriginPattern = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/;
-         const ngrokOriginPattern = /^https?:\/\/[A-Za-z0-9-]+\.ngrok\.(io|app|free\.dev)(?::\d+)?$/;
+         // ngrok free uses both *.ngrok-free.dev and *.ngrok-free.app
+         const ngrokOriginPattern = /^https?:\/\/[A-Za-z0-9-]+\.ngrok(-free)?\.(io|app|dev)(?::\d+)?$/;
          // Cloudflare Quick Tunnel / named tunnel hostnames when testing from Termux/PC
          const cloudflareOriginPattern = /^https?:\/\/[A-Za-z0-9.-]+\.(trycloudflare\.com|cfargotunnel\.com)(?::\d+)?$/;
 
@@ -22,12 +23,20 @@ export const corsOptions = {
          ) {
              callback(null, true);
          } else {
-             callback(new Error('Bị chặn bởi CORS policy: Domain không hợp lệ.'));
+             // false = deny without throwing (throwing can drop CORS headers on preflight)
+             callback(null, false);
          }
      },
     optionsSuccessStatus: 200,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'x-signal-secret']
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'ngrok-skip-browser-warning',
+        'x-signal-secret',
+        'Accept',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 };
 
 export const limiter = rateLimit({
@@ -39,9 +48,11 @@ export const limiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Quá nhiều request — vui lòng chờ ít phút.' },
+    skip: (req) => req.method === 'OPTIONS',
 });
 
 export const setupMiddlewares = (app) => {
-    app.use(limiter);
+    // CORS trước rate-limit để preflight/OPTIONS luôn có Access-Control-* headers
     app.use(cors(corsOptions));
+    app.use(limiter);
 };
