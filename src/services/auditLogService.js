@@ -60,7 +60,7 @@ const encryptLine = (plain) => {
 
 const decryptLine = (line) => {
     const parsed = JSON.parse(line);
-    if (!parsed?.encrypted) return JSON.parse(line);
+    if (!parsed?.encrypted) return parsed;
     const key = getAuditKey();
     const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(parsed.iv, 'base64'));
     decipher.setAuthTag(Buffer.from(parsed.authTag, 'base64'));
@@ -128,7 +128,8 @@ export const readAuditFileTail = async ({ channel = 'funnel', date = null, limit
     const parsed = [];
     for (const line of sliced) {
         try {
-            parsed.push(ENCRYPT_ENABLED ? decryptLine(line) : JSON.parse(line));
+            // Auto-detect: plaintext JSON events hoặc dòng cũ đã mã hóa AES-GCM
+            parsed.push(decryptLine(line));
         } catch {
             parsed.push({ ts: new Date().toISOString(), channel: safeChannel, event: 'decode_error' });
         }

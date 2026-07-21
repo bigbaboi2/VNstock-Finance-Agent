@@ -1915,7 +1915,8 @@ export const evaluateExitDecision = (trade, currentPrice) => {
     }
 
     // 2) Chandelier + sàn breakeven (sau TP1; LIVE: breakeven + phí)
-    const prevSL = Number(trade.stopLossPrice);
+    // So sánh sau round — tránh spam [TRAIL] khi candSL thô > prevSL nhưng round ra cùng giá.
+    const prevSL = roundPrice(Number(trade.stopLossPrice));
     let candSL = trade.peakPrice - dir * chandK * atrAtEntry;
     if (trade.tp1Filled) {
         const feePct = policy.breakevenFeePct || 0;
@@ -1924,8 +1925,9 @@ export const evaluateExitDecision = (trade, currentPrice) => {
             : trade.entryPrice * (1 - feePct);
         candSL = isLong ? Math.max(candSL, beFloor) : Math.min(candSL, beFloor);
     }
-    if (isLong ? candSL > prevSL : candSL < prevSL) {
-        trade.stopLossPrice = roundPrice(candSL);
+    const roundedCandSL = roundPrice(candSL);
+    if (isLong ? roundedCandSL > prevSL : roundedCandSL < prevSL) {
+        trade.stopLossPrice = roundedCandSL;
         slMoved = true;
         trailingUpdated = true;
     }
@@ -1938,7 +1940,9 @@ export const evaluateExitDecision = (trade, currentPrice) => {
         exitReason  = `TP HIT${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm mục tiêu ${trade.takeProfitPrice}`;
     } else if (hitSL) {
         shouldClose = true;
-        exitReason  = `${trade.tp1Filled ? 'TRAIL/BE HIT' : 'SL HIT'}${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm cắt lỗ ${trade.stopLossPrice}`;
+        exitReason  = trade.tp1Filled
+            ? `TRAIL/BE HIT (bảo vệ lãi sau TP1)${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm SL BE ${trade.stopLossPrice}`
+            : `SL HIT${isShort ? ' (SHORT)' : ''}: Giá ${currentPrice} chạm cắt lỗ ${trade.stopLossPrice}`;
     } else if (!trade.tp1Filled && Number(trade.tp1Fraction) > 0 && Number(trade.takeProfit1Price) > 0) {
         const hitTP1 = isLong ? currentPrice >= trade.takeProfit1Price : currentPrice <= trade.takeProfit1Price;
         if (hitTP1) {
@@ -2877,6 +2881,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const pendingUserOrders = await UserOrder.find(userOrderQuery);
 
                     let liveMatched = false;
+                    let liveMeta = null;
 
                     for (const userOrder of pendingUserOrders) {
                         const isPortfolio = userOrder.allocationMode === 'PORTFOLIO';
@@ -2998,6 +3003,17 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             });
                             if (liveResult.success && liveResult.fillConfirmed !== false) {
                                 liveMatched = true;
+                                liveMeta = {
+                                    environment: liveResult.environment,
+                                    exchangeName: liveResult.exchangeName,
+                                    marketType: liveResult.marketType || 'SPOT',
+                                    leverage: liveResult.leverage || 1,
+                                    externalOrderId: liveResult.externalOrderId,
+                                    filledPrice: liveResult.filledPrice,
+                                    filledQuantity: liveResult.filledQuantity || liveResult.finalQty,
+                                    orderSide: liveResult.orderSide,
+                                    username: liveResult.username || userOrder.username,
+                                };
                                 funnel.record('matched_live');
                                 if (liveResult.filledPrice) {
                                     rebaseTradeLevelsFromFill(newTrade, liveResult.filledPrice);
@@ -3106,7 +3122,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             aiConfirm,
                             quote,
                             executionContext,
-                            tradePlan
+                            tradePlan,
+                            liveMeta
                         );
                         await sendTelegramMessage(telegramOpenMessage).catch(() => {});
                         console.log(chalk.green.bold(

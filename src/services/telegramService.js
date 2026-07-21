@@ -294,7 +294,7 @@ const sendTelegramMessage = async (message, { chatId: chatIdOverride, parseMode 
 
 
 
-const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {}, plan = null) => {
+const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {}, plan = null, liveMeta = null) => {
     const assetType = trade.assetType || '';
     const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
     const dirIcon = isLong ? '📈' : '📉';
@@ -326,9 +326,35 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
                        : `${formatNumber(trade.volume, 0)} cổ phiếu`;
     const volumeLine   = trade.volume ? `📦 *KL:* ${escapeMarkdownV2(volumeLabel)}` : null;
 
+    const env = liveMeta?.environment || trade.environment || null;
+    const exchangeName = liveMeta?.exchangeName || null;
+    const marketType = liveMeta?.marketType || trade.marketType || null;
+    const leverage = liveMeta?.leverage || trade.leverage || 1;
+    const liveTagParts = [];
+    if (env) liveTagParts.push(String(env));
+    if (exchangeName) liveTagParts.push(String(exchangeName));
+    if (marketType === 'FUTURES') liveTagParts.push(`FUTURES ${leverage}x`);
+    const liveTag = liveTagParts.length
+        ? ` \\[${escapeMarkdownV2(`LIVE ${liveTagParts.join(' · ')}`)}\\]`
+        : '';
+
+    const fillQty = liveMeta?.filledQuantity ?? liveMeta?.finalQty ?? trade.volume;
+    const fillPrice = liveMeta?.filledPrice ?? trade.entryPrice;
+    const orderSide = liveMeta?.orderSide || (isLong ? 'BUY' : 'SELL');
+    const orderId = liveMeta?.externalOrderId || trade.externalOrderId;
+    const username = liveMeta?.username || null;
+    const fillLine = (liveMeta || orderId)
+        ? [
+            `🟢 *Fill:* ${escapeMarkdownV2(orderSide)} ${escapeMarkdownV2(String(fillQty))} @ ${escapeMarkdownV2(formatPrice(fillPrice, assetType))}`,
+            orderId ? `🆔 *OrderID:* ${escapeMarkdownV2(String(orderId))}` : null,
+            username ? `👤 *User:* ${escapeMarkdownV2(String(username))}` : null,
+        ].filter(Boolean).join(' \\| ')
+        : null;
+
     const lines = [
-        `${assetIcon} *LỆNH MỚI${statusLabel}*`,
+        `${assetIcon} *LỆNH MỚI${statusLabel}*${liveTag}`,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        fillLine,
         `🎯 *Mã:* ${symbol} \\| ${dirIcon} *${direction}*`,
         `📍 *Entry:* ${entryFmt}`,
         `✅ *TP:* ${tpFmt} \\(${escapeMarkdownV2(rewardPct != null ? `+${rewardPct.toFixed(2)}%` : '--')}\\)`,
