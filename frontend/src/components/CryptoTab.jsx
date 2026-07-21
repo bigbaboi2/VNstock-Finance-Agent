@@ -280,7 +280,7 @@ function Skeleton({ isDark, h = 'h-4', w = 'w-full', className = '' }) {
 // ─────────────────────────────────────────────────────────────
 // MAIN EXPORT: CryptoTab
 // ─────────────────────────────────────────────────────────────
-export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = null }) {
+export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = null, onSymbolChange = null }) {
 
     // ── STATE: SEARCH & SYMBOL ──
     const bootSymbol = (initialSymbol || 'BTC').toUpperCase().replace(/USDT$/i, '');
@@ -509,11 +509,25 @@ export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = nul
 
     // ── SELECT COIN ──
     const selectCoin = (sym) => {
-        const s = sym.toUpperCase().trim();
+        const s = sym.toUpperCase().trim().replace(/USDT$/i, '');
+        if (!s) return;
         setSymbol(s);
         setSearchInput(s);
         setShowSuggestions(false);
+        onSymbolChange?.(s);
     };
+
+    // Sync when parent route changes (/crypto/:symbol)
+    useEffect(() => {
+        if (!initialSymbol) return;
+        const s = String(initialSymbol).toUpperCase().replace(/USDT$/i, '');
+        if (!s) return;
+        setSymbol((prev) => {
+            if (prev === s) return prev;
+            setSearchInput(s);
+            return s;
+        });
+    }, [initialSymbol]);
 
     // ── CHANGE INTERVAL — FIX: đảm bảo cập nhật state và trigger effect ──
     const handleIntervalChange = (label) => {
