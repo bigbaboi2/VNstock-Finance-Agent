@@ -8,6 +8,7 @@ import { decrypt } from './encryptionService.js';
 import { sendTelegramMessage, escapeHtml } from './telegramService.js';
 import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
+import { extractFeeFromOrderResult } from './brokerFeeService.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -15,8 +16,8 @@ const FILL_POLL_MS = Number(process.env.AUTODUCK_LIVE_FILL_POLL_MS) || 2000;
 const FILL_POLL_TIMEOUT_MS = Number(process.env.AUTODUCK_LIVE_FILL_TIMEOUT_MS) || 25000;
 
 /**
- * Tính PnL LIVE từ ExchangeOrder fills thực (ENTRY vs EXIT).
- * @returns {{ pnlPercent, pnl, exitPrice, entryPrice, source }|null}
+ * Tính PnL LIVE từ ExchangeOrder fills thực (ENTRY vs EXIT), trừ phí broker khi có.
+ * @returns {{ pnlPercent, pnl, exitPrice, entryPrice, source, feeUSDT, grossPnlUSDT }|null}
  */
 export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400) => {
     const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
@@ -32,10 +33,12 @@ export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400
     let entryNotional = 0;
     let exitQty = 0;
     let exitNotional = 0;
+    let feeUSDT = 0;
 
     for (const o of orders) {
         const qty = Number(o.filledQuantity) || 0;
         const px = Number(o.filledPrice) || 0;
+        feeUSDT += Number(o.feeUSDT) || 0;
         if (qty <= 0 || px <= 0) continue;
         if (o.purpose === 'ENTRY' && o.side === entrySide) {
             entryQty += qty;
@@ -50,18 +53,17 @@ export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400
 
     const avgEntry = entryNotional / entryQty;
     const avgExit = exitNotional / exitQty;
-    
-    // Sửa lỗi tính PnL cho lệnh SHORT
-    const netPnlUSDT = isLong 
-        ? exitNotional - entryNotional 
+
+    const grossPnlUSDT = isLong
+        ? exitNotional - entryNotional
         : entryNotional - exitNotional;
-        
+
+    const netPnlUSDT = grossPnlUSDT - feeUSDT;
     const pnlPercent = (netPnlUSDT / entryNotional) * 100;
-    
+
     const isVNStock = trade.assetType === 'VN_STOCK' || trade.marketType === 'VN_STOCK';
-    
-    // AutoTrade.pnl luôn lưu bằng VNĐ trên toàn hệ thống để cộng dồn portfolio.
-    const pnlValue = isVNStock 
+
+    const pnlValue = isVNStock
         ? Math.round((Number(trade.investedAmount) || Math.round(entryNotional * usdVndRate)) * (pnlPercent / 100))
         : Math.round(netPnlUSDT * usdVndRate);
 
@@ -70,7 +72,9 @@ export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400
         pnl: pnlValue,
         exitPrice: avgExit,
         entryPrice: avgEntry,
-        source: 'LIVE_FILLS'
+        source: feeUSDT > 0 ? 'LIVE_FILLS_NET_FEE' : 'LIVE_FILLS',
+        feeUSDT: Math.round(feeUSDT * 1e8) / 1e8,
+        grossPnlUSDT: Math.round(grossPnlUSDT * 1e8) / 1e8,
     };
 };
 
@@ -334,6 +338,29 @@ export const placeOrder = async ({
         notionalUSDT,
         filledAt: result.status === 'FILLED' ? new Date() : null,
         rawResponse: result.rawResponse,
+        ...(() => {
+            if (result.feeUSDT != null && Number(result.feeUSDT) > 0 && result.feeSource === 'API') {
+                return {
+                    feeUSDT: Number(result.feeUSDT),
+                    feeAsset: result.feeAsset || 'USDT',
+                    feeSource: 'API',
+                };
+            }
+            const fee = extractFeeFromOrderResult({
+                exchangeName: connectionDoc.exchangeName,
+                marketType: isFutures ? 'FUTURES' : 'SPOT',
+                rawResponse: result.rawResponse,
+                filledPrice: result.filledPrice,
+                filledQuantity: result.filledQuantity || finalQty,
+                symbol: normalizedSymbol,
+                notionalUSDT: (Number(result.filledPrice) || refPrice || 0) * (Number(result.filledQuantity) || finalQty || 0) || notionalUSDT,
+            });
+            return {
+                feeUSDT: fee.feeUSDT || 0,
+                feeAsset: fee.feeAsset || 'USDT',
+                feeSource: fee.feeSource || 'SCHEDULE_FALLBACK',
+            };
+        })(),
     });
 
     console.log(chalk.bgGreen.black(
@@ -628,6 +655,7 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
 
         const results = [];
         const fills = [];
+        let lastMeta = null;
         for (const entry of entryOrders) {
             const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
             if (!connectionDoc) continue;
@@ -666,10 +694,17 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
             }
 
             if (confirmed.success) {
-                sendTelegramMessage(
-                    `🟡 <b>[LIVE ${escapeHtml(connectionDoc.environment)}] Đã đóng vị thế thực</b>\nUser: ${escapeHtml(entry.username)} | Sàn: ${escapeHtml(entry.exchangeName)}\n${escapeHtml(exitSide)} ${result.finalQty} ${escapeHtml(entry.symbol)}\nLý do: ${escapeHtml(exitReason)}`,
-                    { parseMode: 'HTML' }
-                ).catch(() => {});
+                // Telegram close notify is sent once from autoTradeEngine via buildAutoTradeCloseMessage(closeMeta).
+                lastMeta = {
+                    environment: connectionDoc.environment,
+                    exchangeName: connectionDoc.exchangeName || entry.exchangeName,
+                    username: entry.username,
+                    exitSide,
+                    filledQuantity: confirmed.filledQuantity || result.finalQty,
+                    filledPrice: confirmed.filledPrice || null,
+                    marketType: isFut ? 'FUTURES' : 'SPOT',
+                    leverage: trade.leverage || 1,
+                };
             }
         }
         const allOk = results.every(r => r.success);
@@ -682,6 +717,14 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
             fills,
             avgExitPrice,
             fillConfirmed: fills.length > 0,
+            environment: lastMeta?.environment || null,
+            exchangeName: lastMeta?.exchangeName || null,
+            username: lastMeta?.username || null,
+            exitSide: lastMeta?.exitSide || exitSide,
+            filledQuantity: exitQty || lastMeta?.filledQuantity || null,
+            filledPrice: avgExitPrice || lastMeta?.filledPrice || null,
+            marketType: lastMeta?.marketType || (isFut ? 'FUTURES' : 'SPOT'),
+            leverage: lastMeta?.leverage || trade.leverage || 1,
         };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLiveExit lỗi: ${err.message}`));

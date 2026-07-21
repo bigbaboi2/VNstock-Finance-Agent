@@ -429,7 +429,7 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
 };
 
 
-const buildAutoTradeCloseMessage = (trade, exitReason) => {
+const buildAutoTradeCloseMessage = (trade, exitReason, closeMeta = null) => {
     const assetType = trade.assetType || '';
     const assetIcon = assetType === 'CRYPTO' ? '🪙' : assetType === 'DERIVATIVES' ? '📊' : '🏢';
     const isLong    = trade.direction === 'LONG' || trade.direction === 'MUA';
@@ -452,15 +452,56 @@ const buildAutoTradeCloseMessage = (trade, exitReason) => {
 
     const pnlSign  = isWin ? '\\+' : '';
 
+    const env = closeMeta?.environment || null;
+    const exchangeName = closeMeta?.exchangeName || null;
+    const marketType = closeMeta?.marketType || trade.marketType || null;
+    const leverage = closeMeta?.leverage || trade.leverage || 1;
+    const liveTagParts = [];
+    if (env) liveTagParts.push(String(env));
+    if (exchangeName) liveTagParts.push(String(exchangeName));
+    if (marketType === 'FUTURES') liveTagParts.push(`FUTURES ${leverage}x`);
+    const liveTag = liveTagParts.length
+        ? ` \\[${escapeMarkdownV2(`LIVE ${liveTagParts.join(' · ')}`)}\\]`
+        : '';
+
+    const exitSide = closeMeta?.exitSide || (isLong ? 'SELL' : 'BUY');
+    const fillQty = closeMeta?.filledQuantity ?? trade.volume;
+    const fillPrice = closeMeta?.filledPrice ?? trade.exitPrice;
+    const username = closeMeta?.username || null;
+    const fillLine = closeMeta
+        ? [
+            `🟡 *Fill:* ${escapeMarkdownV2(exitSide)} ${escapeMarkdownV2(String(fillQty))} @ ${escapeMarkdownV2(formatPrice(fillPrice, assetType))}`,
+            username ? `👤 *User:* ${escapeMarkdownV2(String(username))}` : null,
+        ].filter(Boolean).join(' \\| ')
+        : null;
+
+    const portfolioList = Array.isArray(closeMeta?.portfolio)
+        ? closeMeta.portfolio
+        : (closeMeta?.portfolio ? [closeMeta.portfolio] : []);
+    const portfolioLines = portfolioList.flatMap((p) => {
+        if (!p) return [];
+        const fundTr = (Number(p.effectiveCapital) / 1e6).toFixed(2);
+        const accumK = Math.round(Number(p.matchedRealizedPnl) / 1000);
+        const usedTr = (Number(p.matchedUsedCapital) / 1e6).toFixed(2);
+        const accumSign = Number(p.matchedRealizedPnl) >= 0 ? '\\+' : '';
+        return [
+            `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+            `💼 *PORTFOLIO ${escapeMarkdownV2(String(p.username || ''))}*`,
+            `Quỹ: ${escapeMarkdownV2(fundTr)}Tr \\| PnL tích lũy: ${accumSign}${escapeMarkdownV2(String(accumK))}k \\| Vốn dùng: ${escapeMarkdownV2(usedTr)}Tr`,
+        ];
+    });
+
     const lines = [
-        `${statusIcon} *LỆNH ĐÃ ĐÓNG ${assetIcon}*`,
+        `${statusIcon} *LỆNH ĐÃ ĐÓNG ${assetIcon}*${liveTag}`,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        fillLine,
         `🎯 *Mã:* ${symbol} \\| ${dirIcon} *${direction}*`,
         `📍 *Entry:* ${entry} \\| 🏁 *Exit:* ${exit}`,
         `💰 *PnL:* ${pnlPct} \\(${pnlSign}${pnlVND} VNĐ\\)`,
         holdLine,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
         `📝 *Lý do:* ${reason}`,
+        ...portfolioLines,
     ].filter(Boolean).join('\n');
 
     return lines;
