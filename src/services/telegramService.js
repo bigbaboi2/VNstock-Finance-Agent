@@ -27,13 +27,28 @@ const getWebAppBaseUrl = () => {
 
 const buildWebAppLink = ({ symbol, mode } = {}) => {
     const base = getWebAppBaseUrl();
-    const params = new URLSearchParams();
-    if (mode && String(mode).toUpperCase() !== 'VN_STOCKS') {
-        params.set('mode', String(mode).toUpperCase());
+    const normalizedMode = String(mode || 'VN_STOCKS').toUpperCase();
+    const sym = symbol ? String(symbol).toUpperCase().replace(/USDT$/i, '') : '';
+
+    if (normalizedMode === 'CRYPTO') {
+        return sym ? `${base}/crypto/${encodeURIComponent(sym)}` : `${base}/crypto`;
     }
-    if (symbol) params.set('symbol', String(symbol).toUpperCase());
-    const qs = params.toString();
-    return qs ? `${base}/?${qs}` : `${base}/`;
+    if (normalizedMode === 'VN_DERIVATIVES' || normalizedMode === 'DERIVATIVES') {
+        return `${base}/vn-derivatives/${encodeURIComponent(sym || 'VN30F1M')}`;
+    }
+    if (normalizedMode === 'PAPER_TRADING' || normalizedMode === 'PAPER') {
+        return sym
+            ? `${base}/paper-trading/vn-stocks/${encodeURIComponent(sym)}`
+            : `${base}/paper-trading/vn-stocks`;
+    }
+    if (normalizedMode === 'AUTO_TRADE' || normalizedMode === 'AUTODUCK') {
+        return `${base}/auto-duck`;
+    }
+    if (normalizedMode === 'BROKER' || normalizedMode === 'BROKER_CONNECTION') {
+        return `${base}/broker`;
+    }
+    // Default: VN stocks terminal
+    return sym ? `${base}/vn-stocks/${encodeURIComponent(sym)}` : `${base}/vn-stocks`;
 };
 
 const moreInfoLine = ({ symbol, mode, label } = {}) => {

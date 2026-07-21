@@ -35,7 +35,11 @@ const AppHeader = ({
   return (
     <header className={`relative z-[99999] border-b px-3 sm:px-6 py-2 sm:py-1 flex items-center justify-between shrink-0 w-full transition-colors duration-300 ${UI.header}`}>
         {/*CONTAINER BRAND LOGO */}
-        <div className="flex items-center gap-2 sm:gap-4 sm:w-[300px] xl:w-[350px] shrink-0">
+        <div
+          className="flex items-center gap-2 sm:gap-4 sm:w-[300px] xl:w-[350px] shrink-0 cursor-pointer"
+          onClick={handleGoHome}
+          title="Trang chủ · /vn-stocks"
+        >
           <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 drop-shadow-md">
             <img src="/favicon.svg" alt="Omni Duck Logo" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
           </div>

@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import './App.css'
 import axios from 'axios'
 import { X, FileText} from 'lucide-react'
@@ -14,6 +15,16 @@ import AutoDuckTab from './components/AutoDuckTab';
 import BrokerConnectionTab from './components/BrokerConnectionTab';
 import { tcbsPdfEmbedUrl } from './lib/apiBase';
 import { AI_REPORT_COOLDOWN_MS } from './constants/aiReportCooldown';
+import {
+  APP_MODES,
+  DEFAULT_MODE,
+  LOGIN_PATH,
+  PAPER_MARKETS,
+  buildAppPath,
+  getDefaultModeFromStorage,
+  legacyQueryToPath,
+  parseAppLocation,
+} from './routes/appRoutes';
 
 // Khi chạy dev (Vite): để baseURL rỗng → request đi qua proxy '/api' (same-origin, không dính CORS).
 // Khi build production: dùng VITE_API_BASE_URL (URL backend đã deploy).
@@ -54,6 +65,11 @@ const removeAccents = (str) =>
 str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase() : '';
 
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routeInfo = useMemo(() => parseAppLocation(location.pathname), [location.pathname]);
+  const activeMode = routeInfo.mode || DEFAULT_MODE;
+
   //CONFIG: USER STATE & AUTH MANAGEMENT
   const [currentUser, setCurrentUser] = useState(localStorage.getItem('omni_user') || null);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -80,7 +96,8 @@ const handleToggleTheme = () => {
     localStorage.removeItem('omni_user');
     setCurrentUser(null);
     setShowUserMenu(false);
-    setMarketData(null); 
+    setMarketData(null);
+    navigate(LOGIN_PATH, { replace: true });
   };
 
   const handleAuthSubmit = async (e) => {
@@ -115,6 +132,7 @@ const handleToggleTheme = () => {
         if (res.data.success) {
           localStorage.setItem('omni_user', res.data.username);
           setCurrentUser(res.data.username);
+          // Path restore is handled by the auth/route sync effect (omni_return_to / legacy query).
         }
       }
     } catch (error) {
@@ -137,20 +155,27 @@ const handleToggleTheme = () => {
     setChartData(null);
     setAiReport(null);
     setInput('');
+    navigate(buildAppPath({ mode: APP_MODES.VN_STOCKS }));
     if (currentUser) fetchUserHistory();
   };
   const [derivChartData, setDerivChartData] = useState(null);
   const [derivInterval, setDerivInterval] = useState('5 phút');
   const [derivRadar, setDerivRadar] = useState(null);
 
-  const [activeMode, setActiveMode] = useState(() => {
-    return localStorage.getItem('lastActiveMode') || 'VN_STOCKS';
-});
-useEffect(() => {
-    if (activeMode) {
-        localStorage.setItem('lastActiveMode', activeMode);
+  useEffect(() => {
+    if (routeInfo.mode) {
+      localStorage.setItem('lastActiveMode', routeInfo.mode);
     }
-}, [activeMode]);
+  }, [routeInfo.mode]);
+
+  const setActiveMode = useCallback((mode, extras = {}) => {
+    vnStocksCloseChatRef.current?.();
+    navigate(buildAppPath({
+      mode,
+      symbol: extras.symbol,
+      paperMarket: extras.paperMarket || PAPER_MARKETS.VN_STOCKS,
+    }));
+  }, [navigate]);
 
   const [demoPosition, setDemoPosition] = useState(0);       
   const [demoEntryPrice, setDemoEntryPrice] = useState(0);    
@@ -182,6 +207,8 @@ useEffect(() => {
   const lastActionNewsKeysRef = useRef([]);
   const vnStocksCloseChatRef = useRef(null);
   const deepLinkHandledRef = useRef(false);
+  const routeSymbolLoadedRef = useRef('');
+  const paperRouteSymbolLoadedRef = useRef('');
   const [cryptoDeepSymbol, setCryptoDeepSymbol] = useState(null);
 
   //LOGIC: PERSIST NEWS MODE SELECTION
@@ -244,8 +271,24 @@ useEffect(() => {
   //STATE & LOGIC: SIMULATED INVESTMENT (PAPER TRADING)
   //=======================================================================
   const [portfolio, setPortfolio] = useState(null);
-  const [paperMarket, setPaperMarket] = useState('VN_STOCKS'); 
-  const [paperSymbol, setPaperSymbol] = useState('');  
+  const [paperMarketState, setPaperMarketState] = useState(() => {
+    return routeInfo.paperMarket || PAPER_MARKETS.VN_STOCKS;
+  });
+  const [paperSymbol, setPaperSymbol] = useState('');
+  const paperMarket = activeMode === APP_MODES.PAPER_TRADING
+    ? (routeInfo.paperMarket || paperMarketState || PAPER_MARKETS.VN_STOCKS)
+    : paperMarketState;
+  const setPaperMarket = useCallback((market) => {
+    setPaperMarketState(market);
+    setPaperSymbol('');
+    setPaperSearchInput('');
+    setPaperChartData(null);
+    paperRouteSymbolLoadedRef.current = '';
+    navigate(buildAppPath({
+      mode: APP_MODES.PAPER_TRADING,
+      paperMarket: market,
+    }));
+  }, [navigate]);
   const [paperSearchInput, setPaperSearchInput] = useState('');  
   const [paperVolume, setPaperVolume] = useState(10000);
   const [paperChartData, setPaperChartData] = useState(null);
@@ -456,6 +499,14 @@ const handleExportDeriv = async () => {
       setPaperSymbol(cleanSymbol);
       setPaperSearchInput(cleanSymbol);
       setShowPaperSuggestions(false);
+      const targetPath = buildAppPath({
+        mode: APP_MODES.PAPER_TRADING,
+        paperMarket,
+        symbol: cleanSymbol,
+      });
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
       
        axios.get(`/api/history/${cleanSymbol}?interval=${paperInterval}`)
           .then(res => {
@@ -1073,6 +1124,15 @@ useEffect(() => {
       setDebateResult(null);
       setVnReportLayoutActive(false);
       setVnReportTimestamp(null);
+
+      if (activeMode === APP_MODES.VN_STOCKS) {
+        const targetPath = buildAppPath({ mode: APP_MODES.VN_STOCKS, symbol });
+        if (location.pathname !== targetPath) {
+          navigate(targetPath, { replace: true });
+        }
+        routeSymbolLoadedRef.current = symbol;
+      }
+      setInput(symbol);
       
       if (currentUser) {
           axios.get(`/api/ai/analyze/latest/${symbol}?user=${currentUser}`)
@@ -1287,40 +1347,109 @@ useEffect(() => {
   }
 };
 
-  // Telegram / web deep link: ?symbol=TCB or ?mode=CRYPTO&symbol=BTC
+  // Auth + SPA path sync (login, `/`, unknown, legacy ?symbol=&mode=)
   useEffect(() => {
-    if (!currentUser || deepLinkHandledRef.current) return;
-    if (loadingSymbols) return;
+    if (!currentUser) {
+      if (!routeInfo.isLogin) {
+        const returnTo = `${location.pathname}${location.search || ''}`;
+        if (returnTo && returnTo !== '/' && returnTo !== LOGIN_PATH) {
+          try { sessionStorage.setItem('omni_return_to', returnTo); } catch (_) { /* ignore */ }
+        }
+        navigate(LOGIN_PATH, { replace: true });
+      }
+      return;
+    }
 
-    let params;
+    let returnTo = null;
     try {
-      params = new URLSearchParams(window.location.search);
-    } catch (_) {
+      returnTo = sessionStorage.getItem('omni_return_to');
+      if (returnTo) sessionStorage.removeItem('omni_return_to');
+    } catch (_) { /* ignore */ }
+
+    const legacyPath = legacyQueryToPath(location.search);
+    if (returnTo && returnTo !== LOGIN_PATH) {
+      navigate(returnTo, { replace: true });
       return;
     }
-    const rawSymbol = (params.get('symbol') || params.get('s') || '').trim().toUpperCase();
-    const rawMode = (params.get('mode') || '').trim().toUpperCase();
-    if (!rawSymbol && !rawMode) {
+    if (legacyPath) {
       deepLinkHandledRef.current = true;
+      navigate(legacyPath, { replace: true });
       return;
     }
 
-    deepLinkHandledRef.current = true;
+    if (routeInfo.isLogin || routeInfo.isRoot || !routeInfo.mode) {
+      navigate(buildAppPath({ mode: getDefaultModeFromStorage() }), { replace: true });
+    }
+  }, [currentUser, routeInfo.isLogin, routeInfo.isRoot, routeInfo.mode, location.pathname, location.search, navigate]);
 
-    const isKnownVn = rawSymbol && allStocks.some((s) => s.symbol === rawSymbol);
-    if (rawMode === 'CRYPTO' || (rawSymbol && !isKnownVn && rawMode !== 'VN_STOCKS')) {
-      setActiveMode('CRYPTO');
-      if (rawSymbol) setCryptoDeepSymbol(rawSymbol.replace(/USDT$/i, ''));
+  // Deep-link: /vn-stocks/:symbol → load market data
+  useEffect(() => {
+    if (!currentUser || loadingSymbols) return;
+    if (routeInfo.mode !== APP_MODES.VN_STOCKS || !routeInfo.symbol) {
+      if (routeInfo.mode === APP_MODES.VN_STOCKS && !routeInfo.symbol) {
+        routeSymbolLoadedRef.current = '';
+      }
       return;
     }
-
-    if (rawSymbol) {
-      setActiveMode('VN_STOCKS');
-      setInput(rawSymbol);
-      fetchMarketData(rawSymbol);
+    if (routeSymbolLoadedRef.current === routeInfo.symbol) return;
+    if (marketData?.stockInfo?.symbol === routeInfo.symbol) {
+      routeSymbolLoadedRef.current = routeInfo.symbol;
+      return;
     }
+    routeSymbolLoadedRef.current = routeInfo.symbol;
+    setInput(routeInfo.symbol);
+    fetchMarketData(routeInfo.symbol);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, loadingSymbols, allStocks]);
+  }, [currentUser, loadingSymbols, routeInfo.mode, routeInfo.symbol]);
+
+  // Deep-link: /crypto/:symbol (default BTC)
+  useEffect(() => {
+    if (routeInfo.mode !== APP_MODES.CRYPTO) return;
+    if (!routeInfo.symbol) {
+      navigate(buildAppPath({ mode: APP_MODES.CRYPTO, symbol: 'BTC' }), { replace: true });
+      return;
+    }
+    setCryptoDeepSymbol(routeInfo.symbol);
+  }, [routeInfo.mode, routeInfo.symbol, navigate]);
+
+  // Deep-link: /paper-trading/:market/:symbol
+  useEffect(() => {
+    if (!currentUser) return;
+    if (routeInfo.mode !== APP_MODES.PAPER_TRADING) {
+      paperRouteSymbolLoadedRef.current = '';
+      return;
+    }
+    if (routeInfo.paperMarket) {
+      setPaperMarketState(routeInfo.paperMarket);
+    }
+    if (!routeInfo.symbol) return;
+    if (paperRouteSymbolLoadedRef.current === `${routeInfo.paperMarket}:${routeInfo.symbol}`) return;
+    paperRouteSymbolLoadedRef.current = `${routeInfo.paperMarket}:${routeInfo.symbol}`;
+    executePaperSearch(routeInfo.symbol);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, routeInfo.mode, routeInfo.paperMarket, routeInfo.symbol]);
+
+  // Derivatives contract in URL (default VN30F1M)
+  useEffect(() => {
+    if (routeInfo.mode !== APP_MODES.VN_DERIVATIVES) return;
+    if (!routeInfo.symbol) {
+      const target = buildAppPath({ mode: APP_MODES.VN_DERIVATIVES, symbol: 'VN30F1M' });
+      if (location.pathname !== target) {
+        navigate(target, { replace: true });
+      }
+    }
+  }, [routeInfo.mode, routeInfo.symbol, location.pathname, navigate]);
+
+  // Normalize bare /paper-trading → /paper-trading/vn-stocks
+  useEffect(() => {
+    if (routeInfo.mode !== APP_MODES.PAPER_TRADING) return;
+    if (location.pathname === '/paper-trading' || location.pathname === '/paper-trading/') {
+      navigate(buildAppPath({
+        mode: APP_MODES.PAPER_TRADING,
+        paperMarket: PAPER_MARKETS.VN_STOCKS,
+      }), { replace: true });
+    }
+  }, [routeInfo.mode, location.pathname, navigate]);
 
 //Logic ai button
   const loadLatestVnReportFromDb = async (symbol) => {
@@ -1803,10 +1932,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         errorAlert={errorAlert}
         loadingMarket={loadingMarket}
         currentUser={currentUser}
-        setActiveMode={(mode) => {
-        vnStocksCloseChatRef.current?.();
-        setActiveMode(mode);
-        }} handleLogout={handleLogout}
+        setActiveMode={setActiveMode} handleLogout={handleLogout}
         handleGoHome={handleGoHome} handleToggleTheme={handleToggleTheme}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
@@ -1905,7 +2031,13 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 isDark={isDark}
                 UI={UI}
                 addLog={addLog}
-                initialSymbol={cryptoDeepSymbol}
+                initialSymbol={cryptoDeepSymbol || routeInfo.symbol || 'BTC'}
+                onSymbolChange={(sym) => {
+                  const clean = String(sym || '').toUpperCase().replace(/USDT$/i, '');
+                  if (!clean) return;
+                  setCryptoDeepSymbol(clean);
+                  navigate(buildAppPath({ mode: APP_MODES.CRYPTO, symbol: clean }), { replace: true });
+                }}
             />
         )}
         {/*========================================================= */}
