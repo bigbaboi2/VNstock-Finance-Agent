@@ -16,12 +16,12 @@ const getTradeCloseIcon = (pnlValue) => {
 
 const PLAIN_DIVIDER = '━━━━━━━━━━━━━━━━━━━━';
 
-/** Frontend (Vercel) — deep link tra cứu mã trên web. */
+/** Frontend base URL for Telegram deep links (set FRONTEND_URL in .env). */
 const getWebAppBaseUrl = () => {
     const raw = process.env.FRONTEND_URL
         || process.env.WEB_APP_URL
         || process.env.VITE_APP_URL
-        || 'https://your-frontend.example.com';
+        || 'http://localhost:5173';
     return String(raw).replace(/\/+$/, '');
 };
 

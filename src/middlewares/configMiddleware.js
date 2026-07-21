@@ -5,9 +5,18 @@ export const corsOptions = {
      origin: function (origin, callback) {
          if (!origin || origin === 'null') return callback(null, true);
 
+         const envOrigins = [
+            process.env.FRONTEND_URL,
+            process.env.WEB_APP_URL,
+            process.env.VITE_APP_URL,
+            process.env.APP_URL,
+         ]
+            .filter(Boolean)
+            .map((u) => String(u).replace(/\/+$/, ''));
+
          const allowedOrigins = [
-            'https://your-frontend.example.com',
-            'http://localhost:5173'
+            ...envOrigins,
+            'http://localhost:5173',
          ];
          const localOriginPattern = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/;
          // ngrok free uses both *.ngrok-free.dev and *.ngrok-free.app
