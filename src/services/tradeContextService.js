@@ -8,15 +8,24 @@ import { globalDerivCache } from '../jobs/derivUpdater.js';
 import { ensureCryptoUpdaterRunning } from '../jobs/cryptoUpdater.js';
 import { cryptoCache } from './cryptoService.js';
 import { getCachedData, saveToCache } from './cacheService.js';
+import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
 
 const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
 /** Ảnh hưởng VN macro lên breadth crypto (phần còn lại = Fear&Greed/BTC). */
-export const CRYPTO_VN_BREADTH_BLEND = Number(process.env.AUTODUCK_CRYPTO_VN_BREADTH_BLEND) || 0.08;
 /** Bật nudge ±1–2 điểm từ VN statusType lên CRYPTO context bias. */
-export const CRYPTO_VN_CROSS_BIAS = process.env.AUTODUCK_CRYPTO_VN_CROSS_BIAS !== 'false';
+export const getCryptoVnCrossBias = () => getAutoDuckBoolean('AUTODUCK_CRYPTO_VN_CROSS_BIAS');
+export const getCryptoVnBreadthBlend = () => {
+    if (!getCryptoVnCrossBias()) return 0;
+    return getAutoDuckNumber('AUTODUCK_CRYPTO_VN_BREADTH_BLEND') || 0.08;
+};
 /** Cap tổng điểm context bias mỗi hướng (orderbook/funding/news/VN cross). */
-export const CONTEXT_BIAS_MAX = Number(process.env.AUTODUCK_CONTEXT_BIAS_MAX) || 6;
+export const getContextBiasMax = () => getAutoDuckNumber('AUTODUCK_CONTEXT_BIAS_MAX') || 6;
+
+/** @deprecated Prefer getters — sync snapshot of defaults for legacy imports */
+export const CRYPTO_VN_BREADTH_BLEND = 0.08;
+export const CRYPTO_VN_CROSS_BIAS = true;
+export const CONTEXT_BIAS_MAX = 6;
 
 const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
 const MEMORY_TTL = 2 * 60 * 1000;
@@ -346,7 +355,7 @@ export const resolveAssetMacro = (asset, vnMacro, cryptoMacro) => {
     const vn = vnMacro || buildVnMacroSnapshot();
 
     if (asset === 'CRYPTO' && cryptoMacro) {
-        const blend = CRYPTO_VN_BREADTH_BLEND;
+        const blend = getCryptoVnBreadthBlend();
         const breadthRatio = clampNum(
             Math.round((cryptoMacro.breadthRatio * (1 - blend) + vn.breadthRatio * blend) * 10) / 10,
             5,

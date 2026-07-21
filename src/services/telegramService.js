@@ -226,6 +226,37 @@ const truncate = (text, maxLen = 300) => {
     return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
 };
 
+/** Cắt theo hết câu (.!?) trong giới hạn mềm — tránh cụt giữa chừng. */
+const truncateAtSentence = (text, maxLen = 160, hardMax = 280) => {
+    const s = String(text || '').trim();
+    if (!s) return '';
+    if (s.length <= maxLen) return s;
+
+    const window = s.slice(0, Math.max(maxLen, hardMax));
+    const ends = /[.!?](?=\s|$)/g;
+    let lastWithinMax = -1;
+    let firstBeyondMax = -1;
+    let m;
+    while ((m = ends.exec(window)) !== null) {
+        const endPos = m.index + 1;
+        if (endPos <= maxLen) lastWithinMax = endPos;
+        else if (firstBeyondMax < 0) {
+            firstBeyondMax = endPos;
+            break;
+        }
+    }
+    const cutAt = lastWithinMax > maxLen * 0.35
+        ? lastWithinMax
+        : (firstBeyondMax > 0 ? firstBeyondMax : -1);
+    if (cutAt > 0) {
+        const cut = s.slice(0, cutAt).trim();
+        return cut.length < s.length ? `${cut}...` : cut;
+    }
+    const space = s.lastIndexOf(' ', maxLen);
+    const cut = s.slice(0, space > maxLen * 0.5 ? space : maxLen).trim();
+    return `${cut}...`;
+};
+
 
 const formatHoldDuration = (openedAt) => {
     if (!openedAt) return null;
@@ -376,10 +407,49 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
         VN_STOCK:    'Chứng khoán VN 🏢',
         DERIVATIVES: 'Phái sinh VN30 📊',
     };
+
+    const vnStatus = meta.vnMarketStatus || meta.marketStatus || null;
+    const cryptoStatus = meta.cryptoMarketStatus || null;
+    const marketLines = [];
+    if (vnStatus || cryptoStatus) {
+        marketLines.push(`🌐 *Thị trường:*`);
+        if (vnStatus) marketLines.push(`🏢 *VN:* ${escapeMarkdownV2(vnStatus)}`);
+        if (cryptoStatus) {
+            const extras = [];
+            if (meta.cryptoFearGreed != null && meta.cryptoFearGreed !== '') {
+                extras.push(`F&G ${meta.cryptoFearGreed}`);
+            }
+            if (Number.isFinite(Number(meta.cryptoBtcChangePct))) {
+                const btc = Number(meta.cryptoBtcChangePct);
+                extras.push(`BTC ${btc >= 0 ? '+' : ''}${btc.toFixed(2)}%`);
+            }
+            const extraStr = extras.length ? ` \\| ${escapeMarkdownV2(extras.join(' · '))}` : '';
+            marketLines.push(`🪙 *Crypto:* ${escapeMarkdownV2(cryptoStatus)}${extraStr}`);
+        }
+    }
+
+    const matched = Array.isArray(meta.matchedTrades) ? meta.matchedTrades : [];
+    let matchedLine = null;
+    if (meta.matchedTrades !== undefined) {
+        if (matched.length === 0) {
+            matchedLine = `✅ *Khớp chu kỳ:* chưa khớp lệnh nào`;
+        } else {
+            const bits = matched.slice(0, 8).map((t) => {
+                const sym = t.symbol || '?';
+                const dir = t.direction || '';
+                const mode = t.mode === 'LIVE' ? 'LIVE' : 'SIM';
+                return `${sym} ${dir} ${mode}`.trim();
+            });
+            const more = matched.length > 8 ? ` \\+${matched.length - 8}` : '';
+            matchedLine = `✅ *Khớp chu kỳ:* ${escapeMarkdownV2(bits.join(' · '))}${more}`;
+        }
+    }
+
     const lines = [
         `📡 *AUTO TRADE RADAR*`,
         `🕒 *Thời điểm:* ${escapeMarkdownV2(new Date(meta.generatedAt || Date.now()).toLocaleString('vi-VN'))}`,
-        meta.marketStatus ? `🌐 *Thị trường:* ${escapeMarkdownV2(meta.marketStatus)}` : null,
+        ...marketLines,
+        matchedLine,
     ].filter(Boolean);
 
     for (const asset of ['CRYPTO', 'VN_STOCK', 'DERIVATIVES']) {
@@ -407,7 +477,7 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
 
             
             const rawReason = item.reason || item.news?.topTitle || '';
-            const reason    = escapeMarkdownV2(truncate(rawReason, 120));
+            const reason    = escapeMarkdownV2(truncateAtSentence(rawReason, 160, 280));
 
             lines.push(`*${index + 1}\\. ${symbol}* \\| ${dirIcon} *${direction}* \\| 🤖 *${score}*`);
             lines.push(`📍 *E:* ${entry} \\| ✅ *TP:* ${tp} \\| ❌ *SL:* ${sl}`);

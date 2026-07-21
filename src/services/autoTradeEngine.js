@@ -19,8 +19,8 @@ import {
     getCryptoMacroContext,
     resolveAssetMacro,
     getMacroContextForTrade,
-    CRYPTO_VN_CROSS_BIAS,
-    CONTEXT_BIAS_MAX,
+    getCryptoVnCrossBias,
+    getContextBiasMax,
 } from './tradeContextService.js';
 import {
     buildAutoTradeCloseMessage,
@@ -75,6 +75,13 @@ import {
     passesSimQuantGate,
     IDLE_PROBE_SETUP_WHITELIST,
 } from './entrySetupEngine.js';
+import {
+    refreshAutoDuckConfigCache,
+    getAutoDuckBoolean,
+    getAutoDuckNumber,
+    getAutoDuckString,
+    getIdleRelaxTargets,
+} from './autoDuckConfigService.js';
 import {
     buildTestnetGateContext,
     checkTestnetSymbolForPipeline,
@@ -165,20 +172,16 @@ const volatilityAlertBuffer = [];
 const VOL_ALERT_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3h / mã
 const VOL_DIGEST_MAX_ITEMS = 12;
 
-const IDLE_FAST_SCAN_INTERVAL_MS = Number(process.env.AUTODUCK_IDLE_FAST_SCAN_MS) || 3 * 60 * 1000;
-const IDLE_RELAX_TARGETS = (process.env.AUTODUCK_IDLE_RELAX_TARGETS || '1,3,5')
-    .split(',')
-    .map(v => Number(v.trim()))
-    .filter(v => Number.isFinite(v) && v > 0);
-const IDLE_RELAX_STEP_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_STEP_SCORE) || 3;
-const IDLE_RELAX_MAX_SCORE = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_SCORE) || 6;
-const IDLE_RELAX_MAX_ATTEMPTS = Number(process.env.AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS) || 4;
-const IDLE_MIN_SIM_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_SIM_SCORE) || 68;
-const IDLE_MIN_LIVE_SCORE = Number(process.env.AUTODUCK_IDLE_MIN_LIVE_SCORE) || 80;
-const IDLE_AI_PROBE_ENABLED = process.env.AUTODUCK_IDLE_AI_PROBE_ENABLED !== 'false';
-const IDLE_AI_PROBE_LIVE = process.env.AUTODUCK_IDLE_AI_PROBE_LIVE === 'true';
-const IDLE_AI_PROBE_MIN_SCORE = Number(process.env.AUTODUCK_IDLE_AI_PROBE_MIN_SCORE) || 78;
-const IDLE_AI_PROBE_SIZE_MULT = Number(process.env.AUTODUCK_IDLE_AI_PROBE_SIZE_MULT) || 0.45;
+const getIdleFastScanMs = () => getAutoDuckNumber('AUTODUCK_IDLE_FAST_SCAN_MS') || 3 * 60 * 1000;
+const getIdleRelaxStepScore = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_STEP_SCORE') || 3;
+const getIdleRelaxMaxScore = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_MAX_SCORE') || 6;
+const getIdleRelaxMaxAttempts = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS') || 4;
+const getIdleMinSimScore = () => getAutoDuckNumber('AUTODUCK_IDLE_MIN_SIM_SCORE') || 68;
+const getIdleMinLiveScore = () => getAutoDuckNumber('AUTODUCK_IDLE_MIN_LIVE_SCORE') || 80;
+const getIdleAiProbeEnabled = () => getAutoDuckBoolean('AUTODUCK_IDLE_AI_PROBE_ENABLED');
+const getIdleAiProbeLive = () => getAutoDuckBoolean('AUTODUCK_IDLE_AI_PROBE_LIVE');
+const getIdleAiProbeMinScore = () => getAutoDuckNumber('AUTODUCK_IDLE_AI_PROBE_MIN_SCORE') || 78;
+const getIdleAiProbeSizeMult = () => getAutoDuckNumber('AUTODUCK_IDLE_AI_PROBE_SIZE_MULT') || 0.45;
 
 const idleScanState = {
     attempts: 0,
@@ -194,7 +197,7 @@ const resetIdleScanState = (reason = '') => {
 
 const pickIdleTarget = (maxConcurrentTrades = 10) => {
     const cap = Number(maxConcurrentTrades) || 10;
-    const eligible = IDLE_RELAX_TARGETS.filter(t => t <= cap);
+    const eligible = getIdleRelaxTargets().filter(t => t <= cap);
     return eligible.length ? Math.max(...eligible) : 1;
 };
 
@@ -207,8 +210,8 @@ const countLiveOrdersWaiting = (asset) => UserOrder.countDocuments({
 const isAutoFuturesShortEnabled = async () => {
     const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
     const dbEnabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1));
-    const envEnabled = process.env.AUTODUCK_AUTO_FUTURES_SHORT_ENABLED === 'true';
-    return dbEnabled || envEnabled;
+    const cfgEnabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
+    return dbEnabled || cfgEnabled;
 };
 
 export const rebaseTradeLevelsFromFill = (trade, filledPrice) => {
@@ -1462,13 +1465,14 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
         }
 
         // VN macro: ảnh hưởng nhẹ (~±2 điểm bias), không thay thế macro crypto.
-        if (CRYPTO_VN_CROSS_BIAS && vnMacroCross?.statusType === 'bearish') {
+        const vnCrossBiasOn = getCryptoVnCrossBias();
+        if (vnCrossBiasOn && vnMacroCross?.statusType === 'bearish') {
             vnCrossShort += 2;
             reasons.push('vn_macro_cross_risk_off');
-        } else if (CRYPTO_VN_CROSS_BIAS && vnMacroCross?.statusType === 'bullish') {
+        } else if (vnCrossBiasOn && vnMacroCross?.statusType === 'bullish') {
             vnCrossLong += 1;
             reasons.push('vn_macro_cross_risk_on');
-        } else if (CRYPTO_VN_CROSS_BIAS && vnMacroCross?.statusType === 'warning') {
+        } else if (vnCrossBiasOn && vnMacroCross?.statusType === 'warning') {
             vnCrossShort += 1;
             reasons.push('vn_macro_cross_caution');
         }
@@ -1532,7 +1536,7 @@ const applyExecutionContextBias = (signal, asset, context = {}, customScoreThres
 
     if (longBias === 0 && shortBias === 0) return signal;
 
-    const capBias = (n) => Math.min(CONTEXT_BIAS_MAX, Math.max(0, n));
+    const capBias = (n) => Math.min(getContextBiasMax(), Math.max(0, n));
     const cappedLong = capBias(longBias);
     const cappedShort = capBias(shortBias);
 
@@ -1583,7 +1587,7 @@ const buildBiasLedger = (signal, assetMacro, vnMacroCross = null) => {
             deltaShort: contextShort,
         },
         vnCross: {
-            enabled: CRYPTO_VN_CROSS_BIAS,
+            enabled: getCryptoVnCrossBias(),
             statusType: vnMacroCross?.statusType ?? null,
             deltaLong: vnLong,
             deltaShort: vnShort,
@@ -1745,16 +1749,16 @@ export const isHardAIRejection = (response = '') => {
 
 const buildIdleProbeInstruction = (options = {}) => {
     if (options.schedulerMode !== 'IDLE_FAST') return '';
-    const threshold = Number(options.effectiveThreshold) || IDLE_AI_PROBE_MIN_SCORE;
+    const threshold = Number(options.effectiveThreshold) || getIdleAiProbeMinScore();
     return `\n[CHẾ ĐỘ IDLE PROBE]\nHệ thống đang không có đủ lệnh mở nên đang quét nhanh với ngưỡng kỹ thuật đã nới về ${threshold}. Đây KHÔNG phải lệnh all-in; nếu được duyệt, engine sẽ giảm size và vẫn giữ SL/TP theo ATR. Với tín hiệu đã qua lọc volume, setup đa khung và risk filter, hãy XÁC NHẬN nếu rủi ro chỉ là \"thị trường đi ngang\", \"thiếu xác nhận phụ\", hoặc \"score chưa tới 80\". Chỉ BÁC BỎ khi có veto cứng: ngược xu hướng khung lớn, fake breakout rõ, short squeeze/crowded positioning, phân phối/đảo chiều mạnh, tin tức tiêu cực mạnh, hoặc orderbook/funding chống lại hướng lệnh.`;
 };
 
 const shouldIdleProbeOverrideAI = ({ asset, signal, aiConfirm, schedulerMode, liveOnlyMode, hasLiveUserOrderWaiting, entrySetup }) => {
-    if (!IDLE_AI_PROBE_ENABLED || IDLE_AI_PROBE_LIVE || schedulerMode !== 'IDLE_FAST' || liveOnlyMode || asset !== 'CRYPTO') return false;
+    if (!getIdleAiProbeEnabled() || getIdleAiProbeLive() || schedulerMode !== 'IDLE_FAST' || liveOnlyMode || asset !== 'CRYPTO') return false;
     if (hasLiveUserOrderWaiting) return false;
     if (aiConfirm?.confirmed || aiConfirm?.hardVeto || isHardAIRejection(aiConfirm?.reason)) return false;
     if (!IDLE_PROBE_SETUP_WHITELIST.has(entrySetup?.type)) return false;
-    if ((signal?.breakdown?.qualityScore ?? signal?.score ?? 0) < IDLE_AI_PROBE_MIN_SCORE) return false;
+    if ((signal?.breakdown?.qualityScore ?? signal?.score ?? 0) < getIdleAiProbeMinScore()) return false;
     if ((signal?.breakdown?.edge || 0) < 25) return false;
     return true;
 };
@@ -2215,6 +2219,7 @@ const flushVolatilityAlerts = async () => {
 };
 
 export const runAutoTradePipeline = async (forcedAssetType = null, options = {}) => {
+    await refreshAutoDuckConfigCache().catch(() => {});
     const thresholdRelax = Math.max(0, Number(options.thresholdRelax) || 0);
     const minOpenTarget = Math.max(0, Number(options.minOpenTarget) || 0);
     const schedulerMode = options.schedulerMode || 'STANDARD';
@@ -2294,6 +2299,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             VN_STOCK: [],
             DERIVATIVES: [],
         };
+        const cycleMatchedTrades = [];
 
         try {
             vnMarketContext = await getVnMarketContext();
@@ -2382,16 +2388,16 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             const liveOrdersWaiting = await countLiveOrdersWaiting(asset);
             const requiresLiveQuality = liveOnlyMode || liveOrdersWaiting > 0;
 
-            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guardLive.scoreFloor || 0, IDLE_MIN_LIVE_SCORE);
+            const baseLiveThreshold = Math.max(dynamicScoreThreshold, guardLive.scoreFloor || 0, getIdleMinLiveScore());
             const liveScoreThreshold = baseLiveThreshold;
 
             const baseSimThreshold = Math.max(65, dynamicScoreThreshold - 5);
             const simScoreThreshold = thresholdRelax > 0
-                ? Math.max(IDLE_MIN_SIM_SCORE, baseSimThreshold - thresholdRelax)
+                ? Math.max(getIdleMinSimScore(), baseSimThreshold - thresholdRelax)
                 : baseSimThreshold;
             const effectiveThreshold = simScoreThreshold;
             const riskOffSizeMult = (asset === 'CRYPTO' && assetMacro.marketStatus === 'CRYPTO RISK-OFF')
-                ? (Number(process.env.AUTODUCK_LIVE_RISK_OFF_SIZE_MULT) || 0.5)
+                ? (getAutoDuckNumber('AUTODUCK_LIVE_RISK_OFF_SIZE_MULT') || 0.5)
                 : 1.0;
             const adaptiveSizeMult = requiresLiveQuality
                 ? (guardLive.sizeMult || 1.0) * riskOffSizeMult
@@ -2624,7 +2630,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         aiConfirm = {
                             ...aiConfirm,
                             confirmed: true,
-                            reason: `[IDLE PROBE OVERRIDE · size x${IDLE_AI_PROBE_SIZE_MULT}] AI bác bỏ mềm, nhưng tín hiệu đã qua filter định lượng và score ${techSignal.score} >= ${IDLE_AI_PROBE_MIN_SCORE}. Lý do AI gốc: ${aiConfirm.reason}`,
+                            reason: `[IDLE PROBE OVERRIDE · size x${getIdleAiProbeSizeMult()}] AI bác bỏ mềm, nhưng tín hiệu đã qua filter định lượng và score ${techSignal.score} >= ${getIdleAiProbeMinScore()}. Lý do AI gốc: ${aiConfirm.reason}`,
                         };
                     }
                     console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason}`));
@@ -2719,7 +2725,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const convictionMult = goldenSetup ? 1.25 : (techSignal.score >= 80 ? 1.1 : 1.0);
                     allocationPct = Math.min(0.40, allocationPct * convictionMult);
                     if (idleProbeOverride) {
-                        allocationPct = Math.max(0.02, allocationPct * IDLE_AI_PROBE_SIZE_MULT);
+                        allocationPct = Math.max(0.02, allocationPct * getIdleAiProbeSizeMult());
                     }
 
                     let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * adaptiveSizeMult;
@@ -2913,8 +2919,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         if (userOrder.executionMode === 'LIVE') {
                             if (!liveGate.pass || techSignal.score < liveScoreThreshold) continue;
 
-                            // Soft-block symbol (comma list), default empty — set via env after Late analysis
-                            const softBlock = String(process.env.AUTODUCK_LIVE_SYMBOL_SOFT_BLOCK || '')
+                            const softBlock = String(getAutoDuckString('AUTODUCK_LIVE_SYMBOL_SOFT_BLOCK') || '')
                                 .split(',')
                                 .map((s) => s.trim().toUpperCase())
                                 .filter(Boolean);
@@ -2926,7 +2931,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
                             // RISK-OFF: mặc định giảm size; veto nếu AUTODUCK_LIVE_RISK_OFF_VETO=true
                             if (asset === 'CRYPTO' && assetMacro.marketStatus === 'CRYPTO RISK-OFF'
-                                && process.env.AUTODUCK_LIVE_RISK_OFF_VETO === 'true'
+                                && getAutoDuckBoolean('AUTODUCK_LIVE_RISK_OFF_VETO')
                                 && (directionLabel === 'LONG' || directionLabel === 'MUA')) {
                                 userOrder.result.message = `[RISK-OFF VETO] Bỏ qua LONG ${symbol} khi CRYPTO RISK-OFF.`;
                                 await userOrder.save();
@@ -3164,6 +3169,16 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         stats.matched++;
                     }
 
+                    // Radar summary: 1 dòng / lệnh mở trong chu kỳ (mode cuối sau match LIVE)
+                    if (newTrade._id && (liveMatched || !deferTradePersist)) {
+                        cycleMatchedTrades.push({
+                            symbol,
+                            direction: directionLabel,
+                            mode: (liveMatched || newTrade.executionMode === 'LIVE') ? 'LIVE' : 'SIM',
+                            asset,
+                        });
+                    }
+
                     // 9. Telegram MỞ LỆNH: chỉ thông báo khi là lệnh LIVE.
                     //    Mô phỏng chạy nền training AI → im lặng, xem qua /sim.
                     if (liveMatched) {
@@ -3231,6 +3246,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             await sendTelegramMessage(buildMarketRadarMessage(strongRadar, {
                 generatedAt: new Date(),
                 marketStatus,
+                vnMarketStatus: vnMacro?.marketStatus || marketStatus,
+                cryptoMarketStatus: cryptoMacro?.marketStatus || null,
+                cryptoFearGreed: cryptoMacro?.fearGreed ?? null,
+                cryptoBtcChangePct: cryptoMacro?.btcChangePct ?? null,
+                matchedTrades: cycleMatchedTrades,
             })).catch(() => {});
         }
 
@@ -3739,14 +3759,15 @@ export const startAutoDuckScheduler = () => {
                 return;
             }
 
-            if (idleScanState.attempts >= IDLE_RELAX_MAX_ATTEMPTS) {
-                resetIdleScanState(`quá ${IDLE_RELAX_MAX_ATTEMPTS} lượt không tìm được mã đạt chuẩn`);
+            const maxAttempts = getIdleRelaxMaxAttempts();
+            if (idleScanState.attempts >= maxAttempts) {
+                resetIdleScanState(`quá ${maxAttempts} lượt không tìm được mã đạt chuẩn`);
                 return;
             }
 
-            const relax = Math.min(IDLE_RELAX_MAX_SCORE, (idleScanState.attempts + 1) * IDLE_RELAX_STEP_SCORE);
+            const relax = Math.min(getIdleRelaxMaxScore(), (idleScanState.attempts + 1) * getIdleRelaxStepScore());
             idleScanState.attempts++;
-            console.log(chalk.yellow(`[AUTODUCK IDLE] Lệnh mở ${openCount}/${target} → quét nhanh CRYPTO, nới ngưỡng -${relax} (lượt ${idleScanState.attempts}/${IDLE_RELAX_MAX_ATTEMPTS}).`));
+            console.log(chalk.yellow(`[AUTODUCK IDLE] Lệnh mở ${openCount}/${target} → quét nhanh CRYPTO, nới ngưỡng -${relax} (lượt ${idleScanState.attempts}/${maxAttempts}).`));
 
             await runScheduledPipeline('IDLE_FAST', 'CRYPTO', {
                 schedulerMode: 'IDLE_FAST',
@@ -3762,7 +3783,7 @@ export const startAutoDuckScheduler = () => {
         } catch (err) {
             console.log(chalk.yellow(`[AUTODUCK IDLE] Lỗi idle fast scan: ${err.message}`));
         }
-    }), IDLE_FAST_SCAN_INTERVAL_MS);
+    }), getIdleFastScanMs());
 
     setInterval(() => runIntervalTask('ALL', async () => {
         if (isVNMarketOpen() || isPreMarket() || isATOPeriod() || isATCPeriod()) {

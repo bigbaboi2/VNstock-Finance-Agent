@@ -7,6 +7,7 @@ import { getUnifiedTradeAnalytics, computeExpectancyStats } from '../services/tr
 import { getPipelineLogs } from '../services/pipelineLogService.js';
 import { getFunnelLogs } from '../services/tradeFunnelService.js';
 import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
+import { getEffectiveAutoDuckConfig, updateAutoDuckConfig } from '../services/autoDuckConfigService.js';
 
 //Get the entire automatic transaction history of the system with advanced quantitative statistics
 export const getSystemTradeLogs = async (req, res) => {
@@ -191,6 +192,59 @@ export const updateAutoTradeSettings = async (req, res) => {
 
         await Promise.all(updates);
         return res.json({ success: true, message: 'Cấu hình đã được cập nhật.' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const assertAdminGate = (username, adminCode) => {
+    if (username === 'admin') return null;
+    const validAdminCode = process.env.ADMIN_CODE;
+    if (!validAdminCode) {
+        return { status: 403, message: 'Hệ thống chưa cấu hình mã Admin (ADMIN_CODE trong .env).' };
+    }
+    if (!adminCode || adminCode !== validAdminCode) {
+        return { status: 403, message: 'Sai mã Admin, bạn không có quyền thực hiện!' };
+    }
+    return null;
+};
+
+export const getAutoTradeEnvConfig = async (req, res) => {
+    try {
+        const data = await getEffectiveAutoDuckConfig();
+        return res.json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const updateAutoTradeEnvConfig = async (req, res) => {
+    try {
+        const { values, username, adminCode } = req.body || {};
+        const gate = assertAdminGate(username, adminCode);
+        if (gate) return res.status(gate.status).json({ success: false, message: gate.message });
+        if (!values || typeof values !== 'object') {
+            return res.status(400).json({ success: false, message: 'Thiếu object values để cập nhật.' });
+        }
+        const result = await updateAutoDuckConfig(values);
+        if (!result.applied || Object.keys(result.applied).length === 0) {
+            return res.status(400).json({ success: false, message: result.message || 'Không có dữ liệu hợp lệ.' });
+        }
+        const savedAt = new Date();
+        const who = username || 'admin';
+        const changeList = Array.isArray(result.changes) ? result.changes : [];
+        console.log(
+            `[AutoTradeConfig] ${savedAt.toISOString()} (${savedAt.toLocaleString('vi-VN')}) — `
+            + `user=${who} đã lưu ${changeList.length || Object.keys(result.applied).length} mục:`
+        );
+        for (const row of changeList) {
+            const fromText = row.from === undefined ? '(chưa có)' : JSON.stringify(row.from);
+            const toText = JSON.stringify(row.to);
+            console.log(`  - ${row.key}`);
+            console.log(`      ${fromText}  →  ${toText}`);
+        }
+        const data = await getEffectiveAutoDuckConfig();
+        return res.json({ success: true, message: result.message, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
