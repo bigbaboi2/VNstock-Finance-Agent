@@ -305,7 +305,7 @@ For any VN ticker, a structured multi-phase debate runs in parallel then sequent
 
 All **bootstrap / secrets** live in **one root `.env`** (Vite proxies `/api` → `localhost:3001`; no separate frontend `.env` required for local dev).
 
-**AutoTrade knobs** are managed in-app (**Auto Duck → Cấu hình AutoTrade**, admin): defaults in code, overrides in MongoDB `Setting`. Leftover `AUTODUCK_*` / `MAX_LIVE_*` in `.env` are optional fallback until you Save in the UI.
+**AutoTrade knobs:** in-app (**Auto Duck → Cấu hình AutoTrade**, admin). Defaults in code; overrides in MongoDB `Setting`.
 
 **Templates:** [`.env.example.en`](.env.example.en) (English) · [`.env.example`](.env.example) (Vietnamese)
 
