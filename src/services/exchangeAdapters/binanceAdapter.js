@@ -107,10 +107,33 @@ export const binanceAdapter = {
 
             const fills = data.fills || [];
             let filledPrice = null;
+            let feeUSDT = null;
+            let feeAsset = null;
             if (fills.length > 0) {
                 const totalQty = fills.reduce((s, f) => s + parseFloat(f.qty), 0);
                 const totalQuote = fills.reduce((s, f) => s + parseFloat(f.qty) * parseFloat(f.price), 0);
                 filledPrice = totalQty > 0 ? totalQuote / totalQty : null;
+
+                let feeSumUsdt = 0;
+                let convertedAll = true;
+                const base = String(params.symbol || '').replace(/USDT$/i, '').toUpperCase();
+                for (const f of fills) {
+                    const commission = parseFloat(f.commission);
+                    if (!Number.isFinite(commission) || commission === 0) continue;
+                    const asset = String(f.commissionAsset || '').toUpperCase();
+                    feeAsset = feeAsset || asset;
+                    const px = parseFloat(f.price) || filledPrice || 0;
+                    if (asset === 'USDT' || asset === 'BUSD' || asset === 'FDUSD' || asset === 'USD') {
+                        feeSumUsdt += commission;
+                    } else if (asset === base && px > 0) {
+                        feeSumUsdt += commission * px;
+                    } else {
+                        // BNB or unknown — leave for brokerFeeService schedule fallback
+                        convertedAll = false;
+                        break;
+                    }
+                }
+                if (convertedAll && feeSumUsdt > 0) feeUSDT = Math.round(feeSumUsdt * 1e8) / 1e8;
             }
             return {
                 success: true,
@@ -118,6 +141,9 @@ export const binanceAdapter = {
                 status: data.status === 'FILLED' ? 'FILLED' : (data.status === 'PARTIALLY_FILLED' ? 'PARTIAL' : 'PENDING'),
                 filledPrice,
                 filledQuantity: parseFloat(data.executedQty || 0),
+                feeUSDT,
+                feeAsset: feeUSDT != null ? (feeAsset || 'USDT') : null,
+                feeSource: feeUSDT != null ? 'API' : null,
                 rawResponse: data,
             };
         } catch (err) {

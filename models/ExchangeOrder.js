@@ -28,6 +28,11 @@ const ExchangeOrderSchema = new mongoose.Schema({
     filledQuantity:       { type: Number, default: 0 },
     notionalUSDT:         { type: Number, default: 0 },
 
+    // Broker fee (prefer API commission; else VIP0 taker schedule)
+    feeUSDT:              { type: Number, default: 0 },
+    feeAsset:             { type: String, default: null },
+    feeSource:            { type: String, default: null }, // 'API' | 'SCHEDULE_FALLBACK'
+
     status:               { type: String, default: 'PENDING', enum: ['PENDING', 'FILLED', 'PARTIAL', 'CANCELLED', 'FAILED'] },
     errorMessage:         { type: String, default: null },
 

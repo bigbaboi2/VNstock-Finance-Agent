@@ -105,7 +105,7 @@ const EXIT_POLICY_SIM = {
     DERIVATIVES: { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0 },
 };
 const EXIT_POLICY_LIVE = {
-    CRYPTO:      { tp1Fraction: 0.45, tp1AtrMult: 1.9, chandelierMult: 2.25, breakevenFeePct: 0.002 },
+    CRYPTO:      { tp1Fraction: 0.45, tp1AtrMult: 1.7, chandelierMult: 2.25, breakevenFeePct: 0.002 },
     VN_STOCK:    { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0.004 },
     DERIVATIVES: { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0.001 },
 };
@@ -2390,9 +2390,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 ? Math.max(IDLE_MIN_SIM_SCORE, baseSimThreshold - thresholdRelax)
                 : baseSimThreshold;
             const effectiveThreshold = simScoreThreshold;
-            const adaptiveSizeMult = guardSim.sizeMult || 1.0;
+            const riskOffSizeMult = (asset === 'CRYPTO' && assetMacro.marketStatus === 'CRYPTO RISK-OFF')
+                ? (Number(process.env.AUTODUCK_LIVE_RISK_OFF_SIZE_MULT) || 0.5)
+                : 1.0;
+            const adaptiveSizeMult = requiresLiveQuality
+                ? (guardLive.sizeMult || 1.0) * riskOffSizeMult
+                : (guardSim.sizeMult || 1.0);
             console.log(chalk.magenta(
-                `  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (guard LIVE floor=${guardLive.scoreFloor || 0}, n=${guardLive.sample}) · LIVE chờ=${liveOrdersWaiting}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}.`
+                `  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (guard LIVE floor=${guardLive.scoreFloor || 0}/×${guardLive.sizeMult || 1} n=${guardLive.sample}) · LIVE chờ=${liveOrdersWaiting}${riskOffSizeMult < 1 ? ` · RISK-OFF size×${riskOffSizeMult}` : ''}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}.`
             ));
 
             const funnel = createFunnelTracker(asset);
@@ -2846,6 +2851,21 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             ...techSignal.breakdown,
                             originalSL: stopLossPrice,
                             entrySetup: entrySetup.type,
+                            rsi: techSignal.rsi ?? null,
+                            volumeSurge: techSignal.volumeSurge ?? null,
+                            fearGreed: assetMacro.fearGreed ?? null,
+                            fearGreedLabel: assetMacro.fearGreedLabel ?? null,
+                            btcChangePct: assetMacro.btcChangePct ?? null,
+                            plannedRR: (() => {
+                                const risk = Math.abs(entryPrice - stopLossPrice);
+                                const reward = Math.abs(takeProfitPrice - entryPrice);
+                                return risk > 0 ? Math.round((reward / risk) * 100) / 100 : null;
+                            })(),
+                            plannedRR_tp1: (() => {
+                                const risk = Math.abs(entryPrice - stopLossPrice);
+                                const reward = Math.abs((takeProfit1Price || takeProfitPrice) - entryPrice);
+                                return risk > 0 ? Math.round((reward / risk) * 100) / 100 : null;
+                            })(),
                         },
                         executionMeta: {
                             priceSource: quote.source,
@@ -2892,6 +2912,26 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         // LIVE: quant gate + quality score (không nới ngưỡng idle).
                         if (userOrder.executionMode === 'LIVE') {
                             if (!liveGate.pass || techSignal.score < liveScoreThreshold) continue;
+
+                            // Soft-block symbol (comma list), default empty — set via env after Late analysis
+                            const softBlock = String(process.env.AUTODUCK_LIVE_SYMBOL_SOFT_BLOCK || '')
+                                .split(',')
+                                .map((s) => s.trim().toUpperCase())
+                                .filter(Boolean);
+                            if (softBlock.includes(String(symbol).toUpperCase())) {
+                                userOrder.result.message = `[SOFT BLOCK] ${symbol} đang trong AUTODUCK_LIVE_SYMBOL_SOFT_BLOCK — bỏ qua LIVE.`;
+                                await userOrder.save();
+                                continue;
+                            }
+
+                            // RISK-OFF: mặc định giảm size; veto nếu AUTODUCK_LIVE_RISK_OFF_VETO=true
+                            if (asset === 'CRYPTO' && assetMacro.marketStatus === 'CRYPTO RISK-OFF'
+                                && process.env.AUTODUCK_LIVE_RISK_OFF_VETO === 'true'
+                                && (directionLabel === 'LONG' || directionLabel === 'MUA')) {
+                                userOrder.result.message = `[RISK-OFF VETO] Bỏ qua LONG ${symbol} khi CRYPTO RISK-OFF.`;
+                                await userOrder.save();
+                                continue;
+                            }
                         }
 
                         const validation = verifyOrderFeasibility(asset, userOrder.targetPct);
@@ -2921,6 +2961,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             }
                             allocatedCapital = sizing.size;
                             matchNote = ` | Sizing: ${sizing.reason}`;
+                            if (userOrder.executionMode === 'LIVE' && riskOffSizeMult < 1
+                                && (directionLabel === 'LONG' || directionLabel === 'MUA')) {
+                                allocatedCapital = Math.round(allocatedCapital * riskOffSizeMult);
+                                matchNote += ` | RISK-OFF size×${riskOffSizeMult}`;
+                            }
                         } else {
                             const compatibility = isUserOrderCompatibleWithTrade(userOrder, {
                                 entryPrice,
@@ -2934,6 +2979,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 continue;
                             }
                             matchNote = ` Reward/Risk: +${compatibility.rewardPct}%/-${compatibility.riskPct}%.`;
+                            if (userOrder.executionMode === 'LIVE' && riskOffSizeMult < 1
+                                && (directionLabel === 'LONG' || directionLabel === 'MUA')) {
+                                allocatedCapital = Math.round(allocatedCapital * riskOffSizeMult);
+                                matchNote += ` | RISK-OFF size×${riskOffSizeMult}`;
+                            }
                         }
 
                         // ── TESTNET symbol gate (trước broker — tránh UNMATCHED) ──
@@ -3429,6 +3479,7 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                 trade.status     = 'CLOSED';
                 trade.closedAt   = new Date();
 
+                let liveExitMeta = null;
                 if (trade.executionMode === 'LIVE') {
                     const liveExitResult = await executeLiveExit({ trade, exitReason }).catch(err => ({ success: false, message: err.message }));
                     if (!liveExitResult.success) {
@@ -3437,6 +3488,17 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                             `🚨 <b>[LIVE EXIT FAIL]</b> Không đóng được vị thế thực ${escapeHtml(trade.symbol)}.\nLý do: ${escapeHtml(liveExitResult.message)}\n⚠️ Vui lòng kiểm tra và đóng thủ công trên sàn!`,
                             { parseMode: 'HTML' }
                         ).catch(() => {});
+                    } else {
+                        liveExitMeta = {
+                            environment: liveExitResult.environment,
+                            exchangeName: liveExitResult.exchangeName,
+                            username: liveExitResult.username,
+                            exitSide: liveExitResult.exitSide,
+                            filledQuantity: liveExitResult.filledQuantity,
+                            filledPrice: liveExitResult.filledPrice || liveExitResult.avgExitPrice,
+                            marketType: liveExitResult.marketType || trade.marketType,
+                            leverage: liveExitResult.leverage || trade.leverage || 1,
+                        };
                     }
                     const fillPnl = await computeLivePnlFromExchangeOrders(trade, cachedUsdVndRate);
                     if (fillPnl) {
@@ -3444,6 +3506,7 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                         trade.pnl = fillPnl.pnl;
                         trade.exitPrice = fillPnl.exitPrice || trade.exitPrice;
                         if (fillPnl.entryPrice) trade.entryPrice = fillPnl.entryPrice;
+                        if (liveExitMeta && fillPnl.exitPrice) liveExitMeta.filledPrice = fillPnl.exitPrice;
                     } else {
                         applySimulatedClosedPnl(trade, currentPrice);
                     }
@@ -3465,20 +3528,6 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
 
                 await trade.save();
 
-                // ── THÔNG BÁO ĐÓNG LỆNH ──
-                // LIVE: Telegram + log nổi bật. Mô phỏng (training nền): log gọn, không Telegram.
-                if (trade.executionMode === 'LIVE') {
-                    await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason)).catch(() => {});
-                    const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
-                    console.log(chalk.bgYellow.black(
-                        `[ĐÓNG LỆNH LIVE] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason}`
-                    ));
-                } else {
-                    console.log(chalk.gray(
-                        `  [SIM CLOSE] ${trade.symbol} @ ${currentPrice} | PnL: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% | ${exitReason}`
-                    ));
-                }
-
                 // ── Hoàn tất gói FIXED đã match ──
                 const boundUserOrders = await UserOrder.find({ assignedTrade: trade._id, status: 'MATCHED' });
                 for (const uOrder of boundUserOrders) {
@@ -3488,7 +3537,8 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                     await uOrder.save();
                 }
 
-                // ── Giải phóng vốn gói PORTFOLIO: hoàn allocation + cộng dồn PnL, gói tiếp tục chạy ──
+                // ── Giải phóng vốn gói PORTFOLIO (trước Telegram để gộp 1 tin) ──
+                const portfolioMeta = [];
                 const portfolioOrders = await UserOrder.find({
                     allocationMode: 'PORTFOLIO',
                     'tradeAllocations.trade': trade._id,
@@ -3511,12 +3561,31 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                         pOrder.result.message = `[PORTFOLIO] ${trade.symbol} đóng: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% (${released.pnl >= 0 ? '+' : ''}${Math.round(released.pnl / 1000)}k). Quỹ: ${(effectiveCapital / 1e6).toFixed(2)}Tr | PnL tích lũy: ${matchedRealizedPnl >= 0 ? '+' : ''}${Math.round(matchedRealizedPnl / 1000)}k.`;
                         await pOrder.save();
                         if (trade.executionMode === 'LIVE') {
-                            await sendTelegramMessage(
-                                `💼 <b>[PORTFOLIO ${pOrder.username}]</b> ${trade.symbol} đóng ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}%\nQuỹ hiện tại: ${(effectiveCapital / 1e6).toFixed(2)}Tr VNĐ | PnL tích lũy: ${matchedRealizedPnl >= 0 ? '+' : ''}${Math.round(matchedRealizedPnl / 1000)}k\nVốn đang dùng: ${(matchedUsedCapital / 1e6).toFixed(2)}Tr`,
-                                { parseMode: 'HTML' }
-                            ).catch(() => {});
+                            portfolioMeta.push({
+                                username: pOrder.username,
+                                effectiveCapital,
+                                matchedRealizedPnl,
+                                matchedUsedCapital,
+                            });
                         }
                     }
+                }
+
+                // ── THÔNG BÁO ĐÓNG LỆNH (1 tin LIVE: fill + PnL + portfolio) ──
+                if (trade.executionMode === 'LIVE') {
+                    const closeMeta = {
+                        ...(liveExitMeta || {}),
+                        portfolio: portfolioMeta,
+                    };
+                    await sendTelegramMessage(buildAutoTradeCloseMessage(trade, exitReason, closeMeta)).catch(() => {});
+                    const pnlLabel = trade.pnlPercent >= 0 ? chalk.green(`+${trade.pnlPercent}%`) : chalk.red(`${trade.pnlPercent}%`);
+                    console.log(chalk.bgYellow.black(
+                        `[ĐÓNG LỆNH LIVE] ${trade.symbol} @ ${currentPrice} | PnL: ` + pnlLabel + ` | ${exitReason}`
+                    ));
+                } else {
+                    console.log(chalk.gray(
+                        `  [SIM CLOSE] ${trade.symbol} @ ${currentPrice} | PnL: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% | ${exitReason}`
+                    ));
                 }
 
                 try {

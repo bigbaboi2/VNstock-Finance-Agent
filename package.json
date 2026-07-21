@@ -18,6 +18,8 @@
     "diag:funnel": "node --use-system-ca scripts/diag_funnel.mjs",
     "diag:audit": "node --use-system-ca scripts/audit_tail.mjs",
     "diag:live-pnl": "node --use-system-ca scripts/diag-live-pnl.mjs",
+    "export:live-stats": "node --use-system-ca scripts/export_live_trade_stats.mjs",
+    "export:live-xlsx": "node scripts/build_live_trade_workbook.mjs",
     "dev:tunnel": "node cli/dev-tunnel.mjs",
     "dev:tunnel:cf": "cloudflared tunnel --url http://localhost:3001",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:tunnel\""
