@@ -575,11 +575,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             };
         }
 
-        sendTelegramMessage(
-            `${isLong ? '🟢' : '🔴'} <b>[LIVE ${escapeHtml(connectionDoc.environment)}${marketType === 'FUTURES' ? ' · FUTURES ' + leverage + 'x' : ''}] Đã vào lệnh thực</b>\nUser: ${escapeHtml(userOrder.username)} | Sàn: ${escapeHtml(connectionDoc.exchangeName)}\n${escapeHtml(orderSide)} ${fillResult.filledQuantity || result.finalQty} ${escapeHtml(normalizeCryptoSymbol(trade.symbol))} @ ~${fillResult.filledPrice || trade.entryPrice}\nOrderID: ${escapeHtml(result.externalOrderId)}`,
-            { parseMode: 'HTML' }
-        ).catch(() => {});
-
+        // Telegram entry notify is sent once from autoTradeEngine via buildAutoTradeOpenMessage(liveMeta).
         return {
             success: true,
             fillConfirmed: true,
@@ -592,6 +588,9 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             marketType,
             leverage,
             environment: connectionDoc.environment,
+            exchangeName: connectionDoc.exchangeName,
+            orderSide,
+            username: userOrder.username,
         };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLiveEntry lỗi: ${err.message}`));
