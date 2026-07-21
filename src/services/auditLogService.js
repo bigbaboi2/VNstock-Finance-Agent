@@ -1,12 +1,14 @@
 import crypto from 'crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { getAutoDuckBoolean } from './autoDuckConfigService.js';
 
 const DEFAULT_LOG_DIR = process.env.AUTODUCK_AUDIT_LOG_DIR || 'logs/autoduck';
-const ENABLED = process.env.AUTODUCK_AUDIT_ENABLED !== 'false';
-const ENCRYPT_ENABLED = process.env.AUTODUCK_AUDIT_ENCRYPT === 'true';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
+
+const isAuditEnabled = () => getAutoDuckBoolean('AUTODUCK_AUDIT_ENABLED');
+const isAuditEncryptEnabled = () => getAutoDuckBoolean('AUTODUCK_AUDIT_ENCRYPT');
 
 const allowedChannels = new Set([
     'pipeline',
@@ -87,7 +89,7 @@ const pushTail = (event) => {
 };
 
 export const appendAuditEvent = async (channel, payload = {}, meta = {}) => {
-    if (!ENABLED) return null;
+    if (!isAuditEnabled()) return null;
     const safeChannel = allowedChannels.has(channel) ? channel : 'security';
     const now = new Date();
     const event = {
@@ -102,7 +104,7 @@ export const appendAuditEvent = async (channel, payload = {}, meta = {}) => {
 
     const { dir, file } = resolveDailyPath(safeChannel, now);
     const plain = safeJson(event);
-    const line = ENCRYPT_ENABLED ? encryptLine(plain) : plain;
+    const line = isAuditEncryptEnabled() ? encryptLine(plain) : plain;
 
     await fs.mkdir(dir, { recursive: true });
     await fs.appendFile(file, `${line}\n`, 'utf8');
@@ -138,8 +140,8 @@ export const readAuditFileTail = async ({ channel = 'funnel', date = null, limit
 };
 
 export const getAuditStatus = () => ({
-    enabled: ENABLED,
-    encrypted: ENCRYPT_ENABLED,
+    enabled: isAuditEnabled(),
+    encrypted: isAuditEncryptEnabled(),
     logDir: DEFAULT_LOG_DIR,
     tailSize: inMemoryTail.length,
 });

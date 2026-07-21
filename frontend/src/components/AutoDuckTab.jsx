@@ -16,7 +16,6 @@ import {
     HelpCircle,
     BookOpen,
     LineChart,
-    Play,
     ShieldAlert,
     Target,
     TrendingDown,
@@ -24,6 +23,7 @@ import {
     X,
     Zap,
 } from 'lucide-react';
+import AutoDuckEnvSettingsPanel from './AutoDuckEnvSettingsPanel';
 
 const formatNumber = (value, digits = 0) => {
     const n = Number(value);
@@ -381,28 +381,6 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         }
     };
 
-    const handleForceTrigger = async () => {
-        if (!isAdmin) {
-            setActionMessage({ text: 'Chỉ admin mới có quyền kích hoạt quét tín hiệu!', isError: true });
-            return;
-        }
-        setLoading(true);
-        setActionMessage({ text: '', isError: false });
-
-        try {
-            await axios.post('/api/auto-trade/force-trigger', { assetType: formData.assetType, username });
-            setActionMessage({
-                text: 'Đã kích hoạt engine quét tín hiệu theo dữ liệu thị trường hiện có.',
-                isError: false,
-            });
-            setTimeout(fetchAllData, 2000);
-        } catch (err) {
-            setActionMessage({ text: err.response?.data?.message || 'Không kích hoạt được engine quét lệnh.', isError: true });
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // Field tiền VND hiển thị dạng 5.000.000 (dấu chấm ngăn cách hàng nghìn kiểu VN)
     // → khi parse phải bỏ HẾT dấu chấm/phẩy. Field % cho phép số thập phân.
     const INTEGER_FIELDS = ['capital', 'totalCapital', 'maxConcurrentOrders'];
@@ -475,260 +453,20 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
             <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-8 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
 
-            {/* THẺ QUẢN LÝ PHÂN BỔ VỐN AI */}
-            <div className={`p-6 rounded-3xl border-2 shadow-lg mb-6 ${isDark ? 'bg-[#0f141e] !border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'bg-white border-slate-300'}`}>
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                        <Briefcase className="text-purple-500" />
-                        <h3 className={`text-lg font-black uppercase tracking-widest ${UI.textBold}`}>
-                            AI Capital & Risk Manager
-                        </h3>
-                        <button
-                            onClick={() => setShowGuide(true)}
-                            title="Hướng dẫn cơ chế vận hành"
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border-2 ${isDark ? 'border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300' : 'border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-600'}`}>
-                            <BookOpen size={16} /> Hướng dẫn
-                        </button>
-                        <button
-                            onClick={() => setIsCapitalManagerCollapsed(v => !v)}
-                            title={isCapitalManagerCollapsed ? 'Mở rộng' : 'Thu gọn'}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border-2 ${isDark ? 'border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300' : 'border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-600'}`}>
-                            <ChevronDown size={16} className={`transition-transform duration-300 ${isCapitalManagerCollapsed ? '-rotate-90' : ''}`} />
-                            {isCapitalManagerCollapsed ? 'Xem chi tiết' : 'Thu gọn'}
-                        </button>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        {!isAdmin && (
-                            <input 
-                                type="password" 
-                                placeholder="Nhập mã Admin..." 
-                                value={adminCode}
-                                onChange={e => setAdminCode(e.target.value)}
-                                className={`w-32 text-[10px] font-bold tracking-widest px-2 py-1.5 rounded outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700 focus:border-cyan-500' : 'bg-white text-slate-600 border-slate-300 focus:border-cyan-500'}`}
-                            />
-                        )}
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Trạng thái:</span>
-                            <button
-                                onClick={handleToggleEngine}
-                                disabled={loading || isEngineEnabled === null || (!isAdmin && !adminCode)}
-                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors outline-none focus:ring-2 focus:ring-offset-1 focus:ring-cyan-500 ${
-                                    isEngineEnabled === null ? 'bg-slate-600 animate-pulse' :
-                                    isEngineEnabled ? 'bg-emerald-500' : 'bg-slate-400'
-                                } ${(isEngineEnabled === null || !isAdmin && !adminCode) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                                    isEngineEnabled ? 'translate-x-5' : 'translate-x-1'
-                                }`} />
-                            </button>
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${isEngineEnabled ? 'text-emerald-500' : 'text-slate-500'}`}>
-                                {isEngineEnabled === null ? '···' : isEngineEnabled ? 'BẬT' : 'TẮT'}
-                            </span>
-                            <span className={`text-[9px] font-bold normal-case ${UI.textMuted}`} title="Tắt = dừng triển khai lệnh mô phỏng (training nền). Các gói LIVE & vị thế thực trên sàn VẪN được quét, giám sát và đóng lệnh bình thường.">
-                                {isEngineEnabled === false ? '(LIVE vẫn chạy ⓘ)' : ''}
-                            </span>
-                        </div>
-
-                        <div className={`w-px h-4 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
-
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Khẩu vị Rủi ro:</span>
-                            <select 
-                            value={riskLevel}
-                            onChange={handleRiskLevelChange}
-                            disabled={loading || !isAdmin}
-                            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded outline-none border transition-colors cursor-pointer ${
-                                riskLevel === 1 ? 'bg-blue-500/10 text-blue-500 border-blue-500/30' :
-                                riskLevel === 3 ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
-                                riskLevel === 4 ? 'bg-red-500/10 text-red-500 border-red-500/30' :
-                                'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-                            } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            <option value={1} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>1 - RẤT THẬN TRỌNG</option>
-                            <option value={2} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>2 - CÂN BẰNG (CHUẨN)</option>
-                            <option value={3} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>3 - CHUYÊN GIA (ƯA RỦI RO)</option>
-                            <option value={4} className={isDark ? "bg-[#1a1f2e] text-slate-300" : "bg-white text-slate-600"}>4 - DEGEN (MAX PROFIT)</option>
-                        </select>
-                    </div>
-                    </div>
-                </div>
-                
-                {/* Tóm tắt nhanh khi đang thu gọn — vẫn nắm được vốn mà không cần mở */}
-                {isCapitalManagerCollapsed && (
-                    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-1 pt-3 mt-1 border-t ${UI.border}`}>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Tổng vốn:</span>
-                            <span className={`text-base font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Đã giải ngân:</span>
-                            <span className="text-base font-mono font-black text-emerald-500">{allocatedCapital.toLocaleString()} đ</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Khả dụng:</span>
-                            <span className="text-base font-mono font-black text-yellow-500">{(totalCapital - allocatedCapital).toLocaleString()} đ</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Tổng PnL:</span>
-                            <span className={`text-base font-mono font-black ${metrics.totalPnlAmount >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                {metrics.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metrics.totalPnlAmount)} đ
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Win rate:</span>
-                            <span className="text-base font-mono font-black text-cyan-500">{metrics.winRate}%</span>
-                        </div>
-                    </div>
-                )}
-
-                {!isCapitalManagerCollapsed && (
-                <>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <p className="text-[10px] uppercase font-bold text-slate-500">Tổng Vốn Cấu Hình</p>
-                            {!isEditingCapital ? (
-                                <button onClick={() => setIsEditingCapital(true)} className="text-purple-500 hover:text-purple-600 transition-colors">
-                                    <Edit2 size={12} />
-                                </button>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <button onClick={handleSaveCapital} className="text-emerald-500 hover:text-emerald-600 transition-colors"><Check size={14} /></button>
-                                    <button onClick={() => { setIsEditingCapital(false); setCapitalInput(totalCapital.toLocaleString('vi-VN')); }} className="text-red-500 hover:text-red-600 transition-colors"><X size={14} /></button>
-                                </div>
-                            )}
-                        </div>
-                        {!isEditingCapital ? (
-                            <p className={`text-2xl font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</p>
-                        ) : (
-                            <input
-                                type="text"
-                                value={capitalInput}
-                                onChange={e => {
-                                    const val = e.target.value.replace(/\D/g, '');
-                                    setCapitalInput(val ? Number(val).toLocaleString('vi-VN') : '');
-                                }}
-                                className={`w-full bg-transparent border-b-2 border-purple-500 text-2xl font-mono font-black outline-none ${UI.textBold}`}
-                            />
-                        )}
-                    </div>
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Đã Giải Ngân</p>
-                        <p className="text-2xl font-mono font-black text-emerald-500">{allocatedCapital.toLocaleString()} đ</p>
-                    </div>
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Khả Dụng</p>
-                        <p className="text-2xl font-mono font-black text-yellow-500">{(totalCapital - allocatedCapital).toLocaleString()} đ</p>
-                    </div>
-                </div>
-
-                <div className="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex">
-                    <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700" style={{ width: `${allocationPercent}%` }} />
-                </div>
-                <p className="text-right text-[10px] mt-2 font-bold text-slate-400">Tỷ lệ giải ngân: {allocationPercent.toFixed(1)}%</p>
-                </>
-                )}
-            </div>
-
-            {!isCapitalManagerCollapsed && (
-            <>
-            <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 border-cyan-500`}>
-                <span className={`ml-2 text-xs font-black uppercase tracking-widest ${UI.textBold}`}>Hiệu suất hệ thống</span>
-                <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Thống kê tổng hợp từ lệnh đã đóng & vị thế đang chạy</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-6">
-                <ResultCard
-                    UI={UI}
-                    isDark={isDark}
-                    label="Tổng Lãi/Lỗ Hệ Thống"
-                    value={`${metrics.totalPnlAmount >= 0 ? '+' : ''}${formatNumber(metrics.totalPnlAmount)} đ`}
-                    tone={metrics.totalPnlAmount >= 0 ? 'text-emerald-500' : 'text-red-500'}
-                    detail={`${metrics.winningTrades || 0} thắng · ${metrics.losingTrades || 0} thua`}
-                />
-                <ResultCard
-                    UI={UI}
-                    isDark={isDark}
-                    label="Tỷ lệ thắng (Win Rate)"
-                    value={`${metrics.winRate}%`}
-                    tone="text-cyan-500"
-                    detail={`Chuỗi thắng tối đa: ${metrics.maxWinStreak}`}
-                />
-                <ResultCard
-                    UI={UI}
-                    isDark={isDark}
-                    label="Lãi/Lỗ Trung Bình"
-                    value={`${metrics.avgPnl}% / lệnh`}
-                    tone={Number(metrics.avgPnl) >= 0 ? 'text-emerald-500' : 'text-red-500'}
-                    detail="Tính trên các lệnh đã đóng"
-                />
-                <ResultCard
-                    UI={UI}
-                    isDark={isDark}
-                    label="Vốn đang mở"
-                    value={`${formatNumber(performance.openExposure)} đ`}
-                    tone="text-amber-500"
-                    detail={`${performance.openTrades} vị thế đang chạy`}
-                />
-                <ResultCard
-                    UI={UI}
-                    isDark={isDark}
-                    label="Lệnh tốt nhất"
-                    value={performance.bestTrade ? `${performance.bestTrade.symbol} +${formatNumber(performance.bestTrade.pnlPercent, 2)}%` : '--'}
-                    tone="text-emerald-500"
-                    detail={performance.bestTrade ? `${formatNumber(performance.bestTrade.pnl)} đ` : 'Chưa có lệnh đóng'}
-                />
-                <ResultCard
-                    UI={UI}
-                    isDark={isDark}
-                    label="Lệnh xấu nhất"
-                    value={performance.worstTrade ? `${performance.worstTrade.symbol} ${formatNumber(performance.worstTrade.pnlPercent, 2)}%` : '--'}
-                    tone="text-red-500"
-                    detail={performance.worstTrade ? `${formatNumber(performance.worstTrade.pnl)} đ` : 'Chưa có lệnh đóng'}
-                />
-            </div>
-
-            {metricsLive.totalTrades > 0 && (
-                <div className={`mb-6 rounded-xl border px-4 py-3 ${isDark ? 'bg-emerald-950/30 border-emerald-500/25' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-                        ● LIVE — {metricsLive.totalTrades} lệnh đóng
-                    </p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono">
-                        <div>
-                            <span className={UI.textMuted}>Win rate </span>
-                            <span className="font-black text-cyan-500">{metricsLive.winRate}%</span>
-                        </div>
-                        <div>
-                            <span className={UI.textMuted}>Avg thắng </span>
-                            <span className="font-black text-emerald-500">+{metricsLive.avgWinPct}%</span>
-                        </div>
-                        <div>
-                            <span className={UI.textMuted}>Avg thua </span>
-                            <span className="font-black text-red-500">{metricsLive.avgLossPct}%</span>
-                        </div>
-                        <div>
-                            <span className={UI.textMuted}>Expectancy </span>
-                            <span className={`font-black ${metricsLive.expectancyPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                {metricsLive.expectancyPct >= 0 ? '+' : ''}{metricsLive.expectancyPct}%/lệnh
-                            </span>
-                        </div>
-                    </div>
-                    <p className={`text-[10px] mt-2 ${UI.textMuted}`}>
-                        PnL LIVE tích lũy: {metricsLive.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metricsLive.totalPnlAmount)} đ
-                    </p>
-                </div>
-            )}
-
-            <div className={`mb-6 rounded-xl border px-4 py-3 flex items-start gap-3 ${isDark ? 'bg-slate-950/70 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-                <DatabaseZap size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                <div>
-                    <p className={`text-[11px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>Execution mode</p>
-                    <p className={`text-[12px] leading-relaxed ${UI.textMuted}`}>
-                        Hệ thống đang khớp nội bộ theo quote thị trường: Binance ticker cho crypto, Entrade 15m close cho VN/derivatives. Đây là mô phỏng có dữ liệu thật, không phải xác nhận FILLED từ sàn.
-                    </p>
-                </div>
-            </div>
-            </>
-            )}
+            <AutoDuckEnvSettingsPanel
+                username={username}
+                isAdmin={isAdmin}
+                isDark={isDark}
+                UI={UI}
+                adminCode={adminCode}
+                setAdminCode={setAdminCode}
+                riskLevel={riskLevel}
+                isEngineEnabled={isEngineEnabled}
+                loading={loading}
+                onToggleEngine={handleToggleEngine}
+                onRiskLevelChange={handleRiskLevelChange}
+                onMessage={setActionMessage}
+            />
 
             <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-10 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
 
@@ -1013,14 +751,6 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                                 <span className={`text-[9px] font-bold normal-case tracking-normal ${UI.textMuted}`}>Chạy ngầm để AI học & tăng tỷ lệ thắng · Không báo Telegram · Lệnh thực xem ở tab Broker</span>
                             </div>
                         </div>
-                        <button
-                            onClick={handleForceTrigger}
-                            disabled={loading}
-                            className={`h-9 px-3 rounded-lg font-black text-[10px] tracking-widest uppercase transition-all flex items-center justify-center gap-2 border active:scale-95 ${loading ? 'opacity-50 cursor-not-allowed border-slate-500 text-slate-500' : isDark ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20' : 'bg-cyan-50 text-cyan-700 border-cyan-300 hover:bg-cyan-100'}`}
-                        >
-                            <Play size={13} className={loading ? 'animate-pulse' : ''} />
-                            {loading ? 'Đang quét' : 'Quét ngay'}
-                        </button>
                     </div>
 
                     <div className={`px-4 py-3 flex flex-wrap gap-2 border-b ${isDark ? 'border-white/5 bg-[#0a0f18]' : 'border-slate-100 bg-slate-50'} shrink-0`}>
@@ -1053,6 +783,210 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                     </div>
                 </section>
             </div>
+
+
+            <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-10 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
+
+            {/* THẺ QUẢN LÝ PHÂN BỔ VỐN AI */}
+            <div className={`p-6 rounded-3xl border-2 shadow-lg mb-6 ${isDark ? 'bg-[#0f141e] !border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'bg-white border-slate-300'}`}>
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                        <Briefcase className="text-purple-500" />
+                        <h3 className={`text-lg font-black uppercase tracking-widest ${UI.textBold}`}>
+                            AI Capital & Risk Manager
+                        </h3>
+                        <button
+                            onClick={() => setShowGuide(true)}
+                            title="Hướng dẫn cơ chế vận hành"
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border-2 ${isDark ? 'border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300' : 'border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-600'}`}>
+                            <BookOpen size={16} /> Hướng dẫn
+                        </button>
+                        <button
+                            onClick={() => setIsCapitalManagerCollapsed(v => !v)}
+                            title={isCapitalManagerCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border-2 ${isDark ? 'border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300' : 'border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-600'}`}>
+                            <ChevronDown size={16} className={`transition-transform duration-300 ${isCapitalManagerCollapsed ? '-rotate-90' : ''}`} />
+                            {isCapitalManagerCollapsed ? 'Xem chi tiết' : 'Thu gọn'}
+                        </button>
+                    </div>
+                </div>
+                {/* Tóm tắt nhanh khi đang thu gọn — vẫn nắm được vốn mà không cần mở */}
+                {isCapitalManagerCollapsed && (
+                    <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 px-1 pt-3 mt-1 border-t ${UI.border}`}>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Tổng vốn:</span>
+                            <span className={`text-base font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Đã giải ngân:</span>
+                            <span className="text-base font-mono font-black text-emerald-500">{allocatedCapital.toLocaleString()} đ</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Khả dụng:</span>
+                            <span className="text-base font-mono font-black text-yellow-500">{(totalCapital - allocatedCapital).toLocaleString()} đ</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Tổng PnL:</span>
+                            <span className={`text-base font-mono font-black ${metrics.totalPnlAmount >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {metrics.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metrics.totalPnlAmount)} đ
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] uppercase font-bold ${UI.textMuted}`}>Win rate:</span>
+                            <span className="text-base font-mono font-black text-cyan-500">{metrics.winRate}%</span>
+                        </div>
+                    </div>
+                )}
+
+                {!isCapitalManagerCollapsed && (
+                <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <p className="text-[10px] uppercase font-bold text-slate-500">Tổng Vốn Cấu Hình</p>
+                            {!isEditingCapital ? (
+                                <button onClick={() => setIsEditingCapital(true)} className="text-purple-500 hover:text-purple-600 transition-colors">
+                                    <Edit2 size={12} />
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleSaveCapital} className="text-emerald-500 hover:text-emerald-600 transition-colors"><Check size={14} /></button>
+                                    <button onClick={() => { setIsEditingCapital(false); setCapitalInput(totalCapital.toLocaleString('vi-VN')); }} className="text-red-500 hover:text-red-600 transition-colors"><X size={14} /></button>
+                                </div>
+                            )}
+                        </div>
+                        {!isEditingCapital ? (
+                            <p className={`text-2xl font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</p>
+                        ) : (
+                            <input
+                                type="text"
+                                value={capitalInput}
+                                onChange={e => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    setCapitalInput(val ? Number(val).toLocaleString('vi-VN') : '');
+                                }}
+                                className={`w-full bg-transparent border-b-2 border-purple-500 text-2xl font-mono font-black outline-none ${UI.textBold}`}
+                            />
+                        )}
+                    </div>
+                    <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Đã Giải Ngân</p>
+                        <p className="text-2xl font-mono font-black text-emerald-500">{allocatedCapital.toLocaleString()} đ</p>
+                    </div>
+                    <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Khả Dụng</p>
+                        <p className="text-2xl font-mono font-black text-yellow-500">{(totalCapital - allocatedCapital).toLocaleString()} đ</p>
+                    </div>
+                </div>
+
+                <div className="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex">
+                    <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700" style={{ width: `${allocationPercent}%` }} />
+                </div>
+                <p className="text-right text-[10px] mt-2 font-bold text-slate-400">Tỷ lệ giải ngân: {allocationPercent.toFixed(1)}%</p>
+                </>
+                )}
+            </div>
+
+            {!isCapitalManagerCollapsed && (
+            <>
+            <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 border-cyan-500`}>
+                <span className={`ml-2 text-xs font-black uppercase tracking-widest ${UI.textBold}`}>Hiệu suất hệ thống</span>
+                <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Thống kê tổng hợp từ lệnh đã đóng & vị thế đang chạy</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-6">
+                <ResultCard
+                    UI={UI}
+                    isDark={isDark}
+                    label="Tổng Lãi/Lỗ Hệ Thống"
+                    value={`${metrics.totalPnlAmount >= 0 ? '+' : ''}${formatNumber(metrics.totalPnlAmount)} đ`}
+                    tone={metrics.totalPnlAmount >= 0 ? 'text-emerald-500' : 'text-red-500'}
+                    detail={`${metrics.winningTrades || 0} thắng · ${metrics.losingTrades || 0} thua`}
+                />
+                <ResultCard
+                    UI={UI}
+                    isDark={isDark}
+                    label="Tỷ lệ thắng (Win Rate)"
+                    value={`${metrics.winRate}%`}
+                    tone="text-cyan-500"
+                    detail={`Chuỗi thắng tối đa: ${metrics.maxWinStreak}`}
+                />
+                <ResultCard
+                    UI={UI}
+                    isDark={isDark}
+                    label="Lãi/Lỗ Trung Bình"
+                    value={`${metrics.avgPnl}% / lệnh`}
+                    tone={Number(metrics.avgPnl) >= 0 ? 'text-emerald-500' : 'text-red-500'}
+                    detail="Tính trên các lệnh đã đóng"
+                />
+                <ResultCard
+                    UI={UI}
+                    isDark={isDark}
+                    label="Vốn đang mở"
+                    value={`${formatNumber(performance.openExposure)} đ`}
+                    tone="text-amber-500"
+                    detail={`${performance.openTrades} vị thế đang chạy`}
+                />
+                <ResultCard
+                    UI={UI}
+                    isDark={isDark}
+                    label="Lệnh tốt nhất"
+                    value={performance.bestTrade ? `${performance.bestTrade.symbol} +${formatNumber(performance.bestTrade.pnlPercent, 2)}%` : '--'}
+                    tone="text-emerald-500"
+                    detail={performance.bestTrade ? `${formatNumber(performance.bestTrade.pnl)} đ` : 'Chưa có lệnh đóng'}
+                />
+                <ResultCard
+                    UI={UI}
+                    isDark={isDark}
+                    label="Lệnh xấu nhất"
+                    value={performance.worstTrade ? `${performance.worstTrade.symbol} ${formatNumber(performance.worstTrade.pnlPercent, 2)}%` : '--'}
+                    tone="text-red-500"
+                    detail={performance.worstTrade ? `${formatNumber(performance.worstTrade.pnl)} đ` : 'Chưa có lệnh đóng'}
+                />
+            </div>
+
+            {metricsLive.totalTrades > 0 && (
+                <div className={`mb-6 rounded-xl border px-4 py-3 ${isDark ? 'bg-emerald-950/30 border-emerald-500/25' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                        ● LIVE — {metricsLive.totalTrades} lệnh đóng
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] font-mono">
+                        <div>
+                            <span className={UI.textMuted}>Win rate </span>
+                            <span className="font-black text-cyan-500">{metricsLive.winRate}%</span>
+                        </div>
+                        <div>
+                            <span className={UI.textMuted}>Avg thắng </span>
+                            <span className="font-black text-emerald-500">+{metricsLive.avgWinPct}%</span>
+                        </div>
+                        <div>
+                            <span className={UI.textMuted}>Avg thua </span>
+                            <span className="font-black text-red-500">{metricsLive.avgLossPct}%</span>
+                        </div>
+                        <div>
+                            <span className={UI.textMuted}>Expectancy </span>
+                            <span className={`font-black ${metricsLive.expectancyPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {metricsLive.expectancyPct >= 0 ? '+' : ''}{metricsLive.expectancyPct}%/lệnh
+                            </span>
+                        </div>
+                    </div>
+                    <p className={`text-[10px] mt-2 ${UI.textMuted}`}>
+                        PnL LIVE tích lũy: {metricsLive.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metricsLive.totalPnlAmount)} đ
+                    </p>
+                </div>
+            )}
+
+            <div className={`mb-6 rounded-xl border px-4 py-3 flex items-start gap-3 ${isDark ? 'bg-slate-950/70 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+                <DatabaseZap size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                <div>
+                    <p className={`text-[11px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>Execution mode</p>
+                    <p className={`text-[12px] leading-relaxed ${UI.textMuted}`}>
+                        Hệ thống đang khớp nội bộ theo quote thị trường: Binance ticker cho crypto, Entrade 15m close cho VN/derivatives. Đây là mô phỏng có dữ liệu thật, không phải xác nhận FILLED từ sàn.
+                    </p>
+                </div>
+            </div>
+            </>
+            )}
+
 
             {aiLessons.length > 0 && (
                 <section className={`rounded-xl border p-4 ${UI.card}`}>

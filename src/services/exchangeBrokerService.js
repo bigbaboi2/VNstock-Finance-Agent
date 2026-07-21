@@ -9,11 +9,12 @@ import { sendTelegramMessage, escapeHtml } from './telegramService.js';
 import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
 import { extractFeeFromOrderResult } from './brokerFeeService.js';
+import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const FILL_POLL_MS = Number(process.env.AUTODUCK_LIVE_FILL_POLL_MS) || 2000;
-const FILL_POLL_TIMEOUT_MS = Number(process.env.AUTODUCK_LIVE_FILL_TIMEOUT_MS) || 25000;
+const getFillPollMs = () => getAutoDuckNumber('AUTODUCK_LIVE_FILL_POLL_MS') || 2000;
+const getFillPollTimeoutMs = () => getAutoDuckNumber('AUTODUCK_LIVE_FILL_TIMEOUT_MS') || 25000;
 
 /**
  * Tính PnL LIVE từ ExchangeOrder fills thực (ENTRY vs EXIT), trừ phí broker khi có.
@@ -106,8 +107,8 @@ const confirmBrokerFill = async ({ connectionDoc, result, symbol }) => {
  */
 
 const getSafetyLimits = () => ({
-    maxOrderValueUSDT: Number(process.env.MAX_LIVE_ORDER_VALUE_USDT) || 10000,
-    maxLiveOrdersPerUser: Number(process.env.MAX_LIVE_ORDERS_PER_USER) || 5,
+    maxOrderValueUSDT: getAutoDuckNumber('MAX_LIVE_ORDER_VALUE_USDT') || 10000,
+    maxLiveOrdersPerUser: getAutoDuckNumber('MAX_LIVE_ORDERS_PER_USER') || 5,
 });
 
 /** Decrypt credentials trong memory — không bao giờ return ra ngoài service này */
@@ -396,9 +397,11 @@ export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol,
         return { ...initial, fillConfirmed: true };
     }
 
-    const deadline = Date.now() + FILL_POLL_TIMEOUT_MS;
+    const fillTimeoutMs = getFillPollTimeoutMs();
+    const fillPollMs = getFillPollMs();
+    const deadline = Date.now() + fillTimeoutMs;
     while (Date.now() < deadline) {
-        await sleep(FILL_POLL_MS);
+        await sleep(fillPollMs);
         const status = await getOrderStatus({ connectionDoc, externalOrderId, symbol });
         if (!status.success) continue;
         appendAuditEvent('broker', {
@@ -437,7 +440,7 @@ export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol,
     return {
         ...initial,
         fillConfirmed: false,
-        message: initial.message || `Chưa xác nhận fill sau ${FILL_POLL_TIMEOUT_MS / 1000}s`,
+        message: initial.message || `Chưa xác nhận fill sau ${getFillPollTimeoutMs() / 1000}s`,
     };
 };
 
@@ -502,8 +505,8 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         let orderSide = 'BUY';
         if (!isLong) {
             const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
-            const envFallback = process.env.AUTODUCK_AUTO_FUTURES_SHORT_ENABLED === 'true';
-            const enabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1)) || envFallback;
+            const cfgEnabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
+            const enabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1)) || cfgEnabled;
             if (!enabled) {
                 return { success: false, message: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false) — theo dõi simulated.' };
             }
@@ -511,7 +514,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
                 return { success: false, message: 'SHORT auto chỉ hỗ trợ Binance Futures.' };
             }
             marketType = 'FUTURES';
-            leverage = Number(process.env.AUTO_FUTURES_LEVERAGE) || 3;
+            leverage = getAutoDuckNumber('AUTO_FUTURES_LEVERAGE') || 3;
             orderSide = 'SELL';
         }
 

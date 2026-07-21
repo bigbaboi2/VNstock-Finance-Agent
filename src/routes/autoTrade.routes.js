@@ -7,6 +7,8 @@ import {
     forceTriggerPipeline,
     getAutoTradeSettings,
     updateAutoTradeSettings,
+    getAutoTradeEnvConfig,
+    updateAutoTradeEnvConfig,
     stopUserOrder,
     deleteUserOrder,
     getUsdRate,
@@ -36,5 +38,7 @@ router.post('/force-trigger', forceTriggerPipeline);
 router.get('/settings', getAutoTradeSettings);
 router.get('/usd-rate', getUsdRate);
 router.post('/settings', updateAutoTradeSettings);
+router.get('/env-config', getAutoTradeEnvConfig);
+router.post('/env-config', updateAutoTradeEnvConfig);
 
 export default router;

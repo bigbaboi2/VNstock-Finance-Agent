@@ -303,7 +303,9 @@ For any VN ticker, a structured multi-phase debate runs in parallel then sequent
 
 ## ⚙️ Environment Configuration
 
-All config lives in **one root `.env`** (Vite proxies `/api` → `localhost:3001`; no separate frontend `.env` required for local dev).
+All **bootstrap / secrets** live in **one root `.env`** (Vite proxies `/api` → `localhost:3001`; no separate frontend `.env` required for local dev).
+
+**AutoTrade knobs** are managed in-app (**Auto Duck → Cấu hình AutoTrade**, admin): defaults in code, overrides in MongoDB `Setting`. Leftover `AUTODUCK_*` / `MAX_LIVE_*` in `.env` are optional fallback until you Save in the UI.
 
 **Templates:** [`.env.example.en`](.env.example.en) (English) · [`.env.example`](.env.example) (Vietnamese)
 
@@ -313,8 +315,9 @@ All config lives in **one root `.env`** (Vite proxies `/api` → `localhost:3001
 | AI fallbacks | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`, `DEEPINFRA_API_KEY`, `OPENROUTER_API_KEY` | Recommended |
 | Market data | `FIREANT_TOKEN`, `COINGLASS_API_KEY` | Optional |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID`, `WEBHOOK_BASE_URL` | Optional |
-| Security | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ENCRYPTION_KEY` | Production |
+| Security | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ADMIN_CODE`, `ENCRYPTION_KEY` | Production |
 | Frontend | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Optional |
+| AutoTrade | UI: Auto Duck → Cấu hình AutoTrade | Admin |
 
 > Backend hardcodes `PORT=3001` in `server.js`. Variables like `PORT`, `JWT_SECRET`, `REDIS_*` are **not** read from `.env` in the current code.
 
@@ -350,6 +353,7 @@ All config lives in **one root `.env`** (Vite proxies `/api` → `localhost:3001
 
 **Auto Duck**
 - `GET /api/auto-trade/settings` · `POST /api/auto-trade/settings`
+- `GET /api/auto-trade/env-config` · `POST /api/auto-trade/env-config`
 - `GET /api/auto-trade/user-order/:username` · `POST /api/auto-trade/user-order`
 - `GET /api/auto-trade/ai-lessons` · `GET /api/auto-trade/pipeline-logs`
 - `POST /api/auto-trade/force-trigger`

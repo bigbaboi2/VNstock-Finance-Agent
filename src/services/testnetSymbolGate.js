@@ -3,13 +3,14 @@ import ExchangeConnection from '../../models/ExchangeConnection.js';
 import UserOrder from '../../models/UserOrder.js';
 import Setting from '../../models/Setting.js';
 import { getAdapter } from './exchangeAdapters/index.js';
+import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
 
 const normalizeCryptoSymbol = (symbol) => {
     const s = String(symbol).toUpperCase().replace(/-/g, '');
     return s.endsWith('USDT') ? s : `${s}USDT`;
 };
 
-const CACHE_TTL_MS = Number(process.env.TESTNET_SYMBOL_CACHE_MS) || 6 * 60 * 60 * 1000;
+const getCacheTtlMs = () => getAutoDuckNumber('TESTNET_SYMBOL_CACHE_MS') || 6 * 60 * 60 * 1000;
 const symbolCache = new Map();
 
 const cacheKey = (exchangeName, environment, marketType) =>
@@ -44,7 +45,7 @@ export const fetchTradableSymbolsSet = async ({ exchangeName, environment, marke
 
     const list = await adapter.listTradableSymbols(environment, marketType);
     const symbols = new Set((list || []).map(s => String(s).toUpperCase()));
-    symbolCache.set(key, { symbols, expiresAt: Date.now() + CACHE_TTL_MS });
+    symbolCache.set(key, { symbols, expiresAt: Date.now() + getCacheTtlMs() });
     return symbols;
 };
 
@@ -54,7 +55,8 @@ export const resolveLiveMarketType = async (connectionDoc, direction) => {
     if (isLong) return { marketType: 'SPOT', blocked: false };
 
     const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
-    const enabled = flag && (flag.value === true || flag.value === 'true' || flag.value === 1);
+    const dbEnabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1));
+    const enabled = dbEnabled || getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
     if (!enabled) {
         return { marketType: 'SPOT', blocked: true, reason: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false)' };
     }
