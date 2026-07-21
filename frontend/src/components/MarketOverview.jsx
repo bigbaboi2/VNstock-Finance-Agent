@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Globe, Zap, Activity } from 'lucide-react';
+import { Globe, Zap, Loader2 } from 'lucide-react';
 
 export default React.memo(function MarketOverview({ isDark, UI, marketIntel, vnIndexData }) {
     const isLoading = !marketIntel;
@@ -20,8 +20,8 @@ export default React.memo(function MarketOverview({ isDark, UI, marketIntel, vnI
     if (isLoading) {
       return (
         <div className={`shrink-0 h-[180px] border-t flex items-center justify-center ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-300 bg-white'}`}>
-          <div className="flex flex-col items-center opacity-50">
-            <Activity size={24} className="mb-2 animate-pulse" />
+          <div className="flex flex-col items-center gap-3 opacity-70">
+            <Loader2 size={28} className="animate-spin text-yellow-400" />
             <p className="text-xs font-black uppercase tracking-[0.2em]">QUANT ENGINE ĐANG TÍNH TOÁN...</p>
           </div>
         </div>
