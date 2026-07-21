@@ -18,7 +18,8 @@
     "diag:funnel": "node --use-system-ca scripts/diag_funnel.mjs",
     "diag:audit": "node --use-system-ca scripts/audit_tail.mjs",
     "diag:live-pnl": "node --use-system-ca scripts/diag-live-pnl.mjs",
-    "dev:tunnel": "cross-env npx ngrok http --domain=%NGROK_DOMAIN% 3001",
+    "dev:tunnel": "node cli/dev-tunnel.mjs",
+    "dev:tunnel:cf": "cloudflared tunnel --url http://localhost:3001",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:tunnel\""
   },
   "keywords": [],

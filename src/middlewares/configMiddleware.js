@@ -11,11 +11,14 @@ export const corsOptions = {
          ];
          const localOriginPattern = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/;
          const ngrokOriginPattern = /^https?:\/\/[A-Za-z0-9-]+\.ngrok\.(io|app|free\.dev)(?::\d+)?$/;
+         // Cloudflare Quick Tunnel / named tunnel hostnames when testing from Termux/PC
+         const cloudflareOriginPattern = /^https?:\/\/[A-Za-z0-9.-]+\.(trycloudflare\.com|cfargotunnel\.com)(?::\d+)?$/;
 
          if (
              allowedOrigins.includes(origin) ||
              localOriginPattern.test(origin) ||
-             ngrokOriginPattern.test(origin)
+             ngrokOriginPattern.test(origin) ||
+             cloudflareOriginPattern.test(origin)
          ) {
              callback(null, true);
          } else {

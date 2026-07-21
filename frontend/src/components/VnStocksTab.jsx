@@ -18,7 +18,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMe
 import StockAiChat from './StockAiChat';
 import AtomLoader from './AtomLoader';
 import MarketInsightPanel from './MarketInsightPanel';
-import { tcbsPdfEmbedUrl, API_BASE_URL } from '../lib/apiBase';
+import { tcbsPdfEmbedUrl, API_BASE_URL, API_FETCH_HEADERS } from '../lib/apiBase';
 import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
 // =====================================================================
 // SHARED SUB-COMPONENTS (đồng bộ với DerivativesTab)
@@ -1601,7 +1601,9 @@ export default function VnStocksTab({
       const fetchHomeNews = async () => {
         setLoadingHomeNews(true);
         try {
-          const res = await fetch(API_BASE_URL + '/api/market/home-news');
+          const res = await fetch(API_BASE_URL + '/api/market/home-news', {
+            headers: API_FETCH_HEADERS,
+          });
           const data = await res.json();
           if (data.success) {
             setHomeNews(data.data);
@@ -2117,7 +2119,11 @@ export default function VnStocksTab({
         payload.aiReport = aiReport.trim();
         if (vnReportTimestamp) payload.aiReportTimestamp = vnReportTimestamp;
       }
-      const res = await fetch(API_BASE_URL + `/api/debug-feed/${sym}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await fetch(API_BASE_URL + `/api/debug-feed/${sym}`, {
+        method: 'POST',
+        headers: { ...API_FETCH_HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       if (!res.ok) throw new Error(`Lỗi ${res.status}`);
       const json = await res.json();
       if (!json.success || !json.data) throw new Error(json.message || 'Export thất bại');
