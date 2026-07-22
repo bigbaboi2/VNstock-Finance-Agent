@@ -119,4 +119,3 @@ app.listen(PORT, async () => {
         console.error(chalk.red('[LỖI] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
     }
 });
-// trigger restart

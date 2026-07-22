@@ -1,0 +1,13 @@
+{
+  "watch": ["src"],
+  "ext": "js,mjs,cjs",
+  "ignore": [
+    "exports/**",
+    "logs/**",
+    "frontend/**",
+    "node_modules/**",
+    "debug-*.log",
+    ".git/**"
+  ],
+  "delay": 500
+}

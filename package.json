@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev:backend": "nodemon --exec \"node --max-old-space-size=4096 --use-system-ca\" src/server.js",
+    "dev:backend": "nodemon --config nodemon.json --exec \"node --max-old-space-size=4096 --use-system-ca\" src/server.js",
     "diag:autotrade": "node --use-system-ca scripts/diag_autotrade.mjs",
     "diag:deep": "node --use-system-ca scripts/diag_deep.mjs",
     "test:entry-setup": "node scripts/test_entry_setup.mjs",
@@ -38,6 +38,7 @@
     "cli-table3": "^0.6.5",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "fast-xml-parser": "^5.8.0",

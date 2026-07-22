@@ -8,6 +8,7 @@ import { getPipelineLogs } from '../services/pipelineLogService.js';
 import { getFunnelLogs } from '../services/tradeFunnelService.js';
 import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
 import { getEffectiveAutoDuckConfig, updateAutoDuckConfig } from '../services/autoDuckConfigService.js';
+import { exportLiveTradeStats, DEFAULT_EXPORT_DIR } from '../services/liveTradeExportService.js';
 
 //Get the entire automatic transaction history of the system with advanced quantitative statistics
 export const getSystemTradeLogs = async (req, res) => {
@@ -245,6 +246,43 @@ export const updateAutoTradeEnvConfig = async (req, res) => {
         }
         const data = await getEffectiveAutoDuckConfig();
         return res.json({ success: true, message: result.message, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const exportLiveTradeStatsHandler = async (req, res) => {
+    try {
+        const { username, adminCode, outputDir, fileNamePattern, dateFrom, dateTo } = req.body || {};
+        const gate = assertAdminGate(username, adminCode);
+        if (gate) return res.status(gate.status).json({ success: false, message: gate.message });
+
+        const savedAt = new Date();
+        const who = username || 'admin';
+        const result = await exportLiveTradeStats({
+            outputDir: outputDir || DEFAULT_EXPORT_DIR,
+            fileNamePattern,
+            dateFrom,
+            dateTo,
+        });
+
+        console.log(
+            `[LiveExport] ${savedAt.toISOString()} (${savedAt.toLocaleString('vi-VN')}) — `
+            + `user=${who} → ${result.outputDir}`
+        );
+        console.log(`  pattern: ${result.fileNamePattern}`);
+        console.log(`  range: ${result.dateRange?.label || 'all-time'}`);
+        console.log(`  baseName: ${result.baseName}`);
+        console.log(`  LIVE trades: ${result.summary.autoTradeLive} | win%: ${result.summary.winRatePct} | PnL: ${result.summary.totalPnlVnd} VND`);
+        for (const f of result.files) {
+            console.log(`  - ${f.name} (${f.sizeBytes} bytes)`);
+        }
+
+        return res.json({
+            success: true,
+            message: `Đã xuất ${result.files.length} file vào ${result.outputDir}`,
+            data: result,
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
