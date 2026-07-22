@@ -512,7 +512,7 @@ export default function AutoDuckEnvSettingsPanel({
 
     return (
         <div
-            className={`p-6 rounded-3xl border-2 shadow-lg mb-6 font-sans ${panelBorder}`}
+            className={`p-4 sm:p-5 rounded-3xl border-2 shadow-lg mb-0 font-sans ${panelBorder}`}
             style={{ fontFamily: 'ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
         >
             <div className="flex flex-wrap items-center justify-between gap-4 mb-2">

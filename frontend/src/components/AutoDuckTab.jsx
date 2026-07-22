@@ -422,7 +422,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     return (
         <div className={`w-full h-full flex flex-col overflow-y-auto custom-scrollbar p-4 lg:p-6 transition-colors duration-300 ${UI.main}`}>
             {showGuide && <MechanismGuideModal isDark={isDark} UI={UI} onClose={() => setShowGuide(false)} />}
-            <div className={`w-full rounded-xl border mb-6 overflow-hidden ${isDark ? 'bg-[#080c14] border-cyan-500/20' : 'bg-white border-cyan-300 shadow-sm'}`}>
+            <div className={`w-full rounded-xl border mb-2 overflow-hidden ${isDark ? 'bg-[#080c14] border-cyan-500/20' : 'bg-white border-cyan-300 shadow-sm'}`}>
                 <div className="h-0.5 w-full bg-cyan-500" />
                 <div className="px-5 py-4 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                     <div className="flex items-start gap-4">
@@ -451,8 +451,6 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 </div>
             </div>
 
-            <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-8 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
-
             <AutoDuckEnvSettingsPanel
                 username={username}
                 isAdmin={isAdmin}
@@ -468,10 +466,8 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 onMessage={setActionMessage}
             />
 
-            <div className={`-mx-4 lg:-mx-6 h-[2px] shrink-0 my-10 ${isDark ? 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'bg-slate-300'}`} />
-
             {/* ═══════ GÓI LỆNH ỦY THÁC CÁ NHÂN (SIMULATED / LIVE) ═══════ */}
-            <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 border-emerald-500`}>
+            <div className={`flex items-center gap-2 mb-3 mt-4 pl-1 border-l-4 border-emerald-500`}>
                 <span className={`ml-2 text-xs font-black uppercase tracking-widest ${UI.textBold}`}>Gói lệnh ủy thác cá nhân</span>
                 <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Tạo lệnh để bot khớp & vào lệnh tự động (mô phỏng hoặc LIVE trên sàn)</span>
             </div>

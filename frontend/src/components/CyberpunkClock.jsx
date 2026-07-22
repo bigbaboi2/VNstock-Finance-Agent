@@ -1,5 +1,23 @@
 import React, { useEffect, useState } from 'react'
 
+/** Mỗi ký tự một slot cố định — font Technology không monospace nên số đổi làm layout nhảy. */
+function FixedClockDigits({ value, className = '', style }) {
+  return (
+    <span className={`inline-flex items-center justify-center ${className}`} style={style}>
+      {[...String(value)].map((ch, i) => (
+        <span
+          key={`${i}-${ch}`}
+          className={`inline-flex items-center justify-center shrink-0 ${
+            ch === ':' ? 'w-[0.4em]' : 'w-[0.72em]'
+          }`}
+        >
+          {ch}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function CyberpunkClock({ marketOpen, theme, is3D = true }) {
   const isDark = theme === 'dark';
   
@@ -70,16 +88,18 @@ export default function CyberpunkClock({ marketOpen, theme, is3D = true }) {
 
   if (!is3D) {
     return (
-      <div className={`px-4 py-2 rounded-2xl border-2 flex items-center justify-center gap-2 
+      <div className={`w-[148px] h-[44px] shrink-0 px-3 rounded-2xl border-2 flex items-center justify-center
         ${marketOpen 
           ? (isDark ? 'bg-emerald-900/10 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'bg-emerald-50 border-emerald-200 shadow-sm') 
           : (isDark ? 'bg-red-900/10 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : 'bg-red-50 border-red-200 shadow-sm')}`}>
         <style>{`
           @font-face { font-family: 'Technology'; src: url('/fonts/Technology.ttf') format('truetype'); }
         `}</style>
-        <div className={`text-2xl font-black ${textColor} translate-y-[2px]`} style={{ fontFamily: 'Technology', letterSpacing: '4px', textShadow: isDark ? `0 0 10px ${themeColor}, 0.5)` : 'none' }}>
-          {h}<span className="animate-pulse mx-[2px]">:</span>{m}<span className="animate-pulse opacity-70 mx-[2px]">:</span>{s}
-        </div>
+        <FixedClockDigits
+          value={`${h}:${m}:${s}`}
+          className={`text-2xl font-black leading-none ${textColor} translate-y-[2px]`}
+          style={{ fontFamily: 'Technology', letterSpacing: '2px', textShadow: isDark ? `0 0 10px ${themeColor}, 0.5)` : 'none' }}
+        />
       </div>
     );
   }
@@ -121,7 +141,7 @@ export default function CyberpunkClock({ marketOpen, theme, is3D = true }) {
         .c-smoke { position: absolute; inset: -30px; background: ${themeColor}, 0.7); filter: blur(60px); border-radius: 50%; animation: c-smoke-anim 0.8s ease-out forwards; pointer-events: none; }
       `}</style>
 
-      <div className="relative w-[135px] h-[85px] flex items-center justify-center scale-[0.26] origin-center">
+      <div className="relative w-[135px] h-[85px] shrink-0 flex items-center justify-center scale-[0.26] origin-center">
         <div className="clock-scene">
           <div className="clock-cube" onClick={handleBurst}>
             
@@ -147,7 +167,7 @@ export default function CyberpunkClock({ marketOpen, theme, is3D = true }) {
                     : (isDark ? 'bg-[#1a0707] border-red-900/60 shadow-[inset_0_0_40px_rgba(0,0,0,0.9)]' : 'bg-white/90 border-red-200 shadow-[inset_0_0_20px_rgba(0,0,0,0.05)]')}`}>
                    
                    <div className={`relative z-10 flex flex-col items-center`}>
-                      <div className={`text-[95px] leading-none whitespace-nowrap font-black ${textColor} transition-colors duration-500`} 
+                      <div className={`text-[95px] leading-none whitespace-nowrap font-black ${textColor} transition-colors duration-500`}
                            style={{ fontFamily: 'Technology', letterSpacing: '10px', textShadow: isDark ? `0 0 25px ${themeColor}, 1)` : 'none' }}>
                         {h}<span className="animate-pulse mx-1">:</span>{m}<span className="animate-pulse opacity-70 mx-1">:</span>{s}
                       </div>

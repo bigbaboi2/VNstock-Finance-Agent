@@ -75,20 +75,103 @@ function App() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [authForm, setAuthForm] = useState({ username: '', password: '', isRegister: false });
 
-//CONFIG: THEME ENGINE
-const [theme, setTheme] = useState(() => {
-  const savedTheme = localStorage.getItem(`omni_theme_${currentUser}`);
-  return savedTheme || 'dark';
-});
+//CONFIG: THEME ENGINE + USER UI PREFERENCES (MongoDB)
+const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true };
+
+const readLocalThemeFallback = (user) => {
+  if (user) {
+    const perUser = localStorage.getItem(`omni_theme_${user}`);
+    if (perUser === 'dark' || perUser === 'light') return perUser;
+  }
+  const global = localStorage.getItem('omni_theme');
+  if (global === 'dark' || global === 'light') return global;
+  return DEFAULT_UI_PREFS.theme;
+};
+
+const readLocalClock3dFallback = (user) => {
+  if (user) {
+    const perUser = localStorage.getItem(`omni_clock_3d_${user}`);
+    if (perUser === 'true' || perUser === 'false') return perUser === 'true';
+  }
+  const global = localStorage.getItem('omni_clock_3d');
+  if (global === 'true' || global === 'false') return global === 'true';
+  return DEFAULT_UI_PREFS.clock3d;
+};
+
+const cacheUiPreferencesLocally = (prefs, user) => {
+  const theme = prefs?.theme === 'light' ? 'light' : 'dark';
+  const clock3d = prefs?.clock3d !== false;
+  localStorage.setItem('omni_theme', theme);
+  localStorage.setItem('omni_clock_3d', String(clock3d));
+  if (user) {
+    localStorage.setItem(`omni_theme_${user}`, theme);
+    localStorage.setItem(`omni_clock_3d_${user}`, String(clock3d));
+  }
+  return { theme, clock3d };
+};
+
+const [theme, setTheme] = useState(() => readLocalThemeFallback(currentUser));
+const [is3DClock, setIs3DClock] = useState(() => readLocalClock3dFallback(currentUser));
 const isDark = theme === 'dark';
 
-const handleToggleTheme = () => {
-    const newTheme = isDark ? 'light' : 'dark';
-    setTheme(newTheme);
-    if (currentUser) {
-        localStorage.setItem(`omni_theme_${currentUser}`, newTheme);
+const applyUiPreferences = useCallback((prefs, user = currentUser) => {
+  const next = cacheUiPreferencesLocally(prefs || DEFAULT_UI_PREFS, user);
+  setTheme(next.theme);
+  setIs3DClock(next.clock3d);
+  return next;
+}, [currentUser]);
+
+const persistUiPreferences = useCallback(async (partial, user = currentUser) => {
+  const nextTheme = partial.theme === 'light' || partial.theme === 'dark'
+    ? partial.theme
+    : theme;
+  const nextClock3d = typeof partial.clock3d === 'boolean'
+    ? partial.clock3d
+    : is3DClock;
+  const next = applyUiPreferences({ theme: nextTheme, clock3d: nextClock3d }, user);
+  if (!user) return next;
+  try {
+    await axios.post('/api/auth/preferences', {
+      username: user,
+      theme: next.theme,
+      clock3d: next.clock3d,
+    });
+  } catch (err) {
+    console.warn('[UI prefs] Không lưu được preference lên server:', err?.response?.data?.message || err.message);
+  }
+  return next;
+}, [applyUiPreferences, currentUser, is3DClock, theme]);
+
+useEffect(() => {
+  if (!currentUser) {
+    applyUiPreferences({
+      theme: readLocalThemeFallback(null),
+      clock3d: readLocalClock3dFallback(null),
+    }, null);
+    return undefined;
+  }
+  let cancelled = false;
+  (async () => {
+    try {
+      const res = await axios.get('/api/auth/preferences', { params: { username: currentUser } });
+      if (!cancelled && res.data?.success && res.data.preferences) {
+        applyUiPreferences(res.data.preferences, currentUser);
+      }
+    } catch {
+      // Giữ fallback localStorage nếu API lỗi / user cũ chưa có field preferences
     }
-  };
+  })();
+  return () => { cancelled = true; };
+}, [currentUser, applyUiPreferences]);
+
+const handleToggleTheme = () => {
+  const newTheme = isDark ? 'light' : 'dark';
+  void persistUiPreferences({ theme: newTheme });
+};
+
+const handleToggleClockMode = () => {
+  void persistUiPreferences({ clock3d: !is3DClock });
+};
   //LOGIC: AUTHENTICATION HANDLERS
   const [authError, setAuthError] = useState('');
 
@@ -131,6 +214,9 @@ const handleToggleTheme = () => {
         const res = await axios.post('/api/auth/login', { username: cleanUsername, password });
         if (res.data.success) {
           localStorage.setItem('omni_user', res.data.username);
+          if (res.data.preferences) {
+            applyUiPreferences(res.data.preferences, res.data.username);
+          }
           setCurrentUser(res.data.username);
           // Path restore is handled by the auth/route sync effect (omni_return_to / legacy query).
         }
@@ -1932,8 +2018,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         errorAlert={errorAlert}
         loadingMarket={loadingMarket}
         currentUser={currentUser}
+        is3DClock={is3DClock}
         setActiveMode={setActiveMode} handleLogout={handleLogout}
         handleGoHome={handleGoHome} handleToggleTheme={handleToggleTheme}
+        handleToggleClockMode={handleToggleClockMode}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
 
