@@ -466,7 +466,7 @@ export default function DerivativesTab({
                             <div className={`flex-1 min-w-0 rounded-2xl border overflow-hidden shadow-lg relative flex items-center justify-center ${isDark ? 'bg-black/50 border-orange-500/15' : 'bg-white border-orange-200'}`}
                                 style={{ height: chartHeight + 'px' }}>
                                 {derivChartData
-                                    ? <TradingChart data={derivChartData} theme={isDark ? 'dark' : 'light'} onIntervalChange={setDerivInterval} currentInterval={derivInterval} />
+                                    ? <TradingChart data={derivChartData} theme={isDark ? 'dark' : 'light'} accent="yellow" onIntervalChange={setDerivInterval} currentInterval={derivInterval} />
                                     : <AtomLoader message="ĐANG ĐỒNG BỘ CHART PHÁI SINH..." />
                                 }
                                 {/* Drag handle */}

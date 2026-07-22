@@ -3,12 +3,212 @@ import { init, dispose, registerIndicator, registerOverlay } from 'klinecharts';
 import {
   Pencil, MoveHorizontal, Baseline, Trash2,
   Settings2, ChevronDown, Check, BarChart2, Clock, RefreshCw,
-  ChevronLeft, ChevronRight, Minus,
+  ChevronLeft, ChevronRight, Minus, Plus,
   SlidersHorizontal, TrendingUp, MousePointer
 } from 'lucide-react';
-/* ════════════════════════════════════════════════════════════════════
-   REGISTER INDICATOR: TV_VOL_OVERLAY
-════════════════════════════════════════════════════════════════════ */
+
+
+function patchKlineDragCapture(chart) {
+  const ev = chart?._chartEvent;
+  if (!ev || ev.__omniDragCapturePatched) return;
+  ev.__omniDragCapturePatched = true;
+
+  const getOverlayStore = () => {
+    try {
+      return chart.getChartStore().getOverlayStore();
+    } catch {
+      return null;
+    }
+  };
+
+  const resolveOverlayCaptureWidget = () => {
+    try {
+      const store = getOverlayStore();
+      if (!store) return null;
+      let paneId = null;
+      if (store.isDrawing()) {
+        paneId = store.getProgressInstanceInfo()?.paneId;
+      } else {
+        const pressed = store.getPressedInstanceInfo?.();
+        if (pressed?.instance) paneId = pressed.paneId;
+      }
+      if (!paneId) return null;
+      const pane = chart.getDrawPaneById(paneId);
+      const widget = pane?.getMainWidget?.();
+      if (pane && widget) return { pane, widget };
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  const origFind = ev._findWidgetByEvent.bind(ev);
+  // Sticky widget while pressed (klinecharts drops hit when pointer leaves pane)
+  ev._findWidgetByEvent = function (e) {
+    const down = this._mouseDownWidget;
+    if (down) {
+      try {
+        const pane = down.getPane?.();
+        if (pane) return { pane, widget: down };
+      } catch { /* ignore */ }
+    }
+    const hit = origFind(e);
+    // Real axis/main hit wins so axes stay draggable while a draw tool is active
+    if (hit?.widget) return hit;
+    return resolveOverlayCaptureWidget() || hit;
+  };
+
+  // Axis drag: X = barSpace (anchor right), Y = price range only
+  const AXIS_DRAG_X_PX = 55;
+  const AXIS_DRAG_Y_PX = 90;
+  const origPressedMove = ev.pressedMouseMoveEvent?.bind(ev);
+  const origMouseUp = ev.mouseUpEvent?.bind(ev);
+  if (origMouseUp) {
+    ev.mouseUpEvent = function (e) {
+      this.__omniXLastPageX = null;
+      this.__omniYLastPageY = null;
+      return origMouseUp(e);
+    };
+  }
+  if (origPressedMove) {
+    ev.pressedMouseMoveEvent = function (e) {
+      const down = this._mouseDownWidget;
+      const name = down?.getName?.();
+      if (name === 'xAxis') {
+        const consumed = down.dispatchEvent('pressedMouseMoveEvent', this._makeWidgetEvent(e, down));
+        if (!consumed) {
+          const pane = down.getPane?.();
+          const xAxis = pane?.getAxisComponent?.();
+          if (xAxis?.getScrollZoomEnabled?.() !== false) {
+            const event = this._makeWidgetEvent(e, down);
+            if (this.__omniXLastPageX == null) this.__omniXLastPageX = event.pageX;
+            const dx = event.pageX - this.__omniXLastPageX;
+            this.__omniXLastPageX = event.pageX;
+            const zoomScale = -dx / AXIS_DRAG_X_PX;
+            if (zoomScale !== 0) {
+              const ts = this._chart.getChartStore().getTimeScaleStore();
+              const rightX = ts._totalBarSpace || down.getBounding?.()?.width || 0;
+              ts.zoom(zoomScale, { x: rightX });
+            }
+          }
+        } else {
+          this._chart.updatePane(1);
+        }
+        return true;
+      }
+      if (name === 'yAxis') {
+        const event = this._makeWidgetEvent(e, down);
+        const consumed = down.dispatchEvent('pressedMouseMoveEvent', event);
+        if (!consumed) {
+          const pane = down.getPane?.();
+          const yAxis = pane?.getAxisComponent?.();
+          if (yAxis?.getScrollZoomEnabled?.()) {
+            if (this.__omniYLastPageY == null) this.__omniYLastPageY = event.pageY;
+            const dy = event.pageY - this.__omniYLastPageY;
+            this.__omniYLastPageY = event.pageY;
+            const cur = yAxis.getRange?.();
+            if (cur && dy !== 0) {
+              const scale = 1 + dy / AXIS_DRAG_Y_PX;
+              const newRange = cur.range * Math.max(scale, 0.05);
+              const difRange = (newRange - cur.range) / 2;
+              const newFrom = cur.from - difRange;
+              const newTo = cur.to + difRange;
+              const newRealFrom = yAxis.convertToRealValue(newFrom);
+              const newRealTo = yAxis.convertToRealValue(newTo);
+              yAxis.setAutoCalcTickFlag?.(false);
+              yAxis.setRange({
+                from: newFrom,
+                to: newTo,
+                range: newRange,
+                realFrom: newRealFrom,
+                realTo: newRealTo,
+                realRange: newRealTo - newRealFrom,
+              });
+              this._chart.adjustPaneViewport(false, true, true, true);
+            }
+          }
+        } else {
+          this._chart.updatePane(1);
+        }
+        return true;
+      }
+      return origPressedMove(e);
+    };
+  }
+
+  const origTouchStart = ev.touchStartEvent?.bind(ev);
+  if (origTouchStart) {
+    ev.touchStartEvent = function (e) {
+      const hit = origFind(e);
+      this._mouseDownWidget = hit?.widget ?? null;
+      return origTouchStart(e);
+    };
+  }
+  const origTouchEnd = ev.touchEndEvent?.bind(ev);
+  if (origTouchEnd) {
+    ev.touchEndEvent = function (e) {
+      const result = origTouchEnd(e);
+      this._mouseDownWidget = null;
+      return result;
+    };
+  }
+
+  // Document mousemove while drawing so preview continues outside the chart
+  const syn = ev._event;
+  if (!syn?._target) return;
+
+  const docEl = syn._target.ownerDocument.documentElement;
+  let docMoveHandler = null;
+
+  const stopDrawingDocMove = () => {
+    if (!docMoveHandler) return;
+    docEl.removeEventListener('mousemove', docMoveHandler, true);
+    docMoveHandler = null;
+  };
+
+  const startDrawingDocMove = () => {
+    if (docMoveHandler) return;
+    docMoveHandler = (moveEvent) => {
+      const store = getOverlayStore();
+      if (!store?.isDrawing()) {
+        stopDrawingDocMove();
+        return;
+      }
+      if (syn._target.contains(moveEvent.target)) return;
+      if (syn._mousePressed) return;
+      syn._mouseMoveHandler(moveEvent);
+    };
+    docEl.addEventListener('mousemove', docMoveHandler, true);
+  };
+
+  if (typeof chart.createOverlay === 'function') {
+    const origCreateOverlay = chart.createOverlay.bind(chart);
+    chart.createOverlay = (...args) => {
+      const result = origCreateOverlay(...args);
+      queueMicrotask(() => {
+        if (getOverlayStore()?.isDrawing()) startDrawingDocMove();
+      });
+      return result;
+    };
+  }
+
+  const origMouseMoveEvent = ev.mouseMoveEvent?.bind(ev);
+  if (origMouseMoveEvent) {
+    ev.mouseMoveEvent = function (e) {
+      if (getOverlayStore()?.isDrawing()) startDrawingDocMove();
+      return origMouseMoveEvent(e);
+    };
+  }
+
+  const origMouseClickEvent = ev.mouseClickEvent?.bind(ev);
+  if (origMouseClickEvent) {
+    ev.mouseClickEvent = function (e) {
+      const result = origMouseClickEvent(e);
+      if (getOverlayStore()?.isDrawing()) startDrawingDocMove();
+      else stopDrawingDocMove();
+      return result;
+    };
+  }
+}
+
 let _vol_registered = false;
 if (!_vol_registered) {
   _vol_registered = true;
@@ -49,7 +249,6 @@ if (!_vol_registered) {
               isUp: edge.close >= edge.open
             }
           };
-          // RAF-throttle: only dispatch once per animation frame to avoid flooding
           if (!window.__omniduck_raf_pending) {
             window.__omniduck_raf_pending = true;
             requestAnimationFrame(() => {
@@ -74,9 +273,6 @@ if (!_vol_registered) {
   } catch(e) {}
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   REGISTER INDICATOR: CUSTOM_SAR  
-════════════════════════════════════════════════════════════════════ */
 let _sar_registered = false;
 if (!_sar_registered) {
   _sar_registered = true;
@@ -126,9 +322,6 @@ if (!_sar_registered) {
   } catch(e) {}
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   REGISTER INDICATOR: BOLL_CUSTOM 
-════════════════════════════════════════════════════════════════════ */
 let _boll_registered = false;
 if (!_boll_registered) {
   _boll_registered = true;
@@ -189,9 +382,132 @@ if (!_boll_registered) {
   } catch(e) {}
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   STATIC DATA
-════════════════════════════════════════════════════════════════════ */
+function softenDrawColor(color, alpha = 0.42) {
+  if (!color) return `rgba(234,179,8,${alpha})`;
+  const raw = String(color).trim();
+  const rgb = raw.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (rgb) return `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${alpha})`;
+  const h = raw.replace('#', '');
+  if (h.length < 6) return raw;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return raw;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function axisProjectionFigures(coordinates, bounding, overlay, { skipHorizontal = false, skipVertical = false } = {}) {
+  if (!coordinates?.length || !bounding) return [];
+  const color = softenDrawColor(overlay?.styles?.line?.color || '#EAB308', 0.45);
+  const dashStyle = { style: 'dashed', color, size: 1, dashedValue: [5, 4] };
+  const figs = [];
+  coordinates.forEach((c) => {
+    if (c?.x == null || c?.y == null) return;
+    if (!skipHorizontal) {
+      figs.push({
+        type: 'line',
+        ignoreEvent: true,
+        styles: dashStyle,
+        attrs: { coordinates: [{ x: c.x, y: c.y }, { x: bounding.width, y: c.y }] },
+      });
+    }
+    if (!skipVertical) {
+      figs.push({
+        type: 'line',
+        ignoreEvent: true,
+        styles: dashStyle,
+        attrs: { coordinates: [{ x: c.x, y: c.y }, { x: c.x, y: bounding.height }] },
+      });
+    }
+  });
+  return figs;
+}
+
+function linearYFromCoordinates(c0, c1, targetX) {
+  if (c1.x === c0.x) return c0.y;
+  return c0.y + ((c1.y - c0.y) / (c1.x - c0.x)) * (targetX - c0.x);
+}
+
+let _drawOverlaysRegistered = false;
+if (!_drawOverlaysRegistered) {
+  _drawOverlaysRegistered = true;
+  try {
+    registerOverlay({
+      name: 'segment',
+      totalStep: 3,
+      needDefaultPointFigure: true,
+      needDefaultXAxisFigure: true,
+      needDefaultYAxisFigure: true,
+      createPointFigures: ({ coordinates, bounding, overlay }) => {
+        const figs = [];
+        if (coordinates.length === 2) {
+          figs.push({ type: 'line', attrs: { coordinates } });
+        }
+        figs.push(...axisProjectionFigures(coordinates, bounding, overlay));
+        return figs;
+      },
+    });
+    registerOverlay({
+      name: 'straightLine',
+      totalStep: 3,
+      needDefaultPointFigure: true,
+      needDefaultXAxisFigure: true,
+      needDefaultYAxisFigure: true,
+      createPointFigures: ({ coordinates, bounding, overlay }) => {
+        const figs = [];
+        if (coordinates.length === 2) {
+          if (coordinates[0].x === coordinates[1].x) {
+            figs.push({
+              type: 'line',
+              attrs: {
+                coordinates: [
+                  { x: coordinates[0].x, y: 0 },
+                  { x: coordinates[0].x, y: bounding.height },
+                ],
+              },
+            });
+          } else {
+            figs.push({
+              type: 'line',
+              attrs: {
+                coordinates: [
+                  { x: 0, y: linearYFromCoordinates(coordinates[0], coordinates[1], 0) },
+                  { x: bounding.width, y: linearYFromCoordinates(coordinates[0], coordinates[1], bounding.width) },
+                ],
+              },
+            });
+          }
+        }
+        figs.push(...axisProjectionFigures(coordinates, bounding, overlay));
+        return figs;
+      },
+    });
+    registerOverlay({
+      name: 'horizontalStraightLine',
+      totalStep: 2,
+      needDefaultPointFigure: true,
+      needDefaultXAxisFigure: true,
+      needDefaultYAxisFigure: true,
+      createPointFigures: ({ coordinates, bounding, overlay }) => {
+        const figs = [];
+        if (coordinates.length > 0) {
+          figs.push({
+            type: 'line',
+            attrs: {
+              coordinates: [
+                { x: 0, y: coordinates[0].y },
+                { x: bounding.width, y: coordinates[0].y },
+              ],
+            },
+          });
+          figs.push(...axisProjectionFigures(coordinates, bounding, overlay, { skipHorizontal: true }));
+        }
+        return figs;
+      },
+    });
+  } catch (e) { /* already registered / hot reload */ }
+}
+
 const MAIN_INDICATORS = [
   { key:'MA',          label:'MA — Đường trung bình' },
   { key:'EMA',         label:'EMA — Trung bình mũ' },
@@ -234,13 +550,62 @@ const CHART_TYPES = [
   {id:'area',             label:'Biểu đồ Vùng'},
   {id:'heikin_ashi',      label:'Heikin Ashi'},
 ];
-const OVERLAY_COLORS = ['#8B5CF6','#A855F7','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
+const OVERLAY_COLORS_VIOLET = ['#8B5CF6','#A855F7','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
+const OVERLAY_COLORS_YELLOW = ['#EAB308','#FACC15','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
 const STROKE_SIZES   = [1,2,3,4];
 
-/* ════════════════════════════════════════════════════════════════════
-   COMPONENT
-════════════════════════════════════════════════════════════════════ */
-export default React.memo(function TradingChart({ data, theme, onIntervalChange, currentInterval, isMini = false, suppressResizeRef = null }) {
+/** Accent: crypto=violet, vnstock/derivatives=yellow */
+const ACCENT = {
+  violet: {
+    solid: 'bg-violet-600',
+    solidText: 'text-white',
+    solidBorder: 'border-violet-600',
+    idleBorder: 'border-violet-500/30',
+    idleText: 'text-violet-400',
+    idleTextLight: 'text-violet-600',
+    hoverSolid: 'hover:bg-violet-600 hover:text-white hover:border-violet-600',
+    rowHover: 'hover:bg-violet-600/80 hover:text-white',
+    toolIdleDark: 'text-slate-500 hover:bg-white/8 hover:text-violet-400',
+    toolIdleLight: 'text-slate-500 hover:bg-violet-500/20 hover:text-violet-700',
+    toolShadow: 'shadow-md shadow-violet-600/30',
+    strokeIdleDark: 'text-slate-400 hover:text-violet-400',
+    strokeIdleLight: 'text-slate-500 hover:text-violet-600',
+    selectedTextDark: 'text-violet-400',
+    selectedTextLight: 'text-violet-600',
+    defaultOverlay: '#8B5CF6',
+    overlayColors: OVERLAY_COLORS_VIOLET,
+  },
+  yellow: {
+    solid: 'bg-yellow-500',
+    solidText: 'text-black',
+    solidBorder: 'border-yellow-500',
+    idleBorder: 'border-yellow-500/35',
+    idleText: 'text-yellow-400',
+    idleTextLight: 'text-yellow-600',
+    hoverSolid: 'hover:bg-yellow-500 hover:text-black hover:border-yellow-500',
+    rowHover: 'hover:bg-yellow-500/90 hover:text-black',
+    toolIdleDark: 'text-slate-500 hover:bg-white/8 hover:text-yellow-400',
+    toolIdleLight: 'text-slate-500 hover:bg-yellow-500/20 hover:text-yellow-700',
+    toolShadow: 'shadow-md shadow-yellow-500/30',
+    strokeIdleDark: 'text-slate-400 hover:text-yellow-400',
+    strokeIdleLight: 'text-slate-500 hover:text-yellow-600',
+    selectedTextDark: 'text-yellow-400',
+    selectedTextLight: 'text-yellow-600',
+    defaultOverlay: '#EAB308',
+    overlayColors: OVERLAY_COLORS_YELLOW,
+  },
+};
+
+export default React.memo(function TradingChart({
+  data,
+  theme,
+  onIntervalChange,
+  currentInterval,
+  isMini = false,
+  suppressResizeRef = null,
+  accent = 'violet',
+}) {
+  const A = ACCENT[accent] || ACCENT.violet;
   const chartContainerRef   = useRef(null);
   const chartInstance       = useRef(null);
   const topBarRef           = useRef(null);
@@ -252,7 +617,7 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   const activeToolRef       = useRef('select');
   const strokeSizeRef       = useRef(2);
   const strokeStyleRef      = useRef('solid');
-  const overlayColorRef     = useRef('#8B5CF6');
+  const overlayColorRef     = useRef(A.defaultOverlay);
 
   const [interval,          setInterval]          = useState(currentInterval || '1 ngày');
   const [showIntervalMenu,  setShowIntervalMenu]   = useState(false);
@@ -263,18 +628,24 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   const [activeMain,        setActiveMain]         = useState([]);
   const [activeSub,         setActiveSub]          = useState(['VOL']);
   const [activeOverlay,     setActiveOverlay]      = useState(null);
-  const [overlayColor,      setOverlayColor]       = useState('#8B5CF6');
+  const [overlayColor,      setOverlayColor]       = useState(A.defaultOverlay);
   const [strokeSize,        setStrokeSize]         = useState(2);
   const [strokeStyle,       setStrokeStyle]        = useState('solid');
   const [activeTool,        setActiveTool]         = useState('select');
 
   const isDark = theme === 'dark';
+  const anyMenuOpen = showIntervalMenu || showTypeMenu || showIndicatorMenu || showStrokePanel;
+
+  useEffect(() => {
+    const next = (ACCENT[accent] || ACCENT.violet).defaultOverlay;
+    setOverlayColor(next);
+    overlayColorRef.current = next;
+  }, [accent]);
 
    useEffect(() => { overlayColorRef.current = overlayColor; }, [overlayColor]);
   useEffect(() => { strokeSizeRef.current   = strokeSize;   }, [strokeSize]);
   useEffect(() => { strokeStyleRef.current  = strokeStyle;  }, [strokeStyle]);
 
-  // Đồng bộ khung thời gian hiển thị trên toolbar với khung do tab cha chọn
   useEffect(() => {
     if (currentInterval && currentInterval !== interval) setInterval(currentInterval);
   }, [currentInterval]);
@@ -286,6 +657,8 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   const handleScrollLeft  = useCallback(() => chartInstance.current?.scrollByDistance(chartInstance.current.getBarSpace()), []);
   const handleScrollRight = useCallback(() => chartInstance.current?.scrollByDistance(-chartInstance.current.getBarSpace()), []);
   const handleResetChart  = useCallback(() => { chartInstance.current?.setBarSpace(6); chartInstance.current?.scrollToRealTime(); }, []);
+  const handleZoomIn  = useCallback(() => chartInstance.current?.zoomAtCoordinate?.(1), []);
+  const handleZoomOut = useCallback(() => chartInstance.current?.zoomAtCoordinate?.(-1), []);
   const interactivePaneOptions = useCallback((id, height) => ({
     id,
     ...(height ? { height } : {}),
@@ -293,8 +666,68 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     dragEnabled: true,
     axisOptions: { scrollZoomEnabled: true }
   }), []);
-  /* ── activate a drawing tool ─────────────────────── */
- 
+  const buildOverlayStyles = useCallback((color, size, style) => {
+    const hex = String(color || '#EAB308').replace('#', '');
+    let textColor = '#FFFFFF';
+    if (hex.length >= 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      textColor = lum > 0.62 ? '#0F172A' : '#FFFFFF';
+    }
+    const label = {
+      color: textColor,
+      backgroundColor: color,
+      borderColor: color,
+      borderSize: 1,
+      borderRadius: 3,
+      size: 11,
+      family: 'Inter, sans-serif',
+      weight: '600',
+      paddingLeft: 6,
+      paddingRight: 6,
+      paddingTop: 3,
+      paddingBottom: 3,
+    };
+    return {
+      line: { color, size, style },
+      polygon: { style: 'stroke_fill', color, borderColor: color, fill: { color: `${color}18` } },
+      arc: { style: 'stroke_fill', color, size },
+      point: {
+        color,
+        borderColor: `${color}80`,
+        activeColor: color,
+        activeBorderColor: `${color}cc`,
+      },
+      text: label,
+      rectText: label,
+    };
+  }, []);
+
+  // removeOverlay() with no id clears ALL drawings — cancel progress by id only
+  const cancelProgressOverlay = useCallback(() => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+    try {
+      const id = chart.getChartStore?.().getOverlayStore?.().getProgressInstanceInfo?.()?.instance?.id;
+      if (id) chart.removeOverlay({ id });
+    } catch { /* ignore */ }
+  }, []);
+
+  const applyStylesToProgressOverlay = useCallback((color, size, style) => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+    const styles = buildOverlayStyles(color, size, style);
+    try {
+      const store = chart.getChartStore?.().getOverlayStore?.();
+      const progressId = store?.getProgressInstanceInfo?.()?.instance?.id;
+      if (progressId) {
+        chart.overrideOverlay({ id: progressId, styles });
+      }
+    } catch { /* ignore */ }
+  }, [buildOverlayStyles]);
+
   const spawnOverlay = useCallback((toolName) => {
     if (!chartInstance.current) return;
     const color = overlayColorRef.current;
@@ -304,14 +737,8 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     chartInstance.current.createOverlay({
       name: toolName,
       lock: false,
-      styles: {
-         line:    { color, size, style },
-        polygon: { style: 'stroke_fill', color, fill: { color: `${color}18` } },
-        arc:     { style: 'stroke_fill', color, fill: { color: `${color}18` } },
-        point:   { color, borderColor: `${color}50`, activeColor: color, activeBorderColor: `${color}99` },
-        text:    { color, size: size + 12, family: 'Inter, sans-serif', weight: 'bold' }
-      },
-      onDrawEnd: (event) => {
+      styles: buildOverlayStyles(color, size, style),
+      onDrawEnd: () => {
         setTimeout(() => {
           if (activeToolRef.current === toolName) spawnOverlay(toolName);
         }, 80);
@@ -320,16 +747,35 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
       onSelected:   (info) => { if (info) setActiveOverlay({ id: info.overlay?.id || info.id }); },
       onDeselected: () => setActiveOverlay(null)
     });
-  }, []);
+  }, [buildOverlayStyles]);
 
   const handleActivateTool = useCallback((toolName) => {
+    cancelProgressOverlay();
     activeToolRef.current = toolName;
     setActiveTool(toolName);
+    setActiveOverlay(null);
     if (toolName === 'select') return;
     spawnOverlay(toolName);
-  }, [spawnOverlay]);
+  }, [cancelProgressOverlay, spawnOverlay]);
 
-  /* ── toggle indicator ─────────────────────────────── */
+  const handleOverlayColorChange = useCallback((hex) => {
+    setOverlayColor(hex);
+    overlayColorRef.current = hex;
+    applyStylesToProgressOverlay(hex, strokeSizeRef.current, strokeStyleRef.current);
+  }, [applyStylesToProgressOverlay]);
+
+  const handleStrokeSizeChange = useCallback((s) => {
+    setStrokeSize(s);
+    strokeSizeRef.current = s;
+    applyStylesToProgressOverlay(overlayColorRef.current, s, strokeStyleRef.current);
+  }, [applyStylesToProgressOverlay]);
+
+  const handleStrokeStyleChange = useCallback((val) => {
+    setStrokeStyle(val);
+    strokeStyleRef.current = val;
+    applyStylesToProgressOverlay(overlayColorRef.current, strokeSizeRef.current, val);
+  }, [applyStylesToProgressOverlay]);
+
   const toggleIndicator = useCallback((name, isMain) => {
     if (!chartInstance.current) return;
     if (isMain) {
@@ -353,13 +799,11 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     }
   }, [activeMain, activeSub, interactivePaneOptions]);
 
-  /* ══════════════════════════════════════════════════════
-     EFFECT 
-  ══════════════════════════════════════════════════════ */
   useEffect(() => {
     if (!chartContainerRef.current) return;
     if (!chartInstance.current) {
       chartInstance.current = init(chartContainerRef.current);
+      patchKlineDragCapture(chartInstance.current);
       chartInstance.current.setScrollEnabled(true);
       chartInstance.current.setZoomEnabled(true);
       chartInstance.current.setPaneOptions(interactivePaneOptions('candle_pane'));
@@ -476,7 +920,29 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
           activeColor:'#FF9600', activeBorderColor:'rgba(255,150,0,0.5)', activeBorderSize:3, activeRadius:5
         },
         line:    { color:'#FF9600', size:2 },
-        polygon: { style:'stroke_fill', color:'#FF9600', fill:{ color:'rgba(255,150,0,0.08)' } }
+        polygon: { style:'stroke_fill', color:'#FF9600', fill:{ color:'rgba(255,150,0,0.08)' } },
+        text: {
+          color: '#F8FAFC',
+          size: 11,
+          family: 'Inter, sans-serif',
+          weight: '600',
+          backgroundColor: isDark ? 'rgba(15,23,42,0.92)' : 'rgba(15,23,42,0.88)',
+          borderColor: '#FF9600',
+          borderSize: 1,
+          borderRadius: 3,
+          paddingLeft: 6, paddingRight: 6, paddingTop: 3, paddingBottom: 3,
+        },
+        rectText: {
+          color: '#F8FAFC',
+          size: 11,
+          family: 'Inter, sans-serif',
+          weight: '600',
+          backgroundColor: isDark ? 'rgba(15,23,42,0.92)' : 'rgba(15,23,42,0.88)',
+          borderColor: '#FF9600',
+          borderSize: 1,
+          borderRadius: 3,
+          paddingLeft: 6, paddingRight: 6, paddingTop: 3, paddingBottom: 3,
+        },
       }
     });
 
@@ -484,13 +950,9 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     chart.subscribeAction('onZoom',   () => setActiveOverlay(null));
   }, [theme, isDark, chartType, interactivePaneOptions]);
 
-  /* ══════════════════════════════════════════════════════
-     EFFECT: resize + cleanup (debounced để tránh lag)
-  ══════════════════════════════════════════════════════ */
   useEffect(() => {
     let rafId = null;
     const ro = new ResizeObserver(() => {
-      // Dùng requestAnimationFrame để batch resize, tránh gọi liên tục gây lag
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         if (suppressResizeRef?.current) return;
@@ -509,9 +971,6 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
   }, []);
 
 
-  /* ══════════════════════════════════════════════════════
-     EFFECT: load data
-  ══════════════════════════════════════════════════════ */
   useEffect(() => {
     if (!chartInstance.current || !data?.length) return;
     const formatted = data.map(d => {
@@ -550,15 +1009,11 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     const isNew=!cur.length||(cur[0]&&display[0]&&cur[0].timestamp!==display[0].timestamp)||Math.abs(cur.length-display.length)>5;
     if (isNew) chartInstance.current.applyNewData(display);
     else       chartInstance.current.updateData(display[display.length-1]);
-    // Use RAF so the chart has time to render before we ask for pixel positions
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event('omniduck_update_dual_tags'));
     });
   }, [data, chartType]);
 
-  /* ══════════════════════════════════════════════════════
-     EFFECT: top bar OHLCV + indicator tooltip bar
-  ══════════════════════════════════════════════════════ */
   useEffect(() => {
     const fmtVol = (v) => v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v);
 
@@ -626,9 +1081,6 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     return () => { if (chartInstance.current) chartInstance.current.unsubscribeAction('onCrosshairChange', onCross); };
   }, [isDark, data]);
 
-  /* ══════════════════════════════════════════════════════
-     EFFECT: dual price/vol edge labels
-  ══════════════════════════════════════════════════════ */
   useEffect(() => {
     const fmt  = (v) => v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v);
     const fmtP = (p) => Number.isInteger(p)?p.toString():p.toFixed(2);
@@ -663,9 +1115,6 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
     return () => window.removeEventListener('omniduck_update_dual_tags', update);
   }, [isDark]);
 
-  /* ══════════════════════════════════════════════════════
-     EFFECT: keyboard
-  ══════════════════════════════════════════════════════ */
   useEffect(() => {
     const onKey = (e) => {
       if (document.activeElement?.tagName==='INPUT') return;
@@ -676,41 +1125,46 @@ export default React.memo(function TradingChart({ data, theme, onIntervalChange,
       if (e.key==='Escape') {
         setShowIntervalMenu(false); setShowTypeMenu(false);
         setShowIndicatorMenu(false); setShowStrokePanel(false);
+        try {
+          const id = chartInstance.current?.getChartStore?.().getOverlayStore?.().getProgressInstanceInfo?.()?.instance?.id;
+          if (id) chartInstance.current.removeOverlay({ id });
+        } catch { /* ignore */ }
         activeToolRef.current='select';
         setActiveTool('select');
+        setActiveOverlay(null);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [activeOverlay]);
 
-  /* ════════════════════════════════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════════════════════════════════ */
-/*FIX 5: bg solid does not penetrate — use bg-[#0D1117] instead of opacity */  
-const menuBase = React.useMemo(() =>
+  // Dropdown z-index above OHLCV overlays
+  const menuBase = React.useMemo(() =>
   `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow-2xl py-2 overflow-y-auto max-h-[280px] z-[9999] ${isDark?'bg-[#0D1117] border-white/10':'bg-white border-slate-200'}`,
   [isDark]);
   
 const rowBtn = React.useCallback((active) =>
-  `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?'bg-violet-600 text-white':(isDark?'text-slate-300 hover:bg-violet-600/80 hover:text-white':'text-slate-700 hover:bg-violet-600/80 hover:text-white')}`,
-  [isDark]);
+  `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?`${A.solid} ${A.solidText}`:(isDark?`text-slate-300 ${A.rowHover}`:`text-slate-700 ${A.rowHover}`)}`,
+  [isDark, A]);
+
+  const tbBtn = (open) => open
+    ? `${A.solid} ${A.solidText} ${A.solidBorder}`
+    : (isDark
+      ? `bg-[#10151C] ${A.idleBorder} ${A.idleText} ${A.hoverSolid}`
+      : `bg-white border-slate-300 text-slate-700 ${A.hoverSolid}`);
 
   return (
-    <div className="w-full h-full relative flex flex-col" onClick={closeAllMenus}>
+    <div className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-[80]' : ''}`} onClick={closeAllMenus}>
 
-      {/* ── TOP TOOLBAR ──────────────────────────────────────── */}
       {!isMini && (
         <div
-          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[20] flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[200] overflow-visible flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
           onClick={e => e.stopPropagation()}
         >
-        {/* INTERVAL */}
-        <div className="relative z-[99]">
+        <div className="relative z-[210]">
           <button
             onClick={() => { setShowIntervalMenu(v=>!v); setShowTypeMenu(false); setShowIndicatorMenu(false); setShowStrokePanel(false); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
-              ${showIntervalMenu?'bg-violet-600 text-white border-violet-600':(isDark?'bg-[#10151C] border-violet-500/30 text-violet-400 hover:bg-violet-600 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-violet-600 hover:text-white hover:border-violet-600')}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIntervalMenu)}`}
           >
             <Clock size={13}/> {interval} <ChevronDown size={12} className={showIntervalMenu?'rotate-180':''}/>
           </button>
@@ -733,12 +1187,10 @@ const rowBtn = React.useCallback((active) =>
           )}
         </div>
 
-        {/* CHART TYPE */}
-        <div className="relative z-[100]">
+        <div className="relative z-[210]">
           <button
             onClick={()=>{setShowTypeMenu(v=>!v);setShowIndicatorMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
-              ${showTypeMenu?'bg-violet-600 text-white border-violet-600':(isDark?'bg-[#10151C] border-violet-500/30 text-violet-400 hover:bg-violet-600 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-violet-600 hover:text-white hover:border-violet-600')}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showTypeMenu)}`}
           >
             <BarChart2 size={13}/>
             {{candle_solid:'Nến Đặc',candle_up_stroke:'Nến Rỗng',candle_stroke:'Nến Viền',ohlc:'Thanh',area:'Vùng',heikin_ashi:'Heikin Ashi'}[chartType]||'Nến'}
@@ -748,7 +1200,7 @@ const rowBtn = React.useCallback((active) =>
             <div className={`${menuBase} w-48`}>
               {CHART_TYPES.map(tp=>(
                 <button key={tp.id} onClick={()=>{setChartType(tp.id);setShowTypeMenu(false);}}
-                  className={`w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${chartType===tp.id?'bg-violet-600 text-white':(isDark?'text-slate-300 hover:bg-violet-600/80 hover:text-white':'text-slate-700 hover:bg-violet-600/80 hover:text-white')}`}>
+                  className={rowBtn(chartType===tp.id)}>
                   {tp.label}{chartType===tp.id&&<Check size={12}/>}
                 </button>
               ))}
@@ -756,12 +1208,10 @@ const rowBtn = React.useCallback((active) =>
           )}
         </div>
 
-        {/* INDICATORS */}
-        <div className="relative z-[100]">
+        <div className="relative z-[210]">
           <button
             onClick={()=>{setShowIndicatorMenu(v=>!v);setShowTypeMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all
-              ${showIndicatorMenu?'bg-violet-600 text-white border-violet-600':(isDark?'bg-[#10151C] border-violet-500/30 text-violet-400 hover:bg-violet-600 hover:text-white':'bg-white border-slate-300 text-slate-700 hover:bg-violet-600 hover:text-white hover:border-violet-600')}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIndicatorMenu)}`}
           >
             <Settings2 size={13}/> Chỉ Báo <ChevronDown size={12} className={showIndicatorMenu?'rotate-180':''}/>
           </button>
@@ -784,24 +1234,22 @@ const rowBtn = React.useCallback((active) =>
           )}
         </div>
 
-        {/* COLOR + STROKE */}
         <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
           <span className={`text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>Màu:</span>
-          {OVERLAY_COLORS.map(hex=>(
-            <button key={hex} onClick={()=>setOverlayColor(hex)}
+          {A.overlayColors.map(hex=>(
+            <button key={hex} onClick={()=>handleOverlayColorChange(hex)}
               className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${overlayColor===hex?'ring-1 ring-offset-1':''}`}
               style={{ backgroundColor:hex, borderColor:overlayColor===hex?(isDark?'#fff':'#1f2937'):'transparent' }}
             />
           ))}
-          <div className="relative ml-1">
+          <div className="relative ml-1 z-[210]">
             <button
               onClick={e=>{e.stopPropagation();setShowStrokePanel(v=>!v);}}
               title="Tùy chỉnh nét vẽ"
-              className={`p-1 rounded-lg transition-all ${showStrokePanel?'bg-violet-600 text-white':(isDark?'text-slate-400 hover:text-violet-400':'text-slate-500 hover:text-violet-600')}`}
+              className={`p-1 rounded-lg transition-all ${showStrokePanel?`${A.solid} ${A.solidText}`:(isDark?A.strokeIdleDark:A.strokeIdleLight)}`}
             >
               <SlidersHorizontal size={14}/>
             </button>
-            {/* FIX 5: bg solid without piercing chart — bg-[#0D1117] absolute */}
             {showStrokePanel && (
               <div
                 className={`absolute top-[calc(100%+8px)] right-0 w-52 p-3 rounded-2xl border z-[9999] ${isDark?'bg-[#0D1117] border-white/15':'bg-white border-slate-200'}`}
@@ -811,18 +1259,17 @@ const rowBtn = React.useCallback((active) =>
                 <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>Độ dày nét</p>
                 <div className="flex gap-2 mb-3">
                   {STROKE_SIZES.map(s=>(
-                    <button key={s} onClick={()=>setStrokeSize(s)}
-                      className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize===s?'bg-violet-600 text-white':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
+                    <button key={s} onClick={()=>handleStrokeSizeChange(s)}
+                      className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize===s?`${A.solid} ${A.solidText}`:(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
                       <div style={{height:`${s+1}px`,width:'24px',background:'currentColor',borderRadius:1}}/>
                       {s}px
                     </button>
                   ))}
                 </div>
                 <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>Kiểu nét</p>
-                {/* FIX 4: SVG preview chính xác */}
                 {STROKE_STYLES.map(s=>(
-                  <button key={s.val} onClick={()=>setStrokeStyle(s.val)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle===s.val?'bg-violet-600 text-white':(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
+                  <button key={s.val} onClick={()=>handleStrokeStyleChange(s.val)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle===s.val?`${A.solid} ${A.solidText}`:(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
                     <svg width="32" height="8" viewBox="0 0 32 8">
                       {s.val==='solid'  && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2"/>}
                       {s.val==='dashed' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="6 3"/>}
@@ -839,43 +1286,48 @@ const rowBtn = React.useCallback((active) =>
       </div>
       )}
 
-      {/* ── CHART AREA + SIDEBAR ─────────────────────────── */}
-      <div className="flex-1 flex flex-row relative min-h-0 rounded-2xl overflow-hidden border border-white/5">
+      <div className="flex-1 flex flex-row relative min-h-0 rounded-2xl overflow-hidden border border-white/5 z-0">
 
-        {/* SIDEBAR TOOLS */}
         {!isMini && (
-          <div className={`w-12 shrink-0 border-r flex flex-col items-center py-3 gap-1 z-[50] relative ${isDark?'bg-[#0B0F14] border-white/5':'bg-slate-50 border-slate-200'}`}>
+          <div className={`w-12 shrink-0 border-r flex flex-col items-center py-3 gap-1 z-[20] relative ${isDark?'bg-[#0B0F14] border-white/5':'bg-slate-50 border-slate-200'}`}>
             {DRAW_TOOLS.map(({ name, Icon, title }) => {
             const isActive = activeTool===name;
             return (
               <button key={name} title={title}
                 onClick={e=>{e.stopPropagation();handleActivateTool(name);}}
                 className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all
-                  ${isActive?'bg-violet-600 text-white shadow-md shadow-violet-600/30'
-                    :(isDark?'text-slate-500 hover:bg-white/8 hover:text-violet-400':'text-slate-500 hover:bg-violet-500/20 hover:text-violet-700')}`}
+                  ${isActive?`${A.solid} ${A.solidText} ${A.toolShadow}`
+                    :(isDark?A.toolIdleDark:A.toolIdleLight)}`}
               >
                 <Icon size={15}/>
               </button>
             );
           })}
           <div className={`w-7 h-px my-1 ${isDark?'bg-white/8':'bg-slate-200'}`}/>
-          <button title="Xóa đường đang chọn"
-            onClick={()=>{chartInstance.current?.removeOverlay();setActiveOverlay(null);}}
+          <button
+            title={activeOverlay?.id ? 'Xóa nét đang chọn' : 'Xóa tất cả nét vẽ'}
+            onClick={()=>{
+              if (activeOverlay?.id) {
+                chartInstance.current?.removeOverlay(activeOverlay.id);
+                setActiveOverlay(null);
+                return;
+              }
+              try { chartInstance.current?.removeOverlay(); } catch { /* ignore */ }
+              setActiveOverlay(null);
+            }}
             className="w-9 h-9 flex items-center justify-center rounded-xl transition-all text-red-500 hover:bg-red-500 hover:text-white">
             <Trash2 size={15}/>
           </button>
         </div>
         )}
-        {/* KLINECHARTS CONTAINER */}
         <div className="flex-1 relative w-full h-full overflow-hidden touch-none overscroll-contain">
           <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
 
-          {/* SELECTED OVERLAY BAR */}
           {activeOverlay && (
-            <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[99] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
-              <div className={`flex items-center gap-2 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>
+            <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[30] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
+              <div className={`flex items-center gap-2 ${isDark ? A.selectedTextDark : A.selectedTextLight}`}>
                 <Pencil size={12}/>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark?'text-violet-400':'text-violet-600'}`}>Đã chọn đường vẽ</span>
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark?A.selectedTextDark:A.selectedTextLight}`}>Đã chọn đường vẽ</span>
               </div>
               <div className={`w-px h-4 ${isDark?'bg-white/10':'bg-slate-200'}`}/>
               <button
@@ -887,21 +1339,40 @@ const rowBtn = React.useCallback((active) =>
             </div>
           )}
 
-          {/* TOP BAR OHLCV */}
-          {!isMini && <div ref={topBarRef} style={{position:'absolute',top:'8px',left:'12px',zIndex:50,pointerEvents:'none',fontSize:'11px',fontWeight:'600'}}/>} 
-          {/* INDICATOR VALUES BAR */}
-          {!isMini && <div ref={indicatorBarRef} style={{display:'none',position:'absolute',top:'36px',left:'12px',zIndex:50,pointerEvents:'none'}}/>}
-          {/* PRICE/VOL LABELS */}
+          {!isMini && <div ref={topBarRef} style={{position:'absolute',top:'8px',left:'12px',zIndex:10,pointerEvents:'none',fontSize:'11px',fontWeight:'600'}}/>} 
+          {!isMini && <div ref={indicatorBarRef} style={{display:'none',position:'absolute',top:'36px',left:'12px',zIndex:10,pointerEvents:'none'}}/>}
           <div ref={priceLabelLatestRef}/>
           <div ref={volLabelLatestRef}/>
           <div ref={priceLabelEdgeRef}/>
           <div ref={volLabelEdgeRef}/>
 
-          {/* SCROLL NAV */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-[99]">
-            <button onClick={handleScrollLeft}  title="Lùi"   className={`p-1.5 rounded-xl border backdrop-blur-md shadow-lg transition-all ${isDark?'bg-[#10151C]/80 border-white/10 text-slate-300 hover:text-white hover:bg-slate-800':'bg-white/80 border-slate-300 text-slate-600 hover:text-black hover:bg-slate-100'}`}><ChevronLeft size={15}/></button>
-            <button onClick={handleResetChart}  title="Reset" className={`p-1.5 rounded-xl border backdrop-blur-md shadow-lg transition-all ${isDark?'bg-[#10151C]/80 border-white/10 text-slate-300 hover:text-white hover:bg-slate-800':'bg-white/80 border-slate-300 text-slate-600 hover:text-black hover:bg-slate-100'}`}><RefreshCw size={15}/></button>
-            <button onClick={handleScrollRight} title="Tiến"  className={`p-1.5 rounded-xl border backdrop-blur-md shadow-lg transition-all ${isDark?'bg-[#10151C]/80 border-white/10 text-slate-300 hover:text-white hover:bg-slate-800':'bg-white/80 border-slate-300 text-slate-600 hover:text-black hover:bg-slate-100'}`}><ChevronRight size={15}/></button>
+          <div className="group/chartnav absolute bottom-8 left-1/2 -translate-x-1/2 z-[20] flex flex-col items-center pt-8 pb-1 px-3">
+            <div
+              className="flex items-center gap-1.5 opacity-0 translate-y-1
+                group-hover/chartnav:opacity-100 group-hover/chartnav:translate-y-0
+                transition-all duration-200"
+            >
+              {[
+                { title: 'Thu nhỏ', onClick: handleZoomOut, Icon: Minus },
+                { title: 'Phóng to', onClick: handleZoomIn, Icon: Plus },
+                { title: 'Lùi', onClick: handleScrollLeft, Icon: ChevronLeft },
+                { title: 'Tiến', onClick: handleScrollRight, Icon: ChevronRight },
+                { title: 'Reset', onClick: handleResetChart, Icon: RefreshCw },
+              ].map(({ title, onClick, Icon }) => (
+                <button
+                  key={title}
+                  type="button"
+                  title={title}
+                  onClick={(e) => { e.stopPropagation(); onClick(); }}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg border backdrop-blur-md shadow-lg transition-all
+                    ${isDark
+                      ? 'bg-[#10151C]/90 border-white/10 text-slate-300 hover:text-white hover:bg-slate-800'
+                      : 'bg-white/90 border-slate-300 text-slate-600 hover:text-black hover:bg-slate-100'}`}
+                >
+                  <Icon size={15} />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
