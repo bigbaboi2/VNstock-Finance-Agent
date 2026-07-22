@@ -9,6 +9,7 @@ import {
     updateAutoTradeSettings,
     getAutoTradeEnvConfig,
     updateAutoTradeEnvConfig,
+    exportLiveTradeStatsHandler,
     stopUserOrder,
     deleteUserOrder,
     getUsdRate,
@@ -40,5 +41,6 @@ router.get('/usd-rate', getUsdRate);
 router.post('/settings', updateAutoTradeSettings);
 router.get('/env-config', getAutoTradeEnvConfig);
 router.post('/env-config', updateAutoTradeEnvConfig);
+router.post('/export-live-stats', exportLiveTradeStatsHandler);
 
 export default router;
