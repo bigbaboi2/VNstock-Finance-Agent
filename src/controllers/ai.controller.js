@@ -918,11 +918,34 @@ export const getUserHistory = async (req, res) => {
                     historyList.push({
                         symbol: data.symbol, companyName: data.companyName, exchange: data.exchange,
                         timestamp: lastReport.timestamp, price: lastReport.price,
-                        changePercent: lastReport.changePercent, lastAction: lastReport.action
+                        changePercent: lastReport.changePercent, lastAction: lastReport.action,
+                        currentPrice: null, currentChangePercent: null,
                     });
                 }
             }
         });
+
+        // Live OHLC (1D) for each history symbol
+        const to = Math.floor(Date.now() / 1000);
+        const from = to - (5 * 24 * 60 * 60);
+        await Promise.all(historyList.map(async (item) => {
+            try {
+                const r = await axios.get(
+                    `https://services.entrade.com.vn/chart-api/v2/ohlcs/stock?from=${from}&to=${to}&symbol=${item.symbol}&resolution=1D`,
+                    { timeout: 5000 }
+                );
+                const c = r.data?.c || [];
+                if (c.length >= 2) {
+                    const last = c[c.length - 1];
+                    const prev = c[c.length - 2];
+                    item.currentPrice = last * 1000;
+                    item.currentChangePercent = parseFloat((((last - prev) / prev) * 100).toFixed(2));
+                } else if (c.length === 1) {
+                    item.currentPrice = c[0] * 1000;
+                    item.currentChangePercent = 0;
+                }
+            } catch (_) { /* giữ null nếu không lấy được giá live */ }
+        }));
 
         historyList.sort((a, b) => {
             const isAActive = a.lastAction === 'MUA' || a.lastAction === 'BÁN';

@@ -989,6 +989,7 @@ export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = nul
                                     <TradingChart
                                         data={chartData}
                                         theme={isDark ? 'dark' : 'light'}
+                                        accent="violet"
                                         onIntervalChange={handleIntervalChange}
                                         currentInterval={cryptoInterval}
                                     />

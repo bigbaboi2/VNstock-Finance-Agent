@@ -2453,7 +2453,7 @@ export default function VnStocksTab({
     const heightClass = embedded ? '' : 'shrink-0 min-h-0';
     return (
       <div className={`px-2 ${embedded ? 'pt-0' : 'pt-2'} ${embedded ? '' : 'shrink-0'}`}>
-        <div className={`w-full relative flex flex-col border rounded-2xl overflow-hidden ${
+        <div className={`w-full relative flex flex-col border rounded-2xl overflow-visible ${
           embedded ? '' : (!isDraggingChart ? 'transition-all duration-300' : '')
         } ${
           isDark
@@ -2463,12 +2463,12 @@ export default function VnStocksTab({
           <div
             ref={embedded ? chartWrapperEmbeddedRef : chartWrapperRef}
             style={heightStyle}
-            className={`w-full shrink-0 relative flex flex-col ${heightClass} ${isDark ? 'bg-[#0a0f18]' : 'bg-white'}`}
+            className={`w-full shrink-0 relative flex flex-col overflow-visible ${heightClass} ${isDark ? 'bg-[#0a0f18]' : 'bg-white'}`}
           >
             <TradingChart
-              key={isDark ? 'chart-dark' : 'chart-light'}
               data={chartData}
               theme={isDark ? 'dark' : 'light'}
+              accent="yellow"
               onIntervalChange={handleIntervalChange}
               currentInterval={activeInterval}
               suppressResizeRef={isReportReadingMode ? suppressChartResizeRef : null}
@@ -3347,10 +3347,20 @@ export default function VnStocksTab({
 
               <div className="grid grid-cols-1 gap-4">
                 {sortedHistory.map((item, idx) => {
-                    const changePercent = parseFloat(item.changePercent) || 0;
-                    const isUp = changePercent > 0;
-                    const isDown = changePercent < 0;
-                    const formattedPercent = Math.abs(changePercent).toFixed(2);
+                    const reportChange = parseFloat(item.changePercent) || 0;
+                    const liveChange = item.currentChangePercent != null ? parseFloat(item.currentChangePercent) : null;
+                    const hasLive = item.currentPrice != null && !Number.isNaN(Number(item.currentPrice));
+                    const liveUp = liveChange != null && liveChange > 0;
+                    const liveDown = liveChange != null && liveChange < 0;
+                    const reportPriceDisplay = typeof item.price === 'string'
+                      ? item.price
+                      : (Number(item.price) || 0).toLocaleString('vi-VN').replace(/,/g, '.');
+                    const livePriceDisplay = hasLive
+                      ? Number(item.currentPrice).toLocaleString('vi-VN').replace(/,/g, '.')
+                      : null;
+                    const reportDateStr = item.timestamp
+                      ? new Date(item.timestamp).toLocaleDateString('vi-VN')
+                      : '---';
                     return (
                       <div key={idx}
                         onClick={() => { setInput(item.symbol); fetchMarketData(item.symbol); }}
@@ -3363,22 +3373,65 @@ export default function VnStocksTab({
                         }`} />
                         <div className="flex flex-row items-center gap-3 lg:gap-6 min-w-0 flex-1 ml-2">
                           <div className="flex-1 flex flex-col items-start gap-y-0.5 min-w-0 pr-4">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <h3 className={`text-xl font-black tracking-tighter text-yellow-400 ${UI.textBold}`}>{item.symbol}</h3>
-                              <span className="text-[10px] font-bold text-slate-600 uppercase">/ {item.exchange}</span>
+                              {item.exchange && (
+                                <span className={`px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-widest border ${
+                                  String(item.exchange).toUpperCase() === 'HOSE'
+                                    ? 'bg-red-500/15 text-red-400 border-red-500/35'
+                                    : String(item.exchange).toUpperCase() === 'HNX'
+                                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/35'
+                                    : 'bg-amber-500/15 text-amber-400 border-amber-500/35'
+                                }`}>
+                                  {item.exchange}
+                                </span>
+                              )}
                             </div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase whitespace-normal leading-tight">{item.companyName || 'N/A'}</p>
+                            <p className={`text-sm uppercase italic whitespace-normal leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{item.companyName || 'N/A'}</p>
                           </div>
-                          <div className="flex flex-col items-end gap-y-0.5 whitespace-nowrap">
-                            <p className={`text-lg font-black flex items-center gap-1.5 justify-end ${isUp ? 'text-emerald-500' : isDown ? 'text-red-500' : 'text-slate-400'}`}>
-                              {(item.price || 0).toLocaleString('vi-VN').replace(/,/g, '.')}
-                              <span className="text-[11px] font-bold flex items-center ml-0.5">
-                                {isUp && <ChevronUp size={14} className="mr-0.5" />}
-                                {isDown && <ChevronDown size={14} className="mr-0.5" />}
-                                ({formattedPercent}%)
-                              </span>
-                            </p>
-                            <p className="text-[9px] font-bold text-slate-500 italic">Cập nhật: {new Date(item.timestamp).toLocaleString('vi-VN')}</p>
+                          <div className="flex flex-col items-end gap-y-1 min-w-0">
+                            {hasLive ? (
+                              <>
+                                <p className={`text-[9px] uppercase tracking-widest font-black ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Giá hiện tại</p>
+                                <p className={`text-lg font-black flex items-center gap-1.5 justify-end leading-none whitespace-nowrap ${liveUp ? 'text-emerald-500' : liveDown ? 'text-red-500' : 'text-slate-400'}`}>
+                                  {livePriceDisplay}
+                                  {liveChange != null && (
+                                    <span className="text-[11px] font-bold flex items-center ml-0.5">
+                                      {liveUp && <ChevronUp size={14} className="mr-0.5" />}
+                                      {liveDown && <ChevronDown size={14} className="mr-0.5" />}
+                                      ({Math.abs(liveChange).toFixed(2)}%)
+                                    </span>
+                                  )}
+                                </p>
+                                <p className={`flex flex-wrap items-baseline justify-end gap-x-1.5 text-[11px] font-semibold leading-snug text-right mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  <span className="font-bold whitespace-nowrap">
+                                    {reportPriceDisplay}
+                                    {reportChange !== 0 && (
+                                      <span className={`ml-1 ${reportChange > 0 ? 'text-emerald-500/80' : reportChange < 0 ? 'text-red-500/80' : ''}`}>
+                                        ({reportChange > 0 ? '+' : ''}{reportChange.toFixed(2)}%)
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="text-[10px] font-medium opacity-80 whitespace-nowrap">
+                                    · Giá tại ngày xuất báo cáo ({reportDateStr})
+                                  </span>
+                                </p>
+                              </>
+                            ) : (
+                              <p className={`flex flex-wrap items-baseline justify-end gap-x-1.5 text-right`}>
+                                <span className={`text-lg font-black flex items-center gap-1.5 whitespace-nowrap ${reportChange > 0 ? 'text-emerald-500' : reportChange < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                  {reportPriceDisplay}
+                                  <span className="text-[11px] font-bold flex items-center ml-0.5">
+                                    {reportChange > 0 && <ChevronUp size={14} className="mr-0.5" />}
+                                    {reportChange < 0 && <ChevronDown size={14} className="mr-0.5" />}
+                                    ({Math.abs(reportChange).toFixed(2)}%)
+                                  </span>
+                                </span>
+                                <span className={`text-[10px] font-medium whitespace-nowrap ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                                  · Giá tại ngày xuất báo cáo ({reportDateStr})
+                                </span>
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-y-1.5 min-w-[110px] shrink-0 pl-4">
