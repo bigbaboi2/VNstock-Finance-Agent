@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getAutoDuckBoolean } from './autoDuckConfigService.js';
+import { appendHumanLogFromAudit } from './humanLogService.js';
 
 const DEFAULT_LOG_DIR = process.env.AUTODUCK_AUDIT_LOG_DIR || 'logs/autoduck';
 const ALGORITHM = 'aes-256-gcm';
@@ -17,6 +18,9 @@ const allowedChannels = new Set([
     'live_execution',
     'broker',
     'security',
+    'system',
+    'volatility',
+    'news',
 ]);
 
 const inMemoryTail = [];
@@ -101,6 +105,13 @@ export const appendAuditEvent = async (channel, payload = {}, meta = {}) => {
         payload,
     };
     pushTail(event);
+
+    // Plain-text twin for humans/AI (logs/autoduck/YYYY-MM-DD/autoduck.txt)
+    appendHumanLogFromAudit(safeChannel, payload, {
+        event: event.event,
+        level: event.level,
+        source: event.source,
+    }).catch(() => {});
 
     const { dir, file } = resolveDailyPath(safeChannel, now);
     const plain = safeJson(event);

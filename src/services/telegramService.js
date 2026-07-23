@@ -328,9 +328,7 @@ const sendTelegramMessage = async (message, { chatId: chatIdOverride, parseMode 
 const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {}, plan = null, liveMeta = null) => {
     const assetType = trade.assetType || '';
     const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
-    const dirIcon = isLong ? '📈' : '📉';
-    const assetIcon = assetType === 'CRYPTO' ? '🪙' : assetType === 'DERIVATIVES' ? '📊' : '🏢';
-    const statusLabel = trade.status === 'PENDING' ? ' ⏳ CHỜ MỞ CỬA' : '';
+    const statusLabel = trade.status === 'PENDING' ? ' · CHỜ PHIÊN' : '';
 
     const direction  = escapeMarkdownV2(trade.direction);
     const symbol     = escapeMarkdownV2(trade.symbol);
@@ -347,15 +345,10 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
         ? `${(rewardPct / riskPct).toFixed(2)}:1`
         : '--';
 
-    
     const investedVND  = Number(trade.investedAmount) || 0;
     const capitalLine  = investedVND > 0
-        ? `💼 *Vốn:* ${escapeMarkdownV2(formatVND(investedVND))} VNĐ`
+        ? `Vốn: ${escapeMarkdownV2(formatVND(investedVND))} VNĐ`
         : null;
-    const volumeLabel  = assetType === 'CRYPTO' ? `${trade.volume} coin`
-                       : assetType === 'DERIVATIVES' ? `${trade.volume} hợp đồng`
-                       : `${formatNumber(trade.volume, 0)} cổ phiếu`;
-    const volumeLine   = trade.volume ? `📦 *KL:* ${escapeMarkdownV2(volumeLabel)}` : null;
 
     const env = liveMeta?.environment || trade.environment || null;
     const exchangeName = liveMeta?.exchangeName || null;
@@ -366,7 +359,7 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
     if (exchangeName) liveTagParts.push(String(exchangeName));
     if (marketType === 'FUTURES') liveTagParts.push(`FUTURES ${leverage}x`);
     const liveTag = liveTagParts.length
-        ? ` \\[${escapeMarkdownV2(`LIVE ${liveTagParts.join(' · ')}`)}\\]`
+        ? ` \\[${escapeMarkdownV2(liveTagParts.join(' · '))}\\]`
         : '';
 
     const fillQty = liveMeta?.filledQuantity ?? liveMeta?.finalQty ?? trade.volume;
@@ -374,31 +367,28 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
     const orderSide = liveMeta?.orderSide || (isLong ? 'BUY' : 'SELL');
     const orderId = liveMeta?.externalOrderId || trade.externalOrderId;
     const username = liveMeta?.username || null;
-    const fillLine = (liveMeta || orderId)
-        ? [
-            `🟢 *Fill:* ${escapeMarkdownV2(orderSide)} ${escapeMarkdownV2(String(fillQty))} @ ${escapeMarkdownV2(formatPrice(fillPrice, assetType))}`,
-            orderId ? `🆔 *OrderID:* ${escapeMarkdownV2(String(orderId))}` : null,
-            username ? `👤 *User:* ${escapeMarkdownV2(String(username))}` : null,
-        ].filter(Boolean).join(' \\| ')
-        : null;
+    const fillBits = [];
+    if (liveMeta || orderId) {
+        fillBits.push(`Fill: ${escapeMarkdownV2(orderSide)} ${escapeMarkdownV2(String(fillQty))} @ ${escapeMarkdownV2(formatPrice(fillPrice, assetType))}`);
+        if (username) fillBits.push(`User: ${escapeMarkdownV2(String(username))}`);
+        if (orderId) fillBits.push(`ID: ${escapeMarkdownV2(String(orderId))}`);
+    }
+    const fillLine = fillBits.length ? fillBits.join(' \\| ') : null;
 
-    const lines = [
-        `${assetIcon} *LỆNH MỚI${statusLabel}*${liveTag}`,
+    const tpSl = `TP ${tpFmt} \\(${escapeMarkdownV2(rewardPct != null ? `+${rewardPct.toFixed(2)}%` : '--')}\\) · SL ${slFmt} \\(${escapeMarkdownV2(riskPct != null ? `-${riskPct.toFixed(2)}%` : '--')}\\) · R:R ${escapeMarkdownV2(rrRatio)}`;
+
+    return [
+        `✅ *LIVE MỞ${escapeMarkdownV2(statusLabel)}*${liveTag}`,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `*${symbol}* \\| ${direction}`,
+        `Entry: ${entryFmt}`,
+        tpSl,
         fillLine,
-        `🎯 *Mã:* ${symbol} \\| ${dirIcon} *${direction}*`,
-        `📍 *Entry:* ${entryFmt}`,
-        `✅ *TP:* ${tpFmt} \\(${escapeMarkdownV2(rewardPct != null ? `+${rewardPct.toFixed(2)}%` : '--')}\\)`,
-        `❌ *SL:* ${slFmt} \\(${escapeMarkdownV2(riskPct != null ? `-${riskPct.toFixed(2)}%` : '--')}\\)`,
-        `⚖️ *R:R:* ${escapeMarkdownV2(rrRatio)}`,
-        `🤖 *AI Score:* ${score}`,
         capitalLine,
-        volumeLine,
+        `AI: ${score}`,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
-        `📝 *Lý do:* ${reason}`,
+        reason,
     ].filter(Boolean).join('\n');
-
-    return lines;
 };
 
 const buildMarketRadarMessage = (radar = {}, meta = {}) => {
@@ -445,10 +435,40 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
         }
     }
 
+    // Snapshot quỹ LIVE ngắn gọn: Quỹ | PnL tích lũy | số lệnh mở theo thị trường
+    let fundLine = null;
+    const snap = meta.fundSnapshot;
+    if (snap && typeof snap === 'object') {
+        const open = snap.openByAsset || {};
+        const cryptoN = Number(open.CRYPTO) || 0;
+        const vnN = Number(open.VN_STOCK) || 0;
+        const derivN = Number(open.DERIVATIVES) || 0;
+        const liveOpenTotal = cryptoN + vnN + derivN;
+        const liveOpenBits = [
+            cryptoN ? `🪙${cryptoN}` : null,
+            vnN ? `🏢${vnN}` : null,
+            derivN ? `📊${derivN}` : null,
+        ].filter(Boolean);
+        const liveOpenDetail = liveOpenBits.length
+            ? ` \\(${escapeMarkdownV2(liveOpenBits.join(' '))}\\)`
+            : '';
+
+        if (snap.portfolioCount > 0) {
+            const fundTr = (Number(snap.fund) / 1e6).toFixed(2);
+            const pnl = Number(snap.pnl) || 0;
+            const pnlK = Math.round(pnl / 1000);
+            const pnlSign = pnl >= 0 ? '\\+' : '';
+            fundLine = `💼 *Quỹ LIVE:* ${escapeMarkdownV2(fundTr)}Tr \\| *PnL tích lũy:* ${pnlSign}${escapeMarkdownV2(String(pnlK))}k \\| *Live mở:* ${escapeMarkdownV2(String(liveOpenTotal))}${liveOpenDetail}`;
+        } else {
+            fundLine = `💼 *Live mở:* ${escapeMarkdownV2(String(liveOpenTotal))}${liveOpenDetail} · chưa có gói quỹ PORTFOLIO`;
+        }
+    }
+
     const lines = [
         `📡 *AUTO TRADE RADAR*`,
         `🕒 *Thời điểm:* ${escapeMarkdownV2(new Date(meta.generatedAt || Date.now()).toLocaleString('vi-VN'))}`,
         ...marketLines,
+        fundLine,
         matchedLine,
     ].filter(Boolean);
 
@@ -501,25 +521,31 @@ const buildMarketRadarMessage = (radar = {}, meta = {}) => {
 
 const buildAutoTradeCloseMessage = (trade, exitReason, closeMeta = null) => {
     const assetType = trade.assetType || '';
-    const assetIcon = assetType === 'CRYPTO' ? '🪙' : assetType === 'DERIVATIVES' ? '📊' : '🏢';
     const isLong    = trade.direction === 'LONG' || trade.direction === 'MUA';
-    const isWin     = trade.pnlPercent >= 0;
+
+    const pnlSource = String(trade.pnlSource || closeMeta?.pnlSource || '').toUpperCase();
+    const isLiveFill = pnlSource === 'LIVE_FILLS' || pnlSource === 'LIVE_FILLS_NET_FEE';
+    const isMarkSim = pnlSource === 'MARK_SIM';
+    const isSim = pnlSource === 'SIMULATED' || (!pnlSource && trade.executionMode !== 'LIVE');
+    const compounded = closeMeta?.compounded !== false && isLiveFill;
+
+    const displayPct = isMarkSim && trade.markSimPnlPercent != null
+        ? Number(trade.markSimPnlPercent)
+        : Number(trade.pnlPercent) || 0;
+    const displayVnd = isMarkSim && trade.markSimPnl != null
+        ? Number(trade.markSimPnl)
+        : Number(trade.pnl) || 0;
+    const isWin = displayPct >= 0;
+    const statusIcon = getTradeCloseIcon(displayPct);
 
     const symbol    = escapeMarkdownV2(trade.symbol);
     const direction = escapeMarkdownV2(trade.direction);
-    const dirIcon   = isLong ? '📈' : '📉';
-    const statusIcon = getTradeCloseIcon(trade.pnlPercent);
-
     const entry    = escapeMarkdownV2(formatPrice(trade.entryPrice, assetType));
-    const exit     = escapeMarkdownV2(formatPrice(trade.exitPrice, assetType));
-    const pnlPct   = escapeMarkdownV2(formatSignedPct(trade.pnlPercent, 2));
-    const pnlVND   = escapeMarkdownV2(formatVND(trade.pnl));
+    const exitPx   = isMarkSim && trade.markSimExitPrice != null ? trade.markSimExitPrice : trade.exitPrice;
+    const exit     = escapeMarkdownV2(formatPrice(exitPx, assetType));
+    const pnlPct   = escapeMarkdownV2(formatSignedPct(displayPct, 2));
+    const pnlVND   = escapeMarkdownV2(formatVND(displayVnd));
     const reason   = escapeMarkdownV2(truncate(exitReason || '', 300));
-
-    
-    const holdDur  = formatHoldDuration(trade.openedAt);
-    const holdLine = holdDur ? `⏱ *Giữ:* ${escapeMarkdownV2(holdDur)}` : null;
-
     const pnlSign  = isWin ? '\\+' : '';
 
     const env = closeMeta?.environment || null;
@@ -531,18 +557,52 @@ const buildAutoTradeCloseMessage = (trade, exitReason, closeMeta = null) => {
     if (exchangeName) liveTagParts.push(String(exchangeName));
     if (marketType === 'FUTURES') liveTagParts.push(`FUTURES ${leverage}x`);
     const liveTag = liveTagParts.length
-        ? ` \\[${escapeMarkdownV2(`LIVE ${liveTagParts.join(' · ')}`)}\\]`
+        ? ` \\[${escapeMarkdownV2(liveTagParts.join(' · '))}\\]`
         : '';
 
     const exitSide = closeMeta?.exitSide || (isLong ? 'SELL' : 'BUY');
-    const fillQty = closeMeta?.filledQuantity ?? trade.volume;
+    const fillQty = closeMeta?.filledQuantity;
     const fillPrice = closeMeta?.filledPrice ?? trade.exitPrice;
     const username = closeMeta?.username || null;
-    const fillLine = closeMeta
-        ? [
-            `🟡 *Fill:* ${escapeMarkdownV2(exitSide)} ${escapeMarkdownV2(String(fillQty))} @ ${escapeMarkdownV2(formatPrice(fillPrice, assetType))}`,
-            username ? `👤 *User:* ${escapeMarkdownV2(String(username))}` : null,
-        ].filter(Boolean).join(' \\| ')
+    let fillLine = null;
+    if (fillQty != null || closeMeta?.filledPrice != null) {
+        const bits = [`Fill: ${escapeMarkdownV2(exitSide)} ${escapeMarkdownV2(String(fillQty ?? '--'))} @ ${escapeMarkdownV2(formatPrice(fillPrice, assetType))}`];
+        if (username) bits.push(`User: ${escapeMarkdownV2(String(username))}`);
+        fillLine = bits.join(' \\| ');
+    }
+
+    let pnlLabel;
+    if (isLiveFill) {
+        pnlLabel = `PnL LIVE \\(fill − phí\\): ${pnlPct} \\(${pnlSign}${pnlVND} VNĐ\\)`;
+    } else if (isMarkSim) {
+        pnlLabel = `Mark sim: ${pnlPct} \\(${pnlSign}${pnlVND} VNĐ\\) · *không cộng quỹ*`;
+    } else if (isSim) {
+        pnlLabel = `PnL SIM: ${pnlPct} \\(${pnlSign}${pnlVND} VNĐ\\)`;
+    } else {
+        pnlLabel = `PnL: ${pnlPct} \\(${pnlSign}${pnlVND} VNĐ\\)`;
+    }
+
+    let markSimLine = null;
+    if (isLiveFill && trade.markSimPnl != null && trade.markSimPnlPercent != null) {
+        const mPct = escapeMarkdownV2(formatSignedPct(trade.markSimPnlPercent, 2));
+        const mVnd = escapeMarkdownV2(formatVND(trade.markSimPnl));
+        const mSign = Number(trade.markSimPnlPercent) >= 0 ? '\\+' : '';
+        markSimLine = `Mark sim \\(tham khảo\\): ${mPct} \\(${mSign}${mVnd} VNĐ\\)`;
+    }
+
+    const sourceLine = pnlSource
+        ? `Nguồn: ${escapeMarkdownV2(pnlSource)}${compounded ? ' · đã cộng quỹ' : (trade.executionMode === 'LIVE' ? ' · không cộng quỹ' : '')}`
+        : null;
+
+    // Lý do sàn / thiếu fill (mark-sim hoặc flat)
+    const failRaw = closeMeta?.exitFailReason
+        || closeMeta?.exitMessage
+        || trade.executionMeta?.exitFailReason
+        || trade.executionMeta?.exitMessage
+        || (closeMeta?.flatNoBalance ? 'Số dư base = 0 hoặc remainingQty = 0 trên sàn / sổ fills' : null)
+        || (isMarkSim && trade.executionMeta?.exitWithoutFills ? 'EXIT không có fill hợp lệ để tính PnL LIVE' : null);
+    const failLine = failRaw
+        ? `Lý do sàn/fill: ${escapeMarkdownV2(truncate(String(failRaw), 280))}`
         : null;
 
     const portfolioList = Array.isArray(closeMeta?.portfolio)
@@ -556,25 +616,39 @@ const buildAutoTradeCloseMessage = (trade, exitReason, closeMeta = null) => {
         const accumSign = Number(p.matchedRealizedPnl) >= 0 ? '\\+' : '';
         return [
             `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
-            `💼 *PORTFOLIO ${escapeMarkdownV2(String(p.username || ''))}*`,
-            `Quỹ: ${escapeMarkdownV2(fundTr)}Tr \\| PnL tích lũy: ${accumSign}${escapeMarkdownV2(String(accumK))}k \\| Vốn dùng: ${escapeMarkdownV2(usedTr)}Tr`,
+            `PORTFOLIO ${escapeMarkdownV2(String(p.username || ''))}`,
+            `Quỹ: ${escapeMarkdownV2(fundTr)}Tr \\| PnL tích lũy \\(fill\\): ${accumSign}${escapeMarkdownV2(String(accumK))}k \\| Đang dùng: ${escapeMarkdownV2(usedTr)}Tr`,
         ];
     });
 
-    const lines = [
-        `${statusIcon} *LỆNH ĐÃ ĐÓNG ${assetIcon}*${liveTag}`,
+    if (trade.executionMode === 'LIVE' && !compounded && portfolioLines.length === 0) {
+        portfolioLines.push(
+            `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+            `⚠️ Quỹ không cộng PnL \\(mark\\-sim / thiếu fill\\)`
+        );
+    }
+
+    const title = isMarkSim
+        ? `${statusIcon} *ĐÓNG SỔ MARK\\-SIM*`
+        : `${statusIcon} *LIVE ĐÓNG*`;
+
+    const holdDur  = formatHoldDuration(trade.openedAt);
+    const holdLine = holdDur ? `Giữ: ${escapeMarkdownV2(holdDur)}` : null;
+
+    return [
+        `${title}${liveTag}`,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
+        `*${symbol}* \\| ${direction}`,
+        `Entry ${entry} → Exit ${exit}`,
         fillLine,
-        `🎯 *Mã:* ${symbol} \\| ${dirIcon} *${direction}*`,
-        `📍 *Entry:* ${entry} \\| 🏁 *Exit:* ${exit}`,
-        `💰 *PnL:* ${pnlPct} \\(${pnlSign}${pnlVND} VNĐ\\)`,
+        pnlLabel,
+        markSimLine,
+        sourceLine,
         holdLine,
-        `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
-        `📝 *Lý do:* ${reason}`,
+        `Tín hiệu đóng: ${reason}`,
+        failLine,
         ...portfolioLines,
     ].filter(Boolean).join('\n');
-
-    return lines;
 };
 
 const buildCryptoSignalMessage = (symbol, aiDecision, currentPrice) => {
@@ -723,22 +797,22 @@ const buildDailyPnLReportMessage = (trades, date = new Date()) => {
     const overallIcon       = totalPnL >= 0 ? '🟢' : '🔴';
 
     const lines = [
-        `📋 *TỔNG KẾT NGÀY ${formattedDate}*`,
+        `*TỔNG KẾT NGÀY LIVE ${formattedDate}*`,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
-        `📊 *Tổng lệnh:* ${totalTrades} \\(✅ ${winningTrades} thắng \\| ❌ ${losingTrades} thua \\| ➖ ${breakEvenTrades} hoà\\)`,
-        `🏆 *Win Rate:* ${formattedWinRate}`,
-        `${overallIcon} *Tổng PnL:* ${formattedTotalPnL} \\(${formattedPnlPct}\\)`,
+        `Tổng lệnh fill: ${totalTrades} \\(✅ ${winningTrades} \\| ❌ ${losingTrades} \\| ➖ ${breakEvenTrades}\\)`,
+        `Win rate: ${formattedWinRate}`,
+        `${overallIcon} PnL fill: ${formattedTotalPnL} \\(${formattedPnlPct}\\)`,
     ];
 
     if (totalTrades > 0) {
         lines.push(`\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`);
-        lines.push(`📝 *CHI TIẾT LỆNH ĐÃ ĐÓNG:*`);
+        lines.push(`*Chi tiết:*`);
         trades.slice(0, 15).forEach(t => {
             const sym    = escapeMarkdownV2(t.symbol);
             const dir    = escapeMarkdownV2(t.direction);
             const pctStr = escapeMarkdownV2(formatSignedPct(t.pnlPercent, 2));
             const vndStr = escapeMarkdownV2(formatVND(t.pnl));
-            const icon   = getTradeCloseIcon(t.pnlPercent);
+            const icon   = Number(t.pnlPercent) >= 0 ? '✅' : '❌';
             lines.push(`${icon} *${sym}* \\(${dir}\\): ${pctStr} \\| ${vndStr}`);
         });
         if (totalTrades > 15) {

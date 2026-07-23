@@ -94,10 +94,14 @@ export default function ExchangeOrderLog({ orders, isDark, UI }) {
                                         {fmtNum(o.notionalUSDT, o.exchangeName === 'DNSE' ? 0 : 2)} {o.exchangeName === 'DNSE' ? 'VNĐ' : '$'}
                                     </td>
                                     <td className="px-3 py-2 text-right font-black">
-                                        {o.purpose === 'EXIT' && o.livePnl !== undefined && o.livePnl !== null ? (
+                                        {o.purpose === 'EXIT' && o.livePnl != null && Number.isFinite(Number(o.livePnl)) ? (
                                             <span className={o.livePnl > 0 ? 'text-emerald-500' : o.livePnl < 0 ? 'text-red-500' : UI.textMuted}>
                                                 {o.livePnl > 0 ? '+' : ''}{fmtNum(o.livePnl, o.exchangeName === 'DNSE' ? 0 : 2)}{o.exchangeName === 'DNSE' ? 'đ' : '$'}
                                                 {o.livePnlPercent != null && <span className="text-[9px] ml-1 opacity-70">({o.livePnl > 0 ? '+' : ''}{o.livePnlPercent}%)</span>}
+                                            </span>
+                                        ) : o.purpose === 'EXIT' && o.status === 'FAILED' && o.markSimPnl != null ? (
+                                            <span className={`${UI.textMuted} text-[10px]`} title="Mark sim — không tính PnL LIVE chính thức">
+                                                sim {o.markSimPnl > 0 ? '+' : ''}{fmtNum(o.markSimPnl, o.exchangeName === 'DNSE' ? 0 : 2)}{o.exchangeName === 'DNSE' ? 'đ' : '$'}
                                             </span>
                                         ) : <span className={UI.textMuted}>--</span>}
                                     </td>

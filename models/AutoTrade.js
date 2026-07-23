@@ -11,7 +11,12 @@ const AutoTradeSchema = new mongoose.Schema({
     stopLossPrice: { type: Number, default: 0 },   
     investedAmount: { type: Number, default: 0 },
     pnl: { type: Number, default: 0 },  
-    pnlPercent: { type: Number, default: 0 },  
+    pnlPercent: { type: Number, default: 0 },
+    // LIVE official vs mark-sim (phân tích khi EXIT fail)
+    pnlSource: { type: String, default: null },
+    markSimPnl: { type: Number, default: null },
+    markSimPnlPercent: { type: Number, default: null },
+    markSimExitPrice: { type: Number, default: null },
     aiScore: { type: Number, required: true },  
     confidence: { type: Number, required: true }, 
     reason: { type: String, required: true },  
@@ -27,11 +32,7 @@ const AutoTradeSchema = new mongoose.Schema({
     tp1Filled: { type: Boolean, default: false },        // đã chốt phần TP1 chưa
     tp1FillPrice: { type: Number, default: null },       // giá thực tế chốt TP1
     realizedPartialPnl: { type: Number, default: 0 },    // PnL (VND) đã hiện thực hoá từ TP1
-    executionMeta: {
-        priceSource: { type: String, default: null },
-        contextSource: { type: String, default: null },
-        fetchedAt: { type: Date, default: null }
-    },
+    executionMeta: { type: mongoose.Schema.Types.Mixed, default: {} },
     // ── LIVE EXECUTION (kết nối sàn thực) ──
     executionMode: { type: String, enum: ['SIMULATED', 'LIVE'], default: 'SIMULATED' },
     marketType: { type: String, enum: ['SPOT', 'FUTURES'], default: 'SPOT' },

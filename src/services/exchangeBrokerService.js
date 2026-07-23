@@ -10,6 +10,17 @@ import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
 import { extractFeeFromOrderResult } from './brokerFeeService.js';
 import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
+import { maybeSetEquityBaseline } from './walletEquityService.js';
+import {
+    computeLivePnlFromExchangeOrders as computeLivePnlCore,
+    getLiveExitRemainingQty,
+} from './livePnlService.js';
+import {
+    claimLiveEntrySlot,
+    markLiveEntryClaimOpen,
+    releaseLiveEntryClaim,
+    hasOpenLiveSymbol,
+} from './liveEntryClaimService.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -17,67 +28,13 @@ const getFillPollMs = () => getAutoDuckNumber('AUTODUCK_LIVE_FILL_POLL_MS') || 2
 const getFillPollTimeoutMs = () => getAutoDuckNumber('AUTODUCK_LIVE_FILL_TIMEOUT_MS') || 25000;
 
 /**
- * Tính PnL LIVE từ ExchangeOrder fills thực (ENTRY vs EXIT), trừ phí broker khi có.
- * @returns {{ pnlPercent, pnl, exitPrice, entryPrice, source, feeUSDT, grossPnlUSDT }|null}
+ * PnL LIVE từ fills — luôn trả object có `eligible` (caller phải check `fillPnl?.eligible`).
  */
 export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400) => {
-    const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
-    const entrySide = isLong ? 'BUY' : 'SELL';
-    const exitSide = isLong ? 'SELL' : 'BUY';
-
-    const orders = await ExchangeOrder.find({
-        autoTradeId: trade._id,
-        status: { $in: ['FILLED', 'PARTIAL'] },
-    }).lean();
-
-    let entryQty = 0;
-    let entryNotional = 0;
-    let exitQty = 0;
-    let exitNotional = 0;
-    let feeUSDT = 0;
-
-    for (const o of orders) {
-        const qty = Number(o.filledQuantity) || 0;
-        const px = Number(o.filledPrice) || 0;
-        feeUSDT += Number(o.feeUSDT) || 0;
-        if (qty <= 0 || px <= 0) continue;
-        if (o.purpose === 'ENTRY' && o.side === entrySide) {
-            entryQty += qty;
-            entryNotional += qty * px;
-        } else if (o.purpose === 'EXIT' && o.side === exitSide) {
-            exitQty += qty;
-            exitNotional += qty * px;
-        }
-    }
-
-    if (entryQty <= 0 || entryNotional <= 0 || exitQty <= 0) return null;
-
-    const avgEntry = entryNotional / entryQty;
-    const avgExit = exitNotional / exitQty;
-
-    const grossPnlUSDT = isLong
-        ? exitNotional - entryNotional
-        : entryNotional - exitNotional;
-
-    const netPnlUSDT = grossPnlUSDT - feeUSDT;
-    const pnlPercent = (netPnlUSDT / entryNotional) * 100;
-
-    const isVNStock = trade.assetType === 'VN_STOCK' || trade.marketType === 'VN_STOCK';
-
-    const pnlValue = isVNStock
-        ? Math.round((Number(trade.investedAmount) || Math.round(entryNotional * usdVndRate)) * (pnlPercent / 100))
-        : Math.round(netPnlUSDT * usdVndRate);
-
-    return {
-        pnlPercent: Math.round(pnlPercent * 100) / 100,
-        pnl: pnlValue,
-        exitPrice: avgExit,
-        entryPrice: avgEntry,
-        source: feeUSDT > 0 ? 'LIVE_FILLS_NET_FEE' : 'LIVE_FILLS',
-        feeUSDT: Math.round(feeUSDT * 1e8) / 1e8,
-        grossPnlUSDT: Math.round(grossPnlUSDT * 1e8) / 1e8,
-    };
+    return computeLivePnlCore(trade, usdVndRate);
 };
+
+export { getLiveExitRemainingQty, releaseLiveEntryClaim };
 
 const confirmBrokerFill = async ({ connectionDoc, result, symbol }) => {
     if (!result?.success || !result.externalOrderId) return result;
@@ -103,13 +60,78 @@ const confirmBrokerFill = async ({ connectionDoc, result, symbol }) => {
  * EXCHANGE BROKER SERVICE — Business logic trung tâm cho live trading.
  * - Decrypt key CHỈ trong memory, ngay trước khi gọi sàn.
  * - Mọi lệnh live đều ghi ExchangeOrder log, kể cả FAILED.
- * - Safety guards: MAX_LIVE_ORDER_VALUE_USDT, MAX_LIVE_ORDERS_PER_USER.
+ * - Safety guards: MAX_LIVE_ORDER_VALUE_USDT, MAX_LIVE_ORDERS_PER_USER
+ *   (capped by portfolio maxConcurrentOrders and Setting autoTradeMaxConcurrent).
  */
+
+/**
+ * Resolve max LIVE opens: min(config, portfolio slots, global autoTradeMaxConcurrent).
+ * Defaults aligned so MAX_LIVE_ORDERS_PER_USER does not silently fight autoTradeMaxConcurrent.
+ */
+export const resolveMaxLiveOrders = async (userOrder = null) => {
+    const cfgMax = getAutoDuckNumber('MAX_LIVE_ORDERS_PER_USER') || 7;
+    let globalMax = cfgMax;
+    try {
+        const setting = await Setting.findOne({ key: 'autoTradeMaxConcurrent' }).lean();
+        const fromSetting = Number(setting?.value);
+        if (Number.isFinite(fromSetting) && fromSetting > 0) globalMax = fromSetting;
+    } catch {
+        /* keep cfgMax */
+    }
+    const portfolioMax = Number(userOrder?.maxConcurrentOrders);
+    const caps = [cfgMax, globalMax];
+    if (Number.isFinite(portfolioMax) && portfolioMax > 0) caps.push(portfolioMax);
+    return Math.max(1, Math.min(...caps));
+};
 
 const getSafetyLimits = () => ({
     maxOrderValueUSDT: getAutoDuckNumber('MAX_LIVE_ORDER_VALUE_USDT') || 10000,
-    maxLiveOrdersPerUser: getAutoDuckNumber('MAX_LIVE_ORDERS_PER_USER') || 5,
+    // Sync default with autoTradeMaxConcurrent common value (7); resolveMaxLiveOrders caps further.
+    maxLiveOrdersPerUser: getAutoDuckNumber('MAX_LIVE_ORDERS_PER_USER') || 7,
 });
+
+/** Ensure fee recorded after fill poll (place may have had qty=0 fee). */
+const ensureFeeOnExchangeOrder = async ({
+    externalOrderId,
+    connectionDoc,
+    marketType,
+    symbol,
+    filledPrice,
+    filledQuantity,
+}) => {
+    if (!externalOrderId) return;
+    const existing = await ExchangeOrder.findOne({ externalOrderId }).lean();
+    if (!existing) return;
+    if (Number(existing.feeUSDT) > 0) return;
+
+    const notional = (Number(filledPrice) || 0) * (Number(filledQuantity) || 0)
+        || Number(existing.notionalUSDT) || 0;
+    const fee = extractFeeFromOrderResult({
+        exchangeName: connectionDoc.exchangeName,
+        marketType: marketType || existing.marketType || 'SPOT',
+        rawResponse: existing.rawResponse,
+        filledPrice: filledPrice || existing.filledPrice,
+        filledQuantity: filledQuantity || existing.filledQuantity,
+        symbol: symbol || existing.symbol,
+        notionalUSDT: notional,
+    });
+    if (!(Number(fee.feeUSDT) > 0)) {
+        console.log(chalk.hex('#E8D48B')(
+            `[BROKER FEE] Order ${externalOrderId}: vẫn thiếu fee sau fill (notional=${notional})`
+        ));
+        return;
+    }
+    await ExchangeOrder.updateOne(
+        { externalOrderId, $or: [{ feeUSDT: { $lte: 0 } }, { feeUSDT: { $exists: false } }] },
+        {
+            $set: {
+                feeUSDT: fee.feeUSDT,
+                feeAsset: fee.feeAsset || 'USDT',
+                feeSource: fee.feeSource || 'SCHEDULE_FALLBACK',
+            },
+        }
+    );
+};
 
 /** Decrypt credentials trong memory — không bao giờ return ra ngoài service này */
 const getCredentials = (connectionDoc) => ({
@@ -151,6 +173,7 @@ export const testConnection = async (connectionDoc) => {
         connectionDoc.permissions = result.permissions;
         connectionDoc.balanceSnapshot = result.balances;
         connectionDoc.balanceUpdatedAt = new Date();
+        await maybeSetEquityBaseline(connectionDoc).catch(() => {});
     }
     await connectionDoc.save();
 
@@ -170,6 +193,7 @@ export const getBalance = async (connectionDoc, marketType = 'SPOT') => {
     const balances = await adapter.getBalance(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment);
     connectionDoc.balanceSnapshot = balances;
     connectionDoc.balanceUpdatedAt = new Date();
+    await maybeSetEquityBaseline(connectionDoc).catch(() => {});
     await connectionDoc.save();
     return balances;
 };
@@ -263,8 +287,10 @@ export const placeOrder = async ({
         return { success: false, reason: 'MIN_NOTIONAL', exchangeOrderDoc: doc };
     }
 
-    // ── Safety guard: số lệnh AutoTrade LIVE đang mở/user (chỉ check khi ENTRY) ──
-    if (purpose === 'ENTRY' && autoTradeId) {
+    // ── Safety guard: max LIVE opens (ENTRY only).
+    // When userOrderId is set, claimLiveEntrySlot already enforced max atomically —
+    // skip recount here (would include our own CLAIMED row and false-reject at limit).
+    if (purpose === 'ENTRY' && autoTradeId && !userOrderId) {
         const liveOpenCount = await AutoTrade.countDocuments({
             exchangeConnectionId: connectionDoc._id,
             executionMode: 'LIVE',
@@ -391,10 +417,17 @@ export const cancelOrder = async ({ connectionDoc, externalOrderId, symbol }) =>
     return result;
 };
 
-/** Poll sàn cho đến khi lệnh FILLED/PARTIAL hoặc timeout. */
+/** Poll sàn cho đến khi lệnh FILLED/PARTIAL hoặc timeout + reconcile cuối. */
 export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol, initial = {} }) => {
     if (initial.status === 'FILLED' && initial.filledPrice) {
-        return { ...initial, fillConfirmed: true };
+        await ensureFeeOnExchangeOrder({
+            externalOrderId,
+            connectionDoc,
+            symbol,
+            filledPrice: initial.filledPrice,
+            filledQuantity: initial.filledQuantity,
+        }).catch(() => {});
+        return { ...initial, fillConfirmed: true, timedOut: false };
     }
 
     const fillTimeoutMs = getFillPollTimeoutMs();
@@ -419,28 +452,134 @@ export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol,
         if (status.status === 'FILLED' || status.status === 'PARTIAL') {
             const filledQty = status.filledQty || initial.filledQuantity || 0;
             if (filledQty > 0) {
+                await ensureFeeOnExchangeOrder({
+                    externalOrderId,
+                    connectionDoc,
+                    symbol,
+                    filledPrice: status.filledPrice || initial.filledPrice,
+                    filledQuantity: filledQty,
+                }).catch(() => {});
                 return {
                     ...initial,
                     status: status.status,
                     filledPrice: status.filledPrice || initial.filledPrice,
                     filledQuantity: filledQty,
                     fillConfirmed: true,
+                    timedOut: false,
+                    // Clear success-place message so callers never treat it as a fail reason
+                    message: `Fill xác nhận: ${status.status} qty=${filledQty}`,
                 };
             }
         }
-        if (['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED'].includes(status.status)) {
+        if (['CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'FAILED'].includes(status.status)) {
+            const failMsg = `Lệnh ${status.status} trên sàn (OrderID ${externalOrderId})`;
+            appendAuditEvent('broker', {
+                exchange: connectionDoc.exchangeName,
+                environment: connectionDoc.environment,
+                symbol: normalizeCryptoSymbol(symbol),
+                externalOrderId,
+                status: status.status,
+                filledQty: status.filledQty || 0,
+                reason: failMsg,
+            }, {
+                event: 'live_fill_terminal',
+                level: 'warn',
+                source: 'exchangeBrokerService',
+            }).catch(() => {});
             return {
                 success: false,
                 fillConfirmed: false,
-                message: `Lệnh ${status.status} trên sàn`,
+                timedOut: false,
+                message: failMsg,
+                externalOrderId,
+                exchangeStatus: status.status,
             };
         }
     }
 
+    // ── Timeout: reconcile một lần nữa trước khi báo fail ──
+    let finalStatus = null;
+    try {
+        finalStatus = await getOrderStatus({ connectionDoc, externalOrderId, symbol });
+    } catch (reconErr) {
+        console.log(chalk.yellow(`[BROKER] reconcile sau timeout lỗi: ${reconErr.message}`));
+    }
+
+    if (finalStatus?.success
+        && (finalStatus.status === 'FILLED' || finalStatus.status === 'PARTIAL')
+        && (finalStatus.filledQty || 0) > 0) {
+        await ensureFeeOnExchangeOrder({
+            externalOrderId,
+            connectionDoc,
+            symbol,
+            filledPrice: finalStatus.filledPrice || initial.filledPrice,
+            filledQuantity: finalStatus.filledQty,
+        }).catch(() => {});
+        appendAuditEvent('broker', {
+            exchange: connectionDoc.exchangeName,
+            environment: connectionDoc.environment,
+            symbol: normalizeCryptoSymbol(symbol),
+            externalOrderId,
+            status: finalStatus.status,
+            filledQty: finalStatus.filledQty,
+            reason: 'reconcile_after_timeout_filled',
+        }, {
+            event: 'live_fill_reconcile_ok',
+            source: 'exchangeBrokerService',
+        }).catch(() => {});
+        return {
+            ...initial,
+            status: finalStatus.status,
+            filledPrice: finalStatus.filledPrice || initial.filledPrice,
+            filledQuantity: finalStatus.filledQty,
+            fillConfirmed: true,
+            timedOut: true,
+            reconciledAfterTimeout: true,
+            message: `Fill xác nhận sau reconcile timeout: ${finalStatus.status} qty=${finalStatus.filledQty}`,
+        };
+    }
+
+    if (finalStatus?.success
+        && ['CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'FAILED'].includes(finalStatus.status)) {
+        const failMsg = `Lệnh ${finalStatus.status} trên sàn sau timeout (OrderID ${externalOrderId})`;
+        return {
+            success: false,
+            fillConfirmed: false,
+            timedOut: true,
+            message: failMsg,
+            externalOrderId,
+            exchangeStatus: finalStatus.status,
+        };
+    }
+
+    const exchangeState = finalStatus?.success
+        ? (finalStatus.status || 'UNKNOWN')
+        : 'QUERY_FAILED';
+    const timeoutMsg = `Fill timeout ${fillTimeoutMs / 1000}s — sàn báo ${exchangeState} (OrderID ${externalOrderId}). Không coi là fail chắc chắn; cần giữ AutoTrade để reconcile.`;
+    appendAuditEvent('broker', {
+        exchange: connectionDoc.exchangeName,
+        environment: connectionDoc.environment,
+        symbol: normalizeCryptoSymbol(symbol),
+        externalOrderId,
+        status: 'TIMEOUT',
+        filledQty: finalStatus?.filledQty || 0,
+        exchangeStatus: exchangeState,
+        reason: timeoutMsg,
+    }, {
+        event: 'live_fill_timeout',
+        level: 'warn',
+        source: 'exchangeBrokerService',
+    }).catch(() => {});
     return {
-        ...initial,
+        success: false,
         fillConfirmed: false,
-        message: initial.message || `Chưa xác nhận fill sau ${getFillPollTimeoutMs() / 1000}s`,
+        timedOut: true,
+        needsReconcile: true,
+        message: timeoutMsg,
+        externalOrderId,
+        exchangeStatus: exchangeState,
+        filledPrice: finalStatus?.filledPrice || initial.filledPrice || null,
+        filledQuantity: finalStatus?.filledQty || initial.filledQuantity || 0,
     };
 };
 
@@ -474,6 +613,7 @@ export const getOrderStatus = async ({ connectionDoc, externalOrderId, symbol })
  * @returns { success, message, externalOrderId?, filledPrice?, finalQty? }
  */
 export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVnd = null }) => {
+    let claimId = null;
     try {
         const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
 
@@ -499,6 +639,15 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             }
         }
 
+        // Anti double-entry: already OPEN same symbol on this package
+        if (await hasOpenLiveSymbol(userOrder, trade.symbol)) {
+            return {
+                success: false,
+                message: `Đã có vị thế LIVE OPEN cùng mã ${String(trade.symbol).toUpperCase()} trên gói — bỏ qua (idempotency).`,
+                reason: 'DUPLICATE_SYMBOL_OPEN',
+            };
+        }
+
         // SHORT auto: cần FUTURES + flag bật (MẶC ĐỊNH TẮT để an toàn — engine chưa có edge).
         let marketType = 'SPOT';
         let leverage = 1;
@@ -518,14 +667,35 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             orderSide = 'SELL';
         }
 
-        // Giới hạn số lệnh LIVE đang mở của user (đếm trên AutoTrade gắn user)
-        const limits = getSafetyLimits();
+        const maxLive = await resolveMaxLiveOrders(userOrder);
+
+        // Atomic claim BEFORE placeOrder (unique partial index on userOrderId+symbol)
+        const claimResult = await claimLiveEntrySlot({
+            userOrderId: userOrder._id,
+            symbol: trade.symbol,
+            direction: trade.direction,
+            autoTradeId: trade._id,
+            exchangeConnectionId: connectionDoc._id,
+            maxOpen: maxLive,
+        });
+        if (!claimResult.ok) {
+            return {
+                success: false,
+                message: `Không claim được slot LIVE: ${claimResult.reason}`,
+                reason: claimResult.reason,
+            };
+        }
+        claimId = claimResult.claim?._id;
+
+        // Giới hạn lệnh LIVE đang chờ fill (PENDING/PARTIAL ENTRY)
         const openLiveEntries = await ExchangeOrder.countDocuments({
             username: userOrder.username, purpose: 'ENTRY',
             status: { $in: ['PENDING', 'PARTIAL'] },
         });
-        if (openLiveEntries >= limits.maxLiveOrdersPerUser) {
-            return { success: false, message: `Đã chạm giới hạn ${limits.maxLiveOrdersPerUser} lệnh live đang chờ.` };
+        if (openLiveEntries >= maxLive) {
+            await releaseLiveEntryClaim({ claimId });
+            claimId = null;
+            return { success: false, message: `Đã chạm giới hạn ${maxLive} lệnh live đang chờ.` };
         }
 
         // Tính qty
@@ -536,6 +706,8 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             const maxShares = effectiveCapital / Number(trade.entryPrice);
             qty = Math.floor(maxShares / 100) * 100;
             if (qty <= 0) {
+                await releaseLiveEntryClaim({ claimId });
+                claimId = null;
                 return { success: false, message: `Vốn ${effectiveCapital.toLocaleString()} VNĐ không đủ mua 1 lô (100) cổ phiếu giá ${trade.entryPrice}.` };
             }
         } else {
@@ -558,6 +730,8 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         });
 
         if (!result.success) {
+            await releaseLiveEntryClaim({ claimId });
+            claimId = null;
             appendAuditEvent('live_execution', {
                 username: userOrder.username,
                 symbol: trade.symbol,
@@ -587,6 +761,40 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         });
 
         if (!fillResult.fillConfirmed) {
+            // Ambiguous timeout only: order may still fill — keep claim for reconcile
+            if (fillResult.needsReconcile) {
+                appendAuditEvent('live_execution', {
+                    username: userOrder.username,
+                    symbol: trade.symbol,
+                    externalOrderId: result.externalOrderId,
+                    reason: fillResult.message,
+                    needsReconcile: true,
+                }, {
+                    event: 'live_entry_fill_timeout_reconcile',
+                    level: 'warn',
+                    source: 'exchangeBrokerService',
+                }).catch(() => {});
+                return {
+                    success: false,
+                    fillConfirmed: false,
+                    timedOut: true,
+                    needsReconcile: true,
+                    message: fillResult.message,
+                    externalOrderId: result.externalOrderId,
+                    exchangeStatus: fillResult.exchangeStatus,
+                    exchangeConnectionId: connectionDoc._id,
+                    environment: connectionDoc.environment,
+                    exchangeName: connectionDoc.exchangeName,
+                    marketType,
+                    leverage,
+                    orderSide,
+                    username: userOrder.username,
+                    claimId,
+                };
+            }
+
+            await releaseLiveEntryClaim({ claimId });
+            claimId = null;
             appendAuditEvent('live_execution', {
                 username: userOrder.username,
                 symbol: trade.symbol,
@@ -600,10 +808,14 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             return {
                 success: false,
                 fillConfirmed: false,
+                timedOut: !!fillResult.timedOut,
                 message: fillResult.message || 'Không xác nhận được fill từ sàn',
                 externalOrderId: result.externalOrderId,
             };
         }
+
+        await markLiveEntryClaimOpen(claimId, trade._id);
+        claimId = null; // ownership transferred to OPEN claim
 
         // Telegram entry notify is sent once from autoTradeEngine via buildAutoTradeOpenMessage(liveMeta).
         return {
@@ -623,6 +835,9 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             username: userOrder.username,
         };
     } catch (err) {
+        if (claimId) {
+            await releaseLiveEntryClaim({ claimId }).catch(() => {});
+        }
         console.log(chalk.red(`  [BROKER] executeLiveEntry lỗi: ${err.message}`));
         appendAuditEvent('live_execution', {
             symbol: trade?.symbol,
@@ -639,95 +854,148 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
 
 /**
  * Đóng vị thế LIVE khi engine đóng AutoTrade.
- * Bán toàn bộ lượng coin đã mua trong các ENTRY orders gắn với autoTradeId.
+ * Bán phần CÒN LẠI = entryFilled − Σ EXIT filled (sau TP1), không bán lại 100% entry.
  */
 export const executeLiveExit = async ({ trade, exitReason }) => {
     try {
         const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
-        const isFut = trade.marketType === 'FUTURES' || !isLong; // short luôn futures
-        const exitSide = isLong ? 'SELL' : 'BUY';                 // đóng vị thế = chiều ngược
+        const isFut = trade.marketType === 'FUTURES' || !isLong;
+        const exitSide = isLong ? 'SELL' : 'BUY';
 
-        // Entry side: long mở bằng BUY, short mở bằng SELL.
+        const releaseClaimForTrade = async () => {
+            await releaseLiveEntryClaim({ autoTradeId: trade._id }).catch(() => {});
+            if (!trade.symbol) return;
+            const link = await ExchangeOrder.findOne({
+                autoTradeId: trade._id,
+                purpose: 'ENTRY',
+            }).select('userOrderId').lean();
+            if (link?.userOrderId) {
+                await releaseLiveEntryClaim({
+                    userOrderId: link.userOrderId,
+                    symbol: trade.symbol,
+                }).catch(() => {});
+            }
+        };
+
+        const { entryQty, exitQty, remainingQty } = await getLiveExitRemainingQty(trade._id, { isLong });
+        if (entryQty <= 0) {
+            await releaseClaimForTrade();
+            return { success: true, message: 'Không có lệnh live nào cần đóng.', flatNoBalance: true, fills: [] };
+        }
+        if (remainingQty <= 0) {
+            console.log(chalk.cyan(
+                `  [BROKER] ${trade.symbol}: remainingQty=0 (entry=${entryQty}, exited=${exitQty}) — đã flat trên sổ fills.`
+            ));
+            await releaseClaimForTrade();
+            return {
+                success: true,
+                message: 'Vị thế đã flat trên sàn theo fills (không cần bán thêm).',
+                flatNoBalance: true,
+                fills: [],
+                filledQuantity: exitQty,
+                entryQty,
+                remainingQty: 0,
+            };
+        }
+
         const entryOrders = await ExchangeOrder.find({
             autoTradeId: trade._id,
             purpose: 'ENTRY',
             side: isLong ? 'BUY' : 'SELL',
-            status: { $in: ['FILLED', 'PARTIAL', 'PENDING'] },
+            status: { $in: ['FILLED', 'PARTIAL'] },
         });
-        if (entryOrders.length === 0) return { success: true, message: 'Không có lệnh live nào cần đóng.' };
+        if (entryOrders.length === 0) {
+            await releaseClaimForTrade();
+            return { success: true, message: 'Không có ENTRY filled để đóng.', flatNoBalance: true, fills: [] };
+        }
 
-        const results = [];
-        const fills = [];
-        let lastMeta = null;
-        for (const entry of entryOrders) {
-            const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
-            if (!connectionDoc) continue;
+        const entry = entryOrders[0];
+        const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
+        if (!connectionDoc) {
+            return { success: false, message: 'Không tìm thấy exchange connection cho ENTRY.' };
+        }
 
-            // Sync trạng thái fill mới nhất trước khi exit
-            if (entry.externalOrderId && entry.status !== 'FILLED') {
-                await getOrderStatus({ connectionDoc, externalOrderId: entry.externalOrderId, symbol: entry.symbol }).catch(() => {});
-            }
-            const freshEntry = await ExchangeOrder.findById(entry._id);
-            const qtyToClose = freshEntry.filledQuantity > 0 ? freshEntry.filledQuantity : freshEntry.quantity;
-            if (qtyToClose <= 0) continue;
+        console.log(chalk.gray(
+            `  [BROKER EXIT] ${trade.symbol}: remaining=${remainingQty} (entry=${entryQty}, alreadyExited=${exitQty}) env=${connectionDoc.environment}`
+        ));
 
-            const result = await placeOrder({
-                connectionDoc,
-                symbol: entry.symbol,
-                side: exitSide,
-                qty: qtyToClose,
-                orderType: 'MARKET',
-                estimatedPrice: Number(trade.exitPrice) || Number(trade.entryPrice),
-                purpose: 'EXIT',
-                autoTradeId: trade._id,
-                userOrderId: entry.userOrderId,
-                marketType: isFut ? 'FUTURES' : 'SPOT',
-                reduceOnly: isFut,
-                leverage: trade.leverage || 1,
-            });
-            const confirmed = await confirmBrokerFill({ connectionDoc, result, symbol: entry.symbol });
-            results.push(confirmed);
-            if (confirmed.success && confirmed.filledQuantity > 0) {
-                fills.push({
-                    filledPrice: confirmed.filledPrice,
-                    filledQuantity: confirmed.filledQuantity,
-                    side: exitSide,
-                    purpose: 'EXIT',
-                });
-            }
+        const result = await placeOrder({
+            connectionDoc,
+            symbol: entry.symbol,
+            side: exitSide,
+            qty: remainingQty,
+            orderType: 'MARKET',
+            estimatedPrice: Number(trade.exitPrice) || Number(trade.entryPrice),
+            purpose: 'EXIT',
+            autoTradeId: trade._id,
+            userOrderId: entry.userOrderId,
+            marketType: isFut ? 'FUTURES' : 'SPOT',
+            reduceOnly: isFut,
+            leverage: trade.leverage || 1,
+        });
+        const confirmed = await confirmBrokerFill({ connectionDoc, result, symbol: entry.symbol });
 
-            if (confirmed.success) {
-                // Telegram close notify is sent once from autoTradeEngine via buildAutoTradeCloseMessage(closeMeta).
-                lastMeta = {
+        if (!confirmed.success && (confirmed.reason === 'INSUFFICIENT_BALANCE' || result.reason === 'INSUFFICIENT_BALANCE')) {
+            if (exitQty > 0) {
+                await releaseClaimForTrade();
+                return {
+                    success: true,
+                    message: `Số dư base = 0 nhưng đã có EXIT fills (${exitQty}) — đóng theo fills hiện có.`,
+                    flatNoBalance: true,
+                    fills: [],
+                    filledQuantity: exitQty,
                     environment: connectionDoc.environment,
-                    exchangeName: connectionDoc.exchangeName || entry.exchangeName,
+                    exchangeName: connectionDoc.exchangeName,
                     username: entry.username,
                     exitSide,
-                    filledQuantity: confirmed.filledQuantity || result.finalQty,
-                    filledPrice: confirmed.filledPrice || null,
                     marketType: isFut ? 'FUTURES' : 'SPOT',
                     leverage: trade.leverage || 1,
                 };
             }
+            return {
+                success: false,
+                message: confirmed.exchangeOrderDoc?.errorMessage || result.reason || 'INSUFFICIENT_BALANCE',
+                flatNoBalance: true,
+                fills: [],
+                reason: 'INSUFFICIENT_BALANCE',
+            };
         }
-        const allOk = results.every(r => r.success);
+
+        const fills = [];
+        if (confirmed.success && confirmed.filledQuantity > 0) {
+            fills.push({
+                filledPrice: confirmed.filledPrice,
+                filledQuantity: confirmed.filledQuantity,
+                side: exitSide,
+                purpose: 'EXIT',
+            });
+        }
+
         const exitNotional = fills.reduce((s, f) => s + (Number(f.filledPrice) || 0) * (Number(f.filledQuantity) || 0), 0);
-        const exitQty = fills.reduce((s, f) => s + (Number(f.filledQuantity) || 0), 0);
-        const avgExitPrice = exitQty > 0 ? exitNotional / exitQty : null;
+        const filledExitQty = fills.reduce((s, f) => s + (Number(f.filledQuantity) || 0), 0);
+        const avgExitPrice = filledExitQty > 0 ? exitNotional / filledExitQty : null;
+
+        if (confirmed.success) {
+            await releaseClaimForTrade();
+        }
+
         return {
-            success: allOk,
-            message: allOk ? 'Đã đóng toàn bộ vị thế live.' : 'Một số lệnh exit live thất bại — kiểm tra ExchangeOrder log.',
+            success: !!confirmed.success,
+            message: confirmed.success
+                ? 'Đã đóng phần còn lại vị thế live.'
+                : (confirmed.exchangeOrderDoc?.errorMessage || confirmed.reason || 'Exit live thất bại'),
             fills,
             avgExitPrice,
             fillConfirmed: fills.length > 0,
-            environment: lastMeta?.environment || null,
-            exchangeName: lastMeta?.exchangeName || null,
-            username: lastMeta?.username || null,
-            exitSide: lastMeta?.exitSide || exitSide,
-            filledQuantity: exitQty || lastMeta?.filledQuantity || null,
-            filledPrice: avgExitPrice || lastMeta?.filledPrice || null,
-            marketType: lastMeta?.marketType || (isFut ? 'FUTURES' : 'SPOT'),
-            leverage: lastMeta?.leverage || trade.leverage || 1,
+            environment: connectionDoc.environment,
+            exchangeName: connectionDoc.exchangeName || entry.exchangeName,
+            username: entry.username,
+            exitSide,
+            filledQuantity: filledExitQty,
+            filledPrice: avgExitPrice,
+            marketType: isFut ? 'FUTURES' : 'SPOT',
+            leverage: trade.leverage || 1,
+            remainingQtyBefore: remainingQty,
         };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLiveExit lỗi: ${err.message}`));
@@ -736,10 +1004,7 @@ export const executeLiveExit = async ({ trade, exitReason }) => {
 };
 
 /**
- * Chốt MỘT PHẦN vị thế LIVE (Policy E — partial scale-out tại TP1).
- * Bán `fraction` × khối lượng đã khớp của các ENTRY orders gắn autoTradeId.
- * An toàn: spot dùng guard "bán tối đa số dư"; futures dùng reduceOnly (không lật vị thế).
- * Lưu ý: nếu phần bán < minQty/minNotional của sàn, lệnh sẽ FAILED → caller cảnh báo.
+ * Chốt một phần (TP1). Qty = remaining * frac — không vượt phần chưa bán.
  */
 export const executeLivePartialExit = async ({ trade, fraction, exitReason }) => {
     try {
@@ -750,78 +1015,76 @@ export const executeLivePartialExit = async ({ trade, fraction, exitReason }) =>
         const isFut = trade.marketType === 'FUTURES' || !isLong;
         const exitSide = isLong ? 'SELL' : 'BUY';
 
+        const { entryQty, exitQty, remainingQty } = await getLiveExitRemainingQty(trade._id, { isLong });
+        if (remainingQty <= 0) {
+            return { success: true, message: 'Không còn qty để chốt TP1 (đã flat).', fills: [], filledQuantity: 0 };
+        }
+
         const entryOrders = await ExchangeOrder.find({
             autoTradeId: trade._id,
             purpose: 'ENTRY',
             side: isLong ? 'BUY' : 'SELL',
-            status: { $in: ['FILLED', 'PARTIAL', 'PENDING'] },
+            status: { $in: ['FILLED', 'PARTIAL'] },
         });
         if (entryOrders.length === 0) return { success: true, message: 'Không có vị thế live để chốt một phần.' };
 
-        const results = [];
+        const entry = entryOrders[0];
+        const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
+        if (!connectionDoc) return { success: false, message: 'Không tìm thấy connection.' };
+
+        const partialQty = remainingQty * frac;
+        if (partialQty <= 0) return { success: false, message: 'partialQty = 0' };
+
+        console.log(chalk.gray(
+            `  [BROKER TP1] ${trade.symbol}: sell ${partialQty} of remaining ${remainingQty} (frac=${frac}, entry=${entryQty}, exited=${exitQty})`
+        ));
+
+        const result = await placeOrder({
+            connectionDoc,
+            symbol: entry.symbol,
+            side: exitSide,
+            qty: partialQty,
+            orderType: 'MARKET',
+            estimatedPrice: Number(trade.tp1FillPrice) || Number(trade.entryPrice),
+            purpose: 'EXIT',
+            autoTradeId: trade._id,
+            userOrderId: entry.userOrderId,
+            marketType: isFut ? 'FUTURES' : 'SPOT',
+            reduceOnly: isFut,
+            leverage: trade.leverage || 1,
+        });
+        const confirmed = await confirmBrokerFill({ connectionDoc, result, symbol: entry.symbol });
         const fills = [];
-        for (const entry of entryOrders) {
-            const connectionDoc = await ExchangeConnection.findById(entry.exchangeConnectionId);
-            if (!connectionDoc) continue;
-
-            if (entry.externalOrderId && entry.status !== 'FILLED') {
-                await getOrderStatus({ connectionDoc, externalOrderId: entry.externalOrderId, symbol: entry.symbol }).catch(() => {});
-            }
-            const freshEntry = await ExchangeOrder.findById(entry._id);
-            const entryQty = freshEntry.filledQuantity > 0 ? freshEntry.filledQuantity : freshEntry.quantity;
-            const partialQty = entryQty * frac;
-            if (partialQty <= 0) continue;
-
-            const result = await placeOrder({
-                connectionDoc,
-                symbol: entry.symbol,
+        if (confirmed.success && confirmed.filledQuantity > 0) {
+            fills.push({
+                filledPrice: confirmed.filledPrice,
+                filledQuantity: confirmed.filledQuantity,
                 side: exitSide,
-                qty: partialQty,
-                orderType: 'MARKET',
-                estimatedPrice: Number(trade.tp1FillPrice) || Number(trade.entryPrice),
                 purpose: 'EXIT',
-                autoTradeId: trade._id,
-                userOrderId: entry.userOrderId,
-                marketType: isFut ? 'FUTURES' : 'SPOT',
-                reduceOnly: isFut,
-                leverage: trade.leverage || 1,
             });
-            const confirmed = await confirmBrokerFill({ connectionDoc, result, symbol: entry.symbol });
-            results.push(confirmed);
-            if (confirmed.success && confirmed.filledQuantity > 0) {
-                fills.push({
-                    filledPrice: confirmed.filledPrice,
-                    filledQuantity: confirmed.filledQuantity,
-                    side: exitSide,
-                    purpose: 'EXIT',
-                });
-            }
-
-            if (confirmed.success) {
-                sendTelegramMessage(
-                    `🎯 <b>[LIVE ${escapeHtml(connectionDoc.environment)}] Chốt một phần (TP1)</b>\nUser: ${escapeHtml(entry.username)} | ${escapeHtml(exitSide)} ${result.finalQty} ${escapeHtml(entry.symbol)}\nLý do: ${escapeHtml(exitReason)}`,
-                    { parseMode: 'HTML' }
-                ).catch(() => {});
-            }
+            // Telegram TP1 gửi 1 lần từ autoTradeEngine — tránh spam trùng
         }
-        const allOk = results.length > 0 && results.every(r => r.success);
+
         const partialNotional = fills.reduce((s, f) => s + (Number(f.filledPrice) || 0) * (Number(f.filledQuantity) || 0), 0);
-        const partialQty = fills.reduce((s, f) => s + (Number(f.filledQuantity) || 0), 0);
-        const avgPartialPrice = partialQty > 0 ? partialNotional / partialQty : null;
+        const filledPartialQty = fills.reduce((s, f) => s + (Number(f.filledQuantity) || 0), 0);
+        const avgPartialPrice = filledPartialQty > 0 ? partialNotional / filledPartialQty : null;
         return {
-            success: allOk,
-            message: allOk ? `Đã chốt ${Math.round(frac * 100)}% vị thế live.` : 'Một phần lệnh chốt TP1 thất bại — kiểm tra ExchangeOrder log.',
+            success: !!confirmed.success && filledPartialQty > 0,
+            message: confirmed.success
+                ? `Đã chốt ~${Math.round(frac * 100)}% phần còn lại.`
+                : (confirmed.exchangeOrderDoc?.errorMessage || 'TP1 thất bại'),
             fills,
             avgPartialPrice,
             filledPrice: avgPartialPrice,
-            filledQuantity: partialQty,
-            fillConfirmed: partialQty > 0,
+            filledQuantity: filledPartialQty,
+            fillConfirmed: filledPartialQty > 0,
         };
     } catch (err) {
         console.log(chalk.red(`  [BROKER] executeLivePartialExit lỗi: ${err.message}`));
         return { success: false, message: err.message };
     }
 };
+
 
 /**
  * Bán toàn bộ số dư của một asset (khác USDT) sang USDT trên SPOT.

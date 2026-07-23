@@ -45,6 +45,63 @@ export const countOpenTradesOfOrder = async (userOrder) => {
 };
 
 /**
+ * Đóng allocation treo: UNMATCHED, hoặc (tuỳ chọn) AutoTrade đã CLOSED/mất document
+ * nhưng allocation còn !closedAt — tránh UI/backend lệch nhau khi xóa gói.
+ * @param {{ includeClosedTrades?: boolean }} opts
+ * @returns {number} số allocation đã heal
+ */
+export const healStaleAllocations = async (userOrder, opts = {}) => {
+    const { includeClosedTrades = true } = opts;
+    const allocs = userOrder?.tradeAllocations || [];
+    if (allocs.length === 0) return 0;
+
+    let statusById = null;
+    if (includeClosedTrades) {
+        const openish = allocs.filter(a => !a.closedAt && a.trade);
+        const trades = openish.length
+            ? await AutoTrade.find({ _id: { $in: openish.map(a => a.trade) } }).select('status').lean()
+            : [];
+        statusById = new Map(trades.map(t => [String(t._id), t.status]));
+    }
+
+    let healed = 0;
+    for (const a of allocs) {
+        if (a.closedAt) continue;
+        if (a.matchStatus === 'UNMATCHED') {
+            a.closedAt = new Date();
+            if (a.pnl == null) a.pnl = 0;
+            healed += 1;
+            continue;
+        }
+        if (!includeClosedTrades || !statusById) continue;
+        const st = a.trade ? statusById.get(String(a.trade)) : null;
+        if (!st || !['OPEN', 'PENDING'].includes(st)) {
+            a.closedAt = new Date();
+            if (a.pnl == null) a.pnl = 0;
+            healed += 1;
+        }
+    }
+    if (healed > 0) userOrder.markModified?.('tradeAllocations');
+    return healed;
+};
+
+/** Lệnh LIVE/MATCHED thật sự còn OPEN/PENDING (sau khi đã heal nếu cần). */
+export const listTrulyOpenAllocations = async (userOrder) => {
+    const allocs = userOrder?.tradeAllocations || [];
+    const candidates = allocs.filter(a => !a.closedAt && a.matchStatus !== 'UNMATCHED' && a.trade);
+    if (candidates.length === 0) return [];
+    const trades = await AutoTrade.find({
+        _id: { $in: candidates.map(a => a.trade) },
+        status: { $in: ['OPEN', 'PENDING'] },
+    }).select('_id').lean();
+    const openIds = new Set(trades.map(t => String(t._id)));
+    return candidates.filter((a) => {
+        if (userOrder.executionMode === 'LIVE' && a.executionMode !== 'LIVE') return false;
+        return openIds.has(String(a.trade));
+    });
+};
+
+/**
  * Gói portfolio có còn slot để nhận lệnh mới không?
  */
 export const canAcceptNewTrade = async (userOrder) => {

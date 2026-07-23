@@ -27,6 +27,10 @@ const ExchangeConnectionSchema = new mongoose.Schema({
 
     balanceSnapshot:     { type: mongoose.Schema.Types.Mixed, default: {} }, // { USDT: 1200.5, BTC: 0.05 }
     balanceUpdatedAt:    { type: Date, default: null },
+
+    // Mốc equity ví (USDT ước tính) — lần đầu có balance, hoặc user “Đặt lại mốc”
+    equityBaselineUSDT:  { type: Number, default: null },
+    equityBaselineAt:    { type: Date, default: null },
 }, { timestamps: true });
 
 ExchangeConnectionSchema.index({ username: 1, exchangeName: 1 });
@@ -48,6 +52,8 @@ ExchangeConnectionSchema.methods.toSafeJSON = function () {
         lastTestLatencyMs: this.lastTestLatencyMs,
         balanceSnapshot: this.balanceSnapshot,
         balanceUpdatedAt: this.balanceUpdatedAt,
+        equityBaselineUSDT: this.equityBaselineUSDT,
+        equityBaselineAt: this.equityBaselineAt,
         createdAt: this.createdAt,
         updatedAt: this.updatedAt,
     };

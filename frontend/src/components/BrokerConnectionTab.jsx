@@ -42,6 +42,7 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
     const [connections, setConnections] = useState([]);
     const [orders, setOrders] = useState([]);
     const [orderStats, setOrderStats] = useState(null);
+    const [walletSummary, setWalletSummary] = useState(null);
     const [liveTrades, setLiveTrades] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -63,7 +64,10 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
             }
             // Chỉ ghi đè danh sách khi fetch THÀNH CÔNG → tránh xoá trắng card đã hiển thị
             // khi một chu kỳ refresh bị lỗi (vd: 429). Lỗi tạm thời sẽ giữ nguyên dữ liệu cũ.
-            if (connRes.data.success) setConnections(connRes.data.data || []);
+            if (connRes.data.success) {
+                setConnections(connRes.data.data || []);
+                if (connRes.data.walletSummary) setWalletSummary(connRes.data.walletSummary);
+            }
             if (orderRes.data.success) {
                 setOrders(orderRes.data.data || []);
                 setOrderStats(orderRes.data.stats || null);
@@ -96,7 +100,7 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
                                 Trung tâm giao dịch LIVE — Broker
                             </h2>
                             <p className={`text-[11px] font-bold ${UI.textMuted}`}>
-                                Quản lý lệnh THỰC trên sàn · Mô phỏng chỉ là training AI nền (xem tab AutoDuck) · CK VN cập nhật sau
+                                Ví sàn (equity/MTM) tách biệt sổ lệnh AutoDuck · CK VN cập nhật sau
                             </p>
                         </div>
                     </div>
@@ -116,8 +120,11 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
                         connections={connections}
                         orderStats={orderStats}
                         orders={orders}
+                        walletSummary={walletSummary}
+                        username={username}
                         isDark={isDark}
                         UI={UI}
+                        onChanged={fetchAll}
                     />
                 </div>
             </div>
@@ -165,6 +172,7 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
                                 isDark={isDark}
                                 UI={UI}
                                 onChanged={fetchAll}
+                                managedBases={liveTrades.map(t => String(t.symbol || '').replace(/USDT$/i, '').toUpperCase()).filter(Boolean)}
                             />
                         ))}
                     </div>
