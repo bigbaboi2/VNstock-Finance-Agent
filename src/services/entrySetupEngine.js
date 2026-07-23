@@ -56,7 +56,10 @@ export const getLiveQualityMinForSetup = (setupType) => {
     const map = {
         EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_EMA_PULLBACK', globalMin),
         TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', globalMin),
-        VWAP_RECLAIM: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM', globalMin),
+        // VWAP reclaim was the largest negative-expectancy LIVE bucket in the
+        // testnet history.  It needs a materially stronger bar than a generic
+        // signal because the raw "near VWAP + volume" condition is common.
+        VWAP_RECLAIM: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM', Math.max(globalMin, 90)),
         BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', Math.max(globalMin, 86)),
         SHORT_CONTINUATION: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT_CONTINUATION', globalMin),
         SHORT: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT', globalMin + 2),
@@ -109,10 +112,17 @@ const scoreEmaPullback = (signal, htfTrend) => {
 const scoreVwapReclaim = (signal, htfTrend) => {
     const vwap = signal.vwap;
     const price = signal.entryPrice;
-    let s = 50;
+    const rsi = signal.rsi ?? 50;
+    const macdLong = signal.breakdown?.macdLong ?? 50;
+    const volumeSurge = signal.volumeSurge || 0;
+    let s = 45;
     if (htfTrend === 'UP') s += 15;
-    if (vwap && price >= vwap * 0.998 && price <= vwap * 1.015) s += 20;
-    if ((signal.volumeSurge || 0) >= 1.4) s += 15;
+    // A reclaim must hold above VWAP; merely hovering around it is not edge.
+    if (vwap && price >= vwap * 1.001 && price <= vwap * 1.008) s += 15;
+    if (volumeSurge >= 1.6) s += 12;
+    else if (volumeSurge >= 1.4) s += 4;
+    if (rsi >= 50 && rsi <= 64) s += 6;
+    if (macdLong >= 70) s += 7;
     return clamp(s);
 };
 
@@ -197,7 +207,30 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
             };
         }
 
-        if (htfTrend === 'UP' && vwap && price >= vwap * 0.998 && price <= vwap * 1.02 && (signal.volumeSurge || 0) >= 1.4) {
+        const vwapCandidate = htfTrend === 'UP' && vwap
+            && price >= vwap * 0.998 && price <= vwap * 1.02
+            && (signal.volumeSurge || 0) >= 1.4;
+        if (vwapCandidate) {
+            const recent = (candles || []).slice(-4);
+            const last = recent.at(-1);
+            const lastClose = Number(last?.close);
+            const lastOpen = Number(last?.open);
+            const reclaimedFromBelow = recent.slice(0, -1).some((c) => Number(c?.close) <= vwap);
+            const closedAboveVwap = Number.isFinite(lastClose) && lastClose >= vwap * 1.001;
+            const bullishClose = !Number.isFinite(lastOpen) || lastClose >= lastOpen;
+            const strongVolume = (signal.volumeSurge || 0) >= 1.6;
+
+            // Do not turn a price merely sitting beside VWAP into a LIVE setup.
+            // We require an observable cross/retest, a close above VWAP and
+            // stronger-than-baseline participation before naming it a reclaim.
+            if (!reclaimedFromBelow || !closedAboveVwap || !bullishClose || !strongVolume) {
+                return {
+                    valid: false,
+                    type: 'BLOCK_VWAP_UNCONFIRMED',
+                    note: 'VWAP chưa có nến reclaim/retest + volume xác nhận',
+                    setupScore: 0,
+                };
+            }
             return {
                 valid: true,
                 type: 'VWAP_RECLAIM',
