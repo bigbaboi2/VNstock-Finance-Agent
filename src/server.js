@@ -107,15 +107,24 @@ startDerivUpdater();
 
 const httpServer = app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.italic(`\n OMNI DUCK SERVER MONGODB READY (local test: http://localhost:${PORT}) `));
-    appendAuditEvent('system', {
-        port: PORT,
-        pid: process.pid,
-        node: process.version,
-        cwd: process.cwd(),
-    }, {
-        event: 'server_start',
-        source: 'server.js',
-    }).catch(() => {});
+    try {
+        const started = await appendAuditEvent('system', {
+            port: PORT,
+            pid: process.pid,
+            node: process.version,
+            cwd: process.cwd(),
+        }, {
+            event: 'server_start',
+            source: 'server.js',
+        });
+        if (!started) {
+            console.log(chalk.gray('[AUDIT] Tắt (AUTODUCK_AUDIT_ENABLED=false) — không tạo logs/autoduck ngày hôm nay.'));
+        } else {
+            console.log(chalk.gray(`[AUDIT] Đã ghi server_start → ${started.logDir || 'logs/autoduck'}/${started.day || ''}`));
+        }
+    } catch (auditErr) {
+        console.error(chalk.red('[AUDIT] Không ghi được log ngày hiện tại:'), auditErr.message);
+    }
 
     startAutoDuckScheduler();
     scheduleMarketInsight();
@@ -129,13 +138,17 @@ const httpServer = app.listen(PORT, async () => {
         }, 30000);
     } catch (error) {
         console.error(chalk.red('[LỖI] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
-        appendAuditEvent('system', {
-            reason: error.message,
-        }, {
-            event: 'server_startup_error',
-            level: 'warn',
-            source: 'server.js',
-        }).catch(() => {});
+        try {
+            await appendAuditEvent('system', {
+                reason: error.message,
+            }, {
+                event: 'server_startup_error',
+                level: 'warn',
+                source: 'server.js',
+            });
+        } catch (auditErr) {
+            console.error(chalk.red('[AUDIT] Không ghi được server_startup_error:'), auditErr.message);
+        }
     }
 });
 
