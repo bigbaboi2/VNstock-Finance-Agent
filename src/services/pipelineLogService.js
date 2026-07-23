@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { performance } from 'node:perf_hooks';
 import { appendAuditEvent } from './auditLogService.js';
+import { appendHumanLog } from './humanLogService.js';
 
 const ICT_TZ = 'Asia/Ho_Chi_Minh';
 const MAX_BUFFER = 80;
@@ -68,7 +69,7 @@ const levelStyles = {
     highlight: (msg) => chalk.bold.cyan(msg),
 };
 
-export const pushPipelineLog = (message, level = 'info') => {
+export const pushPipelineLog = (message, level = 'info', extra = {}) => {
     const entry = {
         id: nextId++,
         ts: new Date().toISOString(),
@@ -79,11 +80,24 @@ export const pushPipelineLog = (message, level = 'info') => {
 
     const paint = levelStyles[level] || levelStyles.info;
     console.log(paint(`[AUTODUCK] ${message}`));
-    appendAuditEvent('pipeline', { message: entry.message }, {
-        event: 'pipeline_log',
-        level,
-        source: 'pipelineLogService',
-    }).catch(() => {});
+
+    const durationPart = extra.durationMs != null ? `  [${formatDuration(extra.durationMs)}]` : '';
+    // TXT only here — avoid double JSONL (caller may also appendAuditEvent)
+    if (extra.audit !== false) {
+        appendAuditEvent('pipeline', {
+            message: entry.message,
+            ...(extra.durationMs != null ? { durationMs: extra.durationMs } : {}),
+            ...(extra.phase ? { phase: extra.phase } : {}),
+        }, {
+            event: 'pipeline_log',
+            level,
+            source: 'pipelineLogService',
+        }).catch(() => {});
+    } else {
+        appendHumanLog('pipeline', `${entry.message}${durationPart}`, {
+            separatorBefore: !!extra.separatorBefore,
+        }).catch(() => {});
+    }
     return entry;
 };
 

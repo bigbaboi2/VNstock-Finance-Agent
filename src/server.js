@@ -43,6 +43,8 @@ import { startCronJobs } from './jobs/newsCron.js';
 import { startVnStockNewsPrefetch } from './jobs/vnStockNewsPrefetch.js';
 import { startAutoDuckScheduler } from './services/autoTradeEngine.js';
 import { scheduleMarketInsight } from './services/marketInsightService.js';
+import { appendAuditEvent } from './services/auditLogService.js';
+import { flushHumanLogQueue } from './services/humanLogService.js';
 
 const app = express();
 const PORT = 3001;
@@ -103,8 +105,18 @@ app.use('/api/crypto-symbols', (req, res, next) => { req.url = '/symbols'; crypt
 startPortfolioMatcher();
 startDerivUpdater();
 
-app.listen(PORT, async () => {
+const httpServer = app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.italic(`\n OMNI DUCK SERVER MONGODB READY (local test: http://localhost:${PORT}) `));
+    appendAuditEvent('system', {
+        port: PORT,
+        pid: process.pid,
+        node: process.version,
+        cwd: process.cwd(),
+    }, {
+        event: 'server_start',
+        source: 'server.js',
+    }).catch(() => {});
+
     startAutoDuckScheduler();
     scheduleMarketInsight();
     try {
@@ -117,5 +129,41 @@ app.listen(PORT, async () => {
         }, 30000);
     } catch (error) {
         console.error(chalk.red('[LỖI] Hệ thống gặp lỗi khi nạp dữ liệu ban đầu tại startup:'), error.message);
+        appendAuditEvent('system', {
+            reason: error.message,
+        }, {
+            event: 'server_startup_error',
+            level: 'warn',
+            source: 'server.js',
+        }).catch(() => {});
     }
 });
+
+let isShuttingDown = false;
+const shutdownServer = async (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(chalk.yellow(`\n[HỆ THỐNG] Đang tắt server (${signal})...`));
+    try {
+        await appendAuditEvent('system', {
+            signal,
+            pid: process.pid,
+            uptimeSec: process.uptime(),
+        }, {
+            event: 'server_stop',
+            source: 'server.js',
+        });
+        await flushHumanLogQueue();
+    } catch {
+        // ignore log flush errors during shutdown
+    }
+
+    httpServer.close(() => {
+        console.log(chalk.gray('[HỆ THỐNG] HTTP server đã đóng.'));
+        process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 8000).unref();
+};
+
+process.on('SIGINT', () => { shutdownServer('SIGINT'); });
+process.on('SIGTERM', () => { shutdownServer('SIGTERM'); });

@@ -20,7 +20,7 @@ const timeAgo = (date) => {
     return `${Math.round(diffH / 24)} ngày trước`;
 };
 
-export default function ConnectionCard({ conn, username, isDark, UI, onChanged }) {
+export default function ConnectionCard({ conn, username, isDark, UI, onChanged, managedBases = [] }) {
     const [busy, setBusy] = useState(null); // 'test' | 'balance' | 'delete' | 'toggle'
     const [flash, setFlash] = useState(null);
     const [showGuide, setShowGuide] = useState(false);
@@ -90,14 +90,23 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
         }
     };
 
-    const balances = Object.entries(conn.balanceSnapshot || {})
+    const allBalances = Object.entries(conn.balanceSnapshot || {})
         .filter(([k, v]) => Number(v) > 0 || ((k === 'USDT' || k === 'VND') && Number(v) === 0))
         .sort((a, b) => {
             if (a[0] === 'USDT' || a[0] === 'VND') return -1;
             if (b[0] === 'USDT' || b[0] === 'VND') return 1;
+            // Ưu tiên theo giá trị USDT nếu có, không thì theo số lượng
+            const ua = Number(conn.walletEquity?.assetUsd?.[a[0]]) || 0;
+            const ub = Number(conn.walletEquity?.assetUsd?.[b[0]]) || 0;
+            if (ua !== ub) return ub - ua;
             return b[1] - a[1];
-        })
-        .slice(0, 8);
+        });
+    const hiddenCount = Math.max(0, allBalances.length - 8);
+    const balances = allBalances.slice(0, 8);
+    const assetUsd = conn.walletEquity?.assetUsd || {};
+    const managedSet = new Set((managedBases || []).map(b => String(b).toUpperCase()));
+    const equityUSDT = conn.walletEquity?.equityUSDT;
+    const pnlVsBaseline = conn.walletEquity?.pnlVsBaselineUSDT;
 
     return (
         <div className={`rounded-2xl border p-4 flex flex-col gap-3 transition-opacity ${UI.card} ${!conn.isActive ? 'opacity-50' : ''}`}>
@@ -127,15 +136,41 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
 
             {/* BALANCE SNAPSHOT */}
             <div className={`rounded-xl p-2.5 border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-                <p className={`text-[9px] uppercase tracking-widest font-black mb-1 ${UI.textMuted}`}>Balance snapshot</p>
+                <div className="flex items-center justify-between mb-1">
+                    <p className={`text-[9px] uppercase tracking-widest font-black ${UI.textMuted}`}>Balance snapshot</p>
+                    {equityUSDT != null && (
+                        <p className={`text-[10px] font-mono font-black text-cyan-400`}>
+                            ≈${Number(equityUSDT).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                            {pnlVsBaseline != null && (
+                                <span className={pnlVsBaseline >= 0 ? ' text-emerald-400' : ' text-red-400'}>
+                                    {' '}({pnlVsBaseline >= 0 ? '+' : ''}{Number(pnlVsBaseline).toLocaleString('en-US', { maximumFractionDigits: 2 })})
+                                </span>
+                            )}
+                        </p>
+                    )}
+                </div>
                 {balances.length > 0 ? (
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                         {balances.map(([asset, amount]) => {
                             const displayName = asset === '这是测试币' ? 'TESTCOIN' : asset;
+                            const usdVal = assetUsd[asset] ?? assetUsd[String(asset).toUpperCase()];
+                            const isManaged = managedSet.has(String(asset).toUpperCase());
                             return (
-                                <div key={asset} className={`flex items-center gap-1.5 group/coin px-2 py-1 rounded-md ${isDark ? 'bg-black/40 border border-white/5' : 'bg-slate-200/50 border border-slate-200'}`}>
-                                    <span className={`text-[11px] font-mono font-bold ${(asset === 'USDT' || asset === 'VND') ? 'text-cyan-400' : UI.textBold}`}>
+                                <div key={asset} className={`flex items-center gap-1.5 group/coin px-2 py-1 rounded-md ${isDark ? 'bg-black/40 border border-white/5' : 'bg-slate-200/50 border border-slate-200'} ${isManaged ? (isDark ? 'ring-1 ring-yellow-500/40' : 'ring-1 ring-yellow-400') : ''}`}>
+                                    <span
+                                        title={isManaged ? 'Đang quản lý bởi AutoDuck (vị thế LIVE mở)' : undefined}
+                                        className={`text-[11px] font-mono font-bold ${
+                                            isManaged ? 'text-yellow-400' :
+                                            (asset === 'USDT' || asset === 'VND') ? 'text-cyan-400' : UI.textBold
+                                        }`}
+                                    >
                                         {displayName}: {Number(amount).toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                                        {usdVal != null && asset !== 'USDT' && (
+                                            <span className={`ml-1 font-bold ${isManaged ? 'text-yellow-500/80' : UI.textMuted}`}>
+                                                ≈${Number(usdVal).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                            </span>
+                                        )}
+                                        {isManaged && <span className="ml-1 text-[8px] uppercase font-black text-yellow-500">BOT</span>}
                                     </span>
                                 {asset !== 'USDT' && asset !== 'VND' && Number(amount) > 0 && (
                                     <button
@@ -154,7 +189,10 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged }
                 ) : (
                     <p className={`text-xs ${UI.textMuted}`}>Chưa có dữ liệu — bấm Test hoặc Balance</p>
                 )}
-                <p className={`text-[10px] mt-1 ${UI.textMuted}`}>Cập nhật: {timeAgo(conn.balanceUpdatedAt)}</p>
+                <p className={`text-[10px] mt-1 ${UI.textMuted}`}>
+                    Cập nhật: {timeAgo(conn.balanceUpdatedAt)}
+                    {hiddenCount > 0 ? ` · +${hiddenCount} coin khác` : ''}
+                </p>
             </div>
 
             {/* QUYỀN & TEST */}

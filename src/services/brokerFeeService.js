@@ -43,9 +43,7 @@ export const extractBinanceSpotFeeUsdt = (rawResponse, { filledPrice, filledQuan
         if (asset === 'USDT' || asset === 'USD' || asset === 'BUSD' || asset === 'FDUSD') {
             feeUsdt += commission;
         } else if (asset === 'BNB') {
-            // Approximate: if we don't have BNBUSDT, use notional * typical ratio later via schedule.
-            // Prefer converting via fill quote when commission is in base of this trade.
-            // Without BNB price, mark unresolved → caller may fallback.
+            // Không có giá BNB tại đây → không resolve → caller dùng SCHEDULE_FALLBACK
             return null;
         } else if (asset === base && fillPx > 0) {
             feeUsdt += commission * fillPx;

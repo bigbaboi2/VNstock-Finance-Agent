@@ -9,14 +9,30 @@ import { getFunnelLogs } from '../services/tradeFunnelService.js';
 import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
 import { getEffectiveAutoDuckConfig, updateAutoDuckConfig } from '../services/autoDuckConfigService.js';
 import { exportLiveTradeStats, DEFAULT_EXPORT_DIR } from '../services/liveTradeExportService.js';
+import { sumLiveRealizedPnl } from '../services/livePnlService.js';
+import {
+    countOpenTradesOfOrder,
+    healStaleAllocations,
+    listTrulyOpenAllocations,
+} from '../services/portfolioManager.js';
 
 //Get the entire automatic transaction history of the system with advanced quantitative statistics
 export const getSystemTradeLogs = async (req, res) => {
     try {
-        const openLogs = await AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 });
-        const closedLogs = await AutoTrade.find({ status: { $nin: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 }).limit(100);
+        // Open: mọi mode. Closed: ưu tiên SIM (training UI) — tránh 100 LIVE gần đây che hết lệnh mô phỏng.
+        const [openLogs, closedSimLogs, closedLiveLogs] = await Promise.all([
+            AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 }),
+            AutoTrade.find({
+                status: { $nin: ['OPEN', 'PENDING'] },
+                executionMode: { $ne: 'LIVE' },
+            }).sort({ openedAt: -1 }).limit(100),
+            AutoTrade.find({
+                status: { $nin: ['OPEN', 'PENDING'] },
+                executionMode: 'LIVE',
+            }).sort({ openedAt: -1 }).limit(50),
+        ]);
 
-        const logs = [...openLogs, ...closedLogs];
+        const logs = [...openLogs, ...closedSimLogs, ...closedLiveLogs];
 
         // Calculate performance statistics using MongoDB Aggregation for all CLOSED trades
         const stats = await AutoTrade.aggregate([
@@ -38,7 +54,13 @@ export const getSystemTradeLogs = async (req, res) => {
         ]);
 
         const statsLive = await AutoTrade.aggregate([
-            { $match: { status: 'CLOSED', executionMode: 'LIVE' } },
+            {
+                $match: {
+                    status: 'CLOSED',
+                    executionMode: 'LIVE',
+                    pnlSource: { $in: ['LIVE_FILLS', 'LIVE_FILLS_NET_FEE'] },
+                },
+            },
             {
                 $group: {
                     _id: null,
@@ -53,6 +75,9 @@ export const getSystemTradeLogs = async (req, res) => {
             },
         ]);
 
+        // Nguồn chuẩn: recomputed từ fills (bỏ MARK_SIM / sim fallback cũ)
+        const liveOfficial = await sumLiveRealizedPnl({}).catch(() => null);
+
         let totalTrades = 0, winningTrades = 0, losingTrades = 0, totalPnlAmount = 0, totalPnlPct = 0;
         if (stats.length > 0) {
             ({ totalTrades, winningTrades, losingTrades, totalPnlAmount, totalPnlPct } = stats[0]);
@@ -63,10 +88,38 @@ export const getSystemTradeLogs = async (req, res) => {
 
         let metricsLive = {
             winRate: 0, avgPnl: '0.00', totalTrades: 0,
-            totalPnlAmount: 0, winningTrades: 0, losingTrades: 0,
+            totalPnlAmount: 0, totalPnlUSDT: 0, winningTrades: 0, losingTrades: 0,
             avgWinPct: 0, avgLossPct: 0, expectancyPct: 0,
+            pnlSource: 'LIVE_FILLS',
         };
-        if (statsLive.length > 0) {
+        if (liveOfficial && liveOfficial.eligibleCount > 0) {
+            const liveTotal = liveOfficial.eligibleCount;
+            const wins = liveOfficial.winCount || 0;
+            const losses = liveTotal - wins;
+            const pcts = (liveOfficial.byTrade || []).map(t => Number(t.pnlPercent) || 0);
+            const winPcts = pcts.filter(p => p > 0);
+            const lossPcts = pcts.filter(p => p < 0);
+            const liveAvgWin = winPcts.length ? winPcts.reduce((a, b) => a + b, 0) / winPcts.length : 0;
+            const liveAvgLoss = lossPcts.length ? lossPcts.reduce((a, b) => a + b, 0) / lossPcts.length : 0;
+            const liveExpectancy = liveTotal > 0
+                ? Math.round(((wins / liveTotal) * liveAvgWin + (losses / liveTotal) * liveAvgLoss) * 100) / 100
+                : 0;
+            const avgPct = pcts.length ? (pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+            metricsLive = {
+                winRate: liveOfficial.winRate,
+                avgPnl: avgPct.toFixed(2),
+                totalTrades: liveTotal,
+                totalPnlAmount: liveOfficial.totalPnlVND,
+                totalPnlUSDT: liveOfficial.totalPnlUSDT,
+                winningTrades: wins,
+                losingTrades: losses,
+                avgWinPct: Math.round(liveAvgWin * 100) / 100,
+                avgLossPct: Math.round(liveAvgLoss * 100) / 100,
+                expectancyPct: liveExpectancy,
+                pnlSource: 'LIVE_FILLS',
+                usdVndRate: liveOfficial.usdVndRate,
+            };
+        } else if (statsLive.length > 0) {
             const s = statsLive[0];
             const liveTotal = s.totalTrades || 0;
             const liveWinRate = liveTotal > 0 ? Math.round((s.winningTrades / liveTotal) * 100) : 0;
@@ -80,11 +133,13 @@ export const getSystemTradeLogs = async (req, res) => {
                 avgPnl: liveTotal > 0 ? (s.totalPnlPct / liveTotal).toFixed(2) : '0.00',
                 totalTrades: liveTotal,
                 totalPnlAmount: s.totalPnlAmount || 0,
+                totalPnlUSDT: 0,
                 winningTrades: s.winningTrades || 0,
                 losingTrades: s.losingTrades || 0,
                 avgWinPct: Math.round(liveAvgWin * 100) / 100,
                 avgLossPct: Math.round(liveAvgLoss * 100) / 100,
                 expectancyPct: liveExpectancy,
+                pnlSource: 'LIVE_FILLS_DB',
             };
         }
 
@@ -459,7 +514,8 @@ export const stopUserOrder = async (req, res) => {
             return res.json({ success: false, message: `Gói đang ở trạng thái ${order.status}, không thể dừng.` });
         }
         order.status = 'STOPPED';
-        const openCount = (order.tradeAllocations || []).filter(a => !a.closedAt).length;
+        const openCount = await countOpenTradesOfOrder(order);
+        order.result = order.result || {};
         order.result.message = `Gói đã DỪNG theo yêu cầu. ${openCount > 0 ? `${openCount} lệnh đang mở vẫn được giám sát đến khi đóng (vốn + PnL sẽ tự hoàn về quỹ).` : 'Không còn lệnh nào đang mở.'}`;
         await order.save();
         return res.json({ success: true, data: order, message: order.result.message });
@@ -468,7 +524,7 @@ export const stopUserOrder = async (req, res) => {
     }
 };
 
-// Xóa hẳn một gói lệnh khỏi danh sách (chỉ cho gói đã kết thúc, không còn lệnh mở).
+// Xóa hẳn một gói lệnh khỏi danh sách (chỉ cho gói đã kết thúc, không còn lệnh OPEN thật).
 export const deleteUserOrder = async (req, res) => {
     try {
         const username = req.body?.username || req.query?.username;
@@ -481,12 +537,40 @@ export const deleteUserOrder = async (req, res) => {
         if (['ACTIVE', 'PENDING'].includes(order.status)) {
             return res.status(400).json({ success: false, message: `Gói đang ${order.status} — hãy DỪNG gói trước khi xóa.` });
         }
-        const hasOpenAlloc = (order.tradeAllocations || []).some(a => !a.closedAt);
-        if (hasOpenAlloc) {
-            return res.status(400).json({ success: false, message: 'Gói vẫn còn lệnh đang mở — chờ đóng hết rồi mới xóa được.' });
+
+        // Đồng bộ allocation “treo”: UI đếm MATCHED+!closedAt, nhưng DB có thể còn
+        // UNMATCHED/không closedAt dù AutoTrade đã CLOSED → chặn xóa oan.
+        const healed = await healStaleAllocations(order);
+        if (healed > 0) {
+            if (order.status === 'STOPPED') {
+                const stillOpen = await countOpenTradesOfOrder(order);
+                order.result = order.result || {};
+                order.result.message = stillOpen > 0
+                    ? `Gói đã DỪNG theo yêu cầu. ${stillOpen} lệnh đang mở vẫn được giám sát đến khi đóng (vốn + PnL sẽ tự hoàn về quỹ).`
+                    : 'Gói đã DỪNG. Không còn lệnh nào đang mở.';
+            }
+            await order.save();
         }
-        await order.deleteOne();
-        return res.json({ success: true, message: 'Đã xóa gói lệnh khỏi danh sách.' });
+
+        const trulyOpen = await listTrulyOpenAllocations(order);
+        if (trulyOpen.length > 0) {
+            const syms = trulyOpen.map(a => a.symbol || '?').slice(0, 8).join(', ');
+            return res.status(400).json({
+                success: false,
+                message: `Gói còn ${trulyOpen.length} lệnh LIVE đang OPEN/PENDING (${syms}) — chờ đóng hết trên sàn rồi mới xóa được.`,
+            });
+        }
+
+        const deleted = await UserOrder.findByIdAndDelete(order._id);
+        if (!deleted) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy gói lệnh (có thể đã bị xóa).' });
+        }
+        return res.json({
+            success: true,
+            message: healed > 0
+                ? `Đã dọn ${healed} allocation treo và xóa gói khỏi danh sách.`
+                : 'Đã xóa gói lệnh khỏi danh sách.',
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -498,6 +582,27 @@ export const getUserOrders = async (req, res) => {
         const data = await UserOrder.find({ username: req.params.username })
                                     .populate('assignedTrade')
                                     .sort({ createdAt: -1 });
+        // Heal allocation treo + làm mới thông báo STOPPED (không làm fail cả list nếu 1 gói lỗi)
+        for (const order of data) {
+            try {
+                const healed = await healStaleAllocations(order, { includeClosedTrades: false });
+                let dirty = healed > 0;
+                if (order.status === 'STOPPED') {
+                    const stillOpen = await countOpenTradesOfOrder(order);
+                    const nextMsg = stillOpen > 0
+                        ? `Gói đã DỪNG theo yêu cầu. ${stillOpen} lệnh đang mở vẫn được giám sát đến khi đóng (vốn + PnL sẽ tự hoàn về quỹ).`
+                        : 'Gói đã DỪNG. Không còn lệnh nào đang mở.';
+                    order.result = order.result || {};
+                    if (order.result.message !== nextMsg) {
+                        order.result.message = nextMsg;
+                        dirty = true;
+                    }
+                }
+                if (dirty) await order.save();
+            } catch (healErr) {
+                console.warn(`[getUserOrders] heal skip ${order._id}:`, healErr.message);
+            }
+        }
         return res.json({ success: true, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });

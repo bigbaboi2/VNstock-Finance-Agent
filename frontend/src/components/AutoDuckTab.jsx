@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
     Activity,
@@ -22,6 +22,7 @@ import {
     TrendingUp,
     X,
     Zap,
+    Loader2,
 } from 'lucide-react';
 import AutoDuckEnvSettingsPanel from './AutoDuckEnvSettingsPanel';
 
@@ -96,11 +97,16 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         totalPnlAmount: 0, avgWinPct: 0, avgLossPct: 0, expectancyPct: 0,
     });
     const [loading, setLoading] = useState(false);
+    const [logsLoading, setLogsLoading] = useState(true);
+    const [isSubmittingPackage, setIsSubmittingPackage] = useState(false);
     const [actionMessage, setActionMessage] = useState({ text: '', isError: false });
+    const fetchSeqRef = useRef(0);
+    const logsReadyRef = useRef(false);
     
     // State bộ lọc và sắp xếp
     const [filterStatus, setFilterStatus] = useState('ALL');
     const [filterAsset, setFilterAsset] = useState('ALL');
+    const [filterExecMode, setFilterExecMode] = useState('ALL');
     const [sortTime, setSortTime] = useState('DESC');
     const [riskLevel, setRiskLevel] = useState(2);
     const [isEngineEnabled, setIsEngineEnabled] = useState(null); // null = chưa load xong từ server
@@ -165,6 +171,13 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     const filteredAndSortedLogs = useMemo(() => {
         let result = [...systemLogs];
 
+        // Lọc SIM / LIVE
+        if (filterExecMode === 'LIVE') {
+            result = result.filter((log) => log.executionMode === 'LIVE');
+        } else if (filterExecMode === 'SIMULATED') {
+            result = result.filter((log) => log.executionMode !== 'LIVE');
+        }
+
         // Lọc theo trạng thái
         if (filterStatus === 'OPEN') {
             result = result.filter(log => ['OPEN', 'PENDING'].includes(log.status));
@@ -185,7 +198,17 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         });
 
         return result;
-    }, [systemLogs, filterStatus, filterAsset, sortTime]);
+    }, [systemLogs, filterStatus, filterAsset, filterExecMode, sortTime]);
+
+    const logExecModeCounts = useMemo(() => {
+        let sim = 0;
+        let live = 0;
+        for (const log of systemLogs) {
+            if (log.executionMode === 'LIVE') live += 1;
+            else sim += 1;
+        }
+        return { all: systemLogs.length, sim, live };
+    }, [systemLogs]);
 
     // Tính toán phân bổ vốn
     const allocatedCapital = performance.openExposure;
@@ -193,6 +216,9 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
     const fetchAllData = async () => {
         if (!username) return;
+        const seq = ++fetchSeqRef.current;
+        const isInitialLogsLoad = !logsReadyRef.current;
+        if (isInitialLogsLoad) setLogsLoading(true);
         try {
             const [resLogs, resUser, resLessons, resSettings, resConns] = await Promise.all([
                 axios.get('/api/auto-trade/logs').catch(() => ({ data: { success: false } })),
@@ -201,6 +227,8 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 axios.get('/api/auto-trade/settings').catch(() => ({ data: { success: false } })),
                 axios.get(`/api/exchange-connections/${username}`).catch(() => ({ data: { success: false } })),
             ]);
+            // Bỏ qua response cũ — tránh poll 20s ghi đè list sau khi vừa xóa gói.
+            if (seq !== fetchSeqRef.current) return;
 
             if (resConns.data.success) {
                 setLiveConnections(
@@ -237,14 +265,23 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                 }
             }
         } catch (err) {
+            if (seq !== fetchSeqRef.current) return;
             setActionMessage({ text: 'Không tải được dữ liệu AutoTrade. Kiểm tra backend/API.', isError: true });
+        } finally {
+            if (seq === fetchSeqRef.current && isInitialLogsLoad) {
+                logsReadyRef.current = true;
+                setLogsLoading(false);
+            }
         }
     };
 
     useEffect(() => {
+        logsReadyRef.current = false;
+        setLogsLoading(true);
         fetchAllData();
         const interval = setInterval(fetchAllData, 20000);
         return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [username]);
 
     const handleSaveCapital = async () => {
@@ -322,10 +359,17 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             ? `${(Number(order.totalCapital) / 1e6).toFixed(1)}Tr`
             : `${(Number(order.capital) / 1e6).toFixed(1)}Tr`;
         if (!window.confirm(`Xóa hẳn gói ${capLabel} (${order.status}) khỏi danh sách?\nLịch sử lệnh của gói này sẽ không còn hiển thị.`)) return;
+        const orderId = String(order._id);
         try {
-            const res = await axios.delete(`/api/auto-trade/user-order/${order._id}`, { data: { username } });
-            setActionMessage({ text: res.data.message, isError: !res.data.success });
-            fetchAllData();
+            const res = await axios.delete(`/api/auto-trade/user-order/${orderId}`, { data: { username } });
+            if (res.data?.success) {
+                // Gỡ khỏi UI ngay — không phụ thuộc refetch (tránh race với poll 20s / API lỗi tạm).
+                setUserOrders((prev) => prev.filter((o) => String(o._id) !== orderId));
+                setActionMessage({ text: res.data.message || 'Đã xóa gói lệnh khỏi danh sách.', isError: false });
+                fetchAllData();
+            } else {
+                setActionMessage({ text: res.data?.message || 'Xóa gói thất bại.', isError: true });
+            }
         } catch (err) {
             setActionMessage({ text: err.response?.data?.message || 'Lỗi xóa gói lệnh.', isError: true });
         }
@@ -333,7 +377,8 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
+        if (isSubmittingPackage) return;
+        setIsSubmittingPackage(true);
         setActionMessage({ text: '', isError: false });
 
         try {
@@ -341,7 +386,6 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
                 if (!formData.exchangeConnectionId) {
                     setActionMessage({ text: 'Hãy chọn một kết nối sàn để dùng chế độ LIVE (tab Kết nối sàn / Broker).', isError: true });
-                    setLoading(false);
                     return;
                 }
                 const conn = liveConnections.find(c => c._id === formData.exchangeConnectionId);
@@ -349,7 +393,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                     const ok = window.confirm(
                         `⚠️ XÁC NHẬN LIVE TRADING\n\nKết nối "${conn.label}" (${conn.exchangeName}) đang ở môi trường LIVE.\nLệnh sẽ được gửi THỰC TẾ ra sàn bằng TIỀN THẬT khi engine khớp tín hiệu.\n\nBạn chắc chắn muốn tiếp tục?`
                     );
-                    if (!ok) { setLoading(false); return; }
+                    if (!ok) return;
                 }
             }
 
@@ -369,15 +413,15 @@ export default function AutoDuckTab({ username, isDark, UI }) {
             });
 
             if (res.data.success) {
-                setActionMessage({ text: res.data.message, isError: false });
-                fetchAllData();
+                setActionMessage({ text: res.data.message || 'Đã tạo gói — đang tải danh sách…', isError: false });
+                await fetchAllData();
             } else {
                 setActionMessage({ text: `Cảnh báo: ${res.data.message}`, isError: true });
             }
         } catch (err) {
-            setActionMessage({ text: 'Lỗi kết nối khi gửi gói ủy thác.', isError: true });
+            setActionMessage({ text: err.response?.data?.message || 'Lỗi kết nối khi gửi gói ủy thác.', isError: true });
         } finally {
-            setLoading(false);
+            setIsSubmittingPackage(false);
         }
     };
 
@@ -478,7 +522,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Tạo gói lệnh ủy thác</span>
                     </div>
 
-                    <form onSubmit={handleFormSubmit} className="flex flex-col gap-3">
+                    <form onSubmit={handleFormSubmit} className={`flex flex-col gap-3 ${isSubmittingPackage ? 'pointer-events-none opacity-80' : ''}`}>
                         {/* ── CHẾ ĐỘ ỦY THÁC VỐN ── */}
                         <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col gap-2 ${UI.searchBg}`}>
                             <label className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>
@@ -670,30 +714,52 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                             })()}
                         </div>
 
-                        <button type="submit" disabled={loading}
-                            className={`w-full py-3 rounded-xl font-black text-sm transition-colors disabled:opacity-50 ${
+                        <button type="submit" disabled={isSubmittingPackage}
+                            aria-busy={isSubmittingPackage}
+                            className={`w-full py-3 rounded-xl font-black text-sm transition-all disabled:cursor-wait disabled:opacity-80 inline-flex items-center justify-center gap-2 ${
                                 formData.executionMode === 'LIVE'
                                     ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'
                                     : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
-                            }`}>
-                            {loading ? 'Đang gửi...' : (formData.executionMode === 'LIVE' ? '🔴 Đăng ký gói lệnh LIVE' : 'Đăng ký gói lệnh mô phỏng')}
+                            } ${isSubmittingPackage ? 'animate-pulse' : ''}`}>
+                            {isSubmittingPackage ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin shrink-0" />
+                                    <span>Đang tạo gói & tải dữ liệu…</span>
+                                </>
+                            ) : (
+                                formData.executionMode === 'LIVE' ? '🔴 Đăng ký gói lệnh LIVE' : 'Đăng ký gói lệnh mô phỏng'
+                            )}
                         </button>
 
                         {actionMessage.text && (
-                            <p className={`text-[11px] font-bold leading-relaxed ${actionMessage.isError ? 'text-red-400' : 'text-emerald-400'}`}>
+                            <p className={`text-[11px] font-bold leading-relaxed inline-flex items-center gap-1.5 ${actionMessage.isError ? 'text-red-400' : 'text-emerald-400'}`}>
+                                {isSubmittingPackage && !actionMessage.isError && (
+                                    <Loader2 size={12} className="animate-spin shrink-0" />
+                                )}
                                 {actionMessage.text}
                             </p>
                         )}
                     </form>
                 </section>
 
-                <section className={`xl:col-span-7 rounded-xl border-2 flex flex-col h-full overflow-hidden ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
+                <section className={`xl:col-span-7 rounded-xl border-2 flex flex-col h-full overflow-hidden relative ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
+                    {isSubmittingPackage && (
+                        <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-[2px] ${isDark ? 'bg-black/40' : 'bg-white/50'}`}>
+                            <Loader2 size={28} className="animate-spin text-emerald-400" />
+                            <p className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>
+                                Đang tải danh sách gói…
+                            </p>
+                        </div>
+                    )}
                     <div className={`px-5 py-4 flex flex-col gap-1 border-b ${UI.border} shrink-0`}>
                         <div className="flex items-center gap-2">
                             <Target size={16} className="text-yellow-500 shrink-0" />
                             <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>
                                 Gói lệnh của bạn
                             </span>
+                            {isSubmittingPackage && (
+                                <Loader2 size={12} className="animate-spin text-emerald-400" />
+                            )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 pl-6">
                             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
@@ -735,7 +801,7 @@ export default function AutoDuckTab({ username, isDark, UI }) {
 
             <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 border-violet-500`}>
                 <span className={`ml-2 text-xs font-black uppercase tracking-widest ${UI.textBold}`}>Nhật ký tín hiệu AI</span>
-                <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Lệnh mô phỏng chạy nền để AI học · Xem lệnh thực ở tab Broker</span>
+                <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Lọc SIM / LIVE · Lệnh mô phỏng để AI học · Lệnh thực cũng hiện tại đây</span>
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
                 <section className={`xl:col-span-12 rounded-xl border-2 flex flex-col h-[720px] overflow-hidden ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
@@ -743,32 +809,81 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         <div className="flex items-center gap-2">
                             <Activity size={16} className="text-cyan-500" />
                             <div className="flex flex-col">
-                                <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>🧠 Tín hiệu AI — Training nền (mô phỏng)</span>
-                                <span className={`text-[9px] font-bold normal-case tracking-normal ${UI.textMuted}`}>Chạy ngầm để AI học & tăng tỷ lệ thắng · Không báo Telegram · Lệnh thực xem ở tab Broker</span>
+                                <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>🧠 Nhật ký lệnh AutoDuck</span>
+                                <span className={`text-[9px] font-bold normal-case tracking-normal ${UI.textMuted}`}>
+                                    {filterExecMode === 'LIVE'
+                                        ? 'Đang xem lệnh LIVE (tiền thật)'
+                                        : filterExecMode === 'SIMULATED'
+                                            ? 'Đang xem lệnh SIM (training nền)'
+                                            : 'Đang xem tất cả lệnh SIM + LIVE'}
+                                    {' · '}Lệnh sàn chi tiết xem thêm tab Broker
+                                </span>
                             </div>
                         </div>
+                        {logsLoading && (
+                            <div className="flex items-center gap-2 text-blue-500">
+                                <Loader2 size={16} className="animate-spin" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Đang tải…</span>
+                            </div>
+                        )}
                     </div>
 
-                    <div className={`px-4 py-3 flex flex-wrap gap-2 border-b ${isDark ? 'border-white/5 bg-[#0a0f18]' : 'border-slate-100 bg-slate-50'} shrink-0`}>
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                    <div className={`px-4 py-3 flex flex-wrap items-center gap-2 border-b ${isDark ? 'border-white/5 bg-[#0a0f18]' : 'border-slate-100 bg-slate-50'} shrink-0`}>
+                        <div className="flex items-center gap-1.5 mr-1">
+                            {[
+                                { id: 'ALL', label: 'Tất cả', count: logExecModeCounts.all, active: isDark ? 'border-slate-300 bg-white/10 text-white' : 'border-slate-400 bg-slate-200 text-slate-900' },
+                                { id: 'SIMULATED', label: 'SIM', count: logExecModeCounts.sim, active: isDark ? 'border-violet-400/70 bg-violet-500/25 text-violet-100' : 'border-violet-400 bg-violet-100 text-violet-900' },
+                                { id: 'LIVE', label: 'LIVE', count: logExecModeCounts.live, active: isDark ? 'border-emerald-400/70 bg-emerald-500/25 text-emerald-100' : 'border-emerald-500 bg-emerald-100 text-emerald-900' },
+                            ].map(({ id, label, count, active }) => {
+                                const isActive = filterExecMode === id;
+                                return (
+                                    <button
+                                        key={id}
+                                        type="button"
+                                        disabled={logsLoading}
+                                        onClick={() => setFilterExecMode(id)}
+                                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors active:scale-[0.97] disabled:opacity-50 ${
+                                            isActive
+                                                ? active
+                                                : (isDark
+                                                    ? 'border-white/15 bg-black/20 text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                                                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700')
+                                        }`}
+                                    >
+                                        {label}
+                                        <span className={`ml-1.5 normal-case tracking-normal font-bold opacity-80 ${isActive ? '' : 'opacity-60'}`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} disabled={logsLoading} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer disabled:opacity-50 ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
                             <option value="ALL">Trạng thái: Tất cả</option>
                             <option value="OPEN">Trạng thái: Đang chạy</option>
                             <option value="CLOSED">Trạng thái: Đã đóng</option>
                         </select>
-                        <select value={filterAsset} onChange={e => setFilterAsset(e.target.value)} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                        <select value={filterAsset} onChange={e => setFilterAsset(e.target.value)} disabled={logsLoading} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer disabled:opacity-50 ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
                             <option value="ALL">Thị trường: Tất cả</option>
                             <option value="VN_STOCK">Chứng khoán VN</option>
                             <option value="CRYPTO">Crypto</option>
                             <option value="DERIVATIVES">Phái sinh VN</option>
                         </select>
-                        <select value={sortTime} onChange={e => setSortTime(e.target.value)} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
+                        <select value={sortTime} onChange={e => setSortTime(e.target.value)} disabled={logsLoading} className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1.5 rounded outline-none border transition-colors cursor-pointer disabled:opacity-50 ${isDark ? 'bg-[#1a1f2e] text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-300'}`}>
                             <option value="DESC">Sắp xếp: Mới nhất</option>
                             <option value="ASC">Sắp xếp: Cũ nhất</option>
                         </select>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                        {filteredAndSortedLogs.length === 0 ? (
+                        {logsLoading ? (
+                            <div className={`flex flex-col items-center justify-center h-full gap-3 ${UI.textMuted}`}>
+                                <Loader2 size={36} className="animate-spin text-blue-500" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">
+                                    Đang trích xuất nhật ký tín hiệu…
+                                </p>
+                            </div>
+                        ) : filteredAndSortedLogs.length === 0 ? (
                             <div className={`flex flex-col items-center justify-center h-full opacity-60 ${UI.textMuted}`}>
                                 <Crosshair size={32} className="mb-3" />
                                 <p className="text-[10px] font-black uppercase tracking-widest">Không có lệnh nào thỏa mãn bộ lọc.</p>
@@ -966,7 +1081,12 @@ export default function AutoDuckTab({ username, isDark, UI }) {
                         </div>
                     </div>
                     <p className={`text-[10px] mt-2 ${UI.textMuted}`}>
-                        PnL LIVE tích lũy: {metricsLive.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metricsLive.totalPnlAmount)} đ
+                        PnL LIVE tích lũy (fill − phí): {metricsLive.totalPnlAmount >= 0 ? '+' : ''}{formatNumber(metricsLive.totalPnlAmount)} đ
+                        {metricsLive.totalPnlUSDT != null && (
+                            <span className={`ml-2 ${UI.textMuted}`}>
+                                · ≈${Number(metricsLive.totalPnlUSDT).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                            </span>
+                        )}
                     </p>
                 </div>
             )}
@@ -1319,7 +1439,11 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                 <span className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>SL -{order.stopLossPct}%</span>
                 <span className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>{order.assetType}</span>
             </div>
-            <p className={`text-[10px] font-medium leading-relaxed ${UI.textMuted}`}>{order.result?.message}</p>
+            <p className={`text-[10px] font-medium leading-relaxed ${UI.textMuted}`}>
+                {order.status === 'STOPPED' && openCount === 0
+                    ? 'Gói đã DỪNG. Không còn lệnh nào đang mở.'
+                    : (order.result?.message || '')}
+            </p>
 
             {/* ── Danh sách lệnh đã vào của gói portfolio ── */}
             {isPortfolio && allAllocations.length > 0 && (

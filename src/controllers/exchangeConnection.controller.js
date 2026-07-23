@@ -4,6 +4,12 @@ import { encrypt, maskKey } from '../services/encryptionService.js';
 import { SUPPORTED_EXCHANGES } from '../services/exchangeAdapters/index.js';
 import * as brokerService from '../services/exchangeBrokerService.js';
 import { getUsdVndRate } from '../services/autoTradeEngine.js';
+import {
+    enrichConnectionsWithEquity,
+    resetEquityBaseline,
+    maybeSetEquityBaseline,
+} from '../services/walletEquityService.js';
+import { mapLivePnlByTradeIds, sumLiveRealizedPnl, listCurrentPackageLiveTradeIds, filterLivePnlSummaryByTradeIds } from '../services/livePnlService.js';
 
 const MAX_ACTIVE_CONNECTIONS_PER_USER = 5;
 
@@ -18,11 +24,54 @@ const checkRateLimit = (key, maxPerMinute = 10) => {
     return true;
 };
 
-/** GET /api/exchange-connections/:username — danh sách kết nối (an toàn, không có key) */
+/** GET /api/exchange-connections/:username — danh sách kết nối + equity ví (MTM) */
 export const getConnections = async (req, res) => {
     try {
         const docs = await ExchangeConnection.find({ username: req.params.username }).sort({ createdAt: -1 });
-        return res.json({ success: true, data: docs.map(d => d.toSafeJSON()) });
+
+        // Backfill baseline cho connection cũ chưa có mốc (không chặn response nếu fail)
+        for (const doc of docs) {
+            if (doc.equityBaselineUSDT == null && doc.balanceSnapshot && Object.keys(doc.balanceSnapshot).length) {
+                const set = await maybeSetEquityBaseline(doc).catch(() => false);
+                if (set) await doc.save().catch(() => {});
+            }
+        }
+
+        const { data, walletSummary } = await enrichConnectionsWithEquity(docs);
+        return res.json({ success: true, data, walletSummary });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/** POST /api/exchange-connections/:id/reset-equity-baseline — đặt mốc ví = equity hiện tại */
+export const resetEquityBaselineEndpoint = async (req, res) => {
+    try {
+        const doc = await ExchangeConnection.findById(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, message: 'Không tìm thấy kết nối.' });
+        if (req.body?.username && doc.username !== req.body.username) {
+            return res.status(403).json({ success: false, message: 'Không có quyền thao tác kết nối này.' });
+        }
+        if (!checkRateLimit(`baseline:${doc.username}`, 5)) {
+            return res.status(429).json({ success: false, message: 'Quá nhiều yêu cầu đặt lại mốc — tối đa 5 lần/phút.' });
+        }
+
+        // Làm mới balance trước khi ghi mốc (best-effort)
+        try {
+            await brokerService.getBalance(doc);
+        } catch {
+            /* dùng snapshot cũ nếu sàn lỗi */
+        }
+
+        const equity = await resetEquityBaseline(doc);
+        await doc.save();
+
+        return res.json({
+            success: true,
+            message: `Đã đặt lại mốc ví = $${equity.equityUSDT.toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
+            data: doc.toSafeJSON(),
+            equity,
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -180,38 +229,63 @@ export const getExchangeOrders = async (req, res) => {
             .lean();
 
         const autoTradeIds = [...new Set(orders.map(o => o.autoTradeId).filter(Boolean))];
-        const AutoTrade = (await import('../../models/AutoTrade.js')).default;
-        const autoTrades = await AutoTrade.find({ _id: { $in: autoTradeIds } }, 'pnl pnlPercent').lean();
-        const tradeMap = {};
-        autoTrades.forEach(t => tradeMap[t._id.toString()] = t);
-
         const currentUsdVndRate = await getUsdVndRate();
+        const pnlMap = await mapLivePnlByTradeIds(autoTradeIds, currentUsdVndRate);
+        const AutoTrade = (await import('../../models/AutoTrade.js')).default;
+        const markTrades = await AutoTrade.find(
+            { _id: { $in: autoTradeIds } },
+            'markSimPnl markSimPnlPercent pnlSource'
+        ).lean();
+        const markMap = {};
+        markTrades.forEach(t => { markMap[String(t._id)] = t; });
 
         for (const o of orders) {
-            if (o.purpose === 'EXIT' && o.autoTradeId && tradeMap[o.autoTradeId.toString()]) {
-                const t = tradeMap[o.autoTradeId.toString()];
-                let displayPnl = t.pnl;
-                
-                // Nếu không phải chứng khoán VN (DNSE) thì frontend hiển thị theo $.
-                // Chuyển đổi từ VNĐ sang USD. Dùng heuristic: nếu PnL > 10000 (đây là VNĐ, hoặc $10k là rất hiếm).
-                if (o.exchangeName !== 'DNSE') {
-                    if (Math.abs(displayPnl) > 10000) {
-                        displayPnl = displayPnl / currentUsdVndRate; 
-                    }
-                }
-                
-                o.livePnl = displayPnl;
-                o.livePnlPercent = t.pnlPercent;
+            if (o.purpose !== 'EXIT' || !o.autoTradeId) continue;
+            const tid = o.autoTradeId.toString();
+            const fillPnl = pnlMap[tid];
+            const mark = markMap[tid];
+
+            // Official PnL chỉ trên EXIT đã khớp
+            if (['FILLED', 'PARTIAL'].includes(o.status) && fillPnl?.eligible) {
+                o.livePnl = o.exchangeName === 'DNSE' ? fillPnl.livePnlVND : fillPnl.livePnlUSDT;
+                o.livePnlPercent = fillPnl.livePnlPercent;
+                o.livePnlSource = fillPnl.source;
+            } else if (o.status === 'FAILED' && mark?.markSimPnl != null) {
+                // Phụ: mark sim cho phân tích — UI hiển thị muted
+                o.markSimPnl = o.exchangeName === 'DNSE'
+                    ? mark.markSimPnl
+                    : (Number(mark.markSimPnl) / currentUsdVndRate);
+                o.markSimPnlPercent = mark.markSimPnlPercent;
+                o.livePnl = null;
+                o.livePnlPercent = null;
+            } else {
+                o.livePnl = null;
+                o.livePnlPercent = null;
             }
         }
 
         const filled = orders.filter(o => o.status === 'FILLED');
+        const livePnlSummary = await sumLiveRealizedPnl({ username }).catch(() => null);
+        const currentPkg = await listCurrentPackageLiveTradeIds(username).catch(() => ({ tradeIds: [], packageCount: 0 }));
+        const currentPnl = livePnlSummary
+            ? filterLivePnlSummaryByTradeIds(livePnlSummary, currentPkg.tradeIds)
+            : null;
         const stats = {
             totalOrders: orders.length,
             filledOrders: filled.length,
             failedOrders: orders.filter(o => o.status === 'FAILED').length,
             pendingOrders: orders.filter(o => ['PENDING', 'PARTIAL'].includes(o.status)).length,
             totalNotionalUSDT: +filled.reduce((s, o) => s + (o.notionalUSDT || 0), 0).toFixed(2),
+            // PnL tổng từ lúc khởi tạo (mọi lệnh LIVE đã đóng của user, kể cả gói đã xóa)
+            liveRealizedPnlUSDT: livePnlSummary?.totalPnlUSDT ?? 0,
+            liveRealizedPnlVND: livePnlSummary?.totalPnlVND ?? 0,
+            liveEligibleTrades: livePnlSummary?.eligibleCount ?? 0,
+            // PnL chỉ các gói UserOrder LIVE còn trong danh sách Tab 6
+            liveCurrentPackagePnlUSDT: currentPnl?.totalPnlUSDT ?? 0,
+            liveCurrentPackagePnlVND: currentPnl?.totalPnlVND ?? 0,
+            liveCurrentPackageTrades: currentPnl?.eligibleCount ?? 0,
+            liveCurrentPackageCount: currentPkg.packageCount ?? 0,
+            usdVndRate: currentUsdVndRate,
         };
         return res.json({ success: true, stats, data: orders });
     } catch (error) {

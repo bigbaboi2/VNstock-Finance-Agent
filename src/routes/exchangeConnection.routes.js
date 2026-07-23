@@ -8,6 +8,7 @@ import {
     getLiveBalance,
     getExchangeOrders,
     sellBalanceToUSDT,
+    resetEquityBaselineEndpoint,
 } from '../controllers/exchangeConnection.controller.js';
 
 const router = express.Router();
@@ -22,5 +23,6 @@ router.post('/:id/test', testConnectionEndpoint);
 router.patch('/:id/toggle', toggleConnection);
 router.get('/:id/balance', getLiveBalance);
 router.post('/:id/sell-to-usdt', sellBalanceToUSDT);
+router.post('/:id/reset-equity-baseline', resetEquityBaselineEndpoint);
 
 export default router;
