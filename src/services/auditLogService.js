@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getAutoDuckBoolean } from './autoDuckConfigService.js';
 import { appendHumanLogFromAudit } from './humanLogService.js';
+import { getIctDayKey } from '../utils/ictDate.js';
 
 const DEFAULT_LOG_DIR = process.env.AUTODUCK_AUDIT_LOG_DIR || 'logs/autoduck';
 const ALGORITHM = 'aes-256-gcm';
@@ -26,11 +27,16 @@ const allowedChannels = new Set([
 const inMemoryTail = [];
 const MAX_TAIL = 250;
 
-const toIsoDate = (date = new Date()) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+const resolveAuditRoot = (date = new Date()) => {
+    const day = getIctDayKey(date);
+    const dir = path.resolve(process.cwd(), DEFAULT_LOG_DIR, day);
+    return { day, dir };
+};
+
+const ensureDailyAuditDir = async (date = new Date()) => {
+    const { day, dir } = resolveAuditRoot(date);
+    await fs.mkdir(dir, { recursive: true });
+    return { day, dir };
 };
 
 const safeJson = (obj) => {
@@ -78,12 +84,12 @@ const decryptLine = (line) => {
 };
 
 const resolveDailyPath = (channel, date = new Date()) => {
-    const day = toIsoDate(date);
-    const root = path.resolve(process.cwd(), DEFAULT_LOG_DIR, day);
+    const { day, dir } = resolveAuditRoot(date);
     return {
-        dir: root,
-        file: path.resolve(root, `${channel}.jsonl`),
+        dir,
+        file: path.resolve(dir, `${channel}.jsonl`),
         day,
+        txtFile: path.resolve(dir, 'autoduck.txt'),
     };
 };
 
@@ -113,12 +119,15 @@ export const appendAuditEvent = async (channel, payload = {}, meta = {}) => {
         source: event.source,
     }).catch(() => {});
 
-    const { dir, file } = resolveDailyPath(safeChannel, now);
+    const { dir, file, day } = resolveDailyPath(safeChannel, now);
     const plain = safeJson(event);
     const line = isAuditEncryptEnabled() ? encryptLine(plain) : plain;
 
-    await fs.mkdir(dir, { recursive: true });
+    // Create today's dir if missing; append if file already exists (never overwrite).
+    await ensureDailyAuditDir(now);
     await fs.appendFile(file, `${line}\n`, 'utf8');
+    event.day = day;
+    event.logDir = dir;
     return event;
 };
 
@@ -131,7 +140,7 @@ export const getAuditTail = (limit = 50, channel = null) => {
 };
 
 export const readAuditFileTail = async ({ channel = 'funnel', date = null, limit = 100 }) => {
-    const day = date || toIsoDate(new Date());
+    const day = date || getIctDayKey(new Date());
     const safeChannel = allowedChannels.has(channel) ? channel : 'security';
     const file = path.resolve(process.cwd(), DEFAULT_LOG_DIR, day, `${safeChannel}.jsonl`);
     const raw = await fs.readFile(file, 'utf8').catch(() => '');
@@ -150,9 +159,16 @@ export const readAuditFileTail = async ({ channel = 'funnel', date = null, limit
     return parsed;
 };
 
-export const getAuditStatus = () => ({
-    enabled: isAuditEnabled(),
-    encrypted: isAuditEncryptEnabled(),
-    logDir: DEFAULT_LOG_DIR,
-    tailSize: inMemoryTail.length,
-});
+export const getAuditStatus = () => {
+    const { day, dir } = resolveAuditRoot(new Date());
+    return {
+        enabled: isAuditEnabled(),
+        encrypted: isAuditEncryptEnabled(),
+        logDir: DEFAULT_LOG_DIR,
+        today: day,
+        todayDir: dir,
+        tailSize: inMemoryTail.length,
+    };
+};
+
+export { getIctDayKey, ensureDailyAuditDir, resolveDailyPath };

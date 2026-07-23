@@ -2,9 +2,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getAutoDuckBoolean } from './autoDuckConfigService.js';
+import { getIctDayKey, ICT_TZ } from '../utils/ictDate.js';
 
 const DEFAULT_LOG_DIR = process.env.AUTODUCK_AUDIT_LOG_DIR || 'logs/autoduck';
-const ICT_TZ = 'Asia/Ho_Chi_Minh';
 const isAuditEnabled = () => getAutoDuckBoolean('AUTODUCK_AUDIT_ENABLED');
 
 const formatIctTimestamp = (date = new Date()) => {
@@ -30,15 +30,8 @@ const formatDuration = (ms) => {
     return `${min}m ${rem.toFixed(1)}s`;
 };
 
-const toIsoDate = (date = new Date()) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-};
-
 const resolveTxtPath = (date = new Date()) => {
-    const day = toIsoDate(date);
+    const day = getIctDayKey(date);
     const dir = path.resolve(process.cwd(), DEFAULT_LOG_DIR, day);
     return {
         dir,
