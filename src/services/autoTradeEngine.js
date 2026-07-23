@@ -107,6 +107,8 @@ import {
     getPipelineLogs,
     pushPipelineLog,
     createPipelineTimer,
+    formatIctTimestamp,
+    formatDuration,
 } from './pipelineLogService.js';
 import { appendHumanLog } from './humanLogService.js';
 import { getRateLimitStatus } from './multiProviderRouter.js';
@@ -192,6 +194,9 @@ const VOL_DIGEST_MAX_ITEMS = 12;
 const getScanGapMinMs = () => Math.max(60_000, getAutoDuckNumber('AUTODUCK_SCAN_GAP_MIN_MS') || 480_000);
 const getScanGapMs = () => Math.max(getScanGapMinMs(), getAutoDuckNumber('AUTODUCK_SCAN_GAP_MS') || 900_000);
 const getScanGapLiveMs = () => Math.max(getScanGapMinMs(), getAutoDuckNumber('AUTODUCK_SCAN_GAP_LIVE_MS') || 540_000);
+// This is intentionally separate from SCAN_GAP_MIN: it is only used while a
+// LIVE package has no position at all, and the queue remains strictly serial.
+const getIdleFastScanMs = () => Math.max(120_000, getAutoDuckNumber('AUTODUCK_IDLE_FAST_SCAN_MS') || 180_000);
 const getIdleRelaxStepScore = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_STEP_SCORE') || 3;
 const getIdleRelaxMaxScore = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_MAX_SCORE') || 6;
 const getIdleRelaxMaxAttempts = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_MAX_ATTEMPTS') || 4;
@@ -2557,18 +2562,28 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
     autoTradePipelineLockOwner = lockResult.owner;
     autoTradePipelineRunning = true;
     const pipelineTimer = createPipelineTimer(`cycle:${forcedAssetType || 'ALL'}`);
+    const cycleStartedAt = new Date();
+    const cycleStartTs = formatIctTimestamp(cycleStartedAt);
+    const cycleLabel = forcedAssetType || 'ALL';
     if (liveOnlyMode) {
-        console.log(chalk.gray(`[AUTODUCK LIVE-ONLY] Quét thị trường phục vụ gói lệnh LIVE...`));
+        console.log(chalk.gray(`[AUTODUCK LIVE-ONLY] ${cycleStartTs} — Bắt đầu chu kỳ ${cycleLabel} (LIVE-ONLY)...`));
     } else {
-        console.log(chalk.bgMagenta.black(`\n[AUTODUCK ENGINE v2] Khởi chạy chu kỳ rà soát thị trường thực tế...`));
+        console.log(chalk.bgMagenta.black(`\n[AUTODUCK ENGINE v2] ${cycleStartTs} — Khởi chạy chu kỳ ${cycleLabel}...`));
     }
+    pushPipelineLog(
+        `phase=cycle_start — ${cycleStartTs} | asset=${cycleLabel}${liveOnlyMode ? ' | LIVE-ONLY' : ''}`,
+        'highlight',
+        { audit: false, separatorBefore: true }
+    );
     appendAuditEvent('pipeline', {
-        forcedAssetType: forcedAssetType || 'ALL',
+        forcedAssetType: cycleLabel,
         schedulerMode,
         thresholdRelax,
         minOpenTarget,
         liveOnlyMode,
         dryRun,
+        startedAt: cycleStartedAt.toISOString(),
+        startedAtIct: cycleStartTs,
     }, {
         event: 'pipeline_cycle_start',
         source: 'autoTradeEngine',
@@ -3718,10 +3733,27 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             });
         }
         const timing = pipelineTimer.end();
+        const cycleEndedAt = new Date();
+        const cycleEndTs = formatIctTimestamp(cycleEndedAt);
+        const durationLabel = formatDuration(timing.totalMs);
+        console.log(
+            chalk.bgMagenta.black(
+                `[AUTODUCK ENGINE v2] ${cycleEndTs} — Kết thúc chu kỳ ${cycleLabel} | bắt đầu ${cycleStartTs} | kéo dài ${durationLabel}`
+            )
+        );
+        pushPipelineLog(
+            `phase=cycle_end — ${cycleEndTs} | bắt đầu ${cycleStartTs} | kéo dài ${durationLabel}`,
+            'success',
+            { audit: false, durationMs: timing.totalMs }
+        );
         appendAuditEvent('pipeline', {
-            forcedAssetType: forcedAssetType || 'ALL',
+            forcedAssetType: cycleLabel,
             totalMs: timing.totalMs,
             laps: timing.laps,
+            startedAt: cycleStartedAt.toISOString(),
+            startedAtIct: cycleStartTs,
+            endedAt: cycleEndedAt.toISOString(),
+            endedAtIct: cycleEndTs,
         }, {
             event: 'pipeline_cycle_end',
             source: 'autoTradeEngine',
@@ -4268,8 +4300,18 @@ const bootAutoDuckSchedulerIntervals = () => {
             status: { $in: ['PENDING', 'ACTIVE'] },
             executionMode: 'LIVE',
         });
-        const minGapMs = liveWaiting > 0 ? getScanGapLiveMs() : getScanGapMs();
-        return { minGapMs, liveWaiting };
+        const liveOpen = liveWaiting > 0
+            ? await AutoTrade.countDocuments({
+                status: { $in: ['OPEN', 'PENDING'] },
+                executionMode: 'LIVE',
+            })
+            : 0;
+        const normalGapMs = liveWaiting > 0 ? getScanGapLiveMs() : getScanGapMs();
+        // Faster discovery when a LIVE package is idle, but never relax LIVE
+        // score/setup gates.  setTimeout below ensures scans cannot overlap.
+        const idleFast = liveWaiting > 0 && liveOpen === 0;
+        const minGapMs = idleFast ? Math.min(normalGapMs, getIdleFastScanMs()) : normalGapMs;
+        return { minGapMs, liveWaiting, liveOpen, idleFast };
     };
 
     /** Idle relax trên vòng quét chính. */
@@ -4330,7 +4372,7 @@ const bootAutoDuckSchedulerIntervals = () => {
         marketScanTickRunning = true;
         try {
             await refreshAutoDuckConfigCache().catch(() => {});
-            const { minGapMs, liveWaiting } = await resolveScanMinGapMs();
+            const { minGapMs, liveWaiting, liveOpen, idleFast } = await resolveScanMinGapMs();
             const setting = await Setting.findOne({ key: 'lastAutoTradePipelineRun' }).lean();
             const lastRun = setting ? Number(setting.value) : 0;
             const now = Date.now();
@@ -4349,7 +4391,8 @@ const bootAutoDuckSchedulerIntervals = () => {
             const { options, modeLabel } = await buildMarketScanOptions(liveWaiting);
             console.log(chalk.cyan(
                 `[AUTODUCK] Market scan → mode=${modeLabel} minGap=${Math.round(minGapMs / 60000)}m `
-                + `liveWaiting=${liveWaiting}`
+                + `liveWaiting=${liveWaiting} liveOpen=${liveOpen}`
+                + (idleFast ? ' · idle-fast strict gates' : '')
             ));
 
             const result = await runAutoTradePipeline(null, options);
