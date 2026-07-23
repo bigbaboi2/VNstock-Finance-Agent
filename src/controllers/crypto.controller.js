@@ -154,15 +154,54 @@ export const saveCryptoSignal = async (req, res) => {
 };
 
 export const getTopMovers = async (req, res) => {
-    if (Date.now() - cryptoCache.topMovers.updatedAt < 2 * 60 * 1000 && cryptoCache.topMovers.gainers.length > 0) return res.json({ success: true, data: cryptoCache.topMovers });
+    if (Date.now() - cryptoCache.topMovers.updatedAt < 2 * 60 * 1000
+        && cryptoCache.topMovers.gainers.length > 0
+        && (cryptoCache.topMovers.markets?.length > 0)) {
+        return res.json({ success: true, data: cryptoCache.topMovers });
+    }
     try {
-        const resData = await axios.get('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&price_change_percentage=24h', { timeout: 10000 });
-        const sorted = [...resData.data].sort((a, b) => Math.abs(b.price_change_percentage_24h) - Math.abs(a.price_change_percentage_24h));
-        const gainers = sorted.filter(c => c.price_change_percentage_24h > 0).slice(0, 5).map(c => ({ symbol: c.symbol.toUpperCase(), change: parseFloat(c.price_change_percentage_24h.toFixed(2)), price: c.current_price }));
-        const losers = sorted.filter(c => c.price_change_percentage_24h < 0).slice(0, 5).map(c => ({ symbol: c.symbol.toUpperCase(), change: parseFloat(c.price_change_percentage_24h.toFixed(2)), price: c.current_price }));
-        cryptoCache.topMovers = { gainers, losers, updatedAt: Date.now() };
-        return res.json({ success: true, data: { gainers, losers } });
-    } catch (error) { return res.status(500).json({ success: false, message: error.message }); }
+        const resData = await axios.get(
+            'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&price_change_percentage=24h',
+            { timeout: 10000 }
+        );
+        const rows = Array.isArray(resData.data) ? resData.data : [];
+        const markets = rows.slice(0, 20).map(c => ({
+            symbol: String(c.symbol || '').toUpperCase(),
+            name: c.name || '',
+            currentPrice: c.current_price ?? 0,
+            change24h: c.price_change_percentage_24h ?? 0,
+            marketCap: c.market_cap ?? 0,
+            volume24h: c.total_volume ?? 0,
+            image: c.image || '',
+        }));
+        const sorted = [...rows].sort(
+            (a, b) => Math.abs(b.price_change_percentage_24h || 0) - Math.abs(a.price_change_percentage_24h || 0)
+        );
+        const gainers = sorted
+            .filter(c => (c.price_change_percentage_24h || 0) > 0)
+            .slice(0, 5)
+            .map(c => ({
+                symbol: String(c.symbol || '').toUpperCase(),
+                change: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
+                price: c.current_price,
+                change24h: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
+                currentPrice: c.current_price,
+            }));
+        const losers = sorted
+            .filter(c => (c.price_change_percentage_24h || 0) < 0)
+            .slice(0, 5)
+            .map(c => ({
+                symbol: String(c.symbol || '').toUpperCase(),
+                change: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
+                price: c.current_price,
+                change24h: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
+                currentPrice: c.current_price,
+            }));
+        cryptoCache.topMovers = { gainers, losers, markets, updatedAt: Date.now() };
+        return res.json({ success: true, data: { gainers, losers, markets } });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
 };
 
 export const getCryptoFunding = async (req, res) => {

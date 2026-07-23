@@ -5,7 +5,7 @@
 # OMNI DUCK - Vnstock Finance Agent
 ### Quantitative Finance Terminal — Vietnam & Global Markets
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22.15%2B-339933?style=flat-square&logo=node.js)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb)](https://mongodb.com)
 [![Gemini](https://img.shields.io/badge/AI-Multi--Provider-4285F4?style=flat-square&logo=google)](https://aistudio.google.com)
@@ -100,7 +100,7 @@
 | 🤖 AI Debate Pipeline | ✅ Strong | Multi-phase Bull/Bear/PM decision engine |
 | 🔴 Derivatives | ✅ Working | VN30F1M, macro news, AI analysis |
 | 🎮 Paper Trading | ✅ Working | Virtual 10B VND, LO/ATO/ATC orders, P&L |
-| 🔌 Broker / Live Trading | ✅ Working | Binance, OKX, Bybit API — testnet & live |
+| 🔌 Broker / Live Trading | ✅ Working | Binance, OKX, Bybit (crypto) + DNSE (VN stocks) — testnet & live |
 | 🪙 Crypto | ⚠️ Developing | CoinGecko/Binance data, limited signals |
 | 📊 Charts | ⚠️ Developing | KlineCharts + Lightweight Charts, UX ongoing |
 | 🔄 AutoTrading | ⚠️ Improving | Win-rate tuning, AI lessons, simulation + LIVE modes |
@@ -115,25 +115,26 @@
 
 | Requirement | Notes |
 |-------------|-------|
-| Node.js ≥ 18, npm ≥ 9 | Backend + frontend |
-| MongoDB | Local or [Atlas](https://cloud.mongodb.com) free tier |
-| Python 3.10+ | For PDF parsing service (`Convertpdf/`) |
-| Gemini API key | [aistudio.google.com](https://aistudio.google.com/app/apikey) (free) |
-| Groq API key | [console.groq.com](https://console.groq.com) (recommended fallback) |
+| Node.js ≥ 22.15, npm ≥ 9 | Backend needs `--use-system-ca` (Node ≥ 22.15); frontend same toolchain |
+| MongoDB | Local or [Atlas](https://cloud.mongodb.com) free tier — **required to boot** |
+| Python 3.10+ | Optional — only for TCBS PDF parsing (`Convertpdf/`) |
+| Gemini API key | [aistudio.google.com](https://aistudio.google.com/app/apikey) — recommended for AI features |
+| Groq API key | [console.groq.com](https://console.groq.com) — recommended fallback |
 
-### Install & run (3 terminals)
+### Install & run
 
 ```bash
 # 1. Clone & install
 git clone https://github.com/bigbaboi2/VNstock-Finance-Agent.git
 cd VNstock-Finance-Agent
 npm install
-cd frontend && npm install && cd ..
+cd frontend && npm install --legacy-peer-deps && cd ..
 
-# 2. Environment — copy template and fill minimum keys
+# 2. Environment — copy template and set MongoDB
 cp .env.example.en .env
-# Required: GEMINI_API_KEY_MAIN, MONGODB_URI
-# Recommended: GROQ_API_KEY
+# Required to boot: MONGODB_URI  (e.g. mongodb://127.0.0.1:27017/omniduck)
+# Recommended for AI: GEMINI_API_KEY_MAIN, GROQ_API_KEY
+# Without AI keys the server still starts; only analysis features degrade.
 
 # Terminal 1 — Backend (port 3001)
 npm run dev:backend
@@ -141,13 +142,13 @@ npm run dev:backend
 # Terminal 2 — Frontend (port 5173)
 cd frontend && npm run dev
 
-# Terminal 3 — PDF parser (port 8000, needed for TCBS report analysis)
+# Optional — PDF parser (port 8000, only for TCBS report analysis)
 cd Convertpdf && python Convertpdf.py
 ```
 
 Open **http://localhost:5173** → register a user → explore tabs from the menu (top-right).
 
-> Paid API tiers are optional but improve rate limits and analysis quality for heavy use.
+> Frontend install must use `--legacy-peer-deps` (recharts peer range vs React 19). Paid API tiers are optional but improve rate limits for heavy use.
 
 ---
 
@@ -163,7 +164,7 @@ The UI exposes **7 tabs** from the user menu (tab 4 is disabled — coming soon)
 | 4 | **International** | *Coming soon* — disabled in UI | — |
 | 5 | **Paper Trading** | Virtual 10B VND portfolio, LO/ATO/ATC, multi-asset P&L | [paper-trading](docs/screenshots/paper-trading.png) |
 | 6 | **Auto Duck** | Scheduler pipeline (crypto 24/7, VN 15 min), risk levels 1–4, simulation vs LIVE execution, AI lessons | [1](docs/screenshots/autotrade-1.png) · [2](docs/screenshots/autotrade-2.png) · [3](docs/screenshots/autotrade-3.png) |
-| 7 | **Broker** | Connect exchange APIs (Binance/OKX/Bybit), live positions, order history, balance sync, permission warnings | [broker](docs/screenshots/broker.png) |
+| 7 | **Broker** | Connect exchange APIs (Binance/OKX/Bybit crypto + DNSE VN stocks), live positions, order history, balance sync, permission warnings | [broker](docs/screenshots/broker.png) |
 
 **Auto Duck pipeline (simplified):**
 
@@ -239,15 +240,18 @@ TCBS daily reports: `https://static.tcbs.com.vn/oneclick/{TICKER}.pdf` → Pytho
 
 | Role | Priority chain |
 |------|----------------|
-| main | Gemini Pro → Gemini Flash → Groq |
+| main | Gemini Pro → Gemini Flash → Groq → Cerebras |
 | tech | Groq → Cerebras → SambaNova → Gemini Flash |
 | fundamental | Cerebras → SambaNova → Groq → Gemini Flash |
 | news | SambaNova → Groq → DeepInfra → Gemini Flash |
-| bull / bear / pm | Groq / Cerebras / OpenRouter → Gemini Flash |
+| bull | Groq → Cerebras → OpenRouter → Gemini Flash |
+| bear | SambaNova → Groq → Gemini Flash |
+| pm | Groq → Cerebras → Gemini Flash → Gemini Pro |
 | derivatives | Gemini Pro → Gemini Flash → Groq |
-| crypto / json / chat | Groq → Gemini Flash → Cerebras |
+| crypto / chat | Groq → Gemini Flash → Cerebras |
+| json / action | Gemini Flash → Groq → Cerebras |
 
-Gemini models auto-select at startup: `2.5-pro` → `2.5-flash` → `2.0-flash` → `1.5-flash` → `1.5-pro`.
+Gemini models are discovered dynamically at runtime (prefer newer + Pro). Offline fallback list: `2.5-flash` → `2.5-flash-lite` → `2.5-pro` → `1.5-pro`.
 
 ---
 
@@ -282,20 +286,20 @@ For any VN ticker, a structured multi-phase debate runs in parallel then sequent
                              │  REST / SSE  (port 3001)
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  BACKEND  Node.js 18+ · Express 5                               │
+│  BACKEND  Node.js 22.15+ · Express 5                            │
 │  multiProviderRouter │ hedgeFundEngine │ quantEngine            │
 │  autoTradeEngine │ exchangeBrokerService │ telegramService      │
 │  Scrapers: vnNewsSearch, cafefMarketScraper, contentScraper       │
 └──────────────┬──────────────────────┬───────────────────────────┘
                ▼                      ▼
           MongoDB Atlas          External APIs + Python :8000
-          (Mongoose models)    VNDirect, TCBS, Binance, FireAnt…
+          (Mongoose models)    VNDirect, TCBS, Binance, DNSE, FireAnt…
 ```
 
 | Layer | Stack |
 |-------|-------|
 | Frontend | React 19, Vite 8, Tailwind 3, KlineCharts, Lightweight Charts |
-| Backend | Node 18+, Express 5, Mongoose 9 |
+| Backend | Node 22.15+, Express 5, Mongoose 9 |
 | AI | Gemini, Groq, Cerebras, SambaNova, DeepInfra, OpenRouter |
 | Ops | PM2 / nodemon, Telegram Bot API |
 
@@ -311,15 +315,16 @@ All **bootstrap / secrets** live in **one root `.env`** (Vite proxies `/api` →
 
 | Group | Key variables | Required |
 |-------|---------------|----------|
-| Core | `GEMINI_API_KEY_MAIN`, `MONGODB_URI` | ✅ |
-| AI fallbacks | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`, `DEEPINFRA_API_KEY`, `OPENROUTER_API_KEY` | Recommended |
+| Core | `MONGODB_URI` | ✅ (boot) |
+| AI | `GEMINI_API_KEY_MAIN` (+ optional `GEMINI_API_KEY_ACTION` / `_INSIGHT`) | Recommended |
+| AI fallbacks | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`, `DEEPINFRA_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Recommended |
 | Market data | `FIREANT_TOKEN`, `COINGLASS_API_KEY` | Optional |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID`, `WEBHOOK_BASE_URL` | Optional |
 | Security | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ADMIN_CODE`, `ENCRYPTION_KEY` | Production |
 | Frontend | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Optional |
 | AutoTrade | UI: Auto Duck → Cấu hình AutoTrade | Admin |
 
-> Backend hardcodes `PORT=3001` in `server.js`. Variables like `PORT`, `JWT_SECRET`, `REDIS_*` are **not** read from `.env` in the current code.
+> Backend hardcodes `PORT=3001` in `server.js`. Variables like `PORT`, `JWT_SECRET`, `REDIS_*` are **not** read from `.env` in the current code. Empty AI provider keys are skipped by the multi-provider router.
 
 ---
 
@@ -385,12 +390,13 @@ ProjectFinance/
 ├── models/                   # Mongoose schemas (User, UserOrder, AutoTrade…)
 ├── frontend/src/components/  # Tab components + charts
 ├── cli/                      # Terminal UI (omni-cli.js)
-├── Convertpdf/               # Python FastAPI PDF parser (:8000)
-├── scripts/                  # Diagnostics & tests
+├── Convertpdf/               # Optional Python FastAPI PDF parser (:8000)
 ├── docs/screenshots/         # README gallery images
 ├── .env.example.en
 └── omni-manager.bat          # Windows quick launcher
 ```
+
+> Local `scripts/` (diag / test helpers) is gitignored and not shipped with the repo.
 
 ---
 

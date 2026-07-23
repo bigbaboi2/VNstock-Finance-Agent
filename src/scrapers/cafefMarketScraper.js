@@ -200,17 +200,87 @@ const fetchForeignVndirect = async () => {
     throw new Error('VNDirect: Không có dữ liệu foreign flow');
 };
 
-//─── Tầng 4: SSI iBoard foreign flow ─────────────────────────────────────────────────
+//─── Tầng 1 (ưu tiên): SSI iBoard stock/exchange — buyForeignValue / sellForeignValue ─
+const SSI_BOARD_HEADERS = {
+    'User-Agent': UA,
+    Accept: 'application/json',
+    Origin: 'https://iboard.ssi.com.vn',
+    Referer: 'https://iboard.ssi.com.vn/',
+};
+
+const fetchForeignSsiExchange = async (exchange = 'hose') => {
+    const res = await axios.get(
+        `https://iboard-query.ssi.com.vn/stock/exchange/${exchange}`,
+        { headers: SSI_BOARD_HEADERS, timeout: 12000 }
+    );
+    const items = res.data?.data || [];
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new Error(`SSI ${exchange}: empty`);
+    }
+
+    let netValue = 0;
+    const stockMap = {};
+    for (const i of items) {
+        const symbol = i.stockSymbol || i.symbol || i.ticker || i.code;
+        const buy = Number(i.buyForeignValue ?? i.buyForeignVal ?? 0);
+        const sell = Number(i.sellForeignValue ?? i.sellForeignVal ?? 0);
+        const net = buy - sell;
+        if (!symbol) continue;
+        stockMap[symbol] = (stockMap[symbol] || 0) + net;
+        netValue += net;
+    }
+
+    const sorted = Object.entries(stockMap).sort((a, b) => b[1] - a[1]);
+    const topBuy = sorted.filter(([, v]) => v > 0).slice(0, 15)
+        .map(([symbol, value]) => ({ symbol, value }));
+    const topSell = sorted.filter(([, v]) => v < 0)
+        .sort((a, b) => a[1] - b[1])
+        .slice(0, 15)
+        .map(([symbol, value]) => ({ symbol, value: Math.abs(value) }));
+
+    if (topBuy.length === 0 && topSell.length === 0 && netValue === 0) {
+        throw new Error(`SSI ${exchange}: no foreign value fields`);
+    }
+    return { netValue, topBuy, topSell, _source: `ssi_${exchange}`, _count: items.length };
+};
+
+const fetchForeignSsiBoard = async () => {
+    // HOSE là chính; cộng thêm HNX nếu có (cùng đơn vị VND)
+    const hose = await fetchForeignSsiExchange('hose');
+    let hnx = null;
+    try {
+        hnx = await fetchForeignSsiExchange('hnx');
+    } catch { /* optional */ }
+
+    if (!hnx) return hose;
+
+    const map = {};
+    for (const side of ['topBuy', 'topSell']) {
+        for (const row of [...hose[side], ...hnx[side]]) {
+            const sign = side === 'topBuy' ? 1 : -1;
+            map[row.symbol] = (map[row.symbol] || 0) + sign * row.value;
+        }
+    }
+    const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+    return {
+        netValue: hose.netValue + hnx.netValue,
+        topBuy: sorted.filter(([, v]) => v > 0).slice(0, 15)
+            .map(([symbol, value]) => ({ symbol, value })),
+        topSell: sorted.filter(([, v]) => v < 0)
+            .sort((a, b) => a[1] - b[1])
+            .slice(0, 15)
+            .map(([symbol, value]) => ({ symbol, value: Math.abs(value) })),
+        _source: 'ssi_hose+hnx',
+        _count: (hose._count || 0) + (hnx._count || 0),
+    };
+};
+
+//─── Legacy SSI path (thường 404) ───────────────────────────────────────────────
 const fetchForeignSsi = async () => {
     const res = await axios.get(
         'https://iboard-query.ssi.com.vn/v2/market-watch/foreign-trading?exchange=HOSE',
         {
-            headers: {
-                'User-Agent': UA,
-                'Origin':  'https://iboard.ssi.com.vn',
-                'Referer': 'https://iboard.ssi.com.vn/',
-                'Accept':  'application/json',
-            },
+            headers: SSI_BOARD_HEADERS,
             timeout: 8000,
         }
     );
@@ -227,19 +297,26 @@ const fetchForeignSsi = async () => {
 };
 
 const fetchForeignFlow = async (from, to) => {
-    for (const fn of [
-        () => fetchForeignEntrade(from, to),
-        fetchForeignTcbs,
-        fetchForeignVndirect,
-        fetchForeignSsi,
+    const errors = [];
+    for (const [name, fn] of [
+        ['ssi_board', fetchForeignSsiBoard],
+        ['entrade', () => fetchForeignEntrade(from, to)],
+        ['tcbs', fetchForeignTcbs],
+        ['vndirect', fetchForeignVndirect],
+        ['ssi_legacy', fetchForeignSsi],
     ]) {
         try {
             const result = await fn();
-            return result;
+            if (result && result._source !== 'none') {
+                console.log(chalk.gray(`[FOREIGN] source=${result._source} net=${((result.netValue || 0) / 1e9).toFixed(1)}B`));
+                return result;
+            }
         } catch (err) {
+            errors.push(`${name}:${err.message}`);
         }
     }
 
+    console.log(chalk.yellow(`[FOREIGN] all sources failed → ${errors.join(' | ')}`));
     return { netValue: 0, topBuy: [], topSell: [], _source: 'none' };
 };
 

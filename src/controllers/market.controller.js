@@ -31,6 +31,14 @@ export const getSymbols = async (req, res) => {
 //2. Get detailed information about a code (Ticker)
 export const getStockInfo = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
+
+    if (!/^[A-Z0-9]{2,10}$/.test(ticker) || ['VNINDEX', 'HNXINDEX', 'UPCOMINDEX'].includes(ticker)) {
+        return res.status(404).json({
+            success: false,
+            message: `Mã ${ticker} không hợp lệ.`,
+        });
+    }
+
     const cached = getCachedData(ticker);
     if (cached && cached.timestamp && (Date.now() - cached.timestamp < 900000)) {
         return res.json({ success: true, logs: ['[OK] Đã tải dữ liệu từ bộ nhớ đệm cục bộ'], data: cached.data });
@@ -52,8 +60,26 @@ export const getStockInfo = async (req, res) => {
         let currentPrice = 0, change = 0, changePercent = 0, totalVolume = '---', dnseVol = 0;
         let riskMetrics = { maxDrawdown: 0, volatility: 0 };
         const dnseData = dnseRes?.data || {};
+        const hasCandles = Array.isArray(dnseData.t) && dnseData.t.length > 0;
 
-        if (dnseData.t && dnseData.t.length > 0) {
+        // Block junk tickers early — do NOT create Stock docs for random letters
+        const foundSymbol = await Stock.findOne({ symbol: ticker });
+        const ex = String(foundSymbol?.exchange || cafefRes.exchange || '').toUpperCase();
+        const name = String(foundSymbol?.companyName || foundSymbol?.name || cafefRes.companyName || '').trim();
+        const listedInDb = foundSymbol && (
+            ['HOSE', 'HNX', 'UPCOM'].includes(ex)
+            || foundSymbol.cafeF?.info?.Symbol
+            || (name && name.toUpperCase() !== ticker)
+        );
+
+        if (!hasCandles && !listedInDb) {
+            return res.status(404).json({
+                success: false,
+                message: `Mã ${ticker} không tồn tại hoặc không có dữ liệu giao dịch.`,
+            });
+        }
+
+        if (hasCandles) {
             const len = dnseData.c.length;
             currentPrice = dnseData.c[len - 1] * 1000; 
             const prevPrice = (dnseData.c[len - 2] || dnseData.c[len - 1]) * 1000;
@@ -94,22 +120,23 @@ export const getStockInfo = async (req, res) => {
         }   
 
         let companyFullName = cafefRes.companyName || ticker;
-        try {
-            const foundSymbol = await Stock.findOne({ symbol: ticker });
-            if (foundSymbol && (foundSymbol.companyName || foundSymbol.name)) {
-                companyFullName = foundSymbol.companyName || foundSymbol.name;
-            }
-        } catch(e) {}
+        if (foundSymbol && (foundSymbol.companyName || foundSymbol.name)) {
+            companyFullName = foundSymbol.companyName || foundSymbol.name;
+        }
 
-        let masterRecord = await Stock.findOne({ symbol: ticker });
-        if (!masterRecord) masterRecord = new Stock({ symbol: ticker });
-
-        masterRecord.companyName = companyFullName;
-        masterRecord.exchange = cafefRes.exchange || 'VNX';
-        masterRecord.lastUpdated = new Date();
-        masterRecord.cafeF = cafefRes.rawData || null;
-        masterRecord.tcbs = tcbsRes.rawData || null;
-        await masterRecord.save();
+        // Only persist real / tradeable symbols
+        let masterRecord = foundSymbol;
+        if (!masterRecord && hasCandles) {
+            masterRecord = new Stock({ symbol: ticker });
+        }
+        if (masterRecord) {
+            masterRecord.companyName = companyFullName;
+            masterRecord.exchange = cafefRes.exchange || masterRecord.exchange || 'VNX';
+            masterRecord.lastUpdated = new Date();
+            masterRecord.cafeF = cafefRes.rawData || null;
+            masterRecord.tcbs = tcbsRes.rawData || null;
+            await masterRecord.save();
+        }
 
         const peersContext = await findIndustryPeers(ticker, cafefRes.profileData?.industry, cafefRes.mktCap);
 
@@ -227,9 +254,18 @@ export const getMarketRadar = async (req, res) => {
 
         if (!isMarketOpen) {
             const cachedMarketRecord = await Stock.findOne({ symbol: 'VNINDEX' });
-            if (cachedMarketRecord && cachedMarketRecord.cafeF?.lastQuantIntelligence) {
-                return res.json({ success: true, isLive: false, data: cachedMarketRecord.cafeF.lastQuantIntelligence });
+            const intel = cachedMarketRecord?.cafeF?.lastQuantIntelligence;
+            const foreignSrc = intel?.foreignSource;
+            const foreignVal = Number(intel?.foreignNetValue);
+            const foreignOk = intel
+                && foreignSrc
+                && foreignSrc !== 'none'
+                && Number.isFinite(foreignVal);
+            // Cache OK — serve it. If foreign feed was missing/zero-fallback, fall through to live scrape.
+            if (intel && foreignOk) {
+                return res.json({ success: true, isLive: false, data: intel });
             }
+            console.log(chalk.yellow('[QUANT] After-hours cache thiếu foreign net — scrape lại...'));
         }
 
         if (_isQuantRunning) {

@@ -631,35 +631,53 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
 export const getLatestVnStockReport = async (req, res) => {
     try {
         const { symbol } = req.params;
-        const { user } = req.query;
+        const rawUser = typeof req.query.user === 'string' ? req.query.user.trim() : '';
+        const userFilter = rawUser.length > 0 ? rawUser : null;
 
-        console.log(chalk.cyan(`[DB CACHE] Đang quét MongoDB tìm báo cáo cũ của ${symbol} cho user: ${user}...`));
+        console.log(chalk.cyan(`[DB CACHE] Đang quét MongoDB tìm báo cáo cũ của ${symbol}${userFilter ? ` cho user: ${userFilter}` : ' (any user)'}...`));
 
-        const masterRecord = await Stock.findOne({ symbol: symbol.toUpperCase() });
-        
+        const masterRecord = await Stock.findOne({ symbol: String(symbol || '').toUpperCase() });
+
         if (!masterRecord || !masterRecord.reports || masterRecord.reports.length === 0) {
             console.log(chalk.yellow(`[DB CACHE] Mã ${symbol} chưa có báo cáo nào trong Database.`));
             return res.json({ success: false, message: 'Chưa có báo cáo cũ' });
         }
 
-        const userReports = masterRecord.reports.filter(r => r.user === user);
-        
-        if (userReports.length === 0) {
-            console.log(chalk.yellow(`[DB CACHE] Mã ${symbol} có báo cáo, nhưng KHÔNG PHẢI của user ${user}.`));
-            return res.json({ success: false, message: 'Chưa có báo cáo cũ của user này' });
+        const withContent = masterRecord.reports.filter(r => r?.content && String(r.content).trim().length > 0);
+
+        // Prefer matching user (case-insensitive); if missing/empty query → latest of any user
+        let pool = withContent;
+        if (userFilter) {
+            const needle = userFilter.toLowerCase();
+            const matched = withContent.filter(r => String(r.user || '').toLowerCase() === needle);
+            pool = matched.length > 0 ? matched : withContent; // soft fallback so CLI/FE still see a report
+            if (matched.length === 0) {
+                console.log(chalk.yellow(`[DB CACHE] Không có report của user "${userFilter}" — fallback báo cáo mới nhất bất kỳ.`));
+            }
         }
 
-        const latestReport = userReports[userReports.length - 1];
-        console.log(chalk.green(`[DB CACHE] Đã tìm thấy báo cáo của ${symbol} (Tạo lúc: ${latestReport.timestamp}). Đang gửi về Frontend...`));
+        if (pool.length === 0) {
+            console.log(chalk.yellow(`[DB CACHE] Mã ${symbol} có entries nhưng content trống.`));
+            return res.json({ success: false, message: 'Chưa có báo cáo cũ' });
+        }
 
-        return res.json({ 
-            success: true, 
+        const latestReport = [...pool].sort((a, b) => {
+            const ta = new Date(a.timestamp || 0).getTime();
+            const tb = new Date(b.timestamp || 0).getTime();
+            return ta - tb;
+        }).at(-1);
+
+        console.log(chalk.green(`[DB CACHE] Đã tìm thấy báo cáo của ${symbol} (user=${latestReport.user}, Tạo lúc: ${latestReport.timestamp}).`));
+
+        return res.json({
+            success: true,
             data: {
                 aiReport: latestReport.content,
                 actionData: latestReport.actionData || { action: latestReport.action },
                 debateResult: latestReport.debateResult || null,
-                timestamp: latestReport.timestamp
-            } 
+                timestamp: latestReport.timestamp,
+                user: latestReport.user || null,
+            }
         });
     } catch (error) {
         console.error(chalk.red(`[DB LỖI] Không thể đọc báo cáo cũ:`), error.message);
