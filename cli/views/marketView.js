@@ -1,114 +1,175 @@
 import Table from 'cli-table3';
-import chalk from 'chalk';
-import { ScreenBuffer, padVisible, getTermSize } from '../screenManager.js';
+import {
+    C, contentWidth, badge, changeFmt, sectionTitle, divider, hbar
+} from '../theme.js';
+import { renderSparkline } from '../charts.js';
+import { ScreenBuffer } from '../screenManager.js';
+
+/**
+ * Normalize /market-radar payload.
+ * Backend returns: { success, isLive, data: <intelligence fields> }
+ * (intelligence is flat on `data`, not nested under data.intelligence)
+ */
+function extractIntelligence(apiResponse) {
+    if (!apiResponse) return { ok: false, message: 'Empty response' };
+
+    if (apiResponse.success === false) {
+        return { ok: false, message: apiResponse.message || 'Radar request failed' };
+    }
+
+    const payload = apiResponse.data !== undefined ? apiResponse.data : apiResponse;
+
+    if (payload == null) {
+        return { ok: false, message: 'Quant cache empty — wait for market scan or open hours' };
+    }
+
+    // Wrapped shape: { success, intelligence: {...} }
+    if (payload.intelligence && typeof payload.intelligence === 'object') {
+        if (payload.success === false) {
+            return { ok: false, message: payload.message || payload.error || 'Quant engine failed' };
+        }
+        return {
+            ok: true,
+            intel: payload.intelligence,
+            isLive: apiResponse.isLive ?? payload.isLive ?? true,
+        };
+    }
+
+    // Flat intelligence object (actual API / Mongo cache)
+    if (payload.marketStatus != null || payload.indexChangePct != null || payload.breadthRatio != null) {
+        return {
+            ok: true,
+            intel: payload,
+            isLive: apiResponse.isLive ?? true,
+        };
+    }
+
+    // Top-level already is intelligence
+    if (apiResponse.marketStatus != null || apiResponse.indexChangePct != null) {
+        return { ok: true, intel: apiResponse, isLive: apiResponse.isLive ?? true };
+    }
+
+    return { ok: false, message: apiResponse.message || 'Unrecognized radar payload' };
+}
 
 export function buildMarketBuffer(apiResponse) {
-    const buf      = new ScreenBuffer();
-    const { cols } = getTermSize();
-    const W        = Math.min(cols - 2, 100);
+    const buf = new ScreenBuffer();
+    const W = contentWidth();
+    const extracted = extractIntelligence(apiResponse);
 
-    const intelData = apiResponse?.data || apiResponse;
-
-    if (!intelData || !intelData.success) {
-        buf.blank()
-           .line(chalk.yellow('⚠  Chưa có dữ liệu ma trận hoặc hệ thống đang khởi tạo...'));
-        if (intelData?.message) buf.line(chalk.dim('   ' + intelData.message));
+    if (!extracted.ok) {
+        buf.blank().line(C.warn('  Market matrix unavailable or still initializing...'));
+        if (extracted.message) buf.line(C.muted('  ' + extracted.message));
         return buf;
     }
 
-    const intel  = intelData.intelligence;
-    const isLive = apiResponse?.isLive ?? true;
+    const intel = extracted.intel;
+    const isLive = extracted.isLive;
 
-    // ── Header ────────────────────────────────────────────────────────────────
-    buf.sectionHeader('📡', 'MA TRẬN RADAR THỊ TRƯỜNG — VN-INDEX', chalk.cyan, W);
+    buf.sectionHeader('', 'MARKET RADAR — VN-INDEX', C.accent, W);
 
-    const liveTag = isLive
-        ? chalk.bgGreen.black(' ● LIVE ')
-        : chalk.bgYellow.black(' ◌ CACHE ');
+    const liveTag = isLive ? badge('LIVE', 'live') : badge('CACHE', 'cache');
     buf.blank()
-       .line(`  ${liveTag}  ${chalk.dim('Cập nhật: ' + new Date().toLocaleTimeString('vi-VN'))}`)
-       .blank();
+        .line(`  ${liveTag}  ${C.muted(new Date().toLocaleTimeString('vi-VN'))}`)
+        .blank();
 
-    // ── Market Status Card ─────────────────────────────────────────────────────
-    let statusBg = chalk.bgYellow.black;
-    if (intel.statusType === 'bullish')  statusBg = chalk.bgGreen.black;
-    if (intel.statusType === 'bearish')  statusBg = chalk.bgRed.white;
-    if (intel.statusType === 'warning')  statusBg = chalk.bgMagenta.white;
+    let statusTone = 'warn';
+    if (intel.statusType === 'bullish') statusTone = 'up';
+    if (intel.statusType === 'bearish') statusTone = 'down';
 
-    const changePct  = parseFloat(intel.indexChangePct);
-    const changeText = changePct >= 0
-        ? chalk.green.bold(`▲ +${intel.indexChangePct}%`)
-        : chalk.red.bold(`▼ ${intel.indexChangePct}%`);
+    buf.line(C.frame(`  ┌─ STATUS ${'─'.repeat(Math.max(0, W - 14))}┐`))
+        .line(C.frame('  │') + `  ${badge(intel.marketStatus || 'N/A', statusTone)}`)
+        .line(C.frame('  │') + `  ${C.label('Diagnosis')}  ${C.italic(intel.diagnosticDesc || '')}`)
+        .line(C.frame(`  └${'─'.repeat(Math.max(0, W - 4))}┘`))
+        .blank();
 
-    const breadthPct  = parseFloat(intel.breadthRatio);
-    const breadthText = breadthPct >= 60
-        ? chalk.green.bold(`${intel.breadthRatio}%`)
-        : breadthPct >= 45
-        ? chalk.yellow.bold(`${intel.breadthRatio}%`)
-        : chalk.red.bold(`${intel.breadthRatio}%`);
+    const changePct = parseFloat(intel.indexChangePct);
+    const breadthPct = parseFloat(intel.breadthRatio) || 0;
+    const foreignVal = Number(intel.foreignNetValue);
+    const foreignSrc = intel.foreignSource || '';
+    const foreignMissing = !Number.isFinite(foreignVal) || foreignSrc === 'none';
+    const foreignBn = foreignMissing ? null : (foreignVal / 1e9);
+    const foreignText = foreignMissing
+        ? C.warn('N/A (no feed)')
+        : foreignBn >= 0
+            ? C.upBold(`${foreignBn >= 0 ? '+' : ''}${foreignBn.toFixed(1)}B net buy`)
+            : C.downBold(`${foreignBn.toFixed(1)}B net sell`);
+    // Avoid "+0.0B net buy" when missing — already handled above
+    const foreignDisplay = (!foreignMissing && Math.abs(foreignBn) < 0.05 && foreignSrc === 'none')
+        ? C.warn('N/A')
+        : foreignText;
+    const breadthColor = breadthPct >= 60 ? C.upBold : breadthPct >= 45 ? C.accentBold : C.downBold;
 
-    const foreignVal  = intel.foreignNetValue || 0;
-    const foreignBn   = (foreignVal / 1e9).toFixed(1);
-    const foreignText = foreignVal >= 0
-        ? chalk.green(`+${foreignBn} tỷ ↑ Mua ròng`)
-        : chalk.red(`${foreignBn} tỷ ↓ Bán ròng`);
-
-    buf.line(chalk.cyan('  ┌─ TRẠNG THÁI THỊ TRƯỜNG ' + '─'.repeat(Math.max(0, W - 28)) + '┐'))
-       .line(chalk.cyan('  │') + `  ${statusBg.bold(` ${intel.marketStatus} `)}`)
-       .line(chalk.cyan('  │') + `  ${chalk.dim('Chẩn đoán:')} ${chalk.italic.white(intel.diagnosticDesc || '')}`)
-       .line(chalk.cyan('  └' + '─'.repeat(W - 4) + '┘'))
-       .blank();
-
-    // ── Key Metrics ───────────────────────────────────────────────────────────
     const metricsTable = new Table({
-        head: [
-            chalk.cyan.bold('Biến Động Index'),
-            chalk.cyan.bold('Breadth (Tỷ lệ tăng)'),
-            chalk.cyan.bold('Khối Ngoại Ròng'),
-            chalk.cyan.bold('Nguồn Breadth'),
+        head: [C.label('INDEX Δ'), C.label('BREADTH'), C.label('FOREIGN NET'), C.label('SOURCE')],
+        colWidths: [
+            16,
+            24,
+            22,
+            Math.max(28, Math.min(42, W - 16 - 24 - 22 - 8)),
         ],
-        colWidths: [20, 22, 22, 18],
-        style: { border: ['cyan'], head: [] },
+        style: { border: [], head: [], 'padding-left': 1, 'padding-right': 1 },
+        wordWrap: true,
+        wrapOnWordBoundary: true,
     });
-    metricsTable.push([changeText, breadthText, foreignText, chalk.dim(intel.breadthSource || 'N/A')]);
+    metricsTable.push([
+        changeFmt(changePct),
+        breadthColor(`${intel.breadthRatio}%`) + ' ' + hbar(breadthPct, 10),
+        foreignDisplay,
+        C.value(intel.breadthSource || 'N/A'),
+    ]);
     metricsTable.toString().split('\n').forEach(l => buf.line(l));
+    if (intel.breadthSource && String(intel.breadthSource).length > 36) {
+        buf.line(`  ${C.label('Breadth src')}  ${C.muted(String(intel.breadthSource))}`);
+    }
+    if (foreignSrc && foreignSrc !== 'none') {
+        buf.line(`  ${C.label('Foreign src')}  ${C.muted(foreignSrc)}`);
+    } else if (foreignMissing) {
+        buf.line(`  ${C.label('Foreign src')}  ${C.warn('unavailable — feeds offline')}`);
+    }
 
-    // ── Sector Analysis ───────────────────────────────────────────────────────
-    buf.blank().line(chalk.bold('  📊 PHÂN TÍCH NGÀNH:'));
+    buf.blank()
+        .line(`  ${C.label('Breadth pulse')}  ${renderSparkline(
+            Array.from({ length: 24 }, (_, i) => breadthPct + Math.sin(i / 3) * 3),
+            Math.min(36, W - 24)
+        )}`)
+        .blank();
 
+    buf.line(sectionTitle('Sector flow', C.accent, W)).blank();
+
+    const colW = Math.floor((W - 6) / 2);
     const sectorTable = new Table({
-        head: [chalk.green.bold('🔥 TOP NGÀNH MẠNH (SPS > 0)'), chalk.red.bold('❄️  TOP NGÀNH YẾU  (SPS < 0)')],
-        colWidths: [38, 38],
-        style: { border: ['dim'], head: [] },
+        head: [C.upBold('STRONG (SPS > 0)'), C.downBold('WEAK (SPS < 0)')],
+        colWidths: [colW, colW],
+        style: { border: [], head: [], 'padding-left': 1, 'padding-right': 1 },
     });
 
     const maxRows = Math.max(intel.strongSectors?.length || 0, intel.weakSectors?.length || 0);
     if (maxRows === 0) {
-        sectorTable.push([chalk.gray('  Không có dòng tiền đột biến'), chalk.gray('  Không có áp lực tháo chạy')]);
+        sectorTable.push([C.muted('No surge flow'), C.muted('No sell pressure')]);
     } else {
         for (let i = 0; i < maxRows; i++) {
             const s = intel.strongSectors?.[i];
-            const w = intel.weakSectors?.[i];
+            const wSec = intel.weakSectors?.[i];
             sectorTable.push([
-                s ? `${chalk.green.bold(s.name)}\n  ${chalk.dim('SPS:')} ${chalk.green(s.sps?.toFixed(2) || '—')}  ${chalk.dim(s.tickers?.slice(0,3).join(' · ') || '')}` : '',
-                w ? `${chalk.red.bold(w.name)}\n  ${chalk.dim('SPS:')} ${chalk.red(w.sps?.toFixed(2) || '—')}  ${chalk.dim(w.tickers?.slice(0,3).join(' · ') || '')}` : '',
+                s ? `${C.upBold(s.name)}\n  ${C.muted('SPS')} ${C.up(s.sps?.toFixed(2) || '—')}  ${C.muted(s.tickers?.slice(0, 3).join(' · ') || '')}` : '',
+                wSec ? `${C.downBold(wSec.name)}\n  ${C.muted('SPS')} ${C.down(wSec.sps?.toFixed(2) || '—')}  ${C.muted(wSec.tickers?.slice(0, 3).join(' · ') || '')}` : '',
             ]);
         }
     }
     sectorTable.toString().split('\n').forEach(l => buf.line(l));
 
-    // ── Top Movers ─────────────────────────────────────────────────────────────
     const topGainers = intel.topGainers || [];
-    const topLosers  = intel.topLosers  || [];
-    const topVolume  = intel.topVolume  || [];
+    const topLosers = intel.topLosers || [];
+    const topVolume = intel.topVolume || [];
 
     if (topGainers.length > 0 || topLosers.length > 0) {
-        buf.blank().line(chalk.bold('  🏆 TOP MOVERS HÔM NAY:'));
+        buf.blank().line(sectionTitle('Top movers', C.accent, W)).blank();
 
         const moverTable = new Table({
-            head: [chalk.green.bold('📈 Tăng Mạnh'), chalk.red.bold('📉 Giảm Mạnh'), chalk.blue.bold('💹 Khối lượng')],
+            head: [C.upBold('GAINERS'), C.downBold('LOSERS'), C.frame('VOLUME')],
             colWidths: [24, 24, 24],
-            style: { border: ['dim'], head: [] },
+            style: { border: [], head: [], 'padding-left': 1, 'padding-right': 1 },
         });
 
         const maxM = Math.max(topGainers.length, topLosers.length, topVolume.length);
@@ -117,19 +178,18 @@ export function buildMarketBuffer(apiResponse) {
             const l = topLosers[i];
             const v = topVolume[i];
             moverTable.push([
-                g ? `${chalk.green.bold(g.symbol)}  ${chalk.green('+' + (g.changePct || '—') + '%')}` : '',
-                l ? `${chalk.red.bold(l.symbol)}  ${chalk.red((l.changePct || '—') + '%')}` : '',
-                v ? `${chalk.blue.bold(v.symbol)}  ${chalk.dim(v.volume || '—')}` : '',
+                g ? `${C.upBold(g.symbol)}  ${C.up('+' + (g.changePct || '—') + '%')}` : '',
+                l ? `${C.downBold(l.symbol)}  ${C.down((l.changePct || '—') + '%')}` : '',
+                v ? `${C.value(v.symbol)}  ${C.muted(v.volume || '—')}` : '',
             ]);
         }
         moverTable.toString().split('\n').forEach(l => buf.line(l));
     }
 
-    buf.blank().divider('─', W, chalk.dim);
+    buf.blank().line(divider('─', W, C.muted));
     return buf;
 }
 
-/** Legacy: render trực tiếp ra console (dùng trong pause mode) */
 export function renderMarketRadar(apiResponse) {
     buildMarketBuffer(apiResponse).lines.forEach(l => console.log(l));
 }

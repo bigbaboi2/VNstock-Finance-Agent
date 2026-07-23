@@ -75,27 +75,27 @@ app.post('/api/v1/signals/external', processExternalSignal);
 
 // ─── Flat alias routes  ────────────────────────
 
-// Market aliases
+// Market aliases — use req.url (not req.path) so ?query is preserved
 app.use('/api/symbols',        (req, res, next) => { req.url = '/symbols';          marketRoutes(req, res, next); });
 app.use('/api/market-heatmap', (req, res, next) => { req.url = '/heatmap';          marketRoutes(req, res, next); });
 app.use('/api/market-radar',   (req, res, next) => { req.url = '/radar';            marketRoutes(req, res, next); });
-app.use('/api/info',           (req, res, next) => { req.url = '/info' + req.path;  marketRoutes(req, res, next); });
+app.use('/api/info',           (req, res, next) => { req.url = '/info' + req.url;  marketRoutes(req, res, next); });
 app.use('/api/market-insight', marketInsightRouter);
 // AI aliases
-app.use('/api/user-history',       (req, res, next) => { req.url = '/user-history' + req.path;    aiRoutes(req, res, next); });
-app.use('/api/analyze',            (req, res, next) => { req.url = '/analyze' + req.path;         aiRoutes(req, res, next); });
-app.use('/api/ai-news',            (req, res, next) => { req.url = '/ai-news' + req.path;         aiRoutes(req, res, next); });
-app.use('/api/news',               (req, res, next) => { req.url = '/news' + req.path;             aiRoutes(req, res, next); });
-app.use('/api/action-panel',       (req, res, next) => { req.url = '/action-panel' + req.path;    aiRoutes(req, res, next); });
+app.use('/api/user-history',       (req, res, next) => { req.url = '/user-history' + req.url;    aiRoutes(req, res, next); });
+app.use('/api/analyze',            (req, res, next) => { req.url = '/analyze' + req.url;         aiRoutes(req, res, next); });
+app.use('/api/ai-news',            (req, res, next) => { req.url = '/ai-news' + req.url;         aiRoutes(req, res, next); });
+app.use('/api/news',               (req, res, next) => { req.url = '/news' + req.url;             aiRoutes(req, res, next); });
+app.use('/api/action-panel',       (req, res, next) => { req.url = '/action-panel' + req.url;    aiRoutes(req, res, next); });
 app.use('/api/analyze-derivatives',(req, res, next) => { req.url = '/analyze-derivatives';        aiRoutes(req, res, next); });
-app.use('/api/stock-chat',         (req, res, next) => { req.url = '/stock-chat' + req.path;      aiRoutes(req, res, next); }); 
-app.use('/api/debug-feed',         (req, res, next) => { req.url = '/debug-feed' + req.path;      aiRoutes(req, res, next); });  
+app.use('/api/stock-chat',         (req, res, next) => { req.url = '/stock-chat' + req.url;      aiRoutes(req, res, next); });
+app.use('/api/debug-feed',         (req, res, next) => { req.url = '/debug-feed' + req.url;      aiRoutes(req, res, next); });
 
 // Derivatives aliases
 app.use('/api/deriv-radar',  (req, res, next) => { req.url = '/radar';  derivativesRoutes(req, res, next); });
 app.use('/api/deriv-export', (req, res, next) => { req.url = '/export'; derivativesRoutes(req, res, next); });
 app.use('/api/deriv-news',   (req, res, next) => {
-    req.url = '/news' + req.path;
+    req.url = '/news' + req.url;
     derivativesRoutes(req, res, next);
 });
 

@@ -5,7 +5,7 @@
 # OMNI DUCK - Vnstock Finance Agent
 ### Terminal Tài chính Định lượng — Thị trường Việt Nam & Toàn cầu
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22.15%2B-339933?style=flat-square&logo=node.js)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb)](https://mongodb.com)
 [![Gemini](https://img.shields.io/badge/AI-Multi--Provider-4285F4?style=flat-square&logo=google)](https://aistudio.google.com)
@@ -100,7 +100,7 @@
 | 🤖 Pipeline tranh luận AI | ✅ Mạnh | Bull/Bear/PM đa giai đoạn |
 | 🔴 Phái sinh | ✅ Hoạt động | VN30F1M, tin vĩ mô, phân tích AI |
 | 🎮 Giao dịch giả lập | ✅ Hoạt động | 10 tỷ VND ảo, lệnh LO/ATO/ATC, P&L |
-| 🔌 Broker / LIVE | ✅ Hoạt động | API Binance, OKX, Bybit — testnet & live |
+| 🔌 Broker / LIVE | ✅ Hoạt động | Binance, OKX, Bybit (crypto) + DNSE (CK VN) — testnet & live |
 | 🪙 Crypto | ⚠️ Đang phát triển | CoinGecko/Binance, tín hiệu còn hạn chế |
 | 📊 Biểu đồ | ⚠️ Đang phát triển | KlineCharts + Lightweight Charts |
 | 🔄 AutoTrading | ⚠️ Đang cải thiện | Tỷ lệ thắng, AI lessons, mô phỏng + LIVE |
@@ -115,25 +115,26 @@
 
 | Thành phần | Ghi chú |
 |------------|---------|
-| Node.js ≥ 18, npm ≥ 9 | Backend + frontend |
-| MongoDB | Local hoặc [Atlas](https://cloud.mongodb.com) miễn phí |
-| Python 3.10+ | Dịch vụ parse PDF (`Convertpdf/`) |
-| Gemini API key | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
-| Groq API key | [console.groq.com](https://console.groq.com) — khuyến nghị |
+| Node.js ≥ 22.15, npm ≥ 9 | Backend dùng `--use-system-ca` (cần Node ≥ 22.15) |
+| MongoDB | Local hoặc [Atlas](https://cloud.mongodb.com) — **bắt buộc để khởi động** |
+| Python 3.10+ | Tuỳ chọn — chỉ khi parse PDF TCBS (`Convertpdf/`) |
+| Gemini API key | [aistudio.google.com](https://aistudio.google.com/app/apikey) — khuyến nghị cho AI |
+| Groq API key | [console.groq.com](https://console.groq.com) — fallback khuyến nghị |
 
-### Cài đặt & chạy (3 terminal)
+### Cài đặt & chạy
 
 ```bash
 # 1. Clone & cài dependency
 git clone https://github.com/bigbaboi2/VNstock-Finance-Agent.git
 cd VNstock-Finance-Agent
 npm install
-cd frontend && npm install && cd ..
+cd frontend && npm install --legacy-peer-deps && cd ..
 
-# 2. Môi trường — copy template và điền key tối thiểu
+# 2. Môi trường — copy template và đặt MongoDB
 cp .env.example .env
-# Bắt buộc: GEMINI_API_KEY_MAIN, MONGODB_URI
-# Khuyến nghị: GROQ_API_KEY
+# Bắt buộc để boot: MONGODB_URI  (vd. mongodb://127.0.0.1:27017/omniduck)
+# Khuyến nghị cho AI: GEMINI_API_KEY_MAIN, GROQ_API_KEY
+# Không có key AI thì server vẫn chạy; chỉ tính năng phân tích bị hạn chế.
 
 # Terminal 1 — Backend (cổng 3001)
 npm run dev:backend
@@ -141,13 +142,13 @@ npm run dev:backend
 # Terminal 2 — Frontend (cổng 5173)
 cd frontend && npm run dev
 
-# Terminal 3 — Parse PDF (cổng 8000, cần cho phân tích BCTC TCBS)
+# Tuỳ chọn — Parse PDF (cổng 8000, chỉ khi phân tích BCTC TCBS)
 cd Convertpdf && python Convertpdf.py
 ```
 
 Mở **http://localhost:5173** → đăng ký tài khoản → chọn tab từ menu (góc phải trên).
 
-> API trả phí không bắt buộc nhưng giúp giảm rate limit và nâng chất lượng phân tích khi dùng nhiều.
+> Frontend bắt buộc `npm install --legacy-peer-deps` (recharts peer vs React 19). API trả phí không bắt buộc nhưng giúp giảm rate limit khi dùng nhiều.
 
 ---
 
@@ -163,7 +164,7 @@ Menu người dùng có **7 tab** (tab 4 đang tắt — sắp ra mắt).
 | 4 | **Quốc tế** | *Sắp ra mắt* — đang disabled trên UI | — |
 | 5 | **Giao dịch giả lập** | Danh mục ảo 10 tỷ VND, LO/ATO/ATC, P&L đa tài sản | [paper-trading](docs/screenshots/paper-trading.png) |
 | 6 | **Tự động vào lệnh AI** | Scheduler (crypto 24/7, VN 15 phút), risk 1–4, mô phỏng vs LIVE, AI lessons | [1](docs/screenshots/autotrade-1.png) · [2](docs/screenshots/autotrade-2.png) · [3](docs/screenshots/autotrade-3.png) |
-| 7 | **Kết nối sàn / Broker** | API sàn (Binance/OKX/Bybit), vị thế LIVE, lịch sử lệnh, cảnh báo quyền API | [broker](docs/screenshots/broker.png) |
+| 7 | **Kết nối sàn / Broker** | API sàn (Binance/OKX/Bybit crypto + DNSE CK VN), vị thế LIVE, lịch sử lệnh, cảnh báo quyền API | [broker](docs/screenshots/broker.png) |
 
 **Pipeline Auto Duck (rút gọn):**
 
@@ -239,15 +240,18 @@ BCTC TCBS: `https://static.tcbs.com.vn/oneclick/{TICKER}.pdf` → Python FastAPI
 
 | Vai trò | Chuỗi ưu tiên |
 |---------|---------------|
-| main | Gemini Pro → Gemini Flash → Groq |
+| main | Gemini Pro → Gemini Flash → Groq → Cerebras |
 | tech | Groq → Cerebras → SambaNova → Gemini Flash |
 | fundamental | Cerebras → SambaNova → Groq → Gemini Flash |
 | news | SambaNova → Groq → DeepInfra → Gemini Flash |
-| bull / bear / pm | Groq / Cerebras / OpenRouter → Gemini Flash |
+| bull | Groq → Cerebras → OpenRouter → Gemini Flash |
+| bear | SambaNova → Groq → Gemini Flash |
+| pm | Groq → Cerebras → Gemini Flash → Gemini Pro |
 | derivatives | Gemini Pro → Gemini Flash → Groq |
-| crypto / json / chat | Groq → Gemini Flash → Cerebras |
+| crypto / chat | Groq → Gemini Flash → Cerebras |
+| json / action | Gemini Flash → Groq → Cerebras |
 
-Gemini tự chọn model khi khởi động: `2.5-pro` → `2.5-flash` → `2.0-flash` → `1.5-flash` → `1.5-pro`.
+Gemini quét model động khi chạy (ưu tiên bản mới + Pro). Fallback offline: `2.5-flash` → `2.5-flash-lite` → `2.5-pro` → `1.5-pro`.
 
 ---
 
@@ -282,7 +286,7 @@ Với mỗi mã VN, tranh luận đầu tư có cấu trúc:
                              │  REST / SSE  (cổng 3001)
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  BACKEND  Node.js 18+ · Express 5                               │
+│  BACKEND  Node.js 22.15+ · Express 5                            │
 │  multiProviderRouter │ hedgeFundEngine │ quantEngine            │
 │  autoTradeEngine │ exchangeBrokerService │ telegramService      │
 └──────────────┬──────────────────────┬───────────────────────────┘
@@ -293,7 +297,7 @@ Với mỗi mã VN, tranh luận đầu tư có cấu trúc:
 | Tầng | Công nghệ |
 |------|-----------|
 | Frontend | React 19, Vite 8, Tailwind 3, KlineCharts, Lightweight Charts |
-| Backend | Node 18+, Express 5, Mongoose 9 |
+| Backend | Node 22.15+, Express 5, Mongoose 9 |
 | AI | Gemini, Groq, Cerebras, SambaNova, DeepInfra, OpenRouter |
 | Vận hành | PM2 / nodemon, Telegram Bot API |
 
@@ -307,14 +311,15 @@ Toàn bộ cấu hình trong **một file `.env` ở thư mục gốc** (Vite pr
 
 | Nhóm | Biến chính | Bắt buộc |
 |------|-----------|----------|
-| Cốt lõi | `GEMINI_API_KEY_MAIN`, `MONGODB_URI` | ✅ |
-| AI dự phòng | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`… | Khuyến nghị |
+| Cốt lõi | `MONGODB_URI` | ✅ (boot) |
+| AI | `GEMINI_API_KEY_MAIN` (+ tùy chọn `_ACTION` / `_INSIGHT`) | Khuyến nghị |
+| AI dự phòng | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`, `DEEPINFRA_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Khuyến nghị |
 | Dữ liệu thị trường | `FIREANT_TOKEN`, `COINGLASS_API_KEY` | Tùy chọn |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`… | Tùy chọn |
 | Bảo mật | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ENCRYPTION_KEY` | Production |
 | Frontend | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Tùy chọn |
 
-> Backend hardcode `PORT=3001` trong `server.js`. Các biến như `PORT`, `JWT_SECRET`, `REDIS_*` **không** được đọc từ `.env` hiện tại.
+> Backend hardcode `PORT=3001` trong `server.js`. Các biến như `PORT`, `JWT_SECRET`, `REDIS_*` **không** được đọc từ `.env` hiện tại. Key AI để trống sẽ bị router bỏ qua.
 
 ---
 
@@ -370,12 +375,13 @@ ProjectFinance/
 ├── models/                   # Mongoose schemas
 ├── frontend/src/components/  # Các tab UI
 ├── cli/                      # Giao diện terminal (omni-cli.js)
-├── Convertpdf/               # Python parse PDF (:8000)
-├── scripts/                  # Diagnostic & test
+├── Convertpdf/               # Tuỳ chọn — Python parse PDF (:8000)
 ├── docs/screenshots/         # Ảnh README
 ├── .env.example
 └── omni-manager.bat
 ```
+
+> Thư mục `scripts/` (diag / test local) bị gitignore, không đi kèm khi clone repo.
 
 ---
 

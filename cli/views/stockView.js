@@ -1,57 +1,16 @@
 import Table from 'cli-table3';
-import chalk from 'chalk';
-import { ScreenBuffer, padVisible, getTermSize } from '../screenManager.js';
+import {
+    C, contentWidth, pad, badge, boxTop, boxBot, boxRow, boxBlank,
+    changeFmt, divider, sectionTitle, fitVisible
+} from '../theme.js';
+import { renderCandles, renderGauge } from '../charts.js';
+import { ScreenBuffer, getTermSize } from '../screenManager.js';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LAYOUT HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
+const BOX_WIDTH = () => contentWidth(100);
 
-const BOX_WIDTH = 82;
-
-function stripAnsi(str) {
-    return String(str).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
-}
-
-function pad(str, width) {
-    const clean = stripAnsi(str);
-    const diff  = width - clean.length;
-    return str + (diff > 0 ? ' '.repeat(diff) : '');
-}
-
-function boxTop(title, color = chalk.cyan, w = BOX_WIDTH) {
-    const bar = title
-        ? `┌─ ${title} ${'─'.repeat(Math.max(0, w - 4 - stripAnsi(title).length))}┐`
-        : `┌${'─'.repeat(w - 2)}┐`;
-    return color(bar);
-}
-function boxBot(color = chalk.cyan, w = BOX_WIDTH) {
-    return color(`└${'─'.repeat(w - 2)}┘`);
-}
-function boxRow(content, color = chalk.cyan, w = BOX_WIDTH) {
-    return color('│') + ' ' + pad(content, w - 4) + ' ' + color('│');
-}
-function boxBlank(color = chalk.cyan) {
-    return boxRow('', color);
-}
-
-function bigHeaderLines(icon, symbol, name, exchange, industry) {
-    const top   = chalk.blue('╔' + '═'.repeat(BOX_WIDTH - 2) + '╗');
-    const bot   = chalk.blue('╚' + '═'.repeat(BOX_WIDTH - 2) + '╝');
-    const exTag = exchange ? chalk.bgBlue.white.bold(` ${exchange} `) : '';
-    const inTag = industry ? chalk.bgCyan.black(` ${industry} `) : '';
-    const tags  = [exTag, inTag].filter(Boolean).join('  ');
-    const title = `${icon}  ${chalk.bold.white(symbol)} — ${chalk.italic.gray(name || 'N/A')}`;
-    return [
-        top,
-        chalk.blue('║') + ' ' + pad(title, BOX_WIDTH - 4) + ' ' + chalk.blue('║'),
-        chalk.blue('║') + ' ' + pad(tags,  BOX_WIDTH - 4) + ' ' + chalk.blue('║'),
-        bot,
-    ];
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TECHNICAL INDICATOR CALCULATORS
-// ═══════════════════════════════════════════════════════════════════════════════
+//=======================================================================
+// TECHNICAL CALCULATORS (unchanged logic)
+//=======================================================================
 
 function calcEMA(prices, period) {
     if (!prices || prices.length < period) return null;
@@ -83,9 +42,9 @@ function calcRSI(prices, period = 14) {
 function calcBollinger(prices, period = 20) {
     const sma = calcSMA(prices, period);
     if (!sma || prices.length < period) return null;
-    const slice    = prices.slice(-period);
+    const slice = prices.slice(-period);
     const variance = slice.reduce((s, v) => s + Math.pow(v - sma, 2), 0) / period;
-    const std      = Math.sqrt(variance);
+    const std = Math.sqrt(variance);
     return { mid: sma, upper: sma + 2 * std, lower: sma - 2 * std, std };
 }
 
@@ -93,7 +52,7 @@ function calcMACD(prices) {
     const ema12 = calcEMA(prices, 12);
     const ema26 = calcEMA(prices, 26);
     if (!ema12 || !ema26) return null;
-    const macd       = ema12 - ema26;
+    const macd = ema12 - ema26;
     const macdValues = [];
     for (let i = prices.length - 9; i <= prices.length - 1; i++) {
         const e12 = calcEMA(prices.slice(0, i + 1), 12);
@@ -112,91 +71,29 @@ function calcATR(candles, period = 14) {
     return calcSMA(trs.slice(-period), period);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SPARKLINE + VOLUME CHART  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
+//=======================================================================
+// PANELS
+//=======================================================================
 
-function buildSparklineLines(chartData, displayWidth = 50) {
-    const lines = [];
-    if (!chartData || chartData.length === 0) return lines;
-
-    const candles  = chartData.slice(-displayWidth);
-    const prices   = candles.map(c => parseFloat(c.close));
-    const volumes  = candles.map(c => parseInt(c.volume || 0));
-    const minP     = Math.min(...prices);
-    const maxP     = Math.max(...prices);
-    const rangeP   = maxP - minP || 1;
-    const maxV     = Math.max(...volumes) || 1;
-    const volBlocks = ['▁','▂','▃','▄','▅','▆','▇','█'];
-
-    const ROWS = 5;
-    const grid = Array.from({ length: ROWS }, () => Array(candles.length).fill(' '));
-
-    candles.forEach((c, i) => {
-        const isUp  = parseFloat(c.close) >= parseFloat(c.open);
-        const level = Math.round(((parseFloat(c.close) - minP) / rangeP) * (ROWS - 1));
-        for (let r = 0; r < ROWS; r++) {
-            if (r === level) grid[ROWS - 1 - r][i] = isUp ? chalk.green('█') : chalk.red('█');
-        }
-    });
-
-    const priceLabels = [
-        (maxP * 1000).toLocaleString('vi-VN') + ' đ', '',
-        ((minP + rangeP / 2) * 1000).toLocaleString('vi-VN') + ' đ', '',
-        (minP * 1000).toLocaleString('vi-VN') + ' đ',
+function bigHeaderLines(symbol, name, exchange, industry) {
+    const w = BOX_WIDTH();
+    const exTag = exchange ? badge(exchange, 'muted') : '';
+    const inTag = industry ? C.frame(` ${(industry || '').slice(0, 40)} `) : '';
+    const tags = [exTag, inTag].filter(Boolean).join('  ');
+    const shortName = String(name || 'N/A');
+    const title = `${C.accentBold(symbol)}  ${C.muted('—')}  ${C.italic(shortName)}`;
+    return [
+        C.accent('╭' + '─'.repeat(Math.max(0, w - 2)) + '╮'),
+        C.accent('│') + ' ' + fitVisible(title, w - 4) + ' ' + C.accent('│'),
+        C.accent('│') + ' ' + fitVisible(tags, w - 4) + ' ' + C.accent('│'),
+        C.accent('╰' + '─'.repeat(Math.max(0, w - 2)) + '╯'),
     ];
-
-    lines.push(chalk.bold.white('  ══ BIỂU ĐỒ GIÁ & KHỐI LƯỢNG ══'));
-    lines.push('');
-
-    grid.forEach((row, r) => {
-        const line = row.map((cell, i) => {
-            if (cell !== ' ') return cell;
-            const isUp  = parseFloat(candles[i].close) >= parseFloat(candles[i].open);
-            const level = Math.round(((parseFloat(candles[i].close) - minP) / rangeP) * (ROWS - 1));
-            return (ROWS - 1 - r) < level ? (isUp ? chalk.green('│') : chalk.red('│')) : chalk.gray('·');
-        });
-        lines.push('  ' + line.join('') + '  ' + chalk.dim(priceLabels[r] || ''));
-    });
-
-    const volBar = candles.map((c, i) => {
-        const level = Math.round((volumes[i] / maxV) * 7);
-        const isUp  = parseFloat(c.close) >= parseFloat(c.open);
-        return isUp ? chalk.green(volBlocks[level]) : chalk.red(volBlocks[level]);
-    });
-    lines.push('  ' + chalk.dim('─'.repeat(candles.length)));
-    lines.push('  ' + volBar.join('') + '  ' + chalk.dim('← Khối lượng'));
-    lines.push('');
-
-    lines.push(chalk.dim('  ┄ 5 phiên cuối (O / H / L / C / Vol):'));
-    chartData.slice(-5).forEach(c => {
-        const isUp    = parseFloat(c.close) >= parseFloat(c.open);
-        const clr     = isUp ? chalk.green : chalk.red;
-        const arrow   = isUp ? '▲' : '▼';
-        const fmtDate = c.date
-            ? chalk.dim(new Date(c.date * 1000 || c.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }))
-            : chalk.dim('--/--');
-        const fmt = v => (parseFloat(v) * 1000).toLocaleString('vi-VN');
-        lines.push(
-            `  ${clr(arrow)} ${fmtDate}` +
-            `  ${chalk.dim('M:')}${clr(fmt(c.open))}` +
-            `  ${chalk.dim('C:')}${chalk.white(fmt(c.high))}` +
-            `  ${chalk.dim('T:')}${chalk.white(fmt(c.low))}` +
-            `  ${chalk.dim('Đóng:')}${clr.bold(fmt(c.close))}` +
-            `  ${chalk.dim('KL:')}${chalk.white(parseInt(c.volume || 0).toLocaleString('vi-VN'))}`
-        );
-    });
-    lines.push('');
-    return lines;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PRICE PANEL  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
-
 function buildPricePanelLines(info, chartData) {
-    const lines    = [];
-    const current  = parseFloat((info.currentPrice || '0').toString().replace(/\./g, '').replace(',', '.'));
+    const lines = [];
+    const w = BOX_WIDTH();
+    const current = parseFloat((info.currentPrice || '0').toString().replace(/\./g, '').replace(',', '.'));
     const changePct = parseFloat(info.changePercent || 0);
     const changeAmt = parseFloat(info.change || 0);
 
@@ -206,547 +103,496 @@ function buildPricePanelLines(info, chartData) {
 
     const exchange = (info.exchange || 'HOSE').toUpperCase();
     const limitPct = exchange.includes('HNX') ? 0.10 : exchange.includes('UPCOM') ? 0.15 : 0.07;
-    const ceiling  = refPrice * (1 + limitPct);
-    const floor    = refPrice * (1 - limitPct);
+    const ceiling = refPrice * (1 + limitPct);
+    const floor = refPrice * (1 - limitPct);
 
-    let priceColor = chalk.yellow.bold;
-    if      (current >= ceiling * 0.998)  priceColor = chalk.magenta.bold;
-    else if (current >= refPrice)          priceColor = chalk.green.bold;
-    else if (current <= floor * 1.002)    priceColor = chalk.blue.bold;
-    else                                   priceColor = chalk.red.bold;
-
-    const changeColor = changePct >= 0 ? chalk.green.bold : chalk.red.bold;
-    const changeSign  = changePct >= 0 ? '+' : '';
-    const arrow       = changePct > 0 ? '▲' : changePct < 0 ? '▼' : '─';
+    let priceColor = C.accentBold;
+    if (current >= ceiling * 0.998) priceColor = C.ceiling.bold;
+    else if (current >= refPrice) priceColor = C.upBold;
+    else if (current <= floor * 1.002) priceColor = C.floor.bold;
+    else priceColor = C.downBold;
 
     const positionPct = ceiling > floor ? (current - floor) / (ceiling - floor) : 0.5;
-    const barWidth    = 30;
-    const filled      = Math.round(Math.max(0, Math.min(1, positionPct)) * barWidth);
+    const barWidth = 28;
+    const filled = Math.round(Math.max(0, Math.min(1, positionPct)) * barWidth);
     const progressBar =
-        chalk.red('[') +
-        chalk.dim('░').repeat(Math.max(0, filled - 1)) +
-        (filled > 0 ? chalk.yellow('◆') : '') +
-        chalk.dim('░').repeat(Math.max(0, barWidth - filled)) +
-        chalk.magenta(']');
+        C.floor('[') +
+        C.muted('░').repeat(Math.max(0, filled - 1)) +
+        (filled > 0 ? C.accent('◆') : '') +
+        C.muted('░').repeat(Math.max(0, barWidth - filled)) +
+        C.ceiling(']');
 
     const fmt = v => v ? Math.round(v).toLocaleString('vi-VN') + ' đ' : '---';
 
-    lines.push(boxTop(chalk.white.bold('GIÁ THỜI GIAN THỰC'), chalk.cyan));
+    lines.push(boxTop('LAST PRICE', C.frame, w));
     lines.push(boxRow(
-        chalk.cyan.bold(pad('Hiện Tại', 18)) +
-        chalk.magenta.bold(pad(`  Trần (${(limitPct * 100)}%)`, 18)) +
-        chalk.yellow.bold(pad('  TC (Tham chiếu)', 18)) +
-        chalk.blue.bold(pad(`  Sàn (${(limitPct * 100)}%)`, 16))
+        C.label(pad('LAST', 16)) +
+        C.ceiling(pad(`CEIL ${(limitPct * 100)}%`, 16)) +
+        C.accent(pad('REF', 16)) +
+        C.floor(pad(`FLR ${(limitPct * 100)}%`, 16)),
+        C.frame, w
     ));
     lines.push(boxRow(
-        priceColor(pad(fmt(current), 18)) +
-        chalk.magenta(pad('  ' + fmt(ceiling), 18)) +
-        chalk.yellow(pad('  ' + fmt(refPrice), 18)) +
-        chalk.blue(pad('  ' + fmt(floor), 16))
+        priceColor(pad(fmt(current), 16)) +
+        C.ceiling(pad(fmt(ceiling), 16)) +
+        C.accent(pad(fmt(refPrice), 16)) +
+        C.floor(pad(fmt(floor), 16)),
+        C.frame, w
     ));
-    lines.push(boxBlank());
+    lines.push(boxBlank(C.frame, w));
     lines.push(boxRow(
-        changeColor(`  ${arrow} ${changeSign}${changePct.toFixed(2)}%`) + '  ' +
-        changeColor(`(${changeSign}${Math.round(changeAmt).toLocaleString('vi-VN')} đ)`) +
-        '    ' + chalk.dim('KL: ') + chalk.white.bold(info.totalVolume || '---')
+        changeFmt(changePct) + '  ' +
+        (changePct >= 0 ? C.up : C.down)(`(${changePct >= 0 ? '+' : ''}${Math.round(changeAmt).toLocaleString('vi-VN')} đ)`) +
+        '    ' + C.label('VOL') + ' ' + C.value(info.totalVolume || '---'),
+        C.frame, w
     ));
     lines.push(boxRow(
-        chalk.blue('Sàn') + '  ' + progressBar + '  ' + chalk.magenta('Trần') +
-        chalk.dim('  ' + (positionPct * 100).toFixed(0) + '% từ sàn')
+        C.floor('FLR') + '  ' + progressBar + '  ' + C.ceiling('CEIL') +
+        C.muted(`  ${(positionPct * 100).toFixed(0)}% from floor`),
+        C.frame, w
     ));
     if (info.high52w || info.low52w) {
-        lines.push(boxBlank());
+        lines.push(boxBlank(C.frame, w));
         lines.push(boxRow(
-            chalk.dim('52W High: ') + chalk.green.bold(fmt(info.high52w)) +
-            '    ' + chalk.dim('52W Low: ') + chalk.red.bold(fmt(info.low52w))
+            C.label('52W High') + ' ' + C.upBold(fmt(info.high52w)) +
+            '    ' + C.label('52W Low') + ' ' + C.downBold(fmt(info.low52w)),
+            C.frame, w
         ));
     }
-    lines.push(boxBot());
+    lines.push(boxBot(C.frame, w));
     lines.push('');
     return lines;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TECHNICAL INDICATORS PANEL  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
-
 function buildTechnicalLines(chartData) {
     const lines = [];
+    const w = BOX_WIDTH();
     if (!chartData || chartData.length < 20) return lines;
 
     const closes = chartData.map(c => parseFloat(c.close));
-    const rsi    = calcRSI(closes, 14);
-    const ma5    = calcSMA(closes, 5);
-    const ma20   = calcSMA(closes, 20);
-    const ma50   = calcSMA(closes, 50);
-    const macd   = calcMACD(closes);
-    const bb     = calcBollinger(closes, 20);
-    const atr    = calcATR(chartData.map((c, i) => ({
+    const rsi = calcRSI(closes, 14);
+    const ma5 = calcSMA(closes, 5);
+    const ma20 = calcSMA(closes, 20);
+    const ma50 = calcSMA(closes, 50);
+    const macd = calcMACD(closes);
+    const bb = calcBollinger(closes, 20);
+    const atr = calcATR(chartData.map((c, i) => ({
         high: parseFloat(c.high), low: parseFloat(c.low),
         close: i > 0 ? parseFloat(chartData[i - 1].close) : parseFloat(c.close)
     })));
     const current = closes[closes.length - 1];
-
-    function rsiBar(v) {
-        const BAR    = 20;
-        const filled = Math.round((v / 100) * BAR);
-        let color    = chalk.yellow;
-        if (v >= 70) color = chalk.red;
-        else if (v <= 30) color = chalk.cyan;
-        else if (v >= 55) color = chalk.green;
-        return color('█'.repeat(filled) + '░'.repeat(BAR - filled));
-    }
-    function rsiLabel(v) {
-        if (v >= 70) return chalk.red.bold('QUÁ MUA ⚠');
-        if (v <= 30) return chalk.cyan.bold('QUÁ BÁN ⚡');
-        if (v >= 60) return chalk.green('TĂNG ĐỘNG LƯỢNG');
-        if (v <= 40) return chalk.red('GIẢM ĐỘNG LƯỢNG');
-        return chalk.yellow('TRUNG TÍNH');
-    }
-
     const fmt2 = v => v !== null ? (v * 1000).toFixed(0) : 'N/A';
 
-    lines.push(boxTop(chalk.white.bold('PHÂN TÍCH KỸ THUẬT'), chalk.yellow));
+    lines.push(boxTop('TECHNICALS', C.accent, w));
 
     if (rsi !== null) {
+        let rsiLabel = C.warn('NEUTRAL');
+        if (rsi >= 70) rsiLabel = C.downBold('OVERBOUGHT');
+        else if (rsi <= 30) rsiLabel = C.upBold('OVERSOLD');
+        else if (rsi >= 60) rsiLabel = C.up('MOMENTUM UP');
+        else if (rsi <= 40) rsiLabel = C.down('MOMENTUM DOWN');
+
         lines.push(boxRow(
-            chalk.dim('RSI(14):') + ' ' + chalk.bold(rsi.toFixed(1)) +
-            '  ' + rsiBar(rsi) + '  ' + rsiLabel(rsi),
-            chalk.yellow
+            C.label('RSI(14)') + ' ' + C.value(rsi.toFixed(1)) +
+            '  ' + renderGauge(rsi, 18) + '  ' + rsiLabel,
+            C.accent, w
         ));
     }
 
     if (macd) {
-        const macdClr  = macd.histogram > 0 ? chalk.green : chalk.red;
-        const macdSign = macd.macd >= 0 ? '+' : '';
-        const histSign = macd.histogram !== null && macd.histogram >= 0 ? '+' : '';
-        const crossLabel = macd.histogram > 0 ? chalk.green('▲ BULLISH') : chalk.red('▼ BEARISH');
+        const macdClr = macd.histogram > 0 ? C.up : C.down;
+        const crossLabel = macd.histogram > 0 ? C.up('BULLISH') : C.down('BEARISH');
         lines.push(boxRow(
-            chalk.dim('MACD:') + ' ' + macdClr(`${macdSign}${(macd.macd * 1000).toFixed(2)}`) +
-            '  ' + chalk.dim('Signal:') + ' ' + macdClr(`${(macd.signal * 1000).toFixed(2)}`) +
-            '  ' + chalk.dim('Hist:') + ' ' + macdClr(`${histSign}${(macd.histogram * 1000).toFixed(2)}`) +
+            C.label('MACD') + ' ' + macdClr(`${macd.macd >= 0 ? '+' : ''}${(macd.macd * 1000).toFixed(2)}`) +
+            '  ' + C.label('Sig') + ' ' + macdClr(`${(macd.signal * 1000).toFixed(2)}`) +
+            '  ' + C.label('Hist') + ' ' + macdClr(`${macd.histogram >= 0 ? '+' : ''}${(macd.histogram * 1000).toFixed(2)}`) +
             '  ' + crossLabel,
-            chalk.yellow
+            C.accent, w
         ));
     }
 
     const maLine = [
-        ma5  !== null ? (chalk.dim('MA5:')  + ' ' + (current >= ma5  ? chalk.green : chalk.red)(fmt2(ma5)))  : '',
-        ma20 !== null ? (chalk.dim('MA20:') + ' ' + (current >= ma20 ? chalk.green : chalk.red)(fmt2(ma20))) : '',
-        ma50 !== null ? (chalk.dim('MA50:') + ' ' + (current >= ma50 ? chalk.green : chalk.red)(fmt2(ma50))) : '',
+        ma5 !== null ? (C.label('MA5') + ' ' + (current >= ma5 ? C.up : C.down)(fmt2(ma5))) : '',
+        ma20 !== null ? (C.label('MA20') + ' ' + (current >= ma20 ? C.up : C.down)(fmt2(ma20))) : '',
+        ma50 !== null ? (C.label('MA50') + ' ' + (current >= ma50 ? C.up : C.down)(fmt2(ma50))) : '',
     ].filter(Boolean).join('   ');
 
     let trendLabel = '';
     if (ma5 && ma20 && ma50) {
-        if      (ma5 > ma20 && ma20 > ma50) trendLabel = chalk.green.bold('↑ XU HƯỚNG TĂNG (MA5>MA20>MA50)');
-        else if (ma5 < ma20 && ma20 < ma50) trendLabel = chalk.red.bold('↓ XU HƯỚNG GIẢM (MA5<MA20<MA50)');
-        else if (ma5 > ma20)                trendLabel = chalk.yellow('→ ĐẢO CHIỀU TIỀM NĂNG');
-        else                                trendLabel = chalk.dim('◈ SIDEWAY / TÍCH LŨY');
+        if (ma5 > ma20 && ma20 > ma50) trendLabel = C.upBold('↑ UPTREND (MA5>MA20>MA50)');
+        else if (ma5 < ma20 && ma20 < ma50) trendLabel = C.downBold('↓ DOWNTREND (MA5<MA20<MA50)');
+        else if (ma5 > ma20) trendLabel = C.warn('→ POTENTIAL REVERSAL');
+        else trendLabel = C.muted('◈ SIDEWAYS');
     }
 
-    lines.push(boxRow(maLine, chalk.yellow));
-    if (trendLabel) lines.push(boxRow('  ' + trendLabel, chalk.yellow));
+    lines.push(boxRow(maLine, C.accent, w));
+    if (trendLabel) lines.push(boxRow('  ' + trendLabel, C.accent, w));
 
     if (bb) {
         const pos = (current - bb.lower) / (bb.upper - bb.lower);
-        let bbLabel = '';
-        if      (pos >= 0.9) bbLabel = chalk.red('Gần dải TRÊN ⚠ tiệm cận kháng cự');
-        else if (pos <= 0.1) bbLabel = chalk.cyan('Gần dải DƯỚI ⚡ tiệm cận hỗ trợ');
-        else if (pos >= 0.6) bbLabel = chalk.green('Trong vùng TĂNG (trên midline)');
-        else                 bbLabel = chalk.yellow('Trong vùng GIẢM (dưới midline)');
+        let bbLabel = C.warn('Below midline');
+        if (pos >= 0.9) bbLabel = C.down('Near UPPER band');
+        else if (pos <= 0.1) bbLabel = C.up('Near LOWER band');
+        else if (pos >= 0.6) bbLabel = C.up('Above midline');
 
         lines.push(boxRow(
-            chalk.dim('Bollinger:') + '  ' +
-            chalk.cyan('Dưới: ' + fmt2(bb.lower)) + '  ' +
-            chalk.white('Mid: ' + fmt2(bb.mid)) + '  ' +
-            chalk.magenta('Trên: ' + fmt2(bb.upper)) + '  ' +
-            chalk.dim(`Độ rộng: ${(bb.std * 1000 * 2).toFixed(0)}`),
-            chalk.yellow
+            C.label('BB') + '  ' +
+            C.floor('Lo ' + fmt2(bb.lower)) + '  ' +
+            C.white('Mid ' + fmt2(bb.mid)) + '  ' +
+            C.ceiling('Hi ' + fmt2(bb.upper)),
+            C.accent, w
         ));
-        lines.push(boxRow('  ' + bbLabel, chalk.yellow));
+        lines.push(boxRow('  ' + bbLabel, C.accent, w));
     }
 
     if (atr) {
         lines.push(boxRow(
-            chalk.dim('ATR(14):') + ' ' + chalk.white(parseInt((atr * 1000).toFixed(0)).toLocaleString('vi-VN') + ' đ') +
-            '  ' + chalk.dim('→ biến động trung bình/phiên'),
-            chalk.yellow
+            C.label('ATR(14)') + ' ' + C.value(parseInt((atr * 1000).toFixed(0)).toLocaleString('vi-VN') + ' đ') +
+            C.muted('  avg session range'),
+            C.accent, w
         ));
     }
 
-    lines.push(boxBot(chalk.yellow));
+    lines.push(boxBot(C.accent, w));
     lines.push('');
     return lines;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// VALUATION & FOREIGN FLOW  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
-
 function buildValuationLines(info, profile) {
     const lines = [];
-    const pe    = info.pe   || profile?.peRatio  || '---';
-    const pb    = info.pb   || '---';
-    const eps   = info.eps  || '---';
-    const bvps  = info.bvps || '---';
-    const mkt   = info.marketCap || profile?.marketCap || '---';
-    const exch  = info.exchange  || profile?.exchange  || '---';
+    const pe = info.pe || profile?.peRatio || '---';
+    const pb = info.pb || '---';
+    const eps = info.eps || '---';
+    const bvps = info.bvps || '---';
+    const mkt = info.marketCap || profile?.marketCap || '---';
+    const exch = info.exchange || profile?.exchange || '---';
 
-    lines.push(boxTop(chalk.white.bold('ĐỊNH GIÁ & TÀI CHÍNH'), chalk.green));
+    lines.push(sectionTitle('Valuation', C.accent, BOX_WIDTH()));
 
     const tbl = new Table({
-        head: [chalk.green('P/E'), chalk.green('P/B'), chalk.green('EPS (đ)'), chalk.green('BVPS (đ)'), chalk.green('Vốn hóa'), chalk.green('Sàn')],
+        head: [C.label('P/E'), C.label('P/B'), C.label('EPS'), C.label('BVPS'), C.label('MKT CAP'), C.label('EXCH')],
         colWidths: [10, 10, 14, 14, 16, 10],
-        style: { border: ['dim'], head: [], 'padding-left': 1, 'padding-right': 1 },
+        style: { border: [], head: [], 'padding-left': 1, 'padding-right': 1 },
     });
-    const peNum   = parseFloat(pe);
-    const peColor = isNaN(peNum) ? chalk.gray : peNum > 25 ? chalk.red : peNum < 10 ? chalk.green : chalk.yellow;
+    const peNum = parseFloat(pe);
+    const peColor = isNaN(peNum) ? C.muted : peNum > 25 ? C.down : peNum < 10 ? C.up : C.warn;
     tbl.push([
-        peColor(pe.toString()), chalk.white(pb.toString()),
-        chalk.white(eps.toString()), chalk.white(bvps.toString()),
-        chalk.white(typeof mkt === 'number' ? (mkt / 1e9).toFixed(1) + ' tỷ' : mkt.toString()),
-        chalk.cyan(exch),
+        peColor(pe.toString()), C.white(pb.toString()),
+        C.white(eps.toString()), C.white(bvps.toString()),
+        C.white(typeof mkt === 'number' ? (mkt / 1e9).toFixed(1) + 'B' : mkt.toString()),
+        C.frame(exch),
     ]);
     tbl.toString().split('\n').forEach(l => lines.push(l));
-
-    if (info.buyVolume || info.sellVolume) {
-        const buyV   = parseInt((info.buyVolume  || '0').toString().replace(/\D/g, '')) || 0;
-        const sellV  = parseInt((info.sellVolume || '0').toString().replace(/\D/g, '')) || 0;
-        const totalV = buyV + sellV || 1;
-        const buyPct  = ((buyV / totalV) * 100).toFixed(0);
-        const sellPct = ((sellV / totalV) * 100).toFixed(0);
-        lines.push(boxRow(
-            chalk.dim('Mua (ước):') + ' ' + chalk.green.bold(info.buyVolume  || '---') + ' ' +
-            chalk.green('█'.repeat(Math.round(buyPct / 5))) + ' ' + chalk.dim(buyPct + '%') +
-            '   ' +
-            chalk.dim('Bán (ước):') + ' ' + chalk.red.bold(info.sellVolume || '---') + ' ' +
-            chalk.red('█'.repeat(Math.round(sellPct / 5))) + ' ' + chalk.dim(sellPct + '%'),
-            chalk.green
-        ));
-    }
-
-    lines.push(boxBot(chalk.green));
     lines.push('');
     return lines;
 }
 
 function buildForeignLines(info) {
     const lines = [];
-    const fBuy  = info.foreignBuy  || info.foreignBuyVol  || null;
+    const w = BOX_WIDTH();
+    const fBuy = info.foreignBuy || info.foreignBuyVol || null;
     const fSell = info.foreignSell || info.foreignSellVol || null;
-    const fNet  = info.foreignNet  || info.foreignNetVal  || null;
+    const fNet = info.foreignNet || info.foreignNetVal || null;
     if (!fBuy && !fSell && !fNet) return lines;
 
-    const fBuyN  = parseFloat((fBuy  || '0').toString().replace(/[^0-9.-]/g, ''));
+    const fBuyN = parseFloat((fBuy || '0').toString().replace(/[^0-9.-]/g, ''));
     const fSellN = parseFloat((fSell || '0').toString().replace(/[^0-9.-]/g, ''));
-    const netN   = fNet ? parseFloat((fNet || '0').toString().replace(/[^0-9.-]/g, '')) : fBuyN - fSellN;
+    const netN = fNet ? parseFloat((fNet || '0').toString().replace(/[^0-9.-]/g, '')) : fBuyN - fSellN;
+    const netColor = netN >= 0 ? C.upBold : C.downBold;
+    const netArrow = netN >= 0 ? 'NET BUY' : 'NET SELL';
 
-    const netColor = netN >= 0 ? chalk.green : chalk.red;
-    const netArrow = netN >= 0 ? '↑ MUA RÒNG' : '↓ BÁN RÒNG';
-
-    lines.push(boxTop(chalk.white.bold('KHỐI NGOẠI (FOREIGN FLOW)'), chalk.magenta));
+    lines.push(boxTop('FOREIGN FLOW', C.frame, w));
     lines.push(boxRow(
-        chalk.green.bold('  KL Mua NN: ') + chalk.green((fBuy  || '---').toString()) +
-        '    ' + chalk.red.bold('KL Bán NN: ') + chalk.red((fSell || '---').toString()) +
-        '    ' + chalk.dim('Ròng: ') + netColor.bold((netN >= 0 ? '+' : '') + netN.toLocaleString('vi-VN') + '  ' + netArrow),
-        chalk.magenta
+        C.up('Buy ') + C.upBold(String(fBuy || '---')) +
+        '    ' + C.down('Sell ') + C.downBold(String(fSell || '---')) +
+        '    ' + C.label('Net') + ' ' + netColor((netN >= 0 ? '+' : '') + netN.toLocaleString('vi-VN') + '  ' + netArrow),
+        C.frame, w
     ));
-    lines.push(boxBot(chalk.magenta));
+    lines.push(boxBot(C.frame, w));
     lines.push('');
     return lines;
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPANY PROFILE  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function buildCompanyLines(profile) {
     const lines = [];
-    const rows  = [
-        ['Ngày niêm yết', profile.listing_date],
-        ['Vốn điều lệ',   profile.charter_capital],
-        ['CP lưu hành',   profile.shares_listed],
-        ['Ngành',         profile.industry],
-        ['Địa chỉ',       profile.address ? profile.address.slice(0, 55) : null],
-        ['Website',       profile.website],
-        ['Email',         profile.email],
-    ].filter(r => r[1]);
-    if (rows.length === 0) return lines;
+    const w = BOX_WIDTH();
 
-    lines.push(boxTop(chalk.white.bold('HỒ SƠ DOANH NGHIỆP'), chalk.cyan));
+    const clip = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
 
-    const ov = (profile.overview || profile.description || '').slice(0, 200);
-    if (ov) {
-        const words = ov.split(' '); let line = ''; const wrapped = [];
-        words.forEach(w => {
-            if ((line + ' ' + w).length > 74) { wrapped.push(line); line = w; }
-            else line = line ? line + ' ' + w : w;
-        });
-        if (line) wrapped.push(line);
-        wrapped.forEach(l => lines.push(boxRow(chalk.italic.gray(l), chalk.cyan)));
-        lines.push(boxBlank());
+    const rows = [
+        ['Listed', profile.listing_date],
+        ['Charter', profile.charter_capital],
+        ['Shares', profile.shares_listed],
+        ['Industry', profile.industry],
+        ['Address', profile.address],
+        ['Web', profile.website],
+        ['Email', profile.email],
+    ].filter(([, v]) => v);
+
+    if (rows.length === 0 && !(profile.companyName || profile.overview)) return lines;
+
+    lines.push(boxTop('COMPANY PROFILE', C.frame, w));
+
+    // Plain summary — wrap fully (no hard ellipsis cut-off)
+    const raw = String(profile.overview || profile.description || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (raw) {
+        const chunk = Math.max(20, w - 6);
+        for (let i = 0; i < raw.length; i += chunk) {
+            lines.push(boxRow(C.italic(raw.slice(i, i + chunk)), C.frame, w));
+        }
+        lines.push(boxBlank(C.frame, w));
     }
 
     rows.forEach(([label, val]) => {
-        lines.push(boxRow(chalk.dim(pad(label, 16)) + chalk.white(val), chalk.cyan));
+        const text = clip(val);
+        const labelPart = C.label(pad(label, 10));
+        const chunk = Math.max(16, w - 18);
+        if (text.length <= chunk) {
+            lines.push(boxRow(labelPart + C.white(text), C.frame, w));
+            return;
+        }
+        lines.push(boxRow(labelPart + C.white(text.slice(0, chunk)), C.frame, w));
+        for (let i = chunk; i < text.length; i += chunk) {
+            lines.push(boxRow(' '.repeat(10) + C.white(text.slice(i, i + chunk)), C.frame, w));
+        }
     });
 
-    lines.push(boxBot(chalk.cyan));
+    lines.push(boxBot(C.frame, w));
     lines.push('');
     return lines;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// NEWS PANEL  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export function buildNewsLines(newsData, symbol = '', maxItems = 7) {
+export function buildNewsLines(newsData, symbol = '', maxItems = 7, { withLinks = true } = {}) {
     const lines = [];
+    const w = BOX_WIDTH();
     if (!newsData || newsData.length === 0) return lines;
 
-    const sentimentIcon = s => {
-        if (!s) return chalk.gray('◈');
-        const sl = s.toLowerCase();
-        if (sl.includes('pos') || sl === 'tích cực') return chalk.green('▲');
-        if (sl.includes('neg') || sl === 'tiêu cực') return chalk.red('▼');
-        return chalk.yellow('◈');
-    };
-    const sentimentColor = s => {
-        if (!s) return chalk.gray;
-        const sl = s.toLowerCase();
-        if (sl.includes('pos') || sl === 'tích cực') return chalk.green;
-        if (sl.includes('neg') || sl === 'tiêu cực') return chalk.red;
-        return chalk.yellow;
-    };
-
-    lines.push(boxTop(chalk.white.bold(`TIN TỨC GẦN ĐÂY${symbol ? ' — ' + symbol : ''}`), chalk.blue));
+    lines.push(boxTop(`NEWS${symbol ? ' — ' + symbol : ''}`, C.frame, w));
 
     newsData.slice(0, maxItems).forEach((n, i) => {
-        const icon  = sentimentIcon(n.sentiment);
-        const clr   = sentimentColor(n.sentiment);
-        const title = (n.title || 'Không có tiêu đề').slice(0, 68);
-        const src   = n.source ? chalk.dim(` [${n.source}]`) : '';
-        const date  = n.date   ? chalk.dim(` ${n.date}`)     : '';
-        const aiTag = n.isAiGenerated ? chalk.cyan(' [AI]') : '';
+        const sl = (n.sentiment || '').toLowerCase();
+        let icon = C.muted('·');
+        let clr = C.muted;
+        if (sl.includes('pos') || sl === 'tích cực') { icon = C.up('▲'); clr = C.up; }
+        else if (sl.includes('neg') || sl === 'tiêu cực') { icon = C.down('▼'); clr = C.down; }
 
-        lines.push(boxRow(`${icon} ${clr(title)}${src}${date}${aiTag}`, chalk.blue));
+        const title = (n.title || 'Untitled').slice(0, 64);
+        const src = n.source ? C.muted(` [${n.source}]`) : '';
+        const date = n.date ? C.muted(` ${n.date}`) : '';
+        const aiTag = n.isAiGenerated ? C.accent(' [AI]') : '';
+        const idx = C.accent(String(i + 1).padStart(2, '0'));
 
-        if (n.content && n.content.length > 60 && n.content !== n.title) {
-            const snippet = n.content.slice(0, 100) + (n.content.length > 100 ? '...' : '');
-            lines.push(boxRow(chalk.dim('   ' + snippet), chalk.blue));
+        lines.push(boxRow(`${idx} ${icon} ${clr(title)}${src}${date}${aiTag}`, C.frame, w));
+
+        if (withLinks && n.link) {
+            // Label only — full URL opened via workspace menu (OSC URL must not inflate visible width)
+            const osc = `\x1b]8;;${n.link}\x07${C.floor('[open]')}\x1b]8;;\x07`;
+            lines.push(boxRow(`    ${osc}`, C.frame, w));
         }
 
         if (i < Math.min(maxItems, newsData.length) - 1) {
-            lines.push(boxRow(chalk.dim('  ' + '·'.repeat(72)), chalk.blue));
+            lines.push(boxRow(C.muted('  ' + '·'.repeat(60)), C.frame, w));
         }
     });
 
     if (newsData.length > maxItems) {
-        lines.push(boxBlank(chalk.blue));
-        lines.push(boxRow(chalk.dim(`  ... và ${newsData.length - maxItems} tin tức khác`), chalk.blue));
+        lines.push(boxBlank(C.frame, w));
+        lines.push(boxRow(C.muted(`  … and ${newsData.length - maxItems} more`), C.frame, w));
     }
 
-    lines.push(boxBot(chalk.blue));
+    lines.push(boxBot(C.frame, w));
     lines.push('');
     return lines;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ACTION PANEL  →  returns lines[]
-// ═══════════════════════════════════════════════════════════════════════════════
+/** Chart-only buffer for a given interval label */
+export function buildChartOnlyBuffer(chartData, symbol, intervalLabel) {
+    const buf = new ScreenBuffer();
+    const { cols } = getTermSize();
+    buf.blank()
+        .line(C.accentBold(`  ${symbol}`) + C.muted(`  ·  ${intervalLabel}`) + C.muted(`  ·  ${chartData?.length || 0} bars`))
+        .blank();
+    if (!chartData || chartData.length === 0) {
+        buf.line(C.warn('  No candle data for this interval.'));
+        return buf;
+    }
+    const chartW = Math.min(cols - 20, 72);
+    renderCandles(chartData, { width: chartW, height: 14, showVolume: true })
+        .forEach(l => buf.line(l));
+    buf.blank().line(divider('─', BOX_WIDTH(), C.muted));
+    return buf;
+}
 
 export function buildActionLines(actionData, symbol = '') {
     const lines = [];
+    const w = BOX_WIDTH();
     if (!actionData) return lines;
 
-    const action = actionData.action   || actionData.signal     || 'QUAN SÁT';
-    const trend  = actionData.trend    || actionData.mechTrend   || '---';
-    const sl     = actionData.sl       || actionData.stopLoss    || '---';
-    const tp1    = actionData.tp1      || actionData.takeProfit1 || '---';
-    const tp2    = actionData.tp2      || actionData.takeProfit2 || '---';
-    const rr     = actionData.rrRatio  || '---';
-    const score  = actionData.score    || actionData.confidence  || null;
-    const reason = actionData.reason   || actionData.mechReason  || '';
-    const entry  = actionData.entry    || actionData.entryZone   || '---';
+    const action = actionData.action || actionData.signal || 'QUAN SÁT';
+    const trend = actionData.trend || actionData.mechTrend || '---';
+    const sl = actionData.sl || actionData.stopLoss || '---';
+    const tp1 = actionData.tp1 || actionData.takeProfit1 || '---';
+    const tp2 = actionData.tp2 || actionData.takeProfit2 || '---';
+    const rr = actionData.rrRatio || '---';
+    const score = actionData.score || actionData.confidence || null;
+    const reason = actionData.reason || actionData.mechReason || '';
+    const entry = actionData.entry || actionData.entryZone || '---';
 
-    let actionColor = chalk.yellow.bgBlack;
-    let actionBg    = chalk.bgYellow.black;
-    if (/LONG|MUA|BUY/i.test(action))          { actionColor = chalk.green;  actionBg = chalk.bgGreen.black; }
-    else if (/SHORT|BÁN|SELL/i.test(action))   { actionColor = chalk.red;    actionBg = chalk.bgRed.white;   }
-    else if (/QUAN SÁT|WATCH/i.test(action))   { actionColor = chalk.yellow; actionBg = chalk.bgYellow.black; }
+    let actionBg = badge(action, 'warn');
+    let actionColor = C.warn;
+    if (/LONG|MUA|BUY/i.test(action)) { actionBg = badge(action, 'up'); actionColor = C.up; }
+    else if (/SHORT|BÁN|SELL/i.test(action)) { actionBg = badge(action, 'down'); actionColor = C.down; }
 
-    const scoreBar = score !== null ? (() => {
-        const pct  = Math.max(0, Math.min(100, parseFloat(score)));
-        const fill = Math.round(pct / 5);
-        const clr  = pct >= 65 ? chalk.green : pct <= 35 ? chalk.red : chalk.yellow;
-        return clr('█'.repeat(fill) + '░'.repeat(20 - fill)) + ' ' + chalk.bold(pct.toFixed(0) + '/100');
-    })() : '';
+    const scoreBar = score !== null ? renderGauge(parseFloat(score), 18) : '';
 
-    lines.push(boxTop(chalk.white.bold(`⚡ ACTION PANEL${symbol ? ' — ' + symbol : ''}`), chalk.red));
-    lines.push(boxBlank(chalk.red));
+    lines.push(boxTop(`ACTION${symbol ? ' — ' + symbol : ''}`, C.accent, w));
+    lines.push(boxBlank(C.accent, w));
     lines.push(boxRow(
-        '  ' + actionBg.bold(` ${action} `) +
-        (trend !== '---' ? '   ' + chalk.dim('Xu hướng:') + ' ' + actionColor.bold(trend) : '') +
-        (scoreBar ? '   ' + chalk.dim('Score: ') + scoreBar : ''),
-        chalk.red
+        '  ' + actionBg +
+        (trend !== '---' ? '   ' + C.label('Trend') + ' ' + actionColor(trend) : '') +
+        (scoreBar ? '   ' + scoreBar : ''),
+        C.accent, w
     ));
-    lines.push(boxBlank(chalk.red));
+    lines.push(boxBlank(C.accent, w));
 
     if (sl !== '---' || tp1 !== '---') {
         const fmtPrice = v => {
-            if (v === '---' || !v) return chalk.gray('---');
+            if (v === '---' || !v) return C.muted('---');
             const n = parseFloat(v.toString().replace(/[^0-9.]/g, ''));
-            return isNaN(n) ? chalk.gray(v) : chalk.white.bold(n.toLocaleString('vi-VN'));
+            return isNaN(n) ? C.muted(v) : C.value(n.toLocaleString('vi-VN'));
         };
         lines.push(boxRow(
-            chalk.dim('  Entry Zone:') + ' ' + chalk.cyan.bold(entry.toString()) +
-            '   ' + chalk.dim('Stop Loss:') + ' ' + chalk.red.bold(fmtPrice(sl)) +
-            '   ' + chalk.dim('R:R =') + ' ' + chalk.yellow.bold(rr),
-            chalk.red
+            C.label('Entry') + ' ' + C.accentBold(String(entry)) +
+            '   ' + C.label('SL') + ' ' + C.downBold(fmtPrice(sl)) +
+            '   ' + C.label('R:R') + ' ' + C.accentBold(rr),
+            C.accent, w
         ));
         lines.push(boxRow(
-            chalk.dim('  TP1:') + ' ' + chalk.green.bold(fmtPrice(tp1)) +
-            '   ' + chalk.dim('TP2:') + ' ' + chalk.green.bold(fmtPrice(tp2)),
-            chalk.red
+            C.label('TP1') + ' ' + C.upBold(fmtPrice(tp1)) +
+            '   ' + C.label('TP2') + ' ' + C.upBold(fmtPrice(tp2)),
+            C.accent, w
         ));
     }
 
     if (reason) {
-        lines.push(boxBlank(chalk.red));
+        lines.push(boxBlank(C.accent, w));
         const words = reason.split(' '); let line = ''; const wrapped = [];
-        words.forEach(w => {
-            if ((line + ' ' + w).length > 70) { wrapped.push(line); line = w; }
-            else line = line ? line + ' ' + w : w;
+        words.forEach(word => {
+            if ((line + ' ' + word).length > 70) { wrapped.push(line); line = word; }
+            else line = line ? line + ' ' + word : word;
         });
         if (line) wrapped.push(line);
-        wrapped.forEach(l => lines.push(boxRow(chalk.italic.gray('  ' + l), chalk.red)));
+        wrapped.forEach(l => lines.push(boxRow(C.italic('  ' + l), C.accent, w)));
     }
 
-    lines.push(boxBlank(chalk.red));
-    lines.push(boxBot(chalk.red));
+    lines.push(boxBlank(C.accent, w));
+    lines.push(boxBot(C.accent, w));
     lines.push('');
     return lines;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN EXPORT: buildStockBuffer  +  renderStockDetail (legacy console.log)
-// ═══════════════════════════════════════════════════════════════════════════════
+//=======================================================================
+// MAIN EXPORTS
+//=======================================================================
 
-export function buildStockBuffer(marketData, chartData, actionData = null, newsData = null) {
-    const buf     = new ScreenBuffer();
+/**
+ * Overview buffer — company + key metrics only.
+ * Chart / AI / News live in their own workspace actions.
+ */
+export function buildStockBuffer(marketData, chartData, actionData = null, _newsData = null) {
+    const buf = new ScreenBuffer();
     if (!marketData) return buf;
 
-    const info    = marketData.stockInfo     || {};
+    const info = marketData.stockInfo || {};
     const profile = marketData.companyProfile || {};
-    const news    = newsData || marketData.deepNewsData || [];
 
-    // 1. Big header
     buf.blank();
-    bigHeaderLines('🏢', info.symbol || '???', profile.companyName || info.companyName || 'N/A', info.exchange || profile.exchange || 'VNX', profile.industry || '')
-        .forEach(l => buf.line(l));
+    bigHeaderLines(
+        info.symbol || '???',
+        profile.companyName || info.companyName || 'N/A',
+        info.exchange || profile.exchange || 'VNX',
+        profile.industry || ''
+    ).forEach(l => buf.line(l));
 
-    const now = new Date().toLocaleTimeString('vi-VN');
     buf.blank()
-       .line(`  ${chalk.bgGreen.black.bold(' ● LIVE ')}  ${chalk.dim('Cập nhật: ' + now)}`)
-       .blank();
+        .line(`  ${badge('LIVE', 'live')}  ${C.muted(new Date().toLocaleTimeString('vi-VN'))}` +
+            C.muted('  ·  overview = company + metrics'))
+        .blank();
 
-    // 2. Price panel
+    // Price & band indicators
     buildPricePanelLines(info, chartData).forEach(l => buf.line(l));
 
-    // 3. Technical indicators
+    // Compact technicals (RSI / MACD / MA) as indicators — no full candle chart
     if (chartData && chartData.length >= 14) {
         buildTechnicalLines(chartData).forEach(l => buf.line(l));
     }
 
-    // 4. Sparkline chart
-    if (chartData && chartData.length > 0) {
-        buildSparklineLines(chartData, 50).forEach(l => buf.line(l));
-    }
-
-    // 5. Action panel
-    if (actionData) {
-        buildActionLines(actionData, info.symbol).forEach(l => buf.line(l));
-    }
-
-    // 6. Valuation
     buildValuationLines(info, profile).forEach(l => buf.line(l));
-
-    // 7. Foreign flow
     buildForeignLines(info).forEach(l => buf.line(l));
-
-    // 8. Company profile
     buildCompanyLines(profile).forEach(l => buf.line(l));
 
-    // 9. News
-    if (news.length > 0) {
-        buildNewsLines(news, info.symbol).forEach(l => buf.line(l));
-    }
-
-    // 10. PDF link
     if (marketData.reportPdf) {
-        buf.line(chalk.dim('  📎 Báo cáo TCBS: ') + chalk.blue.underline(marketData.reportPdf))
-           .blank();
+        const url = String(marketData.reportPdf);
+        const short = url.length > 70 ? url.slice(0, 67) + '…' : url;
+        buf.line(C.muted('  TCBS: ') + C.frame(short)).blank();
     }
 
-    buf.divider('─', BOX_WIDTH, chalk.dim);
+    buf.line(divider('─', BOX_WIDTH(), C.muted));
+    buf.line(C.muted('  Tip: use Chart / AI / News from the workspace menu'));
     return buf;
 }
 
-/** Legacy shim — vẫn dùng được ở nơi cần console.log */
 export function renderStockDetail(marketData, chartData, actionData = null, newsData = null) {
     buildStockBuffer(marketData, chartData, actionData, newsData).lines.forEach(l => console.log(l));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AI REPORT  →  buildAiReportLines + renderAiReport
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export function buildAiReportLines(aiReport, symbol = '') {
     const lines = [];
+    const w = BOX_WIDTH();
     if (!aiReport) {
         lines.push('');
-        lines.push(chalk.yellow('⚠  AI Engine không trả về báo cáo. Thử lại sau.'));
+        lines.push(C.warn('  AI engine returned no report. Try again later.'));
         return lines;
     }
 
-    const header = `  🦆 OMNI DUCK · AI STRATEGIC REPORT${symbol ? ' — ' + symbol : ''}`;
+    const header = `  OMNI DUCK · AI STRATEGIC REPORT${symbol ? ' — ' + symbol : ''}`;
     lines.push('');
-    lines.push(chalk.bgMagenta.black('═'.repeat(BOX_WIDTH)));
-    lines.push(chalk.bgMagenta.black.bold(pad(header, BOX_WIDTH)));
-    lines.push(chalk.bgMagenta.black('═'.repeat(BOX_WIDTH)));
+    lines.push(C.accent('═'.repeat(w)));
+    lines.push(C.accentBold(pad(header, w)));
+    lines.push(C.accent('═'.repeat(w)));
     lines.push('');
 
     let clean = aiReport
-        .replace(/<span\s+className="[^"]*text-emerald[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => chalk.green.bold(t))
-        .replace(/<span\s+className="[^"]*text-green[^"]*"[^>]*>([\s\S]*?)<\/span>/g,   (_, t) => chalk.green.bold(t))
-        .replace(/<span\s+className="[^"]*text-red[^"]*"[^>]*>([\s\S]*?)<\/span>/g,     (_, t) => chalk.red.bold(t))
-        .replace(/<span\s+className="[^"]*text-yellow[^"]*"[^>]*>([\s\S]*?)<\/span>/g,  (_, t) => chalk.yellow.bold(t))
-        .replace(/<span\s+className="[^"]*text-blue[^"]*"[^>]*>([\s\S]*?)<\/span>/g,    (_, t) => chalk.blue.bold(t))
-        .replace(/<span\s+className="[^"]*text-cyan[^"]*"[^>]*>([\s\S]*?)<\/span>/g,    (_, t) => chalk.cyan.bold(t))
-        .replace(/<span\s+className="[^"]*text-white[^"]*"[^>]*>([\s\S]*?)<\/span>/g,   (_, t) => chalk.white(t))
-        .replace(/<span\s+className="[^"]*font-black[^"]*"[^>]*>([\s\S]*?)<\/span>/g,   (_, t) => chalk.bold(t))
+        .replace(/<span\s+className="[^"]*text-emerald[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.upBold(t))
+        .replace(/<span\s+className="[^"]*text-green[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.upBold(t))
+        .replace(/<span\s+className="[^"]*text-red[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.downBold(t))
+        .replace(/<span\s+className="[^"]*text-yellow[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.accentBold(t))
+        .replace(/<span\s+className="[^"]*text-blue[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.floor(t))
+        .replace(/<span\s+className="[^"]*text-cyan[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.frame(t))
+        .replace(/<span\s+className="[^"]*text-white[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.white(t))
+        .replace(/<span\s+className="[^"]*font-black[^"]*"[^>]*>([\s\S]*?)<\/span>/g, (_, t) => C.value(t))
         .replace(/<\/?span[^>]*>/g, '')
-        .replace(/\*\*(.*?)\*\*/g, (_, t) => chalk.bold(t))
-        .replace(/^#{1,3}\s+(.+)$/gm, (_, t) => '\n' + chalk.cyan.bold('  ▶  ' + t.toUpperCase()))
-        .replace(/^---+$/gm, chalk.dim('─'.repeat(BOX_WIDTH)))
+        .replace(/\*\*(.*?)\*\*/g, (_, t) => C.value(t))
+        .replace(/^#{1,3}\s+(.+)$/gm, (_, t) => '\n' + C.accentBold('  ▸  ' + t.toUpperCase()))
+        .replace(/^---+$/gm, C.muted('─'.repeat(w)))
         .replace(/^[\-•]\s+/gm, '  · ')
-        .replace(/^\d+\.\s+/gm, m => chalk.dim(m));
+        .replace(/^\d+\.\s+/gm, m => C.muted(m));
 
     clean.split('\n').forEach(line => {
         if (!line.trim()) { lines.push(''); return; }
-        if (line.includes('▶')) {
-            lines.push(line);
-        } else if (line.startsWith('  ·')) {
-            lines.push('  ' + chalk.dim('·') + line.slice(3));
-        } else {
-            lines.push('  ' + line);
-        }
+        if (line.includes('▸')) lines.push(line);
+        else if (line.startsWith('  ·')) lines.push('  ' + C.muted('·') + line.slice(3));
+        else lines.push('  ' + line);
     });
 
     lines.push('');
-    lines.push(chalk.magenta('═'.repeat(BOX_WIDTH)));
-    lines.push(chalk.dim('  ⚠  Báo cáo AI chỉ mang tính tham khảo. Không phải khuyến nghị đầu tư.'));
-    lines.push(chalk.magenta('═'.repeat(BOX_WIDTH)));
+    lines.push(C.accent('═'.repeat(w)));
+    lines.push(C.muted('  Research only. Not investment advice.'));
+    lines.push(C.accent('═'.repeat(w)));
     return lines;
 }
 
