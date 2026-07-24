@@ -20,7 +20,9 @@ import {
     getTodayInsight,
     runDailyMarketInsight,
     getInsightHistory,
+    ensureEnglishInsight,
 } from '../services/marketInsightService.js';
+import { resolveLanguage } from '../utils/i18nMessages.js';
 
 const router = express.Router();
 
@@ -83,6 +85,12 @@ router.get('/today', async (req, res) => {
             return res.status(404).json({
                 error: 'Chưa có báo cáo hôm nay. Báo cáo tự động chạy lúc 7:00 SA ngày làm việc.',
             });
+        }
+
+        // When UI is English, ensure bilingual fields exist (lazy translate + cache).
+        const lang = resolveLanguage(req);
+        if (lang === 'en') {
+            insight = await ensureEnglishInsight(insight);
         }
 
         return res.json(insight);

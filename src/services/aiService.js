@@ -18,6 +18,7 @@ import {
 import { sendTelegramMessage, buildSystemAlertMessage } from './telegramService.js';
 import { fetchTcbsPdfMeta, getTcbsPdfUrl } from '../fetchers/tcbsService.js';
 import { parseLlmJson } from '../utils/parseLlmJson.js';
+import { aiLanguageInstruction } from '../utils/i18nMessages.js';
 
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -687,6 +688,13 @@ ${newsSummary || 'Không có tin tức nổi bật.'}`;
             text: `\n\n--- DỮ LIỆU TỪ BÁO CÁO TÀI CHÍNH TCBS (Trích xuất bởi Docling) ---\n${data.tcbsMarkdownData}\n-------------------`
         });
     }
+
+    const lang = data?.language === 'en' ? 'en' : 'vi';
+    promptParts.push({
+        text: lang === 'en'
+            ? '\n\nRespond entirely in English.'
+            : '\n\nTrả lời toàn bộ bằng tiếng Việt.',
+    });
     
     return promptParts;
 };
@@ -888,9 +896,11 @@ Trong đó, phần "aiReport" phải tuân thủ nghiêm ngặt định dạng M
 - **Lưu ý nguy hiểm:** [Cảnh báo rủi ro bẻ kèo (Ví dụ: "Hủy lệnh nếu Trụ VIC, VHM bị bán tháo")]
 `;
 
+    const finalPrompt = `${prompt}\n\n${aiLanguageInstruction(derivData?.language === 'en' ? 'en' : 'vi')}`;
+
 try {
         // Phái sinh cần chất lượng cao, ưu tiên Gemini Pro
-        const text = await generateWithRole('derivatives', [prompt], {
+        const text = await generateWithRole('derivatives', [finalPrompt], {
             responseFormat: 'json_object',
         });
 
@@ -955,7 +965,7 @@ export async function analyzeCryptoSignalWithGemini(symbol, liveData) {
 // =========================================================
 // 7. CHAT WITH AI — READ SAVED REPORTS
 // =========================================================
-export async function chatWithStockAI(ticker, question, history = [], aiReport = null) {
+export async function chatWithStockAI(ticker, question, history = [], aiReport = null, language = 'vi') {
 
      const reportContext = aiReport
         ? `\n\n[BÁO CÁO PHÂN TÍCH ĐÃ LƯU — ${ticker.toUpperCase()}]\n${aiReport}\n[HẾT BÁO CÁO]`
@@ -965,6 +975,8 @@ export async function chatWithStockAI(ticker, question, history = [], aiReport =
         ? '\n\n[LỊCH SỬ CHAT GẦN ĐÂY]\n' +
           history.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n')
         : '';
+
+    const langLine = aiLanguageInstruction(language);
  
     const prompt = `Nhiệm vụ: Trả lời câu hỏi về mã ${ticker.toUpperCase()} dựa trên báo cáo phân tích đã lưu bên dưới.
  
@@ -981,7 +993,7 @@ ${reportContext}${historyText}
 [CÂU HỎI]
 ${question}
  
-Trả lời bằng tiếng Việt, chuyên nghiệp, đi thẳng vào vấn đề:`;
+${langLine}`;
  
     try {
         const answer = await generateWithRole('chat', [prompt]);

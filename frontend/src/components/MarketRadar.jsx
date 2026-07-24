@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createChart } from 'lightweight-charts';
 
 export default React.memo(function MiniRadarChart({ data, theme, color = '#facc15' }) {
+  const { t } = useTranslation('market');
   const chartContainerRef = useRef();
   const chartInstance = useRef(null);
   const seriesRef = useRef(null);
@@ -62,12 +64,12 @@ export default React.memo(function MiniRadarChart({ data, theme, color = '#facc1
     setErrorMessage(null);
 
     if (!data || data.length === 0) {
-      setErrorMessage("DỮ LIỆU TRỐNG (API KHÔNG CÓ DATA)");
+      setErrorMessage(t('emptyDataApi'));
       return;
     }
     const first = data[0];
     if (!first.time || first.open === undefined || first.close === undefined) {
-      setErrorMessage("SAI ĐỊNH DẠNG NẾN (THIẾU OHLC)");
+      setErrorMessage(t('badCandleFormat'));
       return;
     }
     if (!seriesRef.current) return;
@@ -85,9 +87,9 @@ export default React.memo(function MiniRadarChart({ data, theme, color = '#facc1
       seriesRef.current.setData(uniqueData);
       chartInstance.current?.timeScale().fitContent();
     } catch (err) {
-      setErrorMessage(`LỖI VẼ: ${err.message}`);
+      setErrorMessage(`${t('drawErrorPrefix')} ${err.message}`);
     }
-  }, [data]);
+  }, [data, t]);
 
   return (
     <div className="w-full h-full relative min-h-[150px] bg-black/20 rounded-lg overflow-hidden border border-white/5">
@@ -96,7 +98,7 @@ export default React.memo(function MiniRadarChart({ data, theme, color = '#facc1
       {/* LỚP PHỦ THÔNG BÁO LỖI NẾU CÓ */}
       {errorMessage && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-50 p-4 text-center">
-          <div className="text-red-500 font-black text-[10px] mb-2 animate-pulse">SYSTEM ERROR</div>
+          <div className="text-red-500 font-black text-[10px] mb-2 animate-pulse">{t('systemError')}</div>
           <div className="text-white font-mono text-[11px] uppercase tracking-tighter border border-red-500/50 px-2 py-1 bg-red-500/10">
             {errorMessage}
           </div>

@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import axios from 'axios';
 import Stock from '../../models/Stock.js';
+
 const FALLBACK_STOCKS = [
     { symbol: 'MBB', companyName: 'Ngân hàng TMCP Quân đội', exchange: 'HOSE' },
     { symbol: 'SSI', companyName: 'CTCP Chứng khoán SSI', exchange: 'HOSE' },
@@ -8,6 +9,67 @@ const FALLBACK_STOCKS = [
     { symbol: 'HPG', companyName: 'CTCP Tập đoàn Hòa Phát', exchange: 'HOSE' },
     { symbol: 'VIC', companyName: 'Tập đoàn Vingroup', exchange: 'HOSE' }
 ];
+
+const VCI_SYMBOLS_URL = 'https://trading.vietcap.com.vn/api/price/symbols/getAll';
+
+/**
+ * Sync official English company names from Vietcap public listing API.
+ * Source field: enOrganName (e.g. "Phu Nhuan Jewelry Joint Stock Company").
+ */
+export async function syncEnglishCompanyNamesFromVci() {
+    console.log(chalk.yellow('[HỆ THỐNG] Đồng bộ tên tiếng Anh (Vietcap enOrganName)...'));
+    try {
+        const res = await axios.get(VCI_SYMBOLS_URL, {
+            timeout: 25_000,
+            headers: {
+                Accept: 'application/json',
+                'User-Agent': 'Mozilla/5.0 (compatible; OmniDuck/1.0)',
+            },
+        });
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const ops = [];
+        for (const row of rows) {
+            const symbol = String(row.symbol || '').toUpperCase().trim();
+            if (!symbol || !/^[A-Z0-9]{3}$/.test(symbol)) continue;
+            if (String(row.type || '').toUpperCase() !== 'STOCK') continue;
+
+            const companyNameEn = String(row.enOrganName || row.enOrganShortName || '').trim();
+            const organNameVi = String(row.organName || '').trim();
+            if (!companyNameEn && !organNameVi) continue;
+
+            const $set = {};
+            if (companyNameEn) $set.companyNameEn = companyNameEn;
+            // Prefer Vietcap Vietnamese legal name when present (more consistent than CafeF Title)
+            if (organNameVi && organNameVi.length > 3) $set.companyName = organNameVi;
+
+            ops.push({
+                updateOne: {
+                    filter: { symbol },
+                    update: { $set },
+                    upsert: false,
+                },
+            });
+        }
+
+        if (ops.length === 0) {
+            console.log(chalk.yellow('[HỆ THỐNG] Vietcap không trả tên EN hợp lệ.'));
+            return 0;
+        }
+
+        // Chunk bulkWrite to avoid huge payloads
+        const CHUNK = 500;
+        let modified = 0;
+        for (let i = 0; i < ops.length; i += CHUNK) {
+            const result = await Stock.bulkWrite(ops.slice(i, i + CHUNK), { ordered: false });
+            modified += (result.modifiedCount || 0) + (result.upsertedCount || 0);
+        }
+        console.log(chalk.green(`[HỆ THỐNG] Đã cập nhật tên EN cho ~${ops.length} mã (Vietcap).`));
+        return ops.length;
+    } catch (err) {
+        console.log(chalk.red(`[HỆ THỐNG] Sync tên EN Vietcap thất bại: ${err.message}`));
+        return 0;
+    }
+}
 
 export async function updateSymbolsDatabase() {
     console.log(chalk.whiteBright('\n[HỆ THỐNG] Đang đồng bộ danh sách mã chứng khoán lên Cloud MongoDB...'));
@@ -62,6 +124,10 @@ export async function updateSymbolsDatabase() {
 
                 await Stock.bulkWrite(finalBulkOps);
                 console.log(chalk.green(`[HỆ THỐNG] Truy xuất CAFEF: Đã nạp & đồng bộ thành công ${allStocks.length} mã lên MongoDB.`));
+
+                // Overlay official EN (+ cleaner VI) names from Vietcap
+                await syncEnglishCompanyNamesFromVci();
+
                 return allStocks;
             }
         }
@@ -69,6 +135,9 @@ export async function updateSymbolsDatabase() {
 
     } catch (error) {
         console.log(chalk.red(`[LỖI] Quá trình đồng bộ thất bại: ${error.message}`));
+
+        // Still try EN sync if CafeF failed but DB already has symbols
+        await syncEnglishCompanyNamesFromVci();
 
         const existingStocks = await Stock.find({});
         if (existingStocks.length > 0) {

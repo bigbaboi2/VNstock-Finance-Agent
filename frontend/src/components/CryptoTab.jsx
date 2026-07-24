@@ -4,6 +4,7 @@
 
 import axios from 'axios';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import TradingChart from './TradingChart';
 import StockAiChat from './StockAiChat';
 import UltraStack from './UltraStack';
@@ -42,14 +43,15 @@ const T = {
     panelBg:  (d) => d ? 'bg-[#0C1118]'          : 'bg-white',
     cardBg:   (d) => d ? 'bg-[#111820]'          : 'bg-slate-50',
     inputBg:  (d) => d ? 'bg-[#0C1118]'          : 'bg-white',
-    // Borders
-    border:   (d) => d ? 'border-white/8'        : 'border-slate-200',
+    // Borders — light: slate-300 card / slate-400 seam (đủ tách khối trên bg-slate-50)
+    border:   (d) => d ? 'border-white/8'        : 'border-slate-400',
+    seam:     (d) => d ? 'border-white/10'       : 'border-slate-500',
     borderAcc:(d) => d ? 'border-purple-500/25'  : 'border-purple-300',
-    divider:  (d) => d ? 'bg-white/6'            : 'bg-slate-200',
+    divider:  (d) => d ? 'bg-white/6'            : 'bg-slate-300',
     // Text
     textHero: (d) => d ? 'text-white'            : 'text-slate-900',
     textBody: (d) => d ? 'text-slate-300'        : 'text-slate-700',
-    textMute: (d) => d ? 'text-slate-500'        : 'text-slate-400',
+    textMute: (d) => d ? 'text-slate-500'        : 'text-slate-500',
     // Accent: Violet consistente
     accent:        'text-violet-400',
     accentBg:      'bg-violet-500/10',
@@ -85,7 +87,7 @@ function SectionHeader({ icon: Icon, title, isDark, action }) {
 // COMPONENT: Panel — Card container nhất quán
 // ─────────────────────────────────────────────────────────────
 function Panel({ children, isDark, className = '', accent = false }) {
-    const base = `rounded-xl border ${T.panelBg(isDark)} ${accent ? T.accentBorder : T.border(isDark)}`;
+    const base = `rounded-xl border panel-outline ${T.panelBg(isDark)} ${accent ? T.accentBorder : T.border(isDark)}`;
     return <div className={`${base} ${className}`}>{children}</div>;
 }
 
@@ -94,13 +96,13 @@ function Panel({ children, isDark, className = '', accent = false }) {
 // ─────────────────────────────────────────────────────────────
 function StatRow({ label, value, color = '', isDark, help }) {
     return (
-        <div className={`flex justify-between items-center py-2 border-b last:border-0 ${isDark ? 'border-white/5' : 'border-slate-100'}`}>
+        <div className={`flex justify-between items-center py-2 border-b last:border-0 ${isDark ? 'border-white/5' : 'border-slate-300'}`}>
             <div className="flex items-center gap-1.5">
                 <span className={`text-xs font-medium ${T.textMute(isDark)}`}>{label}</span>
                 {help && (
                     <div className="group relative">
                         <HelpCircle size={11} className={`cursor-help ${T.textMute(isDark)} opacity-50 hover:opacity-100 transition-opacity`} />
-                        <div className={`absolute left-0 bottom-5 w-48 p-2.5 rounded-lg shadow-xl z-50 text-xs leading-relaxed border opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-200'}`}>
+                        <div className={`absolute left-0 bottom-5 w-48 p-2.5 rounded-lg shadow-xl z-50 text-xs leading-relaxed border opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-300'}`}>
                             {help}
                         </div>
                     </div>
@@ -115,6 +117,7 @@ function StatRow({ label, value, color = '', isDark, help }) {
 // COMPONENT: SentimentBar — Thanh Bull/Bear
 // ─────────────────────────────────────────────────────────────
 function SentimentBar({ score, isDark }) {
+    const { t } = useTranslation('crypto');
     const bullPct = Math.min(Math.max(Math.round(score), 0), 100);
     const bearPct = 100 - bullPct;
     return (
@@ -131,7 +134,7 @@ function SentimentBar({ score, isDark }) {
                 {bullPct > 0 && <div className="bg-emerald-500 transition-all duration-700" style={{ width: `${bullPct}%` }} />}
                 {bearPct > 0 && <div className="bg-red-500 transition-all duration-700" style={{ width: `${bearPct}%` }} />}
             </div>
-            <p className={`text-[10px] text-center font-medium ${T.textMute(isDark)}`}>Hệ thống đánh giá</p>
+            <p className={`text-[10px] text-center font-medium ${T.textMute(isDark)}`}>{t('ratingSystem')}</p>
         </div>
     );
 }
@@ -140,12 +143,13 @@ function SentimentBar({ score, isDark }) {
 // COMPONENT: Fear & Greed Gauge
 // ─────────────────────────────────────────────────────────────
 function FearGreedGauge({ value, labelVi, isDark }) {
+    const { t } = useTranslation('crypto');
     const getStyle = (v) => {
-        if (v <= 25) return { ring: 'border-red-500', text: 'text-red-400', bar: 'bg-red-500', label: 'Cực kỳ sợ hãi' };
-        if (v <= 45) return { ring: 'border-orange-500', text: 'text-orange-400', bar: 'bg-orange-500', label: 'Sợ hãi' };
-        if (v <= 55) return { ring: 'border-amber-500', text: 'text-amber-400', bar: 'bg-amber-500', label: 'Trung lập' };
-        if (v <= 75) return { ring: 'border-emerald-500', text: 'text-emerald-400', bar: 'bg-emerald-500', label: 'Tham lam' };
-        return { ring: 'border-emerald-400', text: 'text-emerald-400', bar: 'bg-emerald-500', label: 'Tham lam cực độ' };
+        if (v <= 25) return { ring: 'border-red-500', text: 'text-red-400', bar: 'bg-red-500', label: t('extremeFear') };
+        if (v <= 45) return { ring: 'border-orange-500', text: 'text-orange-400', bar: 'bg-orange-500', label: t('fear') };
+        if (v <= 55) return { ring: 'border-amber-500', text: 'text-amber-400', bar: 'bg-amber-500', label: t('neutral') };
+        if (v <= 75) return { ring: 'border-emerald-500', text: 'text-emerald-400', bar: 'bg-emerald-500', label: t('greed') };
+        return { ring: 'border-emerald-400', text: 'text-emerald-400', bar: 'bg-emerald-500', label: t('extremeGreed') };
     };
     const s = getStyle(value || 50);
     return (
@@ -155,14 +159,14 @@ function FearGreedGauge({ value, labelVi, isDark }) {
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-1.5">
-                    <p className={`font-semibold text-sm ${s.text}`}>{labelVi || s.label}</p>
+                    <p className={`font-semibold text-sm ${s.text}`}>{s.label}</p>
                     <p className={`text-[10px] ${T.textMute(isDark)}`}>alternative.me</p>
                 </div>
                 <div className={`h-1 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
                     <div className={`h-full rounded-full transition-all duration-700 ${s.bar}`} style={{ width: `${value ?? 50}%` }} />
                 </div>
                 <div className={`flex justify-between mt-1 text-[10px] ${T.textMute(isDark)}`}>
-                    <span>Sợ hãi</span><span>Tham lam</span>
+                    <span>{t('fearLabel')}</span><span>{t('greedLabel')}</span>
                 </div>
             </div>
         </div>
@@ -173,12 +177,13 @@ function FearGreedGauge({ value, labelVi, isDark }) {
 // COMPONENT: Confluence Score Ring
 // ─────────────────────────────────────────────────────────────
 function ConfluenceRing({ score, isDark }) {
+    const { t } = useTranslation('crypto');
     const getC = (s) => {
-        if (s >= 68) return { ring: 'border-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', label: 'TĂNG MẠNH' };
-        if (s >= 55) return { ring: 'border-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', label: 'TĂNG' };
-        if (s <= 32) return { ring: 'border-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/30',         label: 'GIẢM MẠNH' };
-        if (s <= 45) return { ring: 'border-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/30',         label: 'GIẢM' };
-        return { ring: 'border-amber-500', text: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', label: 'ĐI NGANG' };
+        if (s >= 68) return { ring: 'border-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', label: t('strongUp') };
+        if (s >= 55) return { ring: 'border-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30', label: t('up') };
+        if (s <= 32) return { ring: 'border-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/30',         label: t('strongDown') };
+        if (s <= 45) return { ring: 'border-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/30',         label: t('down') };
+        return { ring: 'border-amber-500', text: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', label: t('sideways') };
     };
     const c = getC(score);
     return (
@@ -195,10 +200,11 @@ function ConfluenceRing({ score, isDark }) {
 // COMPONENT: Volume Profile
 // ─────────────────────────────────────────────────────────────
 function CryptoVolumeProfile({ bins, maxVol, pocPrice, isDark }) {
+    const { t } = useTranslation('crypto');
     if (!bins || bins.length === 0) return (
         <div className="flex flex-col items-center justify-center py-8 opacity-50">
             <Activity size={20} className={`animate-pulse ${T.accent} mb-2`} />
-            <p className={`text-xs font-medium ${T.textMute(isDark)}`}>Đang tính POC...</p>
+            <p className={`text-xs font-medium ${T.textMute(isDark)}`}>{t('calculatingPoc')}</p>
         </div>
     );
     return (
@@ -219,7 +225,7 @@ function CryptoVolumeProfile({ bins, maxVol, pocPrice, isDark }) {
                                 style={{ width: `${w}%` }}
                             />
                         </div>
-                        {isPOC && <span className={`text-[9px] font-bold ${T.accent} shrink-0`}>POC</span>}
+                        {isPOC && <span className={`text-[9px] font-bold ${T.accent} shrink-0`}>{t('poc')}</span>}
                     </div>
                 );
             })}
@@ -236,10 +242,11 @@ function CryptoVolumeProfile({ bins, maxVol, pocPrice, isDark }) {
 // COMPONENT: News Card
 // ─────────────────────────────────────────────────────────────
 function NewsCard({ news, isDark }) {
+    const { t } = useTranslation('crypto');
     const sentimentConfig = {
-        positive: { cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', label: 'Tích cực' },
-        negative: { cls: 'text-red-400 bg-red-500/10 border-red-500/20',           label: 'Tiêu cực' },
-        neutral:  { cls: 'text-amber-400 bg-amber-500/10 border-amber-500/20',     label: 'Trung lập' },
+        positive: { cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', label: t('sentimentPositive') },
+        negative: { cls: 'text-red-400 bg-red-500/10 border-red-500/20',           label: t('sentimentNegative') },
+        neutral:  { cls: 'text-amber-400 bg-amber-500/10 border-amber-500/20',     label: t('sentimentNeutral') },
     };
     const sc = sentimentConfig[news.sentiment] || sentimentConfig.neutral;
 
@@ -251,7 +258,7 @@ function NewsCard({ news, isDark }) {
             className={`group flex items-start gap-3 p-3.5 rounded-xl border transition-all ${
                 isDark
                     ? 'bg-[#0C1118] border-white/6 hover:border-violet-500/30 hover:bg-[#111820]'
-                    : 'bg-white border-slate-200 hover:border-violet-300 hover:bg-violet-50/30'
+                    : 'bg-white border-slate-300 hover:border-violet-300 hover:bg-violet-50/30 panel-outline'
             }`}
         >
             <div className="flex-1 min-w-0">
@@ -282,6 +289,7 @@ function Skeleton({ isDark, h = 'h-4', w = 'w-full', className = '' }) {
 // MAIN EXPORT: CryptoTab
 // ─────────────────────────────────────────────────────────────
 export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = [], initialSymbol = null, onSymbolChange = null }) {
+    const { t } = useTranslation('crypto');
 
     // ── STATE: SEARCH & SYMBOL ──
     const bootSymbol = (initialSymbol || 'BTC').toUpperCase().replace(/USDT$/i, '');
@@ -290,7 +298,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
     const [suggestions, setSuggestions]       = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [symbol, setSymbol]                 = useState(bootSymbol);
-    const [cryptoInterval, setCryptoInterval] = useState('1 ngày');
+    const [cryptoInterval, setCryptoInterval] = useState('1d');
 
     // ── STATE: DATA ──
     const [chartData, setChartData]     = useState(null);
@@ -330,16 +338,31 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
     const searchRef = useRef(null);
 
     // ── CONSTANTS ──
-    // QUAN TRỌNG: Map nhãn hiển thị → giá trị gửi lên API
-    // Đây là nguyên nhân lỗi chart: nhãn "1 tuần" phải map sang đúng interval API
-    const INTERVAL_OPTIONS = [
-        { label: '5 phút',  value: '5m'  },
-        { label: '15 phút', value: '15m' },
-        { label: '1 giờ',   value: '1h'  },
-        { label: '4 giờ',   value: '4h'  },
-        { label: '1 ngày',  value: '1d'  },
-        { label: '1 tuần',  value: '1w'  },
-    ];
+    // Map nhãn hiển thị (hoặc API value) → giá trị gửi lên API
+    // TradingChart still uses Vietnamese interval strings as API values
+    const INTERVAL_CHART_LABEL = {
+        '5m': '5 phút', '15m': '15 phút', '1h': '1 giờ',
+        '4h': '4 giờ', '1d': '1 ngày', '1w': '1 tuần',
+    };
+    const resolveIntervalValue = (input) => {
+        const legacyLabels = {
+            '5 phút': '5m', '15 phút': '15m', '1 giờ': '1h', '4 giờ': '4h', '1 ngày': '1d', '1 tuần': '1w',
+        };
+        return legacyLabels[input] || input;
+    };
+
+    const INTERVAL_OPTIONS = useMemo(() => [
+        { label: t('interval5m'),  value: '5m'  },
+        { label: t('interval15m'), value: '15m' },
+        { label: t('interval1h'),   value: '1h'  },
+        { label: t('interval4h'),   value: '4h'  },
+        { label: t('interval1d'),  value: '1d'  },
+        { label: t('interval1w'),  value: '1w'  },
+    ], [t]);
+
+    const getChartIntervalLabel = useCallback((value) => {
+        return INTERVAL_CHART_LABEL[value] || '1 ngày';
+    }, []);
 
     const QUICK_COINS = ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'DOGE', 'AVAX', 'ADA', 'MATIC', 'LINK'];
 
@@ -421,11 +444,13 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
     }, [addLog]);
 
     // ── FETCH: CHART + PRICE
-    // FIX: cryptoInterval lưu nhãn hiển thị, map sang value API trước khi gửi
-    const fetchCoin = useCallback(async (sym, intervalLabel) => {
+    // FIX: cryptoInterval lưu API value; map nhãn TradingChart nếu cần
+    const fetchCoin = useCallback(async (sym, intervalInput) => {
         if (!sym) return;
-        // Map nhãn → API value
-        const intervalVal = INTERVAL_OPTIONS.find(o => o.label === intervalLabel)?.value || intervalLabel;
+        const intervalVal = resolveIntervalValue(intervalInput);
+        const intervalLabel = INTERVAL_OPTIONS.find(o => o.value === intervalVal)?.label
+            || INTERVAL_CHART_LABEL[intervalVal]
+            || intervalVal;
         setLoadingChart(true);
         setLoadingPrice(true);
         setLoadError(false);
@@ -573,8 +598,8 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
     }, [initialSymbol]);
 
     // ── CHANGE INTERVAL — reload chart + radar (radar không phụ thuộc khung, nhưng lần đầu hay miss data)
-    const handleIntervalChange = (label) => {
-        setCryptoInterval(label);
+    const handleIntervalChange = (labelOrValue) => {
+        setCryptoInterval(resolveIntervalValue(labelOrValue));
         fetchRadar();
         // Effect [symbol, cryptoInterval] tự động gọi fetchCoin với interval mới
     };
@@ -612,41 +637,41 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     value={searchInput}
                                     onChange={e => { setSearchInput(e.target.value.toUpperCase()); setShowSuggestions(true); }}
                                     onKeyDown={e => { if (e.key === 'Enter') selectCoin(searchInput); }}
-                                    placeholder="BTC, ETH…"
+                                    placeholder={t('searchPlaceholderMini')}
                                     className={`w-full h-9 pl-8 pr-2 rounded-lg border text-xs font-bold outline-none ${isDark ? 'bg-black/40 border-white/10 text-violet-300' : 'bg-white border-slate-300 text-violet-700'}`}
                                 />
                             </div>
-                            <button type="button" onClick={() => selectCoin(searchInput)} className={`h-9 px-3 rounded-lg ${T.accentSolid} text-white text-xs font-bold`}>Tìm</button>
+                            <button type="button" onClick={() => selectCoin(searchInput)} className={`h-9 px-3 rounded-lg ${T.accentSolid} text-white text-xs font-bold`}>{t('search')}</button>
                             <button type="button" onClick={() => fetchCoin(symbol, cryptoInterval)} className={`h-9 w-9 rounded-lg border flex items-center justify-center ${T.border(isDark)}`}>
                                 <RefreshCw size={13} className={loadingChart ? `animate-spin ${T.accent}` : T.textMute(isDark)} />
                             </button>
                         </div>
                         <div className="flex gap-1 flex-wrap">
-                            {INTERVAL_OPTIONS.map(({ label }) => (
+                            {INTERVAL_OPTIONS.map(({ label, value }) => (
                                 <button
-                                    key={label}
+                                    key={value}
                                     type="button"
-                                    onClick={() => handleIntervalChange(label)}
-                                    className={`px-2 py-1 rounded-md text-[10px] font-bold border ${cryptoInterval === label ? `${T.accentBg} ${T.accentBorder} ${T.accent}` : T.border(isDark)}`}
+                                    onClick={() => handleIntervalChange(value)}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-bold border ${cryptoInterval === value ? `${T.accentBg} ${T.accentBorder} ${T.accent}` : T.border(isDark)}`}
                                 >
                                     {label}
                                 </button>
                             ))}
                         </div>
-                        <div className={`h-[min(55vh,420px)] min-h-[280px] rounded-xl border overflow-hidden ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200'}`}>
+                        <div className={`h-[min(55vh,420px)] min-h-[280px] rounded-xl border overflow-hidden panel-outline ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-300'}`}>
                             {chartData?.length ? (
                                 <TradingChart
                                     data={chartData}
                                     theme={isDark ? 'dark' : 'light'}
                                     accent="violet"
                                     onIntervalChange={handleIntervalChange}
-                                    currentInterval={cryptoInterval}
+                                    currentInterval={getChartIntervalLabel(cryptoInterval)}
                                 />
                             ) : loadError && !loadingChart ? (
                                 <div className="h-full flex flex-col items-center justify-center gap-2 px-4 text-center">
                                     <AlertTriangle size={24} className="text-amber-400" />
-                                    <p className={`text-xs ${T.textMute(isDark)}`}>Không tải được {symbol}</p>
-                                    <button type="button" onClick={() => fetchCoin(symbol, cryptoInterval)} className={`h-8 px-3 rounded-lg ${T.accentSolid} text-white text-xs font-bold`}>Thử lại</button>
+                                    <p className={`text-xs ${T.textMute(isDark)}`}>{t('loadFailed')} {symbol}</p>
+                                    <button type="button" onClick={() => fetchCoin(symbol, cryptoInterval)} className={`h-8 px-3 rounded-lg ${T.accentSolid} text-white text-xs font-bold`}>{t('retry')}</button>
                                 </div>
                             ) : (
                                 <div className="h-full flex items-center justify-center">
@@ -659,26 +684,26 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
             },
             {
                 id: 'radar',
-                title: 'Radar thị trường',
+                title: t('tabMarketRadar'),
                 icon: Globe,
-                summary: radarData?.fearGreed?.labelVi || 'Đóng',
+                summary: radarData?.fearGreed?.labelVi || t('closed'),
                 render: () => (
                     <div className="space-y-3">
                         <Panel isDark={isDark} className="p-4">
-                            <SectionHeader icon={Activity} title="Sợ hãi & Tham lam" isDark={isDark} />
+                            <SectionHeader icon={Activity} title={t('fearGreed')} isDark={isDark} />
                             <FearGreedGauge value={radarData?.fearGreed?.value ?? 50} labelVi={radarData?.fearGreed?.labelVi} isDark={isDark} />
                         </Panel>
                         <Panel isDark={isDark} className="p-4">
-                            <SectionHeader icon={BarChart3} title="Dominance" isDark={isDark} />
+                            <SectionHeader icon={BarChart3} title={t('dominance')} isDark={isDark} />
                             <StatRow label="BTC" value={radarData?.dominance?.btc ? `${radarData.dominance.btc}%` : '-'} color="text-amber-400" isDark={isDark} />
                             <StatRow label="ETH" value={radarData?.dominance?.eth ? `${radarData.dominance.eth}%` : '-'} color="text-blue-400" isDark={isDark} />
                             {radarData?.globalMarket && (
-                                <StatRow label="Vốn hóa" value={radarData.globalMarket.totalMarketCap} isDark={isDark} />
+                                <StatRow label={t('marketCapLabel')} value={radarData.globalMarket.totalMarketCap} isDark={isDark} />
                             )}
                         </Panel>
                         {fundingData && (
                             <Panel isDark={isDark} className="p-4">
-                                <SectionHeader icon={Zap} title="Funding Rate" isDark={isDark} />
+                                <SectionHeader icon={Zap} title={t('fundingRate')} isDark={isDark} />
                                 {fundingData.rates?.slice(0, 5).map(r => (
                                     <StatRow key={r.symbol} label={r.symbol} value={`${r.fundingRate > 0 ? '+' : ''}${r.fundingRate}%`} isDark={isDark} />
                                 ))}
@@ -686,7 +711,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                         )}
                         {topMovers && (
                             <Panel isDark={isDark} className="p-4">
-                                <SectionHeader icon={TrendingUp} title="Top Movers 24h" isDark={isDark} />
+                                <SectionHeader icon={TrendingUp} title={t('topMovers24h')} isDark={isDark} />
                                 <div className="grid grid-cols-2 gap-1.5">
                                     {[...(topMovers.gainers || []).slice(0, 3), ...(topMovers.losers || []).slice(0, 3)].map(coin => (
                                         <button
@@ -713,16 +738,16 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                             onClick={() => { fetchRadar(); fetchMovers(); fetchFunding(); }}
                             className={`w-full h-9 rounded-lg border text-xs font-bold ${T.accentOutline(isDark)}`}
                         >
-                            Làm mới radar
+                            {t('refreshRadar')}
                         </button>
                     </div>
                 ),
             },
             {
                 id: 'info',
-                title: symbol ? `Giá · ${symbol}` : 'Thông tin coin',
+                title: symbol ? t('priceSymbol', { symbol }) : t('coinInfo'),
                 icon: Database,
-                summary: px ? fmtPct(ch24) : 'Đóng',
+                summary: px ? fmtPct(ch24) : t('closed'),
                 render: () => (
                     <div className="space-y-3">
                         {priceData ? (
@@ -733,28 +758,28 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     <p className={`text-sm font-bold mt-1 ${isPosChange ? T.bull : T.bear}`}>{fmtPct(ch24)}</p>
                                 </div>
                                 <Panel isDark={isDark} className="p-4">
-                                    <SectionHeader icon={Database} title="On-chain" isDark={isDark} />
+                                    <SectionHeader icon={Database} title={t('onChain')} isDark={isDark} />
                                     <StatRow label="ATH" value={fmtUSD(priceData.ath)} isDark={isDark} />
-                                    <StatRow label="Vốn hóa" value={fmtLarge(priceData.marketCap)} isDark={isDark} />
+                                    <StatRow label={t('marketCapLabel')} value={fmtLarge(priceData.marketCap)} isDark={isDark} />
                                 </Panel>
                                 {volProf?.bins && (
                                     <Panel isDark={isDark} className="p-4">
-                                        <SectionHeader icon={BarChart3} title="Volume Profile" isDark={isDark} />
+                                        <SectionHeader icon={BarChart3} title={t('volumeProfile')} isDark={isDark} />
                                         <CryptoVolumeProfile bins={volProf.bins} maxVol={volProf.maxVol} pocPrice={volProf.pocPrice} isDark={isDark} />
                                     </Panel>
                                 )}
                             </>
                         ) : (
-                            <p className={`text-sm ${T.textMute(isDark)}`}>Chọn coin để xem thông tin.</p>
+                            <p className={`text-sm ${T.textMute(isDark)}`}>{t('selectCoinHint')}</p>
                         )}
                     </div>
                 ),
             },
             {
                 id: 'ai',
-                title: 'Phân tích AI',
+                title: t('aiAnalysis'),
                 icon: BrainCircuit,
-                summary: aiSignal ? aiSignal.signal : (loadingAi ? 'Đang chạy…' : 'Đóng'),
+                summary: aiSignal ? aiSignal.signal : (loadingAi ? t('running') : t('closed')),
                 render: () => (
                     <div className="space-y-3">
                         {tech && <SentimentBar score={tech.score} isDark={isDark} />}
@@ -764,14 +789,14 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                             disabled={loadingAi}
                             className="w-full h-11 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-sm disabled:opacity-40"
                         >
-                            {loadingAi ? 'Đang phân tích…' : (aiSignal ? 'Cập nhật phân tích' : 'Phân tích tín hiệu')}
+                            {loadingAi ? t('analyzing') : (aiSignal ? t('updateAnalysis') : t('analyzeSignal'))}
                         </button>
                         <button
                             type="button"
                             onClick={() => setIsChatOpen(true)}
                             className={`w-full h-10 rounded-xl border font-bold text-xs ${T.accentOutline(isDark)}`}
                         >
-                            Hỏi AI về {symbol}
+                            {t('askAiAbout', { symbol })}
                         </button>
                         {aiSignal ? (
                             <div className="space-y-2">
@@ -785,23 +810,23 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 </div>
                             </div>
                         ) : (
-                            <p className={`text-sm ${T.textMute(isDark)}`}>Chưa có báo cáo AI.</p>
+                            <p className={`text-sm ${T.textMute(isDark)}`}>{t('noAiReport')}</p>
                         )}
                     </div>
                 ),
             },
             {
                 id: 'news',
-                title: 'Tin tức',
+                title: t('news'),
                 icon: Newspaper,
-                summary: cryptoNews.length ? `${cryptoNews.length} tin` : 'Đóng',
+                summary: cryptoNews.length ? t('newsCount', { count: cryptoNews.length }) : t('closed'),
                 render: () => (
                     <div className="space-y-2 max-h-[480px] overflow-y-auto custom-scrollbar">
                         {cryptoNews.length > 0 ? (
                             cryptoNews.map((n, i) => <NewsCard key={i} news={n} isDark={isDark} />)
                         ) : (
                             <p className={`text-sm py-6 text-center ${T.textMute(isDark)}`}>
-                                {loadingNews ? 'Đang tải tin…' : `Chưa có tin cho ${symbol}.`}
+                                {loadingNews ? t('loadingNews') : t('noNewsFor', { symbol })}
                             </p>
                         )}
                     </div>
@@ -811,8 +836,8 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
 
         return (
             <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${T.pageBg(isDark)}`}>
-                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-violet-400">Siêu tối giản · Crypto</p>
+                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-300 bg-white'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-violet-400">{t('ultraMinimalCrypto')}</p>
                     <p className={`text-sm font-bold ${T.textHero(isDark)}`}>
                         {symbol}{px ? ` · ${fmtUSD(px)}` : ''} · Chạm từng mục để mở
                     </p>
@@ -842,10 +867,10 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
             {/* ════════════════════════════════════════
                 MOBILE TAB BAR — chỉ hiện trên mobile
             ════════════════════════════════════════ */}
-            <div className={`lg:hidden flex shrink-0 border-b ${isDark ? 'bg-[#0C1118] border-white/8' : 'bg-white border-slate-200'} z-50`}>
+            <div className={`lg:hidden flex shrink-0 border-b col-seam ${isDark ? 'bg-[#0C1118] border-white/8' : 'bg-white border-slate-500'} z-50`}>
                 {[
-                    { key: 'radar', label: 'Radar thị trường' },
-                    { key: 'chart', label: 'Biểu đồ & AI' },
+                    { key: 'radar', label: t('tabMarketRadar') },
+                    { key: 'chart', label: t('tabChartAi') },
                 ].map(tab => (
                     <button
                         key={tab.key}
@@ -872,19 +897,19 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                     ${mobileTab === 'radar' ? 'flex' : 'hidden'} lg:flex
                     w-full lg:w-[300px] shrink-0
                     flex-col overflow-y-auto
-                    border-r transition-colors duration-300
-                    ${isDark ? 'bg-[#0A0F16] border-white/6' : 'bg-slate-50 border-slate-200'}
+                    border-r col-seam transition-colors duration-300
+                    ${isDark ? 'bg-[#0A0F16] border-white/6' : 'bg-slate-50 border-slate-500'}
                 `}>
 
                     {/* Header cột trái */}
-                    <div className={`h-11 border-b shrink-0 flex items-center px-4 gap-2.5 sticky top-0 z-10 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-white border-slate-200'}`}>
+                    <div className={`h-11 border-b shrink-0 flex items-center px-4 gap-2.5 sticky top-0 z-10 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-white border-slate-300'}`}>
                         <Globe size={14} className={T.accent} />
                         <span className={`text-xs font-bold tracking-wide uppercase ${T.textBody(isDark)}`}>
                             Market Radar
                         </span>
                         <button
                             onClick={() => { fetchRadar(); fetchMovers(); fetchFunding(); }}
-                            title="Làm mới dữ liệu"
+                            title={t('refreshData')}
                             className={`ml-auto p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/8' : 'hover:bg-slate-100'}`}
                         >
                             <RefreshCw size={13} className={loadingRadar ? `animate-spin ${T.accent}` : T.textMute(isDark)} />
@@ -897,7 +922,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                         <Panel isDark={isDark} className="p-4">
                             <SectionHeader
                                 icon={Activity}
-                                title="Sợ hãi & Tham lam"
+                                title={t('fearGreed')}
                                 isDark={isDark}
                             />
                             <FearGreedGauge
@@ -909,7 +934,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
 
                         {/* 2. DOMINANCE */}
                         <Panel isDark={isDark} className="p-4">
-                            <SectionHeader icon={BarChart3} title="Dominance & Thị trường" isDark={isDark} />
+                            <SectionHeader icon={BarChart3} title={t('dominanceMarket')} isDark={isDark} />
                             <StatRow
                                 label="BTC Dominance"
                                 value={radarData?.dominance?.btc ? `${radarData.dominance.btc}%` : '-'}
@@ -932,10 +957,10 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 help="Chỉ số mùa altcoin: khi BTC dominance giảm, vốn thường chảy vào altcoin"
                             />
                             {radarData?.globalMarket && <>
-                                <StatRow label="Tổng vốn hóa"  value={radarData.globalMarket.totalMarketCap} isDark={isDark} />
+                                <StatRow label={t('totalMarketCap')}  value={radarData.globalMarket.totalMarketCap} isDark={isDark} />
                                 <StatRow label="Volume 24h"    value={radarData.globalMarket.volume24h} isDark={isDark} />
                                 <StatRow
-                                    label="Thay đổi 24h"
+                                    label={t('change24h')}
                                     value={radarData.globalMarket.marketCapChangePercent ? fmtPct(radarData.globalMarket.marketCapChangePercent) : '-'}
                                     color={parseFloat(radarData.globalMarket.marketCapChangePercent) >= 0 ? T.bull : T.bear}
                                     isDark={isDark}
@@ -948,10 +973,10 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                             <Panel isDark={isDark} className="p-4">
                                 <SectionHeader
                                     icon={Zap}
-                                    title="Funding Rate (Futures)"
+                                    title={t('fundingRateFutures')}
                                     isDark={isDark}
                                 />
-                                <div className={`mb-2 px-2 py-1 rounded-lg flex justify-between items-center border ${isDark ? 'bg-white/4 border-white/6' : 'bg-slate-50 border-slate-200'}`}>
+                                <div className={`mb-2 px-2 py-1 rounded-lg flex justify-between items-center border ${isDark ? 'bg-white/4 border-white/6' : 'bg-slate-50 border-slate-300'}`}>
                                     <span className={`text-[10px] font-medium ${T.textMute(isDark)}`}>
                                         Funding rate dương = lệnh LONG trả phí cho SHORT (thị trường đang kỳ vọng tăng mạnh)
                                     </span>
@@ -965,8 +990,8 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                         isDark={isDark}
                                     />
                                 ))}
-                                <div className={`mt-2.5 pt-2.5 border-t flex justify-between items-center ${isDark ? 'border-white/5' : 'border-slate-100'}`}>
-                                    <span className={`text-[10px] font-medium ${T.textMute(isDark)}`}>Xu hướng thị trường</span>
+                                <div className={`mt-2.5 pt-2.5 border-t flex justify-between items-center ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                                    <span className={`text-[10px] font-medium ${T.textMute(isDark)}`}>{t('marketTrend')}</span>
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${fundingData.avgFunding > 0.01 ? 'bg-emerald-500/10 text-emerald-400' : fundingData.avgFunding < -0.005 ? 'bg-red-500/10 text-red-400' : 'bg-amber-500/10 text-amber-400'}`}>
                                         {fundingData.marketBias}
                                     </span>
@@ -977,7 +1002,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                         {/* 4. TOP MOVERS */}
                         {topMovers && (
                             <Panel isDark={isDark} className="p-4">
-                                <SectionHeader icon={TrendingUp} title="Top Movers 24h" isDark={isDark} />
+                                <SectionHeader icon={TrendingUp} title={t('topMovers24h')} isDark={isDark} />
                                 <div className="grid grid-cols-2 gap-1.5">
                                     {[...(topMovers.gainers || []).slice(0, 3), ...(topMovers.losers || []).slice(0, 3)].map(coin => {
                                         const isGain = coin.change >= 0;
@@ -992,7 +1017,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                         ? `${T.accentBg} ${T.accentBorder}`
                                                         : isDark
                                                             ? 'border-white/5 hover:bg-white/5'
-                                                            : 'border-slate-100 hover:bg-slate-50'
+                                                            : 'border-slate-200 hover:bg-slate-50'
                                                 }`}
                                             >
                                                 <span className={`min-w-0 truncate text-xs font-bold ${T.textBody(isDark)}`}>
@@ -1015,18 +1040,18 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                         {/* 5. ON-CHAIN */}
                         {priceData && (
                             <Panel isDark={isDark} className="p-4">
-                                <SectionHeader icon={Database} title="On-chain & Lịch sử" isDark={isDark} />
+                                <SectionHeader icon={Database} title={t('onChainHistory')} isDark={isDark} />
                                 <StatRow label="ATH"           value={fmtUSD(priceData.ath)} isDark={isDark} help="All-Time High: mức giá cao nhất trong lịch sử" />
                                 <StatRow
-                                    label="Từ ATH"
+                                    label={t('fromAth')}
                                     value={priceData.ath != null ? fmtPct(priceData.athChange) : '-'}
                                     color={parseFloat(priceData.athChange) >= 0 ? T.bull : T.bear}
                                     isDark={isDark}
                                     help="Khoảng cách % từ giá hiện tại đến ATH"
                                 />
-                                <StatRow label="Vốn hóa"      value={fmtLarge(priceData.marketCap)} isDark={isDark} />
+                                <StatRow label={t('marketCapLabel')}      value={fmtLarge(priceData.marketCap)} isDark={isDark} />
                                 <StatRow
-                                    label="Lưu hành"
+                                    label={t('circulating')}
                                     value={priceData.circulatingSupply > 0 ? `${Number(priceData.circulatingSupply).toLocaleString('en-US', { maximumFractionDigits: 0 })} ${symbol}` : '-'}
                                     isDark={isDark}
                                     help="Số lượng coin đang được lưu hành trên thị trường"
@@ -1034,7 +1059,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 {priceData.maxSupply > 0 && priceData.circulatingSupply > 0 && (
                                     <>
                                         <StatRow
-                                            label="Tổng cung"
+                                            label={t('totalSupply')}
                                             value={Number(priceData.maxSupply).toLocaleString('en-US', { maximumFractionDigits: 0 })}
                                             isDark={isDark}
                                             help="Tổng số coin tối đa sẽ tồn tại"
@@ -1046,7 +1071,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                             />
                                         </div>
                                         <p className={`text-[10px] font-medium mt-1 text-right ${T.textMute(isDark)}`}>
-                                            {((priceData.circulatingSupply / priceData.maxSupply) * 100).toFixed(1)}% đã lưu hành
+                                            {t('pctCirculating', { pct: ((priceData.circulatingSupply / priceData.maxSupply) * 100).toFixed(1) })}
                                         </p>
                                     </>
                                 )}
@@ -1065,7 +1090,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                 `} style={{ scrollbarGutter: 'stable' }}>
 
                     {/* ── SEARCH BAR (sticky) ── */}
-                    <div className={`sticky top-0 z-[10000] shrink-0 border-b ${isDark ? 'bg-[#060A10]/95 border-white/6 backdrop-blur-xl' : 'bg-white/95 border-slate-200 backdrop-blur-xl'}`}>
+                    <div className={`sticky top-0 z-[10000] shrink-0 border-b ${isDark ? 'bg-[#060A10]/95 border-white/6 backdrop-blur-xl' : 'bg-white/95 border-slate-500 backdrop-blur-xl'}`}>
                         <div className="px-4 py-3" ref={searchRef}>
 
                             {/* Row 1: Search + Interval */}
@@ -1080,7 +1105,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                         onChange={e => { setSearchInput(e.target.value.toUpperCase()); setShowSuggestions(true); }}
                                         onKeyDown={e => { if (e.key === 'Enter') selectCoin(searchInput); }}
                                         onFocus={() => setShowSuggestions(true)}
-                                        placeholder="Tìm coin: BTC, ETH, SOL..."
+                                        placeholder={t('searchCoinPlaceholder')}
                                         className={`w-full h-9 pl-9 pr-3 rounded-lg border text-sm font-medium outline-none transition-all ${
                                             isDark
                                                 ? `${T.inputBg(isDark)} border-white/8 text-violet-300 focus:border-violet-500/50 placeholder:text-slate-600`
@@ -1089,12 +1114,12 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     />
                                     {/* Dropdown gợi ý */}
                                     {showSuggestions && suggestions.length > 0 && (
-                                        <div className={`absolute top-full mt-1.5 left-0 right-0 border rounded-xl overflow-hidden shadow-2xl z-50 max-h-64 overflow-y-auto ${isDark ? 'bg-[#141C28] border-white/10' : 'bg-white border-slate-200'}`}>
+                                        <div className={`absolute top-full mt-1.5 left-0 right-0 border rounded-xl overflow-hidden shadow-2xl z-50 max-h-64 overflow-y-auto ${isDark ? 'bg-[#141C28] border-white/10' : 'bg-white border-slate-300'}`}>
                                             {suggestions.map((coin, idx) => (
                                                 <button
                                                     key={idx}
                                                     onClick={() => selectCoin(coin.symbol)}
-                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 border-b last:border-0 transition-colors ${isDark ? 'border-white/5 hover:bg-white/6 text-slate-300' : 'border-slate-100 hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 border-b last:border-0 transition-colors ${isDark ? 'border-white/5 hover:bg-white/6 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`}
                                                 >
                                                     {coin.image && <img src={coin.image} alt={coin.symbol} className="w-5 h-5 rounded-full shrink-0" onError={e => e.target.style.display = 'none'} />}
                                                     <span className={`font-bold text-xs ${T.accent}`}>{coin.symbol?.toUpperCase()}</span>
@@ -1117,24 +1142,24 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 {/* Refresh */}
                                 <button
                                     onClick={() => fetchCoin(symbol, cryptoInterval)}
-                                    title="Làm mới biểu đồ"
-                                    className={`h-9 w-9 rounded-lg border flex items-center justify-center transition-all active:scale-95 shrink-0 ${isDark ? 'border-white/8 hover:bg-white/6' : 'border-slate-200 hover:bg-slate-100'}`}
+                                    title={t('refreshChart')}
+                                    className={`h-9 w-9 rounded-lg border flex items-center justify-center transition-all active:scale-95 shrink-0 ${isDark ? 'border-white/8 hover:bg-white/6' : 'border-slate-300 hover:bg-slate-100'}`}
                                 >
                                     <RefreshCw size={14} className={loadingChart ? `animate-spin ${T.accent}` : T.textMute(isDark)} />
                                 </button>
 
                                 {/* Interval Selector — FIX: dùng handleIntervalChange */}
                                 <div className="flex gap-1 ml-auto overflow-x-auto scrollbar-none">
-                                    {INTERVAL_OPTIONS.map(({ label }) => (
+                                    {INTERVAL_OPTIONS.map(({ label, value }) => (
                                         <button
-                                            key={label}
-                                            onClick={() => handleIntervalChange(label)}
+                                            key={value}
+                                            onClick={() => handleIntervalChange(value)}
                                             className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap active:scale-95 ${
-                                                cryptoInterval === label
+                                                cryptoInterval === value
                                                     ? `${T.accentBg} ${T.accentBorder} ${T.accent}`
                                                     : isDark
                                                         ? 'border-white/8 text-slate-400 hover:bg-white/6'
-                                                        : 'border-slate-200 text-slate-500 hover:bg-slate-100'
+                                                        : 'border-slate-300 text-slate-500 hover:bg-slate-100'
                                             }`}
                                         >
                                             {label}
@@ -1154,7 +1179,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                 ? `${T.accentBg} ${T.accentBorder} ${T.accent}`
                                                 : isDark
                                                     ? 'border-white/5 text-slate-400 hover:bg-white/5'
-                                                    : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                    : 'border-slate-300 text-slate-500 hover:bg-slate-50'
                                         }`}
                                     >
                                         {c}
@@ -1174,7 +1199,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
 
                                     {/* Logo + Tên */}
                                     <div className="flex items-center gap-4 flex-1 min-w-0">
-                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 border ${isDark ? 'bg-black/40 border-white/8' : 'bg-white border-slate-200'}`}>
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 border ${isDark ? 'bg-black/40 border-white/8' : 'bg-white border-slate-300'}`}>
                                             <img
                                                 src={`https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`}
                                                 alt={symbol}
@@ -1197,7 +1222,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                 </span>
                                             </div>
                                             <p className={`text-xs mt-1.5 line-clamp-1 ${T.textMute(isDark)}`}>
-                                                {allCryptos.find(c => c.symbol === symbol)?.description || "Tài sản số trên nền tảng Blockchain phi tập trung"}
+                                                {allCryptos.find(c => c.symbol === symbol)?.description || t('digitalAssetFallback')}
                                             </p>
                                         </div>
                                     </div>
@@ -1219,8 +1244,8 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                         <div className="flex items-center gap-2 flex-wrap justify-end">
                                             {[
                                                 { label: 'Vol 24h', val: priceData.volume24h },
-                                                { label: 'Cao', val: fmtUSD(priceData.high24h) },
-                                                { label: 'Thấp', val: fmtUSD(priceData.low24h) },
+                                                { label: t('highLabel'), val: fmtUSD(priceData.high24h) },
+                                                { label: t('lowLabel'), val: fmtUSD(priceData.low24h) },
                                             ].map(({ label, val }) => (
                                                 <span key={label} className={`px-2 py-1 text-[10px] font-medium rounded-md ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                                                     {label}: <span className={`font-bold ${T.textBody(isDark)}`}>{val}</span>
@@ -1230,23 +1255,23 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                             <div className={`w-px h-5 ${T.divider(isDark)}`} />
 
                                             {/* Bộ chuyển đổi tiền tệ */}
-                                            <div className="flex items-center gap-1.5" title="Chuyển đổi đơn vị tiền tệ">
+                                            <div className="flex items-center gap-1.5" title={t('currencyToggle')}>
                                                 <input
                                                     type="number"
                                                     defaultValue="1"
-                                                    className={`w-14 h-7 rounded-md text-center font-medium text-xs outline-none transition-all ${isDark ? 'bg-black/40 text-white border border-white/8 focus:border-violet-500' : 'bg-white text-black border border-slate-200 focus:border-violet-400'}`}
+                                                    className={`w-14 h-7 rounded-md text-center font-medium text-xs outline-none transition-all ${isDark ? 'bg-black/40 text-white border border-white/8 focus:border-violet-500' : 'bg-white text-black border border-slate-300 focus:border-violet-400'}`}
                                                 />
                                                 <select
                                                     value={currUnit}
                                                     onChange={(e) => setCurrUnit(e.target.value)}
-                                                    className={`h-7 rounded-md px-1.5 font-semibold text-xs outline-none cursor-pointer border transition-all ${isDark ? 'bg-black/40 text-white border-white/8' : 'bg-white text-black border-slate-200'}`}
+                                                    className={`h-7 rounded-md px-1.5 font-semibold text-xs outline-none cursor-pointer border transition-all ${isDark ? 'bg-black/40 text-white border-white/8' : 'bg-white text-black border-slate-300'}`}
                                                 >
                                                     <option value="USD">USD ($)</option>
                                                     <option value="VND">VND (₫)</option>
                                                 </select>
                                                 <button
                                                     onClick={() => setCurrUnit(c => c === 'USD' ? 'VND' : 'USD')}
-                                                    title="Đổi đơn vị"
+                                                    title={t('changeUnit')}
                                                     className={`p-1.5 rounded-md transition-all active:scale-95 ${isDark ? 'hover:bg-white/8 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
                                                 >
                                                     <RefreshCw size={12} />
@@ -1276,14 +1301,14 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
                             {/* Trading Chart */}
-                            <div className={`lg:col-span-3 h-[380px] sm:h-[420px] rounded-xl border overflow-hidden relative flex items-center justify-center ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200'}`}>
+                            <div className={`lg:col-span-3 h-[380px] sm:h-[420px] rounded-xl border overflow-hidden relative flex items-center justify-center panel-outline ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-300'}`}>
                                 {chartData && chartData.length > 0 ? (
                                     <TradingChart
                                         data={chartData}
                                         theme={isDark ? 'dark' : 'light'}
                                         accent="violet"
                                         onIntervalChange={handleIntervalChange}
-                                        currentInterval={cryptoInterval}
+                                        currentInterval={getChartIntervalLabel(cryptoInterval)}
                                     />
                                 ) : loadError && !loadingChart ? (
                                     <div className="flex flex-col items-center gap-3 px-6 text-center">
@@ -1298,14 +1323,14 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                             onClick={() => fetchCoin(symbol, cryptoInterval)}
                                             className={`mt-1 h-8 px-4 rounded-lg ${T.accentSolid} text-white font-semibold text-xs transition-all active:scale-95 flex items-center gap-1.5`}
                                         >
-                                            <RefreshCw size={13} /> Thử lại
+                                            <RefreshCw size={13} /> {t('retry')}
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center gap-2 opacity-50">
                                         <Activity size={28} className={`animate-pulse ${T.accent}`} />
                                         <p className={`text-xs font-medium ${T.textMute(isDark)}`}>
-                                            {loadingChart ? 'Đang tải biểu đồ...' : 'Nhập mã coin để bắt đầu'}
+                                            {loadingChart ? t('loadingChart') : t('enterCoinHint')}
                                         </p>
                                     </div>
                                 )}
@@ -1314,7 +1339,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm rounded-xl">
                                         <div className="flex flex-col items-center gap-2">
                                             <RefreshCw size={20} className={`animate-spin ${T.accent}`} />
-                                            <span className={`text-xs font-medium ${T.accent}`}>Đang cập nhật...</span>
+                                            <span className={`text-xs font-medium ${T.accent}`}>{t('updating')}</span>
                                         </div>
                                     </div>
                                 )}
@@ -1325,7 +1350,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-1.5">
                                         <BarChart3 size={13} className={T.accent} />
-                                        <span className={`text-xs font-bold ${T.textBody(isDark)}`}>Volume Profile</span>
+                                        <span className={`text-xs font-bold ${T.textBody(isDark)}`}>{t('volumeProfile')}</span>
                                     </div>
                                     <div
                                         className="relative"
@@ -1334,7 +1359,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     >
                                         <HelpCircle size={13} className={`cursor-help ${T.textMute(isDark)} hover:${T.accent} transition-colors`} />
                                         {showVolInfo && (
-                                            <div className={`absolute right-0 top-6 w-56 p-3 rounded-xl shadow-2xl z-50 text-xs leading-relaxed border ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                            <div className={`absolute right-0 top-6 w-56 p-3 rounded-xl shadow-2xl z-50 text-xs leading-relaxed border ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-300'}`}>
                                                 Phân phối khối lượng giao dịch theo mức giá. POC là vùng giao dịch nhiều nhất, thường đóng vai trò là mức hỗ trợ/kháng cự mạnh.
                                             </div>
                                         )}
@@ -1359,8 +1384,8 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     <BrainCircuit size={20} className="text-violet-500" />
                                 </div>
                                 <div>
-                                    <h4 className={`text-sm font-bold ${T.textHero(isDark)}`}>AI Quantitative Strategy</h4>
-                                    <p className={`text-xs font-medium ${T.accent}`}>Real-time Signal Engine</p>
+                                    <h4 className={`text-sm font-bold ${T.textHero(isDark)}`}>{t('aiQuantStrategy')}</h4>
+                                    <p className={`text-xs font-medium ${T.accent}`}>{t('realtimeSignalEngine')}</p>
                                 </div>
                                 {tech && (
                                     <div className="ml-auto">
@@ -1376,13 +1401,13 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     <div className="lg:col-span-3 flex flex-col gap-4">
                                         <div className="flex items-center gap-1.5">
                                             <Activity size={13} className="text-violet-500" />
-                                            <span className={`text-xs font-bold ${T.textBody(isDark)}`}>Chỉ báo Kỹ thuật</span>
+                                            <span className={`text-xs font-bold ${T.textBody(isDark)}`}>{t('technicalIndicators')}</span>
                                         </div>
 
                                         {tech ? (
-                                            <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-slate-50 border-slate-200'}`}>
+                                            <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-slate-50 border-slate-300'}`}>
                                                 {[
-                                                    { label: 'RSI (14)', val: fmt(tech.rsi, 1), color: tech?.rsi > 70 ? T.bear : T.bull, help: 'Chỉ số RSI đo lường tốc độ thay đổi giá. >70: quá mua, <30: quá bán' },
+                                                    { label: t('rsi14'), val: fmt(tech.rsi, 1), color: tech?.rsi > 70 ? T.bear : T.bull, help: 'Chỉ số RSI đo lường tốc độ thay đổi giá. >70: quá mua, <30: quá bán' },
                                                     { label: 'MACD',    val: fmt(tech.macdLine), color: tech?.macdLine > 0 ? T.bull : T.bear, help: 'Moving Average Convergence Divergence — xu hướng momentum' },
                                                     { label: 'CVD',     val: fmtLarge(priceData?.cvd), color: (priceData?.cvd ?? 0) >= 0 ? T.bull : T.bear, help: 'Cumulative Volume Delta: tổng lượng mua trừ bán tích lũy' },
                                                     { label: 'ATR',     val: fmtUSD(tech.atr), color: T.textBody(isDark), help: 'Average True Range: độ biến động trung bình — cao = rủi ro cao' },
@@ -1393,7 +1418,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                             <span className={`text-xs font-medium ${T.textMute(isDark)}`}>{label}</span>
                                                             <div className="group relative">
                                                                 <HelpCircle size={10} className={`cursor-help opacity-40 hover:opacity-100 ${T.textMute(isDark)} transition-opacity`} />
-                                                                <div className={`absolute left-0 bottom-5 w-56 p-2.5 rounded-lg shadow-xl z-50 text-xs leading-relaxed border opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                                                <div className={`absolute left-0 bottom-5 w-56 p-2.5 rounded-lg shadow-xl z-50 text-xs leading-relaxed border opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-300'}`}>
                                                                     {help}
                                                                 </div>
                                                             </div>
@@ -1403,7 +1428,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                 ))}
                                             </div>
                                         ) : (
-                                            <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-slate-50 border-slate-200'}`}>
+                                            <div className={`rounded-xl border p-3 space-y-2 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-slate-50 border-slate-300'}`}>
                                                 {[...Array(5)].map((_, i) => <Skeleton key={i} isDark={isDark} h="h-3" />)}
                                             </div>
                                         )}
@@ -1419,27 +1444,27 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                 }`}
                                             >
                                                 <BrainCircuit size={16} className={loadingAi ? 'animate-spin' : ''} />
-                                                {loadingAi ? 'Đang phân tích...' : (aiSignal ? 'Cập nhật phân tích' : 'Phân tích tín hiệu')}
+                                                {loadingAi ? t('analyzing') : (aiSignal ? t('updateAnalysis') : t('analyzeSignal'))}
                                             </button>
                                             <button
                                                 onClick={() => setIsChatOpen(true)}
                                                 className={`w-full h-10 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 border ${T.accentOutline(isDark)}`}
                                             >
                                                 <Cpu size={15} />
-                                                Hỏi AI về coin này
+                                                {t('askAiAboutCoin')}
                                             </button>
                                         </div>
                                     </div>
 
                                     {/* CỘT 2: AI REPORT */}
-                                    <div className={`lg:col-span-6 relative ${isDark ? 'lg:border-l lg:border-r lg:px-5 border-white/8' : 'lg:border-l lg:border-r lg:px-5 border-slate-200'}`}>
+                                    <div className={`lg:col-span-6 relative ${isDark ? 'lg:border-l lg:border-r lg:px-5 border-white/8' : 'lg:border-l lg:border-r lg:px-5 border-slate-500 col-seam'}`}>
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-1.5">
                                                 <Database size={13} className="text-blue-400" />
-                                                <span className={`text-xs font-bold ${T.textBody(isDark)}`}>Báo cáo Phân tích AI</span>
+                                                <span className={`text-xs font-bold ${T.textBody(isDark)}`}>{t('aiAnalysisReport')}</span>
                                             </div>
                                             {aiSignal?.timestamp && (
-                                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md border flex items-center gap-1 ${isDark ? 'bg-white/4 border-white/8 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md border flex items-center gap-1 ${isDark ? 'bg-white/4 border-white/8 text-slate-400' : 'bg-slate-50 border-slate-300 text-slate-500'}`}>
                                                     <Clock size={9} />
                                                     {new Date(aiSignal.timestamp).toLocaleString('vi-VN')}
                                                 </span>
@@ -1450,29 +1475,29 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                         {loadingAi && aiSignal && (
                                             <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl border border-violet-500/20 ${isDark ? 'bg-black/50' : 'bg-white/70'} backdrop-blur-sm`}>
                                                 <BrainCircuit size={28} className="animate-spin text-violet-500 mb-2" />
-                                                <span className="text-xs font-semibold text-violet-500">Đang tổng hợp dữ liệu...</span>
+                                                <span className="text-xs font-semibold text-violet-500">{t('compilingData')}</span>
                                             </div>
                                         )}
 
                                         <div className={`transition-opacity duration-300 ${loadingAi ? 'opacity-30' : 'opacity-100'}`}>
                                             {aiSignal ? (
                                                 <div className="space-y-3">
-                                                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-white border-slate-200'}`}>
-                                                        <p className={`text-[10px] font-bold text-violet-500 mb-1.5 uppercase tracking-wider`}>Phân tích Kỹ thuật & Vĩ mô</p>
+                                                    <div className={`p-4 rounded-xl border ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-white border-slate-300'}`}>
+                                                        <p className={`text-[10px] font-bold text-violet-500 mb-1.5 uppercase tracking-wider`}>{t('techMacroAnalysis')}</p>
                                                         <p className={`text-xs leading-relaxed ${T.textBody(isDark)}`}>{aiSignal.tech_analysis}</p>
                                                         <div className={`h-px my-3 ${isDark ? 'bg-white/8' : 'bg-slate-200'}`} />
                                                         <p className={`text-xs leading-relaxed ${T.textBody(isDark)}`}>{aiSignal.macro_analysis}</p>
                                                     </div>
                                                     <div className={`p-3 rounded-xl border ${isDark ? 'bg-violet-500/8 border-violet-500/20' : 'bg-violet-50 border-violet-200'}`}>
-                                                        <p className="text-[10px] font-bold text-violet-500 mb-1 uppercase tracking-wider">Chiến lược đề xuất</p>
+                                                        <p className="text-[10px] font-bold text-violet-500 mb-1 uppercase tracking-wider">{t('proposedStrategy')}</p>
                                                         <p className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{aiSignal.advice}</p>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className={`h-40 flex flex-col items-center justify-center rounded-xl border-2 border-dashed ${isDark ? 'border-white/8' : 'border-slate-200'}`}>
+                                                <div className={`h-40 flex flex-col items-center justify-center rounded-xl border-2 border-dashed ${isDark ? 'border-white/8' : 'border-slate-300'}`}>
                                                     <BrainCircuit size={32} className={`mb-2 ${T.textMute(isDark)} opacity-30`} />
-                                                    <p className={`text-xs font-medium ${T.textMute(isDark)}`}>Chưa có báo cáo.</p>
-                                                    <p className={`text-[10px] ${T.textMute(isDark)} mt-0.5`}>Nhấn "Phân tích tín hiệu" để bắt đầu</p>
+                                                    <p className={`text-xs font-medium ${T.textMute(isDark)}`}>{t('noReportYet')}</p>
+                                                    <p className={`text-[10px] ${T.textMute(isDark)} mt-0.5`}>{t('pressAnalyzeHint')}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -1482,7 +1507,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     <div className={`lg:col-span-3 flex flex-col gap-3 transition-opacity duration-300 ${loadingAi ? 'opacity-30 pointer-events-none' : ''}`}>
                                         <div className="flex items-center gap-1.5">
                                             <TrendingUp size={13} className="text-emerald-400" />
-                                            <span className={`text-xs font-bold ${T.textBody(isDark)}`}>Tín hiệu Giao dịch</span>
+                                            <span className={`text-xs font-bold ${T.textBody(isDark)}`}>{t('tradeSignal')}</span>
                                         </div>
 
                                         {/* Signal badge */}
@@ -1491,26 +1516,26 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                             aiSignal?.signal === 'SHORT' ? 'bg-red-500/10 border-red-500/25 text-red-400' :
                                                                            'bg-amber-500/10 border-amber-500/25 text-amber-400'
                                         }`}>
-                                            {aiSignal ? `${aiSignal.signal} (${aiSignal.confidence})` : 'QUAN SÁT'}
+                                            {aiSignal ? `${aiSignal.signal} (${aiSignal.confidence})` : t('observe')}
                                         </div>
 
                                         {/* Entry / SL / TP / Horizon */}
                                         <div className="flex flex-col gap-1.5">
                                             {[
-                                                { label: 'Điểm vào (Entry)', val: aiSignal?.entry || '-', color: T.textBody(isDark), help: 'Mức giá đề xuất để mở lệnh' },
-                                                { label: 'Cắt lỗ (SL)',      val: aiSignal?.sl || '-',    color: T.bear,            help: 'Stop Loss: mức giá đặt lệnh tự động cắt lỗ nếu thị trường đi ngược' },
-                                                { label: 'Chốt lời (TP)',    val: aiSignal?.tp || '-',    color: T.bull,            help: 'Take Profit: mức giá mục tiêu để chốt lãi' },
-                                                { label: 'Kỳ vọng (Horizon)',val: aiSignal?.horizon || '-',color: 'text-blue-400',  help: 'Khung thời gian dự báo: thời gian để đạt mục tiêu' },
+                                                { label: t('entryPoint'), val: aiSignal?.entry || '-', color: T.textBody(isDark), help: t('helpEntry') },
+                                                { label: t('stopLossSl'),      val: aiSignal?.sl || '-',    color: T.bear,            help: t('helpSl') },
+                                                { label: t('takeProfitTp'),    val: aiSignal?.tp || '-',    color: T.bull,            help: t('helpTp') },
+                                                { label: t('horizon'),val: aiSignal?.horizon || '-',color: 'text-blue-400',  help: t('helpHorizon') },
                                             ].map(({ label, val, color, help }) => (
                                                 <div
                                                     key={label}
-                                                    className={`px-3 py-2.5 rounded-lg border flex items-center justify-between gap-2 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-white border-slate-200'}`}
+                                                    className={`px-3 py-2.5 rounded-lg border flex items-center justify-between gap-2 ${isDark ? 'bg-[#0C1118] border-white/6' : 'bg-white border-slate-300'}`}
                                                 >
                                                     <div className="flex items-center gap-1">
                                                         <p className={`text-[10px] font-medium ${T.textMute(isDark)}`}>{label}</p>
                                                         <div className="group relative">
                                                             <HelpCircle size={10} className={`cursor-help opacity-40 hover:opacity-100 ${T.textMute(isDark)} transition-opacity`} />
-                                                            <div className={`absolute left-0 bottom-5 w-52 p-2.5 rounded-lg shadow-xl z-50 text-xs leading-relaxed border opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                                            <div className={`absolute left-0 bottom-5 w-52 p-2.5 rounded-lg shadow-xl z-50 text-xs leading-relaxed border opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity ${isDark ? 'bg-[#1C2530] text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-300'}`}>
                                                                 {help}
                                                             </div>
                                                         </div>
@@ -1535,18 +1560,18 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 <div className="flex items-center gap-2.5">
                                     <Newspaper size={15} className="text-violet-500" />
                                     <span className={`text-sm font-bold ${T.textBody(isDark)}`}>
-                                        Tin tức thị trường {symbol}
+                                        {t('marketNewsFor', { symbol })}
                                     </span>
                                     {cryptoNews.length > 0 && (
                                         <span className={`text-[10px] font-bold ${T.accent} ${T.accentBg} px-1.5 py-0.5 rounded-full border ${T.accentBorder}`}>
-                                            {cryptoNews.length} tin
+                                            {t('newsCount', { count: cryptoNews.length })}
                                         </span>
                                     )}
                                     {loadingNews && <RefreshCw size={12} className={`animate-spin ${T.accent}`} />}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {cryptoNews.length === 0 && !loadingNews && (
-                                        <span className={`text-[10px] ${T.textMute(isDark)}`}>Đang cập nhật dữ liệu</span>
+                                        <span className={`text-[10px] ${T.textMute(isDark)}`}>{t('updatingData')}</span>
                                     )}
                                     {showNewsPanel
                                         ? <ChevronUp size={15} className={T.textMute(isDark)} />
@@ -1565,10 +1590,10 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className={`flex flex-col items-center justify-center py-10 rounded-xl border-2 border-dashed ${isDark ? 'border-white/8' : 'border-slate-200'}`}>
+                                        <div className={`flex flex-col items-center justify-center py-10 rounded-xl border-2 border-dashed ${isDark ? 'border-white/8' : 'border-slate-300'}`}>
                                             <AlertTriangle size={24} className="text-amber-400 mb-2 opacity-50" />
                                             <p className={`text-xs font-medium text-center ${T.textMute(isDark)}`}>
-                                                {loadingNews ? 'Đang tải tin tức...' : 'Không tìm thấy tin tức cho đồng coin này.'}
+                                                {loadingNews ? t('loadingNews') : t('noNewsFor', { symbol })}
                                             </p>
                                         </div>
                                     )}

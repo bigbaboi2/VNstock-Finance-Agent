@@ -1,25 +1,25 @@
 /**
- * Format tên công ty: viết hoa chữ cái đầu mỗi từ (Title Case).
- * Giữ nguyên acronym ngắn kiểu FPT, QP, HOSE, VN30, ATC…
- * Ví dụ: "NGÂN HÀNG TMCP QUÂN ĐỘI" → "Ngân Hàng Tmcp Quân Đội"
- *         "CÔNG TY CỔ PHẦN FPT" → "Công Ty Cổ Phần FPT"
+ * Format tên công ty cho UI.
+ * - vi: Title Case tiếng Việt, giữ acronym (FPT, HOSE…).
+ * - en: dùng companyNameEn chính thức từ nguồn listing (Vietcap) nếu có;
+ *   không "dịch chắp vá" tiền tố pháp lý — thiếu EN thì giữ tên VI.
  */
+
 const KEEP_UPPER = new Set([
   'FPT', 'QP', 'HOSE', 'HNX', 'UPCOM', 'VN30', 'VNINDEX', 'HNX30',
   'ATO', 'ATC', 'MP', 'LO', 'CEO', 'CFO', 'IPO', 'ETF', 'USD', 'VND',
   'MBB', 'VCB', 'TCB', 'ACB', 'BID', 'CTG', 'VPB', 'TPB', 'MSB', 'STB',
   'SSI', 'HCM', 'VIC', 'VHM', 'VRE', 'MWG', 'PNJ', 'MSN', 'GAS', 'TMCP',
+  'JSC', 'JSC.', 'CORP', 'PLC',
 ]);
 
-/** Từ ngắn thường viết thường trong tên công ty VN (sau Title Case). */
 const FORCE_LOWER = new Set(['ty', 'và', 'của', 'cho', 'với', 'tại', 'trên', 'các']);
 
 const isLatinAcronym = (word) => {
   if (!word) return false;
-  if (!/^[A-Za-z0-9]+$/.test(word)) return false;
+  if (!/^[A-Za-z0-9.]+$/.test(word)) return false;
   const up = word.toUpperCase();
   if (KEEP_UPPER.has(up)) return true;
-  // Ticker-like ≥3 ký tự Latin viết hoa, không nguyên âm (FPT, HCM, SSI…)
   if (
     word.length >= 3 &&
     word.length <= 5 &&
@@ -44,17 +44,41 @@ const capitalizeWord = (word) => {
   return lower.charAt(0).toLocaleUpperCase('vi-VN') + lower.slice(1);
 };
 
-export const formatCompanyName = (name) => {
-  if (name == null) return '';
-  const raw = String(name).trim();
-  if (!raw) return '';
-  // Placeholder / đang tải
-  if (/^đang /i.test(raw) || raw === '...' || raw === 'N/A') return raw;
-
-  return raw
+const titleCaseVi = (raw) =>
+  String(raw)
     .split(/\s+/)
+    .filter(Boolean)
     .map(capitalizeWord)
     .join(' ');
+
+/**
+ * @param {string} name - Vietnamese / primary company name
+ * @param {'vi'|'en'} [lang='vi']
+ * @param {string} [nameEn=''] - Official English name from listing provider
+ */
+export const formatCompanyName = (name, lang = 'vi', nameEn = '') => {
+  if (name == null && !nameEn) return '';
+  const raw = String(name || '').trim();
+  const en = String(nameEn || '').trim();
+
+  if (lang === 'en' && en) {
+    return en;
+  }
+
+  if (!raw) return en || '';
+  if (/^đang /i.test(raw) || raw === '...' || raw === 'N/A') return raw;
+
+  return titleCaseVi(raw);
+};
+
+/**
+ * Convenience for stock meta objects from /api/symbols or marketData.
+ * @param {{ companyName?: string, name?: string, companyNameEn?: string }|null|undefined} meta
+ * @param {'vi'|'en'} [lang='vi']
+ */
+export const displayCompanyName = (meta, lang = 'vi') => {
+  if (!meta) return '';
+  return formatCompanyName(meta.companyName || meta.name, lang, meta.companyNameEn);
 };
 
 export default formatCompanyName;

@@ -175,13 +175,16 @@ async function callGeminiInsight(prompt, options = {}) {
 const MarketInsightSchema = new mongoose.Schema({
     date:            { type: String,  required: true, unique: true, index: true },
     report:          { type: String,  required: true },
+    reportEn:        { type: String },
     summary:         { type: String },
+    summaryEn:       { type: String },
     topPicks: [{
-        symbol:  String,
-        action:  { type: String, enum: ['MUA', 'TRÁNH', 'THEO DÕI'] },
-        horizon: { type: String, enum: ['NGẮN HẠN', 'DÀI HẠN', 'CẢ HAI'] },
-        reason:  String,
-        score:   Number,
+        symbol:   String,
+        action:   { type: String, enum: ['MUA', 'TRÁNH', 'THEO DÕI'] },
+        horizon:  { type: String, enum: ['NGẮN HẠN', 'DÀI HẠN', 'CẢ HAI'] },
+        reason:   String,
+        reasonEn: String,
+        score:    Number,
     }],
     marketSentiment: { type: String, enum: ['TÍCH CỰC', 'TRUNG TÍNH', 'TIÊU CỰC'] },
     model:           { type: String },
@@ -318,22 +321,24 @@ OUTPUT CỦA BẠN CHỈ LÀ MỘT OBJECT JSON DUY NHẤT (CÓ THỂ SPAN NHIỀ
 Cấu trúc JSON:
 {
   "sentiment": "TÍCH CỰC" | "TRUNG TÍNH" | "TIÊU CỰC",
-  "summary": "Một câu tóm tắt nhận định thị trường hôm nay",
+  "summary": "Một câu tóm tắt nhận định thị trường hôm nay (tiếng Việt)",
+  "summaryEn": "One-sentence English market summary (same meaning as summary)",
   "topPicks": [
-    { "symbol": "FPT", "action": "MUA", "horizon": "NGẮN HẠN", "reason": "Lý do giao dịch ngắn gọn", "score": 82 },
-    { "symbol": "HPG", "action": "THEO DÕI", "horizon": "DÀI HẠN", "reason": "Lý do theo dõi ngắn gọn", "score": 71 },
-    { "symbol": "VIC", "action": "TRÁNH", "horizon": "NGẮN HẠN", "reason": "Lý do tránh ngắn gọn", "score": 35 },
+    { "symbol": "FPT", "action": "MUA", "horizon": "NGẮN HẠN", "reason": "Lý do giao dịch ngắn gọn (VI)", "reasonEn": "Short English trading reason", "score": 82 },
+    { "symbol": "HPG", "action": "THEO DÕI", "horizon": "DÀI HẠN", "reason": "Lý do theo dõi ngắn gọn (VI)", "reasonEn": "Short English watch reason", "score": 71 },
+    { "symbol": "VIC", "action": "TRÁNH", "horizon": "NGẮN HẠN", "reason": "Lý do tránh ngắn gọn (VI)", "reasonEn": "Short English avoid reason", "score": 35 },
     ...thêm 2–4 mã nữa để có ít nhất 5 mã
   ]
 }
 
 Quy tắc:
 - sentiment: CHỈ một trong ba giá trị: "TÍCH CỰC", "TRUNG TÍNH", "TIÊU CỰC"
-- action: CHỈ "MUA", "TRÁNH", hoặc "THEO DÕI"
+- action: CHỈ "MUA", "TRÁNH", hoặc "THEO DÕI" (giữ nguyên tiếng Việt — UI sẽ map sang EN)
 - horizon: CHỈ "NGẮN HẠN", "DÀI HẠN", hoặc "CẢ HAI"
 - score: số nguyên 0–100
 - topPicks: PHẢI có ít nhất 5 mã
-- reason: câu ngắn (≤100 ký tự)
+- reason / reasonEn: câu ngắn (≤120 ký tự), nghĩa tương đương
+- summary / summaryEn: BẮT BUỘC cả hai
 - JSON PHẢI hợp lệ (valid JSON)
 - KHÔNG TEXT NÀO TRƯỚC/SAU JSON
 
@@ -351,11 +356,12 @@ function parseInsightMeta(rawText) {
     const VALID_HORIZONS   = ['NGẮN HẠN', 'DÀI HẠN', 'CẢ HAI'];
 
     const sanitizePick = (p) => ({
-        symbol:  String(p.symbol || '').toUpperCase().trim(),
-        action:  VALID_ACTIONS.includes(p.action)  ? p.action  : 'THEO DÕI',
-        horizon: VALID_HORIZONS.includes(p.horizon) ? p.horizon : 'NGẮN HẠN',
-        reason:  String(p.reason || '').trim(),
-        score:   Math.max(0, Math.min(100, parseInt(p.score) || 60)),
+        symbol:   String(p.symbol || '').toUpperCase().trim(),
+        action:   VALID_ACTIONS.includes(p.action)  ? p.action  : 'THEO DÕI',
+        horizon:  VALID_HORIZONS.includes(p.horizon) ? p.horizon : 'NGẮN HẠN',
+        reason:   String(p.reason || '').trim(),
+        reasonEn: String(p.reasonEn || p.reason_en || '').trim(),
+        score:    Math.max(0, Math.min(100, parseInt(p.score) || 60)),
     });
 
     const tryParse = (str) => {
@@ -378,6 +384,8 @@ function parseInsightMeta(rawText) {
             return {
                 sentiment: VALID_SENTIMENTS.includes(p.sentiment) ? p.sentiment : null,
                 summary:   typeof p.summary === 'string' ? p.summary.trim() : '',
+                summaryEn: typeof p.summaryEn === 'string' ? p.summaryEn.trim()
+                    : (typeof p.summary_en === 'string' ? p.summary_en.trim() : ''),
                 topPicks:  picks,
             };
         } catch {
@@ -466,7 +474,7 @@ function parseInsightMeta(rawText) {
         picksFromText.push({ symbol: m[1], action: 'THEO DÕI', horizon: 'NGẮN HẠN', reason: 'Được đề cập trong báo cáo', score: 60 });
     }
 
-    return { sentiment: sentimentFromText, summary: '', topPicks: picksFromText };
+    return { sentiment: sentimentFromText, summary: '', summaryEn: '', topPicks: picksFromText };
 }
 
 // ── MAIN: Chạy quét & phân tích ──────────────────────────────────────────────
@@ -510,7 +518,7 @@ export async function runDailyMarketInsight({ force = false } = {}) {
     });
 
     // 4. Parse metadata
-    let { sentiment, summary, topPicks } = parseInsightMeta(reportRaw);
+    let { sentiment, summary, summaryEn, topPicks } = parseInsightMeta(reportRaw);
 
     // 4b. Re-extract: nếu topPicks rỗng → gọi Gemini lần 2 chỉ để extract JSON thuần
     if (topPicks.length === 0) {
@@ -544,14 +552,18 @@ export async function runDailyMarketInsight({ force = false } = {}) {
                 topPicks = reResult.topPicks
                     .filter(p => p?.symbol)
                     .map(p => ({
-                        symbol:  String(p.symbol).toUpperCase().trim(),
-                        action:  VA.includes(p.action)  ? p.action  : 'THEO DÕI',
-                        horizon: VH.includes(p.horizon) ? p.horizon : 'NGẮN HẠN',
-                        reason:  String(p.reason || '').trim(),
-                        score:   Math.max(0, Math.min(100, parseInt(p.score) || 60)),
+                        symbol:   String(p.symbol).toUpperCase().trim(),
+                        action:   VA.includes(p.action)  ? p.action  : 'THEO DÕI',
+                        horizon:  VH.includes(p.horizon) ? p.horizon : 'NGẮN HẠN',
+                        reason:   String(p.reason || '').trim(),
+                        reasonEn: String(p.reasonEn || p.reason_en || '').trim(),
+                        score:    Math.max(0, Math.min(100, parseInt(p.score) || 60)),
                     })).slice(0, 10);
                 if (VS.includes(reResult.sentiment)) sentiment = reResult.sentiment;
                 if (!summary && reResult.summary) summary = String(reResult.summary).trim();
+                if (!summaryEn && (reResult.summaryEn || reResult.summary_en)) {
+                    summaryEn = String(reResult.summaryEn || reResult.summary_en).trim();
+                }
                 console.log(chalk.green(`[INSIGHT] ✅ Re-extract thành công: ${topPicks.length} picks`));
             } else {
                 console.log(chalk.red('[INSIGHT] ❌ Re-extract cũng không lấy được picks'));
@@ -578,12 +590,105 @@ export async function runDailyMarketInsight({ force = false } = {}) {
     console.log(chalk.green(`[INSIGHT] ✅ Xong sau ${((Date.now()-t0)/1000).toFixed(1)}s — sentiment: ${sentiment}, picks: ${topPicks.length}, model: ${usedModel}`));
 
     // 5. Upsert vào DB
-    const doc = await MarketInsight.findOneAndUpdate(
+    let doc = await MarketInsight.findOneAndUpdate(
         { date: dateStr },
-        { date: dateStr, report: reportRaw, summary, topPicks, marketSentiment: sentiment, model: usedModel, scannedAt: new Date() },
+        {
+            date: dateStr,
+            report: reportRaw,
+            summary,
+            summaryEn: summaryEn || '',
+            topPicks,
+            marketSentiment: sentiment,
+            model: usedModel,
+            scannedAt: new Date(),
+        },
         { upsert: true, returnDocument: 'after' }
     );
+
+    // 6. Backfill English if model omitted bilingual fields
+    doc = await ensureEnglishInsight(doc);
     return doc;
+}
+
+/**
+ * Translate VI insight fields → EN and persist.
+ * Safe to call repeatedly; no-ops when English already present.
+ */
+export async function ensureEnglishInsight(doc) {
+    if (!doc) return doc;
+    const plain = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+    const picks = Array.isArray(plain.topPicks) ? plain.topPicks : [];
+    const hasSummaryEn = Boolean(String(plain.summaryEn || '').trim());
+    const missingReasonEn = picks.some(p => p?.reason && !String(p.reasonEn || '').trim());
+    if (hasSummaryEn && !missingReasonEn) return plain;
+
+    if (!genAI_Insight) {
+        console.log(chalk.yellow('[INSIGHT] Bỏ qua dịch EN — thiếu GEMINI_API_KEY_INSIGHT'));
+        return plain;
+    }
+
+    try {
+        console.log(chalk.cyan('[INSIGHT] 🌐 Đang tạo bản tiếng Anh cho market insight...'));
+        const payload = {
+            summary: plain.summary || '',
+            topPicks: picks.map(p => ({
+                symbol: p.symbol,
+                action: p.action,
+                horizon: p.horizon,
+                reason: p.reason || '',
+                score: p.score,
+            })),
+        };
+        const prompt =
+            'Translate this Vietnam stock-market AI insight JSON into English.\n' +
+            'Keep action/horizon/sentiment enums EXACTLY as Vietnamese codes (MUA/TRÁNH/THEO DÕI, NGẮN HẠN/DÀI HẠN/CẢ HAI).\n' +
+            'Return ONLY valid JSON:\n' +
+            '{ "summaryEn": "...", "topPicks": [ { "symbol":"FPT", "reasonEn":"..." } ] }\n' +
+            'Each reasonEn must match the meaning of the corresponding Vietnamese reason.\n\n' +
+            'SOURCE:\n' + JSON.stringify(payload);
+
+        const { text } = await callGeminiInsight(prompt, { maxTokens: 2000, temperature: 0.2 });
+        const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+        let parsed = null;
+        try { parsed = JSON.parse(cleaned); } catch { /* try extract */ }
+        if (!parsed) {
+            const m = cleaned.match(/\{[\s\S]*\}/);
+            if (m) { try { parsed = JSON.parse(m[0]); } catch { /* ignore */ } }
+        }
+        if (!parsed) {
+            console.log(chalk.yellow('[INSIGHT] Không parse được bản EN'));
+            return plain;
+        }
+
+        const summaryEn = String(parsed.summaryEn || parsed.summary_en || '').trim();
+        const reasonMap = new Map();
+        for (const p of (parsed.topPicks || [])) {
+            const sym = String(p.symbol || '').toUpperCase();
+            const re = String(p.reasonEn || p.reason_en || '').trim();
+            if (sym && re) reasonMap.set(sym, re);
+        }
+
+        const nextPicks = picks.map(p => ({
+            ...p,
+            reasonEn: String(p.reasonEn || '').trim() || reasonMap.get(String(p.symbol).toUpperCase()) || '',
+        }));
+
+        const updated = await MarketInsight.findOneAndUpdate(
+            { date: plain.date },
+            {
+                $set: {
+                    summaryEn: summaryEn || plain.summaryEn || '',
+                    topPicks: nextPicks,
+                },
+            },
+            { returnDocument: 'after' }
+        );
+        console.log(chalk.green('[INSIGHT] ✅ Đã lưu bản tiếng Anh'));
+        return updated?.toObject?.() || updated || { ...plain, summaryEn, topPicks: nextPicks };
+    } catch (err) {
+        console.log(chalk.red(`[INSIGHT] Dịch EN thất bại: ${err.message}`));
+        return plain;
+    }
 }
 
 // ── Lấy report hôm nay (hoặc gần nhất nếu cuối tuần) ────────────────────────

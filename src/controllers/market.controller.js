@@ -18,9 +18,22 @@ let _isQuantRunning = false;
 //1. Get the list of stock codes
 export const getSymbols = async (req, res) => {
     try {
-        let symbolsData = await Stock.find({});
+        // Chỉ trả fields cần cho search / heatmap — tránh kéo cafeF/tcbs/news/reports (rất nặng).
+        let symbolsData = await Stock.find(
+            {},
+            { symbol: 1, companyName: 1, companyNameEn: 1, exchange: 1, sector: 1, _id: 0 }
+        ).lean();
         if (!symbolsData || symbolsData.length === 0) {
             symbolsData = await updateSymbolsDatabase();
+            if (Array.isArray(symbolsData)) {
+                symbolsData = symbolsData.map((s) => ({
+                    symbol: s.symbol,
+                    companyName: s.companyName,
+                    companyNameEn: s.companyNameEn || '',
+                    exchange: s.exchange,
+                    sector: s.sector,
+                }));
+            }
         }
         return res.json(symbolsData);
     } catch (error) {
@@ -123,6 +136,7 @@ export const getStockInfo = async (req, res) => {
         if (foundSymbol && (foundSymbol.companyName || foundSymbol.name)) {
             companyFullName = foundSymbol.companyName || foundSymbol.name;
         }
+        const companyNameEn = String(foundSymbol?.companyNameEn || '').trim();
 
         // Only persist real / tradeable symbols
         let masterRecord = foundSymbol;
@@ -131,6 +145,7 @@ export const getStockInfo = async (req, res) => {
         }
         if (masterRecord) {
             masterRecord.companyName = companyFullName;
+            if (companyNameEn) masterRecord.companyNameEn = companyNameEn;
             masterRecord.exchange = cafefRes.exchange || masterRecord.exchange || 'VNX';
             masterRecord.lastUpdated = new Date();
             masterRecord.cafeF = cafefRes.rawData || null;
@@ -141,9 +156,10 @@ export const getStockInfo = async (req, res) => {
         const peersContext = await findIndustryPeers(ticker, cafefRes.profileData?.industry, cafefRes.mktCap);
 
         const responseData = {
-            stockInfo: { symbol: ticker, currentPrice: currentPrice ? currentPrice.toLocaleString('vi-VN') : '---', change, changePercent, marketCap: cafefRes.mktCap || '---', pe: cafefRes.pe || '---', eps, pb, bvps, totalVolume, buyVolume, sellVolume, companyName: companyFullName, exchange: cafefRes.exchange || 'VNX', riskMetrics },
+            stockInfo: { symbol: ticker, currentPrice: currentPrice ? currentPrice.toLocaleString('vi-VN') : '---', change, changePercent, marketCap: cafefRes.mktCap || '---', pe: cafefRes.pe || '---', eps, pb, bvps, totalVolume, buyVolume, sellVolume, companyName: companyFullName, companyNameEn, exchange: cafefRes.exchange || 'VNX', riskMetrics },
             companyProfile: {
                 companyName:     companyFullName,
+                companyNameEn,
                 overview:        cafefRes.overview || 'Hệ thống đang cập nhật...',
                 shareholders:    cafefRes.shareholdersContext || null,
                 peers:           peersContext || null,

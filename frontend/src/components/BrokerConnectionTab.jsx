@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { Plus, Plug, RefreshCw, Loader2, Link2, Flame, History, ShieldCheck } from 'lucide-react';
 import ConnectExchangeForm from './broker/ConnectExchangeForm';
 import ConnectionCard from './broker/ConnectionCard';
@@ -39,6 +40,7 @@ function StepHeader({ step, color, icon: Icon, title, desc, UI, right }) {
 }
 
 export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'classic' }) {
+    const { t } = useTranslation('broker');
     const [connections, setConnections] = useState([]);
     const [orders, setOrders] = useState([]);
     const [orderStats, setOrderStats] = useState(null);
@@ -142,11 +144,11 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
         const ultraSections = [
             {
                 id: 'dashboard',
-                title: 'Tổng quan ví & lệnh',
+                title: t('walletOrdersOverview'),
                 icon: Plug,
                 summary: enriching
-                    ? `${activeCount} kết nối · đang làm giàu…`
-                    : `${activeCount} kết nối · ${orderStats?.totalOrders || 0} lệnh`,
+                    ? t('connectionsEnriching', { count: activeCount })
+                    : t('connectionsOrders', { count: activeCount, orders: orderStats?.totalOrders || 0 }),
                 render: () => (
                     <div className="space-y-3">
                         <div className="flex gap-2">
@@ -155,14 +157,14 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
                                 onClick={fetchAll}
                                 className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 ${UI.cardHover} ${UI.textNormal}`}
                             >
-                                <RefreshCw size={14} className={enriching ? 'animate-spin' : ''} /> Làm mới
+                                <RefreshCw size={14} className={enriching ? 'animate-spin' : ''} /> {t('refresh')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setShowAddForm(v => !v)}
                                 className="flex-1 px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black flex items-center justify-center gap-2"
                             >
-                                <Plus size={14} /> Thêm kết nối
+                                <Plus size={14} /> {t('addConnectionShort')}
                             </button>
                         </div>
                         <BrokerDashboard {...dashboardProps} />
@@ -171,9 +173,9 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             },
             {
                 id: 'connections',
-                title: 'Kết nối sàn',
+                title: t('connectExchanges'),
                 icon: Link2,
-                summary: loading ? 'Đang tải…' : `${connections.length} sàn`,
+                summary: loading ? t('loading') : t('exchangesCount', { count: connections.length }),
                 render: () => (
                     <div className="space-y-3">
                         {showAddForm && (
@@ -192,13 +194,13 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
                         ) : connections.length === 0 ? (
                             <div className={`rounded-2xl border border-dashed p-8 text-center ${UI.border}`}>
                                 <Plug size={28} className={`mx-auto mb-2 ${UI.textMuted}`} />
-                                <p className={`text-sm font-black ${UI.textNormal}`}>Chưa có kết nối sàn nào</p>
+                                <p className={`text-sm font-black ${UI.textNormal}`}>{t('noConnections')}</p>
                                 <button
                                     type="button"
                                     onClick={() => setShowAddForm(true)}
                                     className="mt-3 px-4 py-2 rounded-xl bg-emerald-500 text-white text-xs font-black"
                                 >
-                                    Thêm kết nối mới
+                                    {t('addConnection')}
                                 </button>
                             </div>
                         ) : (
@@ -211,7 +213,7 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
                                         isDark={isDark}
                                         UI={UI}
                                         onChanged={fetchAll}
-                                        managedBases={liveTrades.map(t => String(t.symbol || '').replace(/USDT$/i, '').toUpperCase()).filter(Boolean)}
+                                        managedBases={liveTrades.map(tr => String(tr.symbol || '').replace(/USDT$/i, '').toUpperCase()).filter(Boolean)}
                                     />
                                 ))}
                             </div>
@@ -221,9 +223,9 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             },
             {
                 id: 'positions',
-                title: 'Vị thế LIVE',
+                title: t('liveOpenPositions'),
                 icon: Flame,
-                summary: positionsLoading ? 'Đang tải…' : `${liveTrades.length} vị thế`,
+                summary: positionsLoading ? t('loading') : t('positionsCount', { count: liveTrades.length }),
                 render: () => (
                     positionsLoading ? (
                         <div className={`flex items-center justify-center p-8 ${UI.textMuted}`}>
@@ -236,13 +238,13 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             },
             {
                 id: 'orders',
-                title: 'Lịch sử lệnh thực',
+                title: t('liveOrderHistory'),
                 icon: History,
                 summary: ordersLoading
-                    ? 'Đang tải…'
+                    ? t('loading')
                     : orderStats
-                        ? `${orderStats.filledOrders || 0} khớp`
-                        : 'Đóng',
+                        ? t('filledCount', { count: orderStats.filledOrders || 0 })
+                        : t('closed'),
                 render: () => (
                     ordersLoading ? (
                         <div className={`flex items-center justify-center p-8 ${UI.textMuted}`}>
@@ -255,18 +257,18 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             },
             {
                 id: 'safety',
-                title: 'Lưu ý bảo mật',
+                title: t('securityNotesTitle'),
                 icon: ShieldCheck,
                 summary: 'AES-256 · Testnet',
                 render: () => (
                     <div className={`rounded-2xl border p-4 text-[11px] font-semibold leading-relaxed flex gap-3 ${isDark ? 'bg-yellow-500/5 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'} ${UI.textMuted}`}>
                         <ShieldCheck size={18} className="text-yellow-500 shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-yellow-500 font-black mb-1">Lưu ý bảo mật & an toàn</p>
-                            <p>· API key/secret được mã hóa AES-256-GCM trước khi lưu.</p>
-                            <p>· Tuyệt đối KHÔNG cấp quyền Rút tiền (Withdraw) cho key dùng ở đây.</p>
-                            <p>· LIVE: tạo gói lệnh ở tab AutoDuck và chọn kết nối sàn. Spot chỉ LONG/MUA.</p>
-                            <p>· Mặc định Testnet — kiểm chứng trước khi chuyển Live.</p>
+                            <p className="text-yellow-500 font-black mb-1">{t('securityNotesTitle')}</p>
+                            <p>· {t('securityAes')}</p>
+                            <p>· {t('securityNoWithdraw')}</p>
+                            <p>· {t('securityLiveHint')}</p>
+                            <p>· {t('securityTestnetDefault')}</p>
                         </div>
                     </div>
                 ),
@@ -276,8 +278,8 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
         return (
             <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
                 <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Siêu tối giản · Broker</p>
-                    <p className={`text-sm font-bold ${UI.textBold}`}>Chạm từng mục để mở · chỉ render khi cần</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">{t('ultraMinimalBroker')}</p>
+                    <p className={`text-sm font-bold ${UI.textBold}`}>{t('tapToOpenLazy')}</p>
                 </div>
                 <UltraStack
                     sections={ultraSections}
@@ -298,22 +300,22 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
                         <Plug className="text-emerald-400" size={22} />
                         <div>
                             <h2 className={`text-lg font-black uppercase tracking-widest ${UI.textBold}`}>
-                                Trung tâm giao dịch LIVE — Broker
+                                {t('liveTradingHub')}
                             </h2>
                             <p className={`text-[11px] font-bold ${UI.textMuted}`}>
-                                Ví sàn (equity/MTM) tách biệt sổ lệnh AutoDuck · CK VN cập nhật sau
-                                {enriching ? ' · đang cập nhật equity/PnL…' : ''}
+                                {t('liveTradingHubSub')}
+                                {enriching ? t('enrichingSuffix') : ''}
                             </p>
                         </div>
                     </div>
                     <div className="flex gap-2">
                         <button onClick={fetchAll}
                             className={`px-3 py-2.5 rounded-xl border text-xs font-black flex items-center gap-2 transition-colors ${UI.cardHover} ${UI.textNormal}`}>
-                            <RefreshCw size={14} className={enriching ? 'animate-spin' : ''} /> Làm mới
+                            <RefreshCw size={14} className={enriching ? 'animate-spin' : ''} /> {t('refresh')}
                         </button>
                         <button onClick={() => setShowAddForm(v => !v)}
                             className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/20">
-                            <Plus size={14} /> Thêm kết nối mới
+                            <Plus size={14} /> {t('addConnection')}
                         </button>
                     </div>
                 </div>
@@ -325,8 +327,8 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             <section>
                 <StepHeader
                     step="1" color="#10b981" icon={Link2} UI={UI}
-                    title="Kết nối sàn giao dịch"
-                    desc={`Binance / OKX / Bybit · ${activeCount}/5 kết nối đang bật`}
+                    title={t('connectExchanges')}
+                    desc={`Binance / OKX / Bybit · ${t('connectionsActiveCount', { count: activeCount })}`}
                 />
 
                 {showAddForm && (
@@ -348,10 +350,10 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
                 ) : connections.length === 0 ? (
                     <div className={`rounded-2xl border border-dashed p-8 text-center ${UI.border}`}>
                         <Plug size={28} className={`mx-auto mb-2 ${UI.textMuted}`} />
-                        <p className={`text-sm font-black ${UI.textNormal}`}>Chưa có kết nối sàn nào</p>
+                        <p className={`text-sm font-black ${UI.textNormal}`}>{t('noConnections')}</p>
                         <p className={`text-xs mt-1 ${UI.textMuted}`}>
-                            Bấm "Thêm kết nối mới" để liên kết tài khoản Binance/OKX/Bybit.
-                            Khuyến nghị bắt đầu với <b className="text-emerald-400">Testnet</b> để kiểm chứng hệ thống trước khi dùng tiền thật.
+                            {t('clickAddToConnect')}{' '}
+                            {t('testnetRecommend')}
                         </p>
                     </div>
                 ) : (
@@ -364,7 +366,7 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
                                 isDark={isDark}
                                 UI={UI}
                                 onChanged={fetchAll}
-                                managedBases={liveTrades.map(t => String(t.symbol || '').replace(/USDT$/i, '').toUpperCase()).filter(Boolean)}
+                                managedBases={liveTrades.map(tr => String(tr.symbol || '').replace(/USDT$/i, '').toUpperCase()).filter(Boolean)}
                             />
                         ))}
                     </div>
@@ -374,10 +376,10 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             <section>
                 <StepHeader
                     step="2" color="#ef4444" icon={Flame} UI={UI}
-                    title="Vị thế LIVE đang mở"
+                    title={t('liveOpenPositions')}
                     desc={positionsLoading
-                        ? 'Đang tải vị thế…'
-                        : `${liveTrades.length} vị thế thực do AutoDuck Engine quản lý · TP/SL tự động`}
+                        ? t('loadingPositions')
+                        : t('livePositionsManaged', { count: liveTrades.length })}
                 />
                 {positionsLoading ? (
                     <div className={`flex items-center justify-center p-8 ${UI.textMuted}`}>
@@ -391,10 +393,14 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             <section>
                 <StepHeader
                     step="3" color="#06b6d4" icon={History} UI={UI}
-                    title="Lịch sử lệnh thực gửi ra sàn"
+                    title={t('liveOrderHistory')}
                     desc={ordersLoading
-                        ? 'Đang tải lịch sử…'
-                        : `${orderStats?.totalOrders || 0} lệnh · ${orderStats?.filledOrders || 0} khớp · ${orderStats?.failedOrders || 0} lỗi`}
+                        ? t('loadingHistory')
+                        : t('ordersSummary', {
+                            total: orderStats?.totalOrders || 0,
+                            filled: orderStats?.filledOrders || 0,
+                            failed: orderStats?.failedOrders || 0,
+                        })}
                 />
                 {ordersLoading ? (
                     <div className={`flex items-center justify-center p-8 ${UI.textMuted}`}>
@@ -408,11 +414,11 @@ export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'c
             <div className={`rounded-2xl border p-4 text-[11px] font-semibold leading-relaxed flex gap-3 ${isDark ? 'bg-yellow-500/5 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'} ${UI.textMuted}`}>
                 <ShieldCheck size={18} className="text-yellow-500 shrink-0 mt-0.5" />
                 <div>
-                    <p className="text-yellow-500 font-black mb-1">Lưu ý bảo mật & an toàn</p>
-                    <p>· API key/secret được mã hóa AES-256-GCM trước khi lưu — không bao giờ hiển thị lại bản gốc.</p>
-                    <p>· Tuyệt đối KHÔNG cấp quyền Rút tiền (Withdraw) cho key dùng ở đây.</p>
-                    <p>· Để dùng chế độ LIVE: tạo gói lệnh ở tab "Tự động vào lệnh AI" và chọn "Live" kèm kết nối sàn. Spot chỉ hỗ trợ lệnh LONG/MUA.</p>
-                    <p>· Mặc định Testnet — hãy kiểm chứng end-to-end trên Testnet trước khi chuyển sang môi trường Live.</p>
+                    <p className="text-yellow-500 font-black mb-1">{t('securityNotesTitle')}</p>
+                    <p>· {t('securityAes')}</p>
+                    <p>· {t('securityNoWithdraw')}</p>
+                    <p>· {t('securityLiveHint')}</p>
+                    <p>· {t('securityTestnetDefault')}</p>
                 </div>
             </div>
         </div>

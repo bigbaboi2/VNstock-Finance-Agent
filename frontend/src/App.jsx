@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import './App.css'
 import axios from 'axios'
 import { X, FileText} from 'lucide-react'
+import i18n from './i18n'
+import { formatLocale, normalizeLanguage } from './i18n/formatLocale'
 ////import components
 import AppHeader from './components/AppHeader';
 import CryptoTab from './components/CryptoTab';
@@ -34,6 +37,14 @@ export const API_BASE_URL = import.meta.env.DEV
     : (import.meta.env.VITE_API_BASE_URL || "http://localhost:3001");
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+axios.defaults.headers.common['X-Omni-Language'] = normalizeLanguage(
+  typeof localStorage !== 'undefined' ? localStorage.getItem('omni_lang') : 'vi'
+);
+axios.interceptors.request.use((config) => {
+  config.headers = config.headers || {};
+  config.headers['X-Omni-Language'] = normalizeLanguage(i18n.language);
+  return config;
+});
 
 const getNumericConfig = (value, fallback) => {
   const parsed = Number(value);
@@ -68,6 +79,7 @@ str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase() : '';
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation(['common', 'auth', 'derivatives']);
   const routeInfo = useMemo(() => parseAppLocation(location.pathname), [location.pathname]);
   const activeMode = routeInfo.mode || DEFAULT_MODE;
 
@@ -80,7 +92,7 @@ function App() {
 const UI_STYLES = new Set(['classic', 'minimal', 'book', 'ultra']);
 const FONT_SCALES = new Set(['sm', 'md', 'lg', 'xl']);
 const FONT_SCALE_VALUES = { sm: '0.875', md: '1', lg: '1.125', xl: '1.25' };
-const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true, uiStyle: 'classic', fontScale: 'md' };
+const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true, uiStyle: 'classic', fontScale: 'md', language: 'vi' };
 
 const normalizeUiStyle = (value) => (UI_STYLES.has(value) ? value : DEFAULT_UI_PREFS.uiStyle);
 const normalizeFontScale = (value) => (FONT_SCALES.has(value) ? value : DEFAULT_UI_PREFS.fontScale);
@@ -123,30 +135,43 @@ const readLocalFontScaleFallback = (user) => {
   return normalizeFontScale(global);
 };
 
+const readLocalLanguageFallback = (user) => {
+  if (user) {
+    const perUser = localStorage.getItem(`omni_lang_${user}`);
+    if (perUser === 'vi' || perUser === 'en') return perUser;
+  }
+  return normalizeLanguage(localStorage.getItem('omni_lang'));
+};
+
 const cacheUiPreferencesLocally = (prefs, user) => {
   const theme = prefs?.theme === 'light' ? 'light' : 'dark';
   const clock3d = prefs?.clock3d !== false;
   const uiStyle = normalizeUiStyle(prefs?.uiStyle);
   const fontScale = normalizeFontScale(prefs?.fontScale);
+  const language = normalizeLanguage(prefs?.language);
   localStorage.setItem('omni_theme', theme);
   localStorage.setItem('omni_clock_3d', String(clock3d));
   localStorage.setItem('omni_ui_style', uiStyle);
   localStorage.setItem('omni_font_scale', fontScale);
+  localStorage.setItem('omni_lang', language);
   if (user) {
     localStorage.setItem(`omni_theme_${user}`, theme);
     localStorage.setItem(`omni_clock_3d_${user}`, String(clock3d));
     localStorage.setItem(`omni_ui_style_${user}`, uiStyle);
     localStorage.setItem(`omni_font_scale_${user}`, fontScale);
+    localStorage.setItem(`omni_lang_${user}`, language);
   }
-  return { theme, clock3d, uiStyle, fontScale };
+  return { theme, clock3d, uiStyle, fontScale, language };
 };
 
 const [theme, setTheme] = useState(() => readLocalThemeFallback(currentUser));
 const [is3DClock, setIs3DClock] = useState(() => readLocalClock3dFallback(currentUser));
 const [uiStyle, setUiStyle] = useState(() => readLocalUiStyleFallback(currentUser));
 const [fontScale, setFontScale] = useState(() => readLocalFontScaleFallback(currentUser));
+const [language, setLanguage] = useState(() => readLocalLanguageFallback(currentUser));
 const isDark = theme === 'dark';
 const reduceMotion = uiStyle === 'minimal' || uiStyle === 'ultra';
+const numberLocale = formatLocale(language);
 
 const applyUiPreferences = useCallback((prefs, user = currentUser) => {
   const next = cacheUiPreferencesLocally(prefs || DEFAULT_UI_PREFS, user);
@@ -154,6 +179,12 @@ const applyUiPreferences = useCallback((prefs, user = currentUser) => {
   setIs3DClock(next.clock3d);
   setUiStyle(next.uiStyle);
   setFontScale(next.fontScale);
+  setLanguage(next.language);
+  if (i18n.language !== next.language) {
+    void i18n.changeLanguage(next.language);
+  }
+  document.documentElement.lang = next.language;
+  axios.defaults.headers.common['X-Omni-Language'] = next.language;
   return next;
 }, [currentUser]);
 
@@ -170,11 +201,15 @@ const persistUiPreferences = useCallback(async (partial, user = currentUser) => 
   const nextFontScale = FONT_SCALES.has(partial.fontScale)
     ? partial.fontScale
     : fontScale;
+  const nextLanguage = (partial.language === 'vi' || partial.language === 'en')
+    ? partial.language
+    : language;
   const next = applyUiPreferences({
     theme: nextTheme,
     clock3d: nextClock3d,
     uiStyle: nextUiStyle,
     fontScale: nextFontScale,
+    language: nextLanguage,
   }, user);
   if (!user) return next;
   try {
@@ -184,12 +219,13 @@ const persistUiPreferences = useCallback(async (partial, user = currentUser) => 
       clock3d: next.clock3d,
       uiStyle: next.uiStyle,
       fontScale: next.fontScale,
+      language: next.language,
     });
   } catch (err) {
     console.warn('[UI prefs] Không lưu được preference lên server:', err?.response?.data?.message || err.message);
   }
   return next;
-}, [applyUiPreferences, currentUser, fontScale, is3DClock, theme, uiStyle]);
+}, [applyUiPreferences, currentUser, fontScale, is3DClock, language, theme, uiStyle]);
 
 useEffect(() => {
   if (!currentUser) {
@@ -198,6 +234,7 @@ useEffect(() => {
       clock3d: readLocalClock3dFallback(null),
       uiStyle: readLocalUiStyleFallback(null),
       fontScale: readLocalFontScaleFallback(null),
+      language: readLocalLanguageFallback(null),
     }, null);
     return undefined;
   }
@@ -220,9 +257,10 @@ useEffect(() => {
   root.setAttribute('data-ui-style', uiStyle);
   root.setAttribute('data-theme', theme);
   root.setAttribute('data-font-scale', fontScale);
+  root.setAttribute('lang', language);
   root.style.setProperty('--omni-font-scale', FONT_SCALE_VALUES[fontScale] || '1');
   root.classList.toggle('ui-reduce-motion', reduceMotion);
-}, [uiStyle, theme, fontScale, reduceMotion]);
+}, [uiStyle, theme, fontScale, language, reduceMotion]);
 
 const handleToggleTheme = () => {
   const newTheme = isDark ? 'light' : 'dark';
@@ -241,6 +279,11 @@ const handleSetUiStyle = (nextStyle) => {
 const handleSetFontScale = (nextScale) => {
   if (!FONT_SCALES.has(nextScale)) return;
   void persistUiPreferences({ fontScale: nextScale });
+};
+
+const handleSetLanguage = (nextLang) => {
+  const normalized = normalizeLanguage(nextLang);
+  void persistUiPreferences({ language: normalized });
 };
   //LOGIC: AUTHENTICATION HANDLERS
   const [authError, setAuthError] = useState('');
@@ -261,15 +304,15 @@ const handleSetFontScale = (nextScale) => {
     let cleanUsername = username.trim();
 
     if (cleanUsername.length < 3) {
-      setAuthError('Tên truy cập phải có ít nhất 3 ký tự!');
+      setAuthError(t('auth:errors.usernameTooShort'));
       return;
     }
     if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
-      setAuthError('Tên truy cập không được chứa dấu cách hoặc ký tự đặc biệt!');
+      setAuthError(t('auth:errors.usernameInvalidChars'));
       return;
     }
     if (password.length < 6) {
-      setAuthError('Mật khẩu bảo mật phải có từ 6 ký tự trở lên!');
+      setAuthError(t('auth:errors.passwordTooShort'));
       return;
     }
 
@@ -278,7 +321,7 @@ const handleSetFontScale = (nextScale) => {
         const res = await axios.post('/api/auth/register', { username: cleanUsername, password });
         if (res.data.success) {
           setAuthForm(prev => ({ ...prev, isRegister: false }));
-          setAuthError('Đăng ký thành công! Hãy ấn lại nút đăng nhập để truy cập hệ thống.');
+          setAuthError(t('auth:errors.registerSuccess'));
         }
       } else {
         const res = await axios.post('/api/auth/login', { username: cleanUsername, password });
@@ -292,7 +335,7 @@ const handleSetFontScale = (nextScale) => {
         }
       }
     } catch (error) {
-      const errorMsg = error.response?.data?.message || 'Lỗi kết nối đến cổng Auth của máy chủ!';
+      const errorMsg = error.response?.data?.message || t('auth:errors.serverConnection');
       setAuthError(errorMsg);
     }
   };
@@ -672,7 +715,7 @@ const handleExportDeriv = async () => {
                   addLog(`[DEMOTRADE] Đã tải dữ liệu realtime mã ${cleanSymbol}`);
               } else {
                   setPaperChartData(null);
-                  setErrorAlert(`Không tìm thấy dữ liệu biểu đồ cho mã ${cleanSymbol}!`);
+                  setErrorAlert(t('common:alerts.chartDataNotFound', { symbol: cleanSymbol }));
                   setTimeout(() => setErrorAlert(''), 3000);
               }
           }).catch(() => setPaperChartData(null));
@@ -684,7 +727,7 @@ const handleExportDeriv = async () => {
 
    const handlePaperTrade = async (type) => {
       if (!paperChartData || paperChartData.length === 0) {
-          setErrorAlert("Chưa có dữ liệu giá realtime để khớp lệnh!");
+          setErrorAlert(t('common:alerts.noRealtimePrice'));
           setTimeout(() => setErrorAlert(''), 3000); return;
       }
       
@@ -695,7 +738,7 @@ const handleExportDeriv = async () => {
       if (paperOrderType === 'LO') {
           const limitVal = Number(paperLimitPrice);
           if (!limitVal || limitVal <= 0) {
-              setErrorAlert("Vui lòng nhập giá đặt LO hợp lệ!");
+              setErrorAlert(t('common:alerts.invalidLimitPrice'));
               setTimeout(() => setErrorAlert(''), 3000); return;
           }
           executionPrice = limitVal; 
@@ -719,11 +762,11 @@ const handleExportDeriv = async () => {
               if (res.data.isPending) {
                   addLog(`[DEMOTRADE] Lệnh ${type} ${paperOrderType} ${paperSymbol} đã được đưa vào hàng đợi.`);
               } else {
-                  addLog(`[DEMOTRADE] Đã khớp ${type} ${paperVolume} ${paperSymbol} tại giá ${executionPrice.toLocaleString('vi-VN')}`);
+                  addLog(`[DEMOTRADE] Đã khớp ${type} ${paperVolume} ${paperSymbol} tại giá ${executionPrice.toLocaleString(numberLocale)}`);
               }
           }
       } catch (error) {
-          setErrorAlert(error.response?.data?.message || "Lỗi khớp lệnh!");
+          setErrorAlert(error.response?.data?.message || t('common:alerts.orderMatchFailed'));
           setTimeout(() => setErrorAlert(''), 3000);
       }
   };
@@ -738,7 +781,7 @@ const handleCancelOrder = async (orderId) => {
               addLog(`[DEMOTRADE] Đã hủy lệnh chờ thành công, giải phóng nguồn vốn.`);
           }
       } catch (error) {
-          setErrorAlert(error.response?.data?.message || "Lỗi khi thực thi hủy lệnh!");
+          setErrorAlert(error.response?.data?.message || t('common:alerts.cancelOrderFailed'));
           setTimeout(() => setErrorAlert(''), 3000);
       }
   };
@@ -784,11 +827,13 @@ const volumeProfile = React.useMemo(() => {
 //DERIVATIVES ANALYSIS ENGINE  
 //================================================
 const derivAnalysis = React.useMemo(() => {
+    const td = (key, opts) => t(`derivatives:${key}`, opts);
     if (!derivChartData || derivChartData.length < 10 || !derivRadar) {
         return {
             score: 50,
-            mechTrend: "ĐANG QUÉT...",
-            mechAction: "QUAN SÁT",
+            mechTrend: td('oiScanning'),
+            mechAction: td('observe'),
+            oiInterpretation: { label: td('oiScanning'), color: 'text-slate-500' },
             mechColor: "text-yellow-500",
             bgColor: "bg-yellow-500/10 border-yellow-500/30",
             currentF1M: derivRadar?.vn30f1m || 0,
@@ -809,15 +854,17 @@ const derivAnalysis = React.useMemo(() => {
             sessionLow: "0.0",
             cvd: 0,
             roc5: "0.0",
-            oiInterpretation: { label: 'ĐANG QUÉT...', color: 'text-slate-500' },
-            ema8: "0.0"
+            ema8: "0.0",
+            mechReason: '',
+            pocDistance: '0%',
         };
     }
     const currentF1M = derivRadar.vn30f1m || 0;
     const poc = derivRadar.poc || currentF1M;
     const speed = parseFloat(derivRadar.basisSpeed) || 0;
     const totalImpact = parseFloat(derivRadar.totalImpact || 0);
-    const oiUp = derivRadar.oiTrend?.includes("TĂNG") || false;
+    const oiTrendRaw = String(derivRadar.oiTrend || '');
+    const oiUp = /TĂNG|UP|RISING|\+/i.test(oiTrendRaw);
     const fNet = derivRadar.foreignNet || 0;
 
     //=== SHORT TERM TREND -EMA 3 vs EMA 8 ===
@@ -874,10 +921,10 @@ const derivAnalysis = React.useMemo(() => {
     //OI Interpretation
     const oiInterpretation = (() => {
         const priceUp = derivRadar?.change > 0;
-        if (oiUp && priceUp)  return { label: 'LONG MỚI VÀO', color: 'text-emerald-500' };
-        if (oiUp && !priceUp) return { label: 'SHORT MỚI VÀO', color: 'text-red-500' };
-        if (!oiUp && priceUp) return { label: 'SHORT ĐANG ĐÓNG', color: 'text-emerald-300' };
-        return { label: 'LONG ĐANG ĐÓNG', color: 'text-red-300' };
+        if (oiUp && priceUp)  return { label: td('oiLongEntering'), color: 'text-emerald-500' };
+        if (oiUp && !priceUp) return { label: td('oiShortEntering'), color: 'text-red-500' };
+        if (!oiUp && priceUp) return { label: td('oiShortClosing'), color: 'text-emerald-300' };
+        return { label: td('oiLongClosing'), color: 'text-red-300' };
     })();
 
     //=== CONFLUENCE SCORE 0-100 ===
@@ -891,28 +938,28 @@ const derivAnalysis = React.useMemo(() => {
 
     //=== MECHANICAL ACTION ===
     let mechTrend = "SIDEWAY";
-    let mechAction = "QUAN SÁT";
+    let mechAction = td('observe');
     let mechColor = "text-yellow-500";
     let bgColor = "bg-yellow-500/10 border-yellow-500/30";
 
     if (score >= 68 && shortTermTrend === 1) {
         mechTrend = "BULLISH STRONG";
-        mechAction = "CANH LONG";
+        mechAction = td('watchLong');
         mechColor = "text-emerald-500";
         bgColor = "bg-emerald-500/10 border-emerald-500/30";
     } else if (score <= 32 && shortTermTrend === -1) {
         mechTrend = "BEARISH STRONG";
-        mechAction = "CANH SHORT";
+        mechAction = td('watchShort');
         mechColor = "text-red-500";
         bgColor = "bg-red-500/10 border-red-500/30";
     } else if (score >= 55 && shortTermTrend === 1) {
         mechTrend = "BULLISH BIAS";
-        mechAction = "QUAN SÁT LONG";
+        mechAction = td('observeLong');
         mechColor = "text-emerald-400";
         bgColor = "bg-emerald-500/10 border-emerald-500/30";
     } else if (score <= 45 && shortTermTrend === -1) {
         mechTrend = "BEARISH BIAS";
-        mechAction = "QUAN SÁT SHORT";
+        mechAction = td('observeShort');
         mechColor = "text-red-400";
         bgColor = "bg-red-500/10 border-red-500/30";
     }
@@ -934,32 +981,29 @@ const derivAnalysis = React.useMemo(() => {
     if (Math.abs(speed) > 0.5) {
         mechReasonParts.push(
             speed > 0
-                ? `Basis đang xé rộng nhanh (+${speed} đ/nhịp), F1M kéo xa Index`
-                : `Basis đang thu hẹp nhanh (${speed} đ/nhịp), F1M kéo về Index`
+                ? td('basisWidening', { speed })
+                : td('basisNarrowing', { speed })
         );
     }
      //EMA cross
-    if (shortTermTrend === 1)  mechReasonParts.push(`EMA3 (${ema3.toFixed(1)}) cắt lên trên EMA8 (${ema8.toFixed(1)}) — xu hướng ngắn hạn tăng`);
-    if (shortTermTrend === -1) mechReasonParts.push(`EMA3 (${ema3.toFixed(1)}) cắt xuống dưới EMA8 (${ema8.toFixed(1)}) — xu hướng ngắn hạn giảm`);
+    if (shortTermTrend === 1)  mechReasonParts.push(td('emaCrossUp', { ema3: ema3.toFixed(1), ema8: ema8.toFixed(1) }));
+    if (shortTermTrend === -1) mechReasonParts.push(td('emaCrossDown', { ema3: ema3.toFixed(1), ema8: ema8.toFixed(1) }));
      //Cylindrical force
     if (Math.abs(totalImpact) > 0.5) {
         mechReasonParts.push(
             totalImpact > 0
-                ? `10 trụ dẫn dắt tổng lực +${totalImpact} điểm (hỗ trợ bên mua)`
-                : `10 trụ dẫn dắt tổng lực ${totalImpact} điểm (áp lực bên bán)`
+                ? td('leadersBuy', { totalImpact })
+                : td('leadersSell', { totalImpact })
         );
     }
-    //HEY
-    mechReasonParts.push(oiUp
-        ? `OI tăng → dòng tiền mới đang vào thị trường`
-        : `OI giảm → đang có làn sóng đóng vị thế`
-    );
+    //OI
+    mechReasonParts.push(oiUp ? td('oiRising') : td('oiFalling'));
     //Foreign sector
     if (Math.abs(fNet) > 100) {
         mechReasonParts.push(
             fNet > 0
-                ? `Khối ngoại mua ròng +${fNet} HĐ (áp lực Long)`
-                : `Khối ngoại bán ròng ${fNet} HĐ (áp lực Short)`
+                ? td('foreignBuyPressure', { fNet })
+                : td('foreignSellPressure', { fNet })
         );
     }
     //Price vs POC
@@ -967,11 +1011,11 @@ const derivAnalysis = React.useMemo(() => {
     const pocDist = ((currentF1M - pocVal) / pocVal * 100); 
     mechReasonParts.push(
         currentF1M > pocVal
-            ? `Giá trên POC (${pocVal}) khoảng ${pocDist}% — vùng kẹt lệnh đang làm hỗ trợ`
-            : `Giá dưới POC (${pocVal}) khoảng ${Math.abs(pocDist)}% — đang bị kháng cự từ vùng kẹt lệnh`
+            ? td('priceAbovePoc', { poc: pocVal, pocDist: pocDist.toFixed(2) })
+            : td('priceBelowPoc', { poc: pocVal, pocDist: Math.abs(pocDist).toFixed(2) })
     );
     //Confluence score
-    mechReasonParts.push(`Confluence Score tổng hợp: ${score}/100`);
+    mechReasonParts.push(td('confluenceScore', { score }));
  
     const mechReason = mechReasonParts.join('. ') + '.';
 
@@ -1004,7 +1048,7 @@ const derivAnalysis = React.useMemo(() => {
         mechReason,  
         pocDistance: pocDist.toFixed(2) + '%',
     };
-}, [derivChartData, derivRadar]);
+}, [derivChartData, derivRadar, t, i18n.language]);
 
   useEffect(() => {
     if (currentUser) fetchUserHistory();
@@ -1037,7 +1081,7 @@ const derivAnalysis = React.useMemo(() => {
     if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
-        setAnalysisStep('Đã hủy phân tích.');
+        setAnalysisStep(t('common:analysis.stepCancelled'));
         setAnalyzing(false);
         setAnalysisProgress(0);
         if (draftReportRef.current) {
@@ -1215,20 +1259,20 @@ const derivAnalysis = React.useMemo(() => {
 
     const classic = {
       main: isDark ? 'bg-[#06080B] text-white' : 'bg-[#F8FAFC] text-black',
-      header: isDark ? 'bg-[#0B0F14]/90 border-white/5' : 'bg-white border-slate-300 shadow-sm',
+      header: isDark ? 'bg-[#0B0F14]/90 border-white/5' : 'bg-white border-slate-400 shadow-sm',
       searchBg: isDark ? 'bg-[#121821] border-white/10' : 'bg-white border-slate-400 shadow-inner',
       searchInput: isDark ? 'text-white placeholder:text-slate-500' : 'text-black placeholder:text-slate-600 font-black',
-      leftCol: isDark ? 'bg-[#080C11] border-white/5' : 'bg-[#F1F5F9] border-slate-300',
+      leftCol: isDark ? 'bg-[#080C11] border-white/5' : 'bg-[#F1F5F9] border-slate-500',
       rightCol: isDark ? 'bg-[#05080C]' : 'bg-white',
-      card: isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-300 shadow-md',
-      cardHover: isDark ? 'hover:bg-white/5 border-white/5' : 'hover:bg-slate-100 border-slate-400',
+      card: isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-400 shadow-md',
+      cardHover: isDark ? 'hover:bg-white/5 border-white/5' : 'hover:bg-slate-100 border-slate-500',
       textBold: isDark ? 'text-white' : 'text-black',
       textNormal: isDark ? 'text-slate-200' : 'text-slate-800',
       textMuted: isDark ? 'text-slate-400' : 'text-slate-600',
-      border: isDark ? 'border-white/5' : 'border-slate-300',
+      border: isDark ? 'border-white/5' : 'border-slate-400',
       btnLog: isDark
         ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white'
-        : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100 shadow-sm',
+        : 'bg-white text-slate-700 border-slate-400 hover:text-black hover:bg-slate-100 shadow-sm',
       radius: 'rounded-xl',
       reduceMotion: uiStyle === 'minimal' || uiStyle === 'ultra',
       uiStyle,
@@ -1237,11 +1281,11 @@ const derivAnalysis = React.useMemo(() => {
     if (uiStyle === 'minimal' || uiStyle === 'ultra') {
       return {
         ...classic,
-        header: isDark ? 'bg-[#0B0F14] border-white/10' : 'bg-white border-slate-300',
-        card: isDark ? 'bg-[#10151C] border-white/10' : 'bg-white border-slate-300',
+        header: isDark ? 'bg-[#0B0F14] border-white/10' : 'bg-white border-slate-400',
+        card: isDark ? 'bg-[#10151C] border-white/10' : 'bg-white border-slate-400',
         btnLog: isDark
           ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white'
-          : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100',
+          : 'bg-white text-slate-700 border-slate-400 hover:text-black hover:bg-slate-100',
       };
     }
 
@@ -1363,7 +1407,7 @@ useEffect(() => {
                       setVnReportLayoutActive(true);
                       
                       const reportDate = new Date(dbReport.createdAt || dbReport.timestamp);
-                      const timeStr = reportDate.toLocaleString('vi-VN');
+                      const timeStr = reportDate.toLocaleString(numberLocale);
                       setVnReportTimestamp(timeStr);
                       if (!Number.isNaN(reportDate.getTime())) {
                         setLastAiVnTime(reportDate.getTime());
@@ -1382,8 +1426,8 @@ useEffect(() => {
       setFetchProgress(20);
 
       setMarketData({
-        stockInfo: { symbol, currentPrice: '...', change: 0, changePercent: 0, marketCap: '...', pe: '...', totalVolume: '...', foreignBuy: '...', companyName: localStock ? localStock.name : 'Đang tìm kiếm...', exchange: localStock ? localStock.exchange : 'VNX' },
-        companyProfile: { companyName: localStock ? localStock.name : '...', overview: 'Đang kết nối dữ liệu tài chính...' },
+        stockInfo: { symbol, currentPrice: '...', change: 0, changePercent: 0, marketCap: '...', pe: '...', totalVolume: '...', foreignBuy: '...', companyName: localStock ? localStock.name : t('common:analysis.searchingCompany'), exchange: localStock ? localStock.exchange : 'VNX' },
+        companyProfile: { companyName: localStock ? localStock.name : '...', overview: t('common:analysis.connectingFinanceData') },
         deepNewsData: []
       });
         addLog(`[HỆ THỐNG] Khởi tạo đa luồng phân tích mã ${symbol}...`);
@@ -1410,11 +1454,11 @@ useEffect(() => {
               stockInfo: {
                   ...prevData?.stockInfo,
                   currentPrice: hasPrice
-                      ? (latestClose * 1000).toLocaleString('vi-VN')
+                      ? (latestClose * 1000).toLocaleString(numberLocale)
                       : '---',
                   change:        rawChange,
                   changePercent: rawChangePct,
-                  totalVolume: latest.value ? Number(latest.value).toLocaleString('vi-VN') : '---',
+                  totalVolume: latest.value ? Number(latest.value).toLocaleString(numberLocale) : '---',
               },
           }));
           addLog(`[THÀNH CÔNG] Đồng bộ Giá & Biểu đồ kỹ thuật.`);
@@ -1694,7 +1738,7 @@ useEffect(() => {
         const reportDate = new Date(dbReport.createdAt || dbReport.timestamp);
         if (!Number.isNaN(reportDate.getTime())) {
             setLastAiVnTime(reportDate.getTime());
-            setVnReportTimestamp(reportDate.toLocaleString('vi-VN'));
+            setVnReportTimestamp(reportDate.toLocaleString(numberLocale));
         }
         return reportContent;
     } catch {
@@ -1888,7 +1932,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         
         setLastAiVnTime(now);
         setLastAiVnSnapshot(currentSnapshot);
-        const timeStr = new Date().toLocaleString('vi-VN');
+        const timeStr = new Date().toLocaleString(numberLocale);
         setVnReportTimestamp(timeStr);
 
         addLog(`[THÀNH CÔNG] AI hoàn tất chiến lược và đã lưu vào Database.`);
@@ -2120,10 +2164,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                         ...prevData,
                         stockInfo: {
                             ...prevData.stockInfo,
-                            currentPrice: (latest.close * 1000).toLocaleString('vi-VN'),
+                            currentPrice: (latest.close * 1000).toLocaleString(numberLocale),
                             change: (latest.close - prev.close) * 1000,
                             changePercent: prev.close ? ((latest.close - prev.close) / prev.close) * 100 : 0,
-                            totalVolume: latest.volume ? latest.volume.toLocaleString('vi-VN') : prevData.stockInfo.totalVolume
+                            totalVolume: latest.volume ? latest.volume.toLocaleString(numberLocale) : prevData.stockInfo.totalVolume
                         }
                     }));
                     setChartData(hData);
@@ -2145,7 +2189,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         {!currentUser && (
         <AuthScreen
             authForm={authForm} setAuthForm={setAuthForm}
-            authError={authError} handleAuthSubmit={handleAuthSubmit}
+            authError={authError} setAuthError={setAuthError} handleAuthSubmit={handleAuthSubmit}
         />
         )}
 
@@ -2172,6 +2216,8 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         handleSetUiStyle={handleSetUiStyle}
         fontScale={fontScale}
         handleSetFontScale={handleSetFontScale}
+        language={language}
+        handleSetLanguage={handleSetLanguage}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { Loader2, RefreshCw, Trash2, Wallet, Check, AlertTriangle, Info } from 'lucide-react';
 import ExchangeGuideModal from './ExchangeGuideModal';
 
@@ -10,17 +11,18 @@ const EXCHANGE_COLORS = {
     DNSE: '#F26A44',
 };
 
-const timeAgo = (date) => {
+const timeAgo = (date, t) => {
     if (!date) return '--';
     const diffMin = Math.round((Date.now() - new Date(date).getTime()) / 60000);
-    if (diffMin < 1) return 'vừa xong';
-    if (diffMin < 60) return `${diffMin} phút trước`;
+    if (diffMin < 1) return t('justNow');
+    if (diffMin < 60) return t('minutesAgo', { count: diffMin });
     const diffH = Math.round(diffMin / 60);
-    if (diffH < 24) return `${diffH} giờ trước`;
-    return `${Math.round(diffH / 24)} ngày trước`;
+    if (diffH < 24) return t('hoursAgo', { count: diffH });
+    return t('daysAgo', { count: Math.round(diffH / 24) });
 };
 
 export default function ConnectionCard({ conn, username, isDark, UI, onChanged, managedBases = [] }) {
+    const { t } = useTranslation('broker');
     const [busy, setBusy] = useState(null); // 'test' | 'balance' | 'delete' | 'toggle'
     const [flash, setFlash] = useState(null);
     const [showGuide, setShowGuide] = useState(false);
@@ -123,9 +125,9 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
                 </div>
                 <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-black flex items-center gap-1 ${conn.isActive ? 'text-emerald-400' : UI.textMuted}`}>
-                        ● {conn.isActive ? 'Active' : 'Off'}
+                        ● {conn.isActive ? t('active') : t('off')}
                     </span>
-                    <button onClick={() => setShowGuide(true)} className={`${UI.textMuted} hover:text-blue-400 transition-colors`} title="Xem hướng dẫn API">
+                    <button onClick={() => setShowGuide(true)} className={`${UI.textMuted} hover:text-blue-400 transition-colors`} title={t('viewApiGuide')}>
                         <Info size={12} />
                     </button>
                 </div>
@@ -139,7 +141,7 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
             {/* BALANCE SNAPSHOT */}
             <div className={`rounded-xl p-2.5 border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="flex items-center justify-between mb-1">
-                    <p className={`text-[9px] uppercase tracking-widest font-black ${UI.textMuted}`}>Balance snapshot</p>
+                    <p className={`text-[9px] uppercase tracking-widest font-black ${UI.textMuted}`}>{t('balanceSnapshot')}</p>
                     {equityUSDT != null && (
                         <p className={`text-[10px] font-mono font-black text-cyan-400`}>
                             ≈${Number(equityUSDT).toLocaleString('en-US', { maximumFractionDigits: 2 })}
@@ -172,7 +174,7 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
                                                 ≈${Number(usdVal).toLocaleString('en-US', { maximumFractionDigits: 2 })}
                                             </span>
                                         )}
-                                        {isManaged && <span className="ml-1 text-[8px] uppercase font-black text-yellow-500">BOT</span>}
+                                        {isManaged && <span className="ml-1 text-[8px] uppercase font-black text-yellow-500">{t('bot')}</span>}
                                     </span>
                                 {asset !== 'USDT' && asset !== 'VND' && Number(amount) > 0 && (
                                     <button
@@ -181,7 +183,7 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
                                         title={`Bán toàn bộ ${asset} sang ${conn.exchangeName === 'DNSE' ? 'VNĐ' : 'USDT'}`}
                                         className="opacity-0 group-hover/coin:opacity-100 px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500 hover:text-white transition-all text-[8px] uppercase font-black flex items-center gap-1 disabled:opacity-50"
                                     >
-                                        {busy === `sell-${asset}` ? <Loader2 size={10} className="animate-spin" /> : 'Bán'}
+                                        {busy === `sell-${asset}` ? <Loader2 size={10} className="animate-spin" /> : t('sell')}
                                     </button>
                                 )}
                                 </div>
@@ -189,18 +191,18 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
                         })}
                     </div>
                 ) : (
-                    <p className={`text-xs ${UI.textMuted}`}>Chưa có dữ liệu — bấm Test hoặc Balance</p>
+                    <p className={`text-xs ${UI.textMuted}`}>{t('noBalanceYet')}</p>
                 )}
                 <p className={`text-[10px] mt-1 ${UI.textMuted}`}>
-                    Cập nhật: {timeAgo(conn.balanceUpdatedAt)}
-                    {hiddenCount > 0 ? ` · +${hiddenCount} coin khác` : ''}
+                    {t('updatedAt')} {timeAgo(conn.balanceUpdatedAt, t)}
+                    {hiddenCount > 0 ? t('moreCoins', { count: hiddenCount }) : ''}
                 </p>
             </div>
 
             {/* QUYỀN & TEST */}
             <div className="flex items-center justify-between text-[11px] font-bold gap-2">
                 <span className={`${UI.textMuted} min-w-0`}>
-                    Quyền: {(conn.permissions || []).map(p => (
+                    {t('permissionsLabel')} {(conn.permissions || []).map(p => (
                         <span key={p} className={
                             p === 'WITHDRAW' ? 'text-red-400'
                                 : p === 'FUTURES' ? 'text-cyan-400'
@@ -228,7 +230,7 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
             )}
 
             {conn.permissions?.includes('WITHDRAW') && (
-                <p className="text-[10px] font-black text-red-400">⚠️ Key này có quyền RÚT TIỀN — hãy tạo lại key và tắt quyền Withdraw!</p>
+                <p className="text-[10px] font-black text-red-400">⚠️ {t('withdrawWarning')}</p>
             )}
 
             {flash && (
@@ -239,15 +241,15 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
             <div className="grid grid-cols-3 gap-2">
                 <button onClick={handleTest} disabled={!!busy}
                     className={`py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 border transition-colors disabled:opacity-50 ${UI.cardHover} ${UI.textNormal}`}>
-                    {busy === 'test' ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Test
+                    {busy === 'test' ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} {t('test')}
                 </button>
                 <button onClick={handleBalance} disabled={!!busy}
                     className={`py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 border transition-colors disabled:opacity-50 ${UI.cardHover} ${UI.textNormal}`}>
-                    {busy === 'balance' ? <Loader2 size={13} className="animate-spin" /> : <Wallet size={13} />} Balance
+                    {busy === 'balance' ? <Loader2 size={13} className="animate-spin" /> : <Wallet size={13} />} {t('balance')}
                 </button>
                 <button onClick={handleDelete} disabled={!!busy}
                     className="py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50">
-                    {busy === 'delete' ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Xóa
+                    {busy === 'delete' ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} {t('delete')}
                 </button>
             </div>
 
@@ -258,7 +260,7 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
                         ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
                         : (isDark ? 'bg-white/5 text-slate-400 hover:bg-white/10' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')
                 }`}>
-                {busy === 'toggle' ? <Loader2 size={13} className="animate-spin inline" /> : (conn.isActive ? '⏻ Đang BẬT — bấm để tắt' : '⏻ Đang TẮT — bấm để bật')}
+                {busy === 'toggle' ? <Loader2 size={13} className="animate-spin inline" /> : (conn.isActive ? `⏻ ${t('toggleOn')}` : `⏻ ${t('toggleOff')}`)}
             </button>
             {showGuide && (
                 <ExchangeGuideModal

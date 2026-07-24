@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Send, Loader2, ChevronDown, RotateCcw, Bot, User, Minimize2, History } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -155,6 +156,7 @@ export default function StockAiChat({
   currentUser,
   assetType = 'stock',   // 'stock' | 'crypto' | 'derivative'
 }) {
+  const { t } = useTranslation('market');
   const [messages, setMessages]             = useState([]);
   const [input, setInput]                   = useState('');
   const [loading, setLoading]               = useState(false);
@@ -166,29 +168,29 @@ export default function StockAiChat({
   // ─── DYNAMIC QUICK PROMPTS — tự động đổi theo loại tài sản ────────────
   const suggestedQuestions = ticker?.startsWith('VN30F')
     ? [
-        "Đánh giá xung lực (Momentum) ngắn hạn hiện tại?",
-        "Tốc độ xé Basis đang ủng hộ phe Long hay Short?",
-        "Vùng kẹt lệnh (POC) gần nhất nằm ở đâu?",
-        "OI (Vị thế mở) và Khối ngoại đang tác động thế nào?",
-        "Lực kéo/xả của 10 Trụ VN30 đang ra sao?",
-        "Khuyến nghị chiến lược Scalping 1-3 nhịp tới?"
+        t('qMomentum'),
+        t('qBasisLongShort'),
+        t('qNearestPoc'),
+        t('qOiForeign'),
+        t('qVn30Leaders'),
+        t('qScalping'),
       ]
     : assetType === 'crypto'
     ? [
-        "Xu hướng kỹ thuật ngắn hạn (1D/4H) hiện tại?",
-        "Vùng hỗ trợ / kháng cự quan trọng nhất?",
-        "Nên LONG / SHORT / đứng ngoài?",
-        "Funding, OI và thanh khoản đang nói gì?",
-        "Sức mạnh tương đối so với BTC thế nào?",
-        "Chiến lược vào lệnh / quản trị rủi ro hợp lý?"
+        t('qCryptoTrend'),
+        t('qSupportResistance'),
+        t('qLongShortFlat'),
+        t('qFundingOi'),
+        t('qVsBtc'),
+        t('qEntryRisk'),
       ]
     : [
-        "Tóm tắt điểm mạnh và điểm yếu chính của doanh nghiệp?",
-        "Khuyến nghị nên MUA / BÁN / HOLD?",
-        "Rủi ro lớn nhất cần chú ý?",
-        "Mức giá hợp lý (fair value)?",
-        "So sánh với trung bình ngành?",
-        "Triển vọng ngắn hạn 1-3 tháng?"
+        t('qStockProsCons'),
+        t('qBuySellHold'),
+        t('qBiggestRisk'),
+        t('qFairValue'),
+        t('qVsIndustry'),
+        t('qShortOutlook'),
       ];
 
   // ── RESIZE STATE ─────────────────────────────────────────
@@ -374,7 +376,7 @@ export default function StockAiChat({
       });
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: res.data.answer || 'Xin lỗi, tôi không thể trả lời lúc này.',
+        content: res.data.answer || t('sorryCannotAnswer'),
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       }]);
     } catch (err) {
@@ -387,7 +389,7 @@ export default function StockAiChat({
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, aiReport, currentUser]);
+  }, [input, loading, aiReport, currentUser, t]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -471,11 +473,11 @@ export default function StockAiChat({
         </div>
         <div className="select-none min-w-0 flex-1">
           <p className={`text-[11px] font-black uppercase tracking-widest leading-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            AI Chat — {ticker}
+            {t('aiChatTitle')} — {ticker}
           </p>
           {messages.filter(m => m.role !== 'system-separator').length > 1 && (
             <p className={`text-[10px] mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {messages.filter(m => m.role !== 'system-separator').length - 1} tin nhắn
+              {messages.filter(m => m.role !== 'system-separator').length - 1} {t('messagesCount')}
             </p>
           )}
         </div>
@@ -502,10 +504,10 @@ export default function StockAiChat({
 
         <div className="flex-1 min-w-0">
           <p className={`text-sm font-black uppercase tracking-widest leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            AI Chat — {ticker}
+            {t('aiChatTitle')} — {ticker}
           </p>
           <p className={`text-[10px] truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            {aiReport ? '✦ Đã nạp báo cáo phân tích' : '⚠ Chưa có báo cáo — dùng kiến thức chung'}
+            {aiReport ? `✦ ${t('reportLoaded')}` : `⚠ ${t('noReportUsingGeneral')}`}
             {companyName ? ` · ${companyName}` : ''}
             {hasRestoredHistory ? ' · 🕓 Đã khôi phục lịch sử' : ''}
           </p>
@@ -515,7 +517,7 @@ export default function StockAiChat({
           {messages.filter(m => m.role !== 'system-separator').length > 1 && (
             <button
               onClick={handleClearChat}
-              title="Xóa lịch sử chat"
+              title={t('clearChatHistory')}
               className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95
                 ${isDark ? 'text-slate-500 hover:text-yellow-400 hover:bg-yellow-400/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
             >
@@ -552,7 +554,7 @@ export default function StockAiChat({
             onClick={() => setShowWarning(false)}
             className={`absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center transition-all hover:scale-110 active:scale-95
               ${isDark ? 'text-yellow-500/60 hover:text-yellow-400 hover:bg-yellow-400/10' : 'text-yellow-600/60 hover:text-yellow-800 hover:bg-yellow-200/60'}`}
-            title="Đóng cảnh báo"
+            title={t('dismissAlert')}
           >
             <X size={11} />
           </button>
@@ -619,11 +621,11 @@ export default function StockAiChat({
         <div className={`shrink-0 px-4 pb-3 border-t pt-3 ${isDark ? 'border-white/5' : 'border-slate-300'}`}>
           <div className="flex items-center justify-between mb-2.5">
             <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Gợi ý câu hỏi
+              {t('suggestedQuestions')}
             </p>
             <button
               onClick={() => setShowQuickPrompts(false)}
-              title="Ẩn gợi ý"
+              title={t('hideSuggestions')}
               className={`w-5 h-5 rounded-md flex items-center justify-center transition-all hover:scale-110 active:scale-95
                 ${isDark ? 'text-slate-600 hover:text-slate-400 hover:bg-white/8' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
             >
@@ -663,7 +665,7 @@ export default function StockAiChat({
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Hỏi về ${ticker}...`}
+            placeholder={`${t('askAboutTicker')} ${ticker}...`}
             rows={1}
             disabled={loading}
             className={`flex-1 bg-transparent outline-none resize-none text-[13px] leading-relaxed max-h-[100px] disabled:opacity-50 placeholder:font-normal
@@ -694,7 +696,7 @@ export default function StockAiChat({
       {/* ── RESIZE HANDLE  ── */}
       <div
         onMouseDown={startResize}
-        title="Kéo để thay đổi kích thước"
+        title={t('resizeChat')}
         className={`absolute bottom-1 right-1 w-6 h-6 flex items-center justify-center cursor-se-resize opacity-30 hover:opacity-70 transition-opacity select-none z-10`}
         style={{ touchAction: 'none' }}
       >

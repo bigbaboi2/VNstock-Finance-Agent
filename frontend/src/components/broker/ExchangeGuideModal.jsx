@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, ExternalLink, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 const GUIDES = {
@@ -55,6 +56,7 @@ const GUIDES = {
 };
 
 export default function ExchangeGuideModal({ exchangeName, isDark, UI, onClose }) {
+    const { t } = useTranslation('broker');
     const guide = GUIDES[exchangeName];
 
     if (!guide) return null;
@@ -106,7 +108,7 @@ export default function ExchangeGuideModal({ exchangeName, isDark, UI, onClose }
                         rel="noopener noreferrer"
                         className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-2 transition-colors"
                     >
-                        Tới trang quản lý API <ExternalLink size={14} />
+                        {t('viewApiGuide')} <ExternalLink size={14} />
                     </a>
                 </div>
             </div>

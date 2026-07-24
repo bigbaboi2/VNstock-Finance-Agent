@@ -5,6 +5,7 @@
  */
 import axios from 'axios';
 import React, { useState, useEffect, useRef, useCallback, useTransition, startTransition } from 'react';
+import { useTranslation } from 'react-i18next';
 import TradingChart from './TradingChart';
 import UltraStack from './UltraStack';
 import {
@@ -27,6 +28,25 @@ const fmtPrice = (n, currency) => {
     return currency ? `${body} ${currency}` : body;
 };
 
+const COUNTRY_LABEL = {
+    US: 'countryUs',
+    JP: 'countryJp',
+    KR: 'countryKr',
+    CN: 'countryCn',
+    CN_HK: 'countryCnHk',
+    HK: 'countryHk',
+    EU: 'countryEu',
+};
+
+const RSI_LABEL_KEY = {
+    'Trung lập': 'rsiNeutral',
+    'Quá mua': 'rsiOverbought',
+    'Quá bán': 'rsiOversold',
+    Neutral: 'rsiNeutral',
+    Overbought: 'rsiOverbought',
+    Oversold: 'rsiOversold',
+};
+
 const T = {
     pageBg: (d) => (d ? 'bg-[#060A10]' : 'bg-slate-50'),
     panelBg: (d) => (d ? 'bg-[#0C1118]' : 'bg-white'),
@@ -46,14 +66,17 @@ const T = {
     bear: 'text-red-400',
 };
 
-const INTERVAL_OPTIONS = [
-    { label: '5 phút', value: '5m' },
-    { label: '15 phút', value: '15m' },
-    { label: '1 giờ', value: '1h' },
-    { label: '4 giờ', value: '4h' },
-    { label: '1 ngày', value: '1d' },
-    { label: '1 tuần', value: '1w' },
-];
+const INTERVAL_CHART_LABEL = {
+    '5m': '5 phút',
+    '15m': '15 phút',
+    '1h': '1 giờ',
+    '4h': '4 giờ',
+    '1d': '1 ngày',
+    '1w': '1 tuần',
+};
+const CHART_LABEL_TO_VALUE = Object.fromEntries(
+    Object.entries(INTERVAL_CHART_LABEL).map(([v, l]) => [l, v])
+);
 
 const enc = (sym) => encodeURIComponent(String(sym || ''));
 
@@ -115,6 +138,7 @@ function ChannelBadge({ channel }) {
 }
 
 function ActionBanner({ action, isDark }) {
+    const { t } = useTranslation('international');
     const a = String(action || '');
     let color = isDark ? 'border-white/10 bg-white/5 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700';
     if (a.includes('MUA') && !a.includes('thiên bán')) color = 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400';
@@ -122,7 +146,7 @@ function ActionBanner({ action, isDark }) {
     if (a.includes('THEO DÕI')) color = 'border-amber-500/40 bg-amber-500/10 text-amber-400';
     return (
         <div className={`rounded-xl border px-3 py-2.5 ${color}`}>
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Đề xuất thô</p>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{t('rawSuggestion')}</p>
             <p className="text-sm font-black mt-0.5">{a}</p>
         </div>
     );
@@ -140,9 +164,19 @@ export default function InternationalTab({
     initialSymbol = null,
     onSymbolChange = null,
 }) {
+    const { t } = useTranslation('international');
     const isUltra = uiStyle === 'ultra';
     const reduceMotion = uiStyle === 'minimal' || uiStyle === 'ultra' || UI?.reduceMotion;
     const [, startUi] = useTransition();
+
+    const INTERVAL_OPTIONS = [
+        { label: t('interval5m'), value: '5m' },
+        { label: t('interval15m'), value: '15m' },
+        { label: t('interval1h'), value: '1h' },
+        { label: t('interval4h'), value: '4h' },
+        { label: t('interval1d'), value: '1d' },
+        { label: t('interval1w'), value: '1w' },
+    ];
 
     const bootSym = (initialSymbol || 'AAPL').toUpperCase();
     const [markets, setMarkets] = useState([]);
@@ -159,7 +193,7 @@ export default function InternationalTab({
     const [proposal, setProposal] = useState(null);
     const [news, setNews] = useState(null);
 
-    const [intervalLabel, setIntervalLabel] = useState('1 ngày');
+    const [intervalValue, setIntervalValue] = useState('1d');
     const [loadingQuotes, setLoadingQuotes] = useState(false);
     const [loadingChart, setLoadingChart] = useState(false);
     const [loadingSide, setLoadingSide] = useState(false);
@@ -393,14 +427,14 @@ export default function InternationalTab({
         if (abortRef.current) abortRef.current.abort();
         abortRef.current = new AbortController();
 
-        fetchCore(symbol, intervalLabel, id);
+        fetchCore(symbol, intervalValue, id);
         const defer = window.setTimeout(() => {
             if (document.visibilityState === 'hidden') return;
-            fetchSide(symbol, intervalLabel, id);
+            fetchSide(symbol, intervalValue, id);
         }, 80);
 
         return () => window.clearTimeout(defer);
-    }, [symbol, intervalLabel, fetchCore, fetchSide]);
+    }, [symbol, intervalValue, fetchCore, fetchSide]);
 
     // Sync initialSymbol from parent URL
     useEffect(() => {
@@ -420,8 +454,8 @@ export default function InternationalTab({
     const refreshAll = () => {
         const id = ++reqIdRef.current;
         fetchQuotesForCountry(country);
-        fetchCore(symbol, intervalLabel, id);
-        fetchSide(symbol, intervalLabel, id);
+        fetchCore(symbol, intervalValue, id);
+        fetchSide(symbol, intervalValue, id);
     };
 
     const filteredNews = (news?.items || []).filter((n) => {
@@ -435,7 +469,7 @@ export default function InternationalTab({
 
     const watchlistPanel = (
         <Panel isDark={isDark} className="p-3 h-full flex flex-col min-h-0">
-            <SectionHeader icon={Globe} title="Thị trường" isDark={isDark} />
+            <SectionHeader icon={Globe} title={t('markets')} isDark={isDark} />
             <div className="flex flex-wrap gap-1 mb-3 shrink-0">
                 {markets.map((m) => (
                     <button
@@ -448,7 +482,7 @@ export default function InternationalTab({
                                 : T.border(isDark)
                         }`}
                     >
-                        {m.label}
+                        {COUNTRY_LABEL[m.id] ? t(COUNTRY_LABEL[m.id]) : (m.labelEn || m.label)}
                     </button>
                 ))}
             </div>
@@ -509,7 +543,7 @@ export default function InternationalTab({
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') selectSymbol(searchInput);
                             }}
-                            placeholder="AAPL, 7203.T, 0700.HK…"
+                            placeholder={t('searchPlaceholder')}
                             className={`w-full sm:w-64 h-9 pl-8 pr-2 rounded-lg border text-xs font-bold outline-none ${
                                 isDark
                                     ? 'bg-black/40 border-white/10 text-teal-300'
@@ -534,7 +568,7 @@ export default function InternationalTab({
                                         <span className={`ml-2 ${T.textMute(isDark)}`}>{s.name}</span>
                                         {s.countryLabel && (
                                             <span className={`ml-2 text-[10px] ${T.textMute(isDark)}`}>
-                                                {s.countryLabel}
+                                                {COUNTRY_LABEL[s.country] ? t(COUNTRY_LABEL[s.country]) : s.countryLabel}
                                             </span>
                                         )}
                                     </button>
@@ -560,20 +594,20 @@ export default function InternationalTab({
                         type="button"
                         onClick={refreshAll}
                         className={`h-9 w-9 rounded-lg border flex items-center justify-center ${T.border(isDark)}`}
-                        title="Làm mới"
+                        title={t('refresh')}
                     >
                         <RefreshCw size={13} className={loadingChart ? `animate-spin ${T.accent}` : T.textMute(isDark)} />
                     </button>
                 </div>
             </div>
             <div className="flex gap-1 flex-wrap mt-3">
-                {INTERVAL_OPTIONS.map(({ label }) => (
+                {INTERVAL_OPTIONS.map(({ label, value }) => (
                     <button
-                        key={label}
+                        key={value}
                         type="button"
-                        onClick={() => setIntervalLabel(label)}
+                        onClick={() => setIntervalValue(value)}
                         className={`px-2 py-1 rounded-md text-[10px] font-bold border ${
-                            intervalLabel === label
+                            intervalValue === value
                                 ? `${T.accentBg} ${T.accentBorder} ${T.accent}`
                                 : T.border(isDark)
                         }`}
@@ -592,14 +626,14 @@ export default function InternationalTab({
                     data={chartData}
                     theme={isDark ? 'dark' : 'light'}
                     accent="teal"
-                    onIntervalChange={setIntervalLabel}
-                    currentInterval={intervalLabel}
+                    onIntervalChange={(label) => setIntervalValue(CHART_LABEL_TO_VALUE[label] || '1d')}
+                    currentInterval={INTERVAL_CHART_LABEL[intervalValue] || '1 ngày'}
                     allowPageScroll={isUltra}
                 />
             ) : loadError && !loadingChart ? (
                 <div className="h-full flex flex-col items-center justify-center gap-2 px-4 text-center">
                     <AlertTriangle size={24} className="text-amber-400" />
-                    <p className={`text-xs ${T.textMute(isDark)}`}>Không tải được {symbol}</p>
+                    <p className={`text-xs ${T.textMute(isDark)}`}>{t('loadFailed')} {symbol}</p>
                     <button
                         type="button"
                         onClick={refreshAll}
@@ -626,11 +660,11 @@ export default function InternationalTab({
 
     const taBlock = (
         <Panel isDark={isDark} className="p-3 h-full min-h-0 overflow-y-auto custom-scrollbar">
-            <SectionHeader icon={BarChart3} title="Phân tích kỹ thuật" isDark={isDark} />
+            <SectionHeader icon={BarChart3} title={t('technicalAnalysis')} isDark={isDark} />
             {technicals ? (
                 <div className="space-y-1.5">
                     <div className="flex justify-between text-xs">
-                        <span className={T.textMute(isDark)}>Score</span>
+                        <span className={T.textMute(isDark)}>{t('score')}</span>
                         <span className={`font-black tabular-nums ${T.accent}`}>{technicals.score}</span>
                     </div>
                     <div className="h-2 rounded-full bg-black/20 overflow-hidden">
@@ -640,37 +674,41 @@ export default function InternationalTab({
                         />
                     </div>
                     <div className="flex justify-between text-xs pt-1">
-                        <span className={T.textMute(isDark)}>Xu hướng</span>
+                        <span className={T.textMute(isDark)}>{t('trend')}</span>
                         <span className={`font-bold ${technicals.trendColor === 'green' ? T.bull : technicals.trendColor === 'red' ? T.bear : 'text-amber-400'}`}>
                             {technicals.trend}
                         </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                        <span className={T.textMute(isDark)}>RSI</span>
+                        <span className={T.textMute(isDark)}>{t('rsi')}</span>
                         <span className={`font-bold tabular-nums ${T.textBody(isDark)}`}>
-                            {fmt(technicals.rsi, 1)} · {proposal?.plain?.rsiLabel || '—'}
+                            {fmt(technicals.rsi, 1)} · {(() => {
+                                const raw = proposal?.plain?.rsiLabel;
+                                if (!raw) return '—';
+                                return RSI_LABEL_KEY[raw] ? t(RSI_LABEL_KEY[raw]) : raw;
+                            })()}
                         </span>
                     </div>
                     <div className="flex justify-between text-xs">
-                        <span className={T.textMute(isDark)}>MACD</span>
+                        <span className={T.textMute(isDark)}>{t('macd')}</span>
                         <span className={`font-bold tabular-nums ${T.textBody(isDark)}`}>{fmt(technicals.macdLine)}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                        <span className={T.textMute(isDark)}>EMA20 / 50</span>
+                        <span className={T.textMute(isDark)}>{t('ema2050')}</span>
                         <span className={`font-bold tabular-nums ${T.textBody(isDark)}`}>
                             {fmt(technicals.ema20)} / {fmt(technicals.ema50)}
                         </span>
                     </div>
                 </div>
             ) : (
-                <p className={`text-xs ${T.textMute(isDark)}`}>{loadingChart ? 'Đang tính…' : 'Chưa có chỉ báo'}</p>
+                <p className={`text-xs ${T.textMute(isDark)}`}>{loadingChart ? t('computing') : t('noIndicators')}</p>
             )}
         </Panel>
     );
 
     const proposalBlock = (
         <Panel isDark={isDark} className="p-3 h-full min-h-0 overflow-y-auto custom-scrollbar" accent>
-            <SectionHeader icon={TrendingUp} title="Đề xuất thô" isDark={isDark} />
+            <SectionHeader icon={TrendingUp} title={t('rawSuggestion')} isDark={isDark} />
             {loadingSide && !proposal ? (
                 <Skeleton className="h-16" />
             ) : proposal ? (
@@ -698,7 +736,7 @@ export default function InternationalTab({
                     <p className={`text-[10px] leading-relaxed ${T.textMute(isDark)}`}>{proposal.disclaimer}</p>
                 </div>
             ) : (
-                <p className={`text-xs ${T.textMute(isDark)}`}>Chưa có đề xuất</p>
+                <p className={`text-xs ${T.textMute(isDark)}`}>{t('noSuggestion')}</p>
             )}
         </Panel>
     );
@@ -707,7 +745,7 @@ export default function InternationalTab({
         <Panel isDark={isDark} className="p-3 h-full min-h-0 flex flex-col">
             <SectionHeader
                 icon={Newspaper}
-                title="Tin & sentiment"
+                title={t('newsSentiment')}
                 isDark={isDark}
                 action={
                     news ? (
@@ -720,10 +758,10 @@ export default function InternationalTab({
             />
             <div className="flex flex-wrap gap-1 mb-2 shrink-0">
                 {[
-                    { id: 'all', label: 'Tất cả' },
-                    { id: 'google', label: 'Google' },
-                    { id: 'reddit', label: 'Reddit' },
-                    { id: 'x', label: 'X' },
+                    { id: 'all', label: t('filterAll') },
+                    { id: 'google', label: t('filterGoogle') },
+                    { id: 'reddit', label: t('filterReddit') },
+                    { id: 'x', label: t('filterX') },
                 ].map((f) => (
                     <button
                         key={f.id}
@@ -767,7 +805,7 @@ export default function InternationalTab({
                     ))
                 ) : (
                     <p className={`text-xs py-4 text-center ${T.textMute(isDark)}`}>
-                        {loadingSide ? 'Đang tải tin…' : 'Chưa có tin'}
+                        {loadingSide ? t('loadingNews') : t('noNews')}
                     </p>
                 )}
             </div>
@@ -790,7 +828,7 @@ export default function InternationalTab({
             className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize touch-none select-none items-center justify-center self-stretch rounded-full transition-colors ${
                 active ? 'bg-teal-400/50' : isDark ? 'hover:bg-teal-400/25 bg-white/5' : 'hover:bg-teal-500/30 bg-slate-200/80'
             }`}
-            title="Kéo để đổi kích thước"
+            title={t('resize')}
         />
     );
 
@@ -802,7 +840,7 @@ export default function InternationalTab({
             className={`hidden lg:flex h-2 shrink-0 w-full cursor-row-resize touch-none select-none items-center justify-center rounded-full transition-colors ${
                 active ? 'bg-teal-400/50' : isDark ? 'hover:bg-teal-400/25 bg-white/5' : 'hover:bg-teal-500/30 bg-slate-200/80'
             }`}
-            title="Kéo để đổi chiều cao chart"
+            title={t('resizeChartHeight')}
         >
             <div className={`h-0.5 w-10 rounded-full ${isDark ? 'bg-white/25' : 'bg-slate-400/50'}`} />
         </div>
@@ -812,23 +850,23 @@ export default function InternationalTab({
         const ultraSections = [
             {
                 id: 'chart',
-                title: `Biểu đồ · ${symbol}`,
+                title: `${t('chartTitle')} · ${symbol}`,
                 icon: BarChart3,
-                summary: px ? fmt(px) : loadingChart ? 'Đang tải…' : 'Đóng',
+                summary: px ? fmt(px) : loadingChart ? t('loading') : t('closed'),
                 render: () => <div className="h-[min(60vh,480px)]">{chartPanel}</div>,
             },
             {
                 id: 'ta',
-                title: 'TA · đề xuất · tin',
+                title: t('sidePanelTitle'),
                 icon: TrendingUp,
-                summary: proposal?.action || 'Đóng',
+                summary: proposal?.action || t('closed'),
                 render: () => sidePanel,
             },
             {
                 id: 'watchlist',
-                title: 'Watchlist theo nước',
+                title: t('watchlistByCountry'),
                 icon: Globe,
-                summary: country,
+                summary: COUNTRY_LABEL[country] ? t(COUNTRY_LABEL[country]) : country,
                 render: () => <div className="h-[min(50vh,360px)]">{watchlistPanel}</div>,
             },
         ];
@@ -865,9 +903,9 @@ export default function InternationalTab({
                 } z-50`}
             >
                 {[
-                    { key: 'chart', label: 'Biểu đồ', icon: BarChart3 },
-                    { key: 'side', label: 'TA & Tin', icon: Newspaper },
-                    { key: 'list', label: 'Thị trường', icon: Globe },
+                    { key: 'chart', label: t('mobileChart'), icon: BarChart3 },
+                    { key: 'side', label: t('mobileTaNews'), icon: Newspaper },
+                    { key: 'list', label: t('mobileMarkets'), icon: Globe },
                 ].map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
@@ -923,7 +961,7 @@ export default function InternationalTab({
                 } ${T.textMute(isDark)}`}
             >
                 <Landmark size={11} className={T.accent} />
-                <span>Quốc tế · chart trên · kéo thanh để đổi kích thước</span>
+                <span>{t('layoutHint')}</span>
                 {news?.sources && (
                     <span className="ml-auto tabular-nums">
                         G{news.sources.google || 0} · R{news.sources.reddit || 0} · X{news.sources.x || 0}

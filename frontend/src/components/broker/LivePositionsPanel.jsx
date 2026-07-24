@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Flame, TrendingUp, TrendingDown } from 'lucide-react';
 
 const fmtPrice = (v) => {
@@ -20,56 +21,57 @@ const holdTime = (openedAt) => {
  * (PnL chính xác xem qua balance / order log; ở đây hiển thị kế hoạch lệnh)
  */
 export default function LivePositionsPanel({ liveTrades, isDark, UI }) {
+    const { t } = useTranslation('broker');
     return (
         <div className={`rounded-2xl border overflow-hidden ${UI.card}`}>
             <div className={`px-4 py-3 border-b flex items-center justify-between ${UI.border}`}>
                 <div>
                     <h3 className={`font-black text-sm uppercase tracking-wider flex items-center gap-2 ${UI.textBold}`}>
-                        <Flame size={15} className="text-red-500" /> Vị thế LIVE đang mở ({liveTrades.length})
+                        <Flame size={15} className="text-red-500" /> {t('liveOpenPositions')} ({liveTrades.length})
                     </h3>
-                    <p className={`text-[10px] ${UI.textMuted}`}>Lệnh thực trên sàn do AutoDuck Engine quản lý · TP/SL tự động · Vẫn được giám sát kể cả khi tắt engine mô phỏng</p>
+                    <p className={`text-[10px] ${UI.textMuted}`}>{t('livePositionsSubtitle')}</p>
                 </div>
             </div>
 
             {liveTrades.length === 0 ? (
                 <div className={`p-8 text-center text-sm font-bold ${UI.textMuted}`}>
-                    Chưa có vị thế LIVE nào đang mở.
-                    <p className="text-[11px] font-normal mt-1">Tạo gói lệnh LIVE (Cố định hoặc Portfolio) ở tab "Tự động vào lệnh AI" — khi engine khớp tín hiệu, vị thế sẽ hiện ở đây.</p>
+                    {t('noOpenLivePositions')}
+                    <p className="text-[11px] font-normal mt-1">{t('livePositionsEmpty')}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
-                    {liveTrades.map(t => {
-                        const isLong = t.direction === 'LONG' || t.direction === 'MUA';
+                    {liveTrades.map(trade => {
+                        const isLong = trade.direction === 'LONG' || trade.direction === 'MUA';
                         return (
-                            <div key={t._id} className={`rounded-xl border p-3 ${isDark ? 'bg-red-500/[0.04] border-red-500/20' : 'bg-red-50/40 border-red-200'}`}>
+                            <div key={trade._id} className={`rounded-xl border p-3 ${isDark ? 'bg-red-500/[0.04] border-red-500/20' : 'bg-red-50/40 border-red-200'}`}>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className={`font-black font-mono text-sm ${UI.textBold}`}>{t.symbol}</span>
+                                    <span className={`font-black font-mono text-sm ${UI.textBold}`}>{trade.symbol}</span>
                                     <span className={`flex items-center gap-1 text-[10px] font-black ${isLong ? 'text-emerald-500' : 'text-red-500'}`}>
                                         {isLong ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                        {t.direction}
+                                        {trade.direction}
                                     </span>
                                 </div>
                                 <div className={`grid grid-cols-3 gap-1 text-[10px] font-mono font-bold ${UI.textMuted}`}>
                                     <div>
-                                        <p className="text-[8px] uppercase tracking-widest">Entry</p>
-                                        <p className={UI.textNormal}>{fmtPrice(t.entryPrice)}</p>
+                                        <p className="text-[8px] uppercase tracking-widest">{t('entry')}</p>
+                                        <p className={UI.textNormal}>{fmtPrice(trade.entryPrice)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[8px] uppercase tracking-widest text-emerald-500">TP</p>
-                                        <p className="text-emerald-500">{fmtPrice(t.takeProfitPrice)}</p>
+                                        <p className="text-[8px] uppercase tracking-widest text-emerald-500">{t('tp')}</p>
+                                        <p className="text-emerald-500">{fmtPrice(trade.takeProfitPrice)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[8px] uppercase tracking-widest text-red-400">SL</p>
-                                        <p className="text-red-400">{fmtPrice(t.stopLossPrice)}</p>
+                                        <p className="text-[8px] uppercase tracking-widest text-red-400">{t('sl')}</p>
+                                        <p className="text-red-400">{fmtPrice(trade.stopLossPrice)}</p>
                                     </div>
                                 </div>
                                 <div className={`flex justify-between mt-2 pt-2 border-t text-[10px] font-bold ${isDark ? 'border-white/5' : 'border-slate-200'} ${UI.textMuted}`}>
-                                    <span>Vốn: {((t.investedAmount || 0) / 1e6).toFixed(2)}Tr</span>
-                                    <span>Score: {t.aiScore}</span>
-                                    <span>⏱ {holdTime(t.openedAt)}</span>
+                                    <span>Vốn: {((trade.investedAmount || 0) / 1e6).toFixed(2)}Tr</span>
+                                    <span>Score: {trade.aiScore}</span>
+                                    <span>⏱ {holdTime(trade.openedAt)}</span>
                                 </div>
-                                {t.externalOrderId && (
-                                    <p className={`text-[9px] font-mono mt-1 truncate ${UI.textMuted}`}>OrderID: {t.externalOrderId}</p>
+                                {trade.externalOrderId && (
+                                    <p className={`text-[9px] font-mono mt-1 truncate ${UI.textMuted}`}>OrderID: {trade.externalOrderId}</p>
                                 )}
                             </div>
                         );

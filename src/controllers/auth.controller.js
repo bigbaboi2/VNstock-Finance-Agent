@@ -1,13 +1,16 @@
 import User from '../../models/User.js';
+import { resolveLanguage, tMsg } from '../utils/i18nMessages.js';
 
 const UI_STYLES = new Set(['classic', 'minimal', 'book', 'ultra']);
 const FONT_SCALES = new Set(['sm', 'md', 'lg', 'xl']);
+const LANGUAGES = new Set(['vi', 'en']);
 
 const DEFAULT_PREFERENCES = Object.freeze({
     theme: 'dark',
     clock3d: true,
     uiStyle: 'classic',
     fontScale: 'md',
+    language: 'vi',
 });
 
 const normalizePreferences = (prefs) => {
@@ -15,7 +18,8 @@ const normalizePreferences = (prefs) => {
     const clock3d = prefs?.clock3d !== false;
     const uiStyle = UI_STYLES.has(prefs?.uiStyle) ? prefs.uiStyle : 'classic';
     const fontScale = FONT_SCALES.has(prefs?.fontScale) ? prefs.fontScale : 'md';
-    return { theme, clock3d, uiStyle, fontScale };
+    const language = LANGUAGES.has(prefs?.language) ? prefs.language : 'vi';
+    return { theme, clock3d, uiStyle, fontScale, language };
 };
 
 const findUserByUsername = async (username) => {
@@ -26,12 +30,16 @@ const findUserByUsername = async (username) => {
 };
 
 export const register = async (req, res) => {
+    const lang = resolveLanguage(req);
     try {
         const { username, password } = req.body;
         const cleanUsername = username.trim();
         const existingUser = await findUserByUsername(cleanUsername);
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Username này đã có người sử dụng! Vui lòng chọn tên khác.' });
+            return res.status(400).json({
+                success: false,
+                message: tMsg(lang, 'auth', 'usernameTaken'),
+            });
         }
 
         const newUser = new User({
@@ -40,20 +48,30 @@ export const register = async (req, res) => {
             preferences: { ...DEFAULT_PREFERENCES },
         });
         await newUser.save();
-        return res.json({ success: true, message: 'Tạo tài khoản thành công!' });
+        return res.json({
+            success: true,
+            message: tMsg(lang, 'auth', 'registerSuccess'),
+        });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Lỗi server khi đăng ký hệ thống.' });
+        return res.status(500).json({
+            success: false,
+            message: tMsg(lang, 'auth', 'registerServerError'),
+        });
     }
 };
 
 export const login = async (req, res) => {
+    const lang = resolveLanguage(req);
     try {
         const { username, password } = req.body;
         const cleanUsername = username.trim();
 
         const user = await findUserByUsername(cleanUsername);
         if (!user || user.password !== password) {
-            return res.status(400).json({ success: false, message: 'Tài khoản không tồn tại hoặc mật khẩu truy cập sai!' });
+            return res.status(400).json({
+                success: false,
+                message: tMsg(lang, 'auth', 'loginInvalid'),
+            });
         }
 
         return res.json({
@@ -62,17 +80,24 @@ export const login = async (req, res) => {
             preferences: normalizePreferences(user.preferences),
         });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Lỗi server khi đăng nhập.' });
+        return res.status(500).json({
+            success: false,
+            message: tMsg(lang, 'auth', 'loginServerError'),
+        });
     }
 };
 
 /** GET /api/auth/preferences?username=... — lấy preference UI theo tài khoản. */
 export const getPreferences = async (req, res) => {
+    const lang = resolveLanguage(req);
     try {
         const username = req.query?.username || req.body?.username;
         const user = await findUserByUsername(username);
         if (!user) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản.' });
+            return res.status(404).json({
+                success: false,
+                message: tMsg(lang, 'auth', 'userNotFound'),
+            });
         }
         return res.json({
             success: true,
@@ -80,17 +105,24 @@ export const getPreferences = async (req, res) => {
             preferences: normalizePreferences(user.preferences),
         });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message || 'Lỗi khi đọc preference.' });
+        return res.status(500).json({
+            success: false,
+            message: error.message || tMsg(lang, 'auth', 'prefsReadError'),
+        });
     }
 };
 
-/** POST /api/auth/preferences — cập nhật theme / clock3d / uiStyle / fontScale theo username. */
+/** POST /api/auth/preferences — cập nhật theme / clock3d / uiStyle / fontScale / language theo username. */
 export const updatePreferences = async (req, res) => {
+    const lang = resolveLanguage(req);
     try {
-        const { username, theme, clock3d, uiStyle, fontScale } = req.body || {};
+        const { username, theme, clock3d, uiStyle, fontScale, language } = req.body || {};
         const user = await findUserByUsername(username);
         if (!user) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản.' });
+            return res.status(404).json({
+                success: false,
+                message: tMsg(lang, 'auth', 'userNotFound'),
+            });
         }
 
         const next = normalizePreferences(user.preferences);
@@ -98,6 +130,7 @@ export const updatePreferences = async (req, res) => {
         if (typeof clock3d === 'boolean') next.clock3d = clock3d;
         if (UI_STYLES.has(uiStyle)) next.uiStyle = uiStyle;
         if (FONT_SCALES.has(fontScale)) next.fontScale = fontScale;
+        if (LANGUAGES.has(language)) next.language = language;
 
         user.preferences = next;
         user.markModified('preferences');
@@ -105,10 +138,13 @@ export const updatePreferences = async (req, res) => {
 
         return res.json({
             success: true,
-            message: 'Đã lưu preference.',
+            message: tMsg(next.language || lang, 'auth', 'prefsSaved'),
             preferences: next,
         });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message || 'Lỗi khi lưu preference.' });
+        return res.status(500).json({
+            success: false,
+            message: error.message || tMsg(lang, 'auth', 'prefsSaveError'),
+        });
     }
 };

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 import axios from 'axios';
 import { Check, ChevronDown, Download, RotateCcw, Save, Search, Settings, X } from 'lucide-react';
 import {
@@ -13,27 +15,27 @@ const LIVE_EXPORT_FILE_CATALOG = [
     {
         id: 'json',
         extension: '.json',
-        label: 'JSON — dump đầy đủ',
-        purpose: 'Toàn bộ dữ liệu máy đọc được: summary, breakdowns, từng lệnh LIVE, packages, exchange orders, manual trades. Dùng cho Python/notebook hoặc import lại hệ thống.',
+        labelKey: 'exportCatalogJsonLabel',
+        purposeKey: 'exportCatalogJsonPurpose',
     },
     {
         id: 'md',
         extension: '.md',
-        label: 'Markdown — báo cáo tổng hợp',
-        purpose: 'Báo cáo đọc nhanh: win rate, PnL, phân tích theo symbol/setup/exit, so sánh early vs late 21 ngày, partial scale-out.',
+        labelKey: 'exportCatalogMdLabel',
+        purposeKey: 'exportCatalogMdPurpose',
     },
     {
         id: 'xlsx',
         extension: '.xlsx',
-        label: 'Excel — workbook 6 sheet',
-        purpose: 'Một file Excel; mỗi sheet là một bảng phân tích riêng (mở bằng Excel/LibreOffice).',
+        labelKey: 'exportCatalogXlsxLabel',
+        purposeKey: 'exportCatalogXlsxPurpose',
         sheets: [
-            { name: 'Trades LIVE', purpose: 'Từng lệnh AutoTrade LIVE: entry/exit, PnL VND, hold time, signal breakdown, exit tag…' },
-            { name: 'Exchange Orders', purpose: 'Lệnh gửi sàn (LIVE + testnet): side, purpose, notional, trạng thái fill/fail.' },
-            { name: 'Packages LIVE', purpose: 'Gói vốn UserOrder LIVE: capital, allocation, realized PnL, số allocation.' },
-            { name: 'Theo Symbol', purpose: 'Thống kê gom theo mã: số lệnh, win rate, tổng/trung bình PnL, thời gian giữ.' },
-            { name: 'Equity Curve', purpose: 'Đường NAV theo thời gian: cum PnL, drawdown, % drawdown so với đỉnh NAV.' },
-            { name: 'Early vs Late 21d', purpose: 'So sánh hiệu suất trước vs trong 21 ngày gần nhất (win rate, expectancy, max DD).' },
+            { nameKey: 'exportSheetTradesLive', purposeKey: 'exportSheetTradesLivePurpose' },
+            { nameKey: 'exportSheetExchangeOrders', purposeKey: 'exportSheetExchangeOrdersPurpose' },
+            { nameKey: 'exportSheetPackagesLive', purposeKey: 'exportSheetPackagesLivePurpose' },
+            { nameKey: 'exportSheetBySymbol', purposeKey: 'exportSheetBySymbolPurpose' },
+            { nameKey: 'exportSheetEquityCurve', purposeKey: 'exportSheetEquityCurvePurpose' },
+            { nameKey: 'exportSheetEarlyLate', purposeKey: 'exportSheetEarlyLatePurpose' },
         ],
     },
 ];
@@ -157,10 +159,10 @@ const sourceBadgeClass = (source, isDark, dirty) => {
 };
 
 const sourceLabel = (source, dirty) => {
-    if (dirty) return 'Chưa lưu database';
-    if (source === 'db') return 'Đã lưu database';
+    if (dirty) return i18n.t('unsavedInDb', { ns: 'autoDuck' });
+    if (source === 'db') return i18n.t('savedInDb', { ns: 'autoDuck' });
     if (source === 'env') return 'File .env';
-    return 'Mặc định';
+    return i18n.t('defaultValue', { ns: 'autoDuck' });
 };
 
 const modeBadgeClass = (badge, isDark) => {
@@ -253,6 +255,7 @@ export default function AutoDuckEnvSettingsPanel({
     onRiskLevelChange,
     onMessage,
 }) {
+    const { t } = useTranslation('autoDuck');
     const [collapsed, setCollapsed] = useState(true);
     const [groups, setGroups] = useState([]);
     const [values, setValues] = useState({});
@@ -300,7 +303,7 @@ export default function AutoDuckEnvSettingsPanel({
                 }
             }
         } catch (err) {
-            onMessage?.({ text: err.response?.data?.message || 'Không tải được cấu hình AutoTrade.', isError: true });
+            onMessage?.({ text: err.response?.data?.message || t('errLoadConfig'), isError: true });
         } finally {
             setLoadingConfig(false);
         }
@@ -346,12 +349,12 @@ export default function AutoDuckEnvSettingsPanel({
         const n = Math.floor(Number(raw));
         if (!Number.isFinite(n) || n < 1) {
             setExportBtnState('error');
-            setExportBtnMessage('Số ngày phải ≥ 1');
+            setExportBtnMessage(t('errDaysMin'));
             return;
         }
         if (n > 3650) {
             setExportBtnState('error');
-            setExportBtnMessage('Tối đa 3650 ngày');
+            setExportBtnMessage(t('errDaysMax'));
             return;
         }
         applyExportRangeDays(n);
@@ -452,7 +455,7 @@ export default function AutoDuckEnvSettingsPanel({
         });
         if (res.data?.data) applyConfigPayload(res.data.data);
         onMessage?.({
-            text: successText || res.data?.message || 'Đã lưu. Áp dụng từ chu kỳ pipeline tiếp theo.',
+            text: successText || res.data?.message || t('successSaved'),
             isError: false,
         });
         return res;
@@ -460,7 +463,7 @@ export default function AutoDuckEnvSettingsPanel({
 
     const handleSave = async () => {
         if (!isAdmin && !adminCode) {
-            onMessage?.({ text: 'Cần mã Admin để lưu cấu hình AutoTrade.', isError: true });
+            onMessage?.({ text: t('errAdminSaveConfig'), isError: true });
             return;
         }
         setSaving(true);
@@ -472,12 +475,12 @@ export default function AutoDuckEnvSettingsPanel({
                 payload[key] = val;
             }
             if (Object.keys(payload).length === 0) {
-                onMessage?.({ text: 'Không có thay đổi nào để lưu.', isError: false });
+                onMessage?.({ text: t('errNoChanges'), isError: false });
                 return;
             }
             await postValues(payload);
         } catch (err) {
-            onMessage?.({ text: err.response?.data?.message || 'Lỗi khi lưu cấu hình.', isError: true });
+            onMessage?.({ text: err.response?.data?.message || t('errSaveConfig'), isError: true });
         } finally {
             setSaving(false);
         }
@@ -486,12 +489,12 @@ export default function AutoDuckEnvSettingsPanel({
     const handleResetGroup = async (group, event) => {
         event?.stopPropagation?.();
         if (!isAdmin && !adminCode) {
-            onMessage?.({ text: 'Cần mã Admin để đặt lại mặc định.', isError: true });
+            onMessage?.({ text: t('errAdminReset'), isError: true });
             return;
         }
         const keys = group.keys || [];
         if (keys.length === 0) return;
-        if (!window.confirm(`Đặt lại toàn bộ mục trong "${group.label}" về giá trị mặc định của hệ thống?`)) return;
+        if (!window.confirm(t('confirmResetGroup', { label: group.label }))) return;
 
         setResettingGroup(group.id);
         try {
@@ -504,10 +507,10 @@ export default function AutoDuckEnvSettingsPanel({
             setDraft(nextDraft);
             await postValues(
                 payload,
-                `Đã đặt lại nhóm về mặc định. Áp dụng từ chu kỳ pipeline tiếp theo.`
+                t('successResetGroup')
             );
         } catch (err) {
-            onMessage?.({ text: err.response?.data?.message || 'Lỗi khi đặt lại mặc định.', isError: true });
+            onMessage?.({ text: err.response?.data?.message || t('errResetDefaults'), isError: true });
         } finally {
             setResettingGroup(null);
         }
@@ -516,7 +519,7 @@ export default function AutoDuckEnvSettingsPanel({
     const handleExportLiveStats = async () => {
         if (!isAdmin && !adminCode) {
             setExportBtnState('error');
-            setExportBtnMessage('Cần mã Admin');
+            setExportBtnMessage(t('errAdminExport'));
             return;
         }
         setExportingLive(true);
@@ -535,14 +538,14 @@ export default function AutoDuckEnvSettingsPanel({
                 setLastLiveExport(res.data.data);
                 const fileCount = res.data.data.files?.length ?? 3;
                 setExportBtnState('success');
-                setExportBtnMessage(res.data.message || `Đã xuất ${fileCount} file`);
+                setExportBtnMessage(res.data.message || t('successExported', { count: fileCount }));
             } else {
                 setExportBtnState('error');
-                setExportBtnMessage(res.data?.message || 'Xuất thất bại');
+                setExportBtnMessage(res.data?.message || t('exportFailed'));
             }
         } catch (err) {
             setExportBtnState('error');
-            setExportBtnMessage(err.response?.data?.message || 'Lỗi khi xuất dữ liệu lệnh LIVE');
+            setExportBtnMessage(err.response?.data?.message || t('errExportLive'));
         } finally {
             setExportingLive(false);
         }
@@ -576,9 +579,9 @@ export default function AutoDuckEnvSettingsPanel({
         try {
             return parseExportDateRange({ dateFrom: exportDateFrom, dateTo: exportDateTo });
         } catch {
-            return { fromCompact: 'invalid', toCompact: 'invalid', label: 'Khoảng ngày không hợp lệ' };
+            return { fromCompact: 'invalid', toCompact: 'invalid', label: t('invalidDateRange') };
         }
-    }, [exportDateFrom, exportDateTo]);
+    }, [exportDateFrom, exportDateTo, t]);
 
     const exportNamePreview = useMemo(() => {
         const stats = lastLiveExport?.summary
@@ -659,16 +662,16 @@ export default function AutoDuckEnvSettingsPanel({
                 <div className="flex items-center gap-3 flex-wrap">
                     <Settings className="text-cyan-400" size={22} />
                     <h3 className={`text-lg font-black uppercase tracking-widest ${UI.textBold}`}>
-                        CẤU HÌNH AUTOTRADE
+                        {t('autoTradeConfigTitle')}
                     </h3>
                     <button
                         type="button"
                         onClick={() => setCollapsed((v) => !v)}
-                        title={collapsed ? 'Mở rộng' : 'Thu gọn'}
+                        title={collapsed ? t('expand') : t('collapse')}
                         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors border-2 ${isDark ? 'border-white/50 bg-white/5 hover:bg-white/10 text-cyan-200' : 'border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-700'}`}
                     >
                         <ChevronDown size={16} className={`transition-transform duration-300 ${collapsed ? '-rotate-90' : ''}`} />
-                        {collapsed ? 'Mở cài đặt' : 'Thu gọn'}
+                        {collapsed ? t('openSettings') : t('collapse')}
                     </button>
                 </div>
 
@@ -676,14 +679,14 @@ export default function AutoDuckEnvSettingsPanel({
                     {!isAdmin && (
                         <input
                             type="password"
-                            placeholder="Mã admin..."
+                            placeholder={t('adminCodePlaceholder')}
                             value={adminCode}
                             onChange={(e) => setAdminCode(e.target.value)}
                             className={`w-36 text-[12px] font-medium px-2.5 py-1.5 rounded-lg outline-none border transition-colors ${isDark ? 'bg-[#1a1f2e] text-slate-200 border-white/35 focus:border-cyan-400' : 'bg-white text-slate-600 border-slate-300 focus:border-cyan-500'}`}
                         />
                     )}
                     <div className="flex items-center gap-2.5">
-                        <span className={`text-[12px] font-medium ${UI.textMuted}`}>Trạng thái</span>
+                        <span className={`text-[12px] font-medium ${UI.textMuted}`}>{t('status')}</span>
                         <IosToggle
                             checked={isEngineEnabled === true}
                             loading={isEngineEnabled === null}
@@ -691,14 +694,14 @@ export default function AutoDuckEnvSettingsPanel({
                             onChange={() => onToggleEngine?.()}
                         />
                         <span className={`text-[12px] font-semibold ${isEngineEnabled ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {isEngineEnabled === null ? '…' : isEngineEnabled ? 'Bật' : 'Tắt'}
+                            {isEngineEnabled === null ? '…' : isEngineEnabled ? t('toggleOn') : t('toggleOff')}
                         </span>
                         {isEngineEnabled === false && (
                             <span
                                 className={`text-[11px] font-medium ${UI.textMuted}`}
-                                title="Tắt = dừng lệnh mô phỏng. Gói lệnh thực vẫn được quét và đóng bình thường."
+                                title={t('engineOffHint')}
                             >
-                                (Lệnh thực vẫn chạy)
+                                {t('liveOrdersStillRun')}
                             </span>
                         )}
                     </div>
@@ -706,7 +709,7 @@ export default function AutoDuckEnvSettingsPanel({
                     <div className={`w-px h-5 ${isDark ? 'bg-white/40' : 'bg-slate-300'}`} />
 
                     <div className="flex items-center gap-2">
-                        <span className={`text-[12px] font-medium ${UI.textMuted}`}>Khẩu vị rủi ro</span>
+                        <span className={`text-[12px] font-medium ${UI.textMuted}`}>{t('riskAppetite')}</span>
                         <select
                             value={riskLevel}
                             onChange={onRiskLevelChange}
@@ -718,10 +721,10 @@ export default function AutoDuckEnvSettingsPanel({
                                             : 'bg-emerald-500/10 text-emerald-400 border-emerald-400/40'
                             } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            <option value={1} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>1 - Rất thận trọng</option>
-                            <option value={2} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>2 - Cân bằng (chuẩn)</option>
-                            <option value={3} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>3 - Chuyên gia (ưa rủi ro)</option>
-                            <option value={4} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>4 - Degen (lợi nhuận tối đa)</option>
+                            <option value={1} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>{t('risk1')}</option>
+                            <option value={2} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>{t('risk2')}</option>
+                            <option value={3} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>{t('risk3')}</option>
+                            <option value={4} className={isDark ? 'bg-[#1a1f2e] text-slate-300' : 'bg-white text-slate-600'}>{t('risk4')}</option>
                         </select>
                     </div>
                 </div>
@@ -729,7 +732,7 @@ export default function AutoDuckEnvSettingsPanel({
 
             {collapsed && (
                 <p className={`text-[13px] mt-2 leading-relaxed ${isDark ? 'text-slate-300' : UI.textMuted}`}>
-                    Cấu hình chất lượng lệnh, quét khi thiếu lệnh, an toàn lệnh thực… lưu MongoDB (toàn hệ thống). Mở panel để chỉnh chi tiết.
+                    {t('configCollapsedDesc')}
                 </p>
             )}
 
@@ -737,38 +740,28 @@ export default function AutoDuckEnvSettingsPanel({
                 <div className={`mt-4 pt-4 border-t-2 ${hairline}`}>
                     <div className={`mb-5 rounded-xl border-2 px-4 py-3 space-y-2 ${isDark ? 'bg-cyan-950/35 border-white/35' : 'bg-cyan-50 border-cyan-200'}`}>
                         <p className={`text-[13px] leading-relaxed ${isDark ? 'text-slate-100' : 'text-slate-700'}`}>
-                            <span className="font-semibold text-cyan-400">Cách chấm điểm lệnh:</span> mỗi setup được chấm theo
-                            chất lượng kỹ thuật (0–100), mức đồng thuận chỉ báo và lợi thế. Điểm / ngưỡng càng cao thì càng khó vào lệnh (an toàn hơn);
-                            hạ ngưỡng thì nhiều lệnh hơn nhưng rủi ro tăng. Đổi cấu hình áp dụng từ chu kỳ pipeline tiếp theo.
+                            <span className="font-semibold text-cyan-400">{t('scoringHow')}</span> {t('scoringIntro')}
                         </p>
                         <p className={`text-[12px] leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                            <span className="font-semibold">Thang điểm chất lượng (để hình dung):</span>
-                            {' '}tối đa <span className="font-semibold text-cyan-400">100</span>;
-                            rất cao / hiếm ≥ <span className="font-semibold">90</span>;
-                            phổ biến vào lệnh LIVE khoảng <span className="font-semibold text-emerald-400">82–88</span>
-                            {' '}(ngưỡng mặc định 82);
-                            SIM phổ biến khoảng <span className="font-semibold text-violet-300">72–80</span>
-                            {' '}(ngưỡng mặc định 72);
-                            điểm thấp / yếu thường &lt; <span className="font-semibold text-amber-300">70</span> (hay bị lọc).
-                            Đồng thuận: LIVE ≥3, SIM ≥2 chỉ báo cùng hướng.
-                            Lợi thế (edge): LIVE ≥28, SIM ≥22 (mặc định).
+                            <span className="font-semibold">{t('qualityScale')}</span>
+                            {' '}{t('qualityScaleDetail')}
                         </p>
                         <p className={`text-[13px] leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-600'}`}>
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[11px] font-bold tracking-wide mr-1 ${modeBadgeClass('live', isDark)}`}>LIVE</span>
-                            = đặt tiền thật trên sàn qua broker (ô nền xanh lục).
+                            {t('modeBadgeLiveExplain')}
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[11px] font-bold tracking-wide mx-1 ${modeBadgeClass('sim', isDark)}`}>SIM</span>
-                            = lệnh giả chạy nền để AI học (ô nền tím). Setting chung = nền mặc định.
+                            {t('modeBadgeSimExplain')}
                         </p>
                         <p className={`text-[12px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                            <span className="font-semibold">Nhãn:</span>
-                            {' '}<span className="text-emerald-400 font-medium">Đã lưu database</span> = giá trị đang dùng trong MongoDB;
-                            {' '}<span className="text-red-400 font-medium">Chưa lưu database</span> = bạn vừa chỉnh, chưa bấm Lưu;
-                            {' '}<span className="font-medium">Mặc định</span> = giá trị sẵn trong code khi chưa chỉnh.
+                            <span className="font-semibold">{t('labelLegend')}</span>
+                            {' '}<span className="text-emerald-400 font-medium">{t('savedInDb')}</span> {t('labelSavedExplain')}
+                            {' '}<span className="text-red-400 font-medium">{t('unsavedInDb')}</span> {t('labelUnsavedExplain')}
+                            {' '}<span className="font-medium">{t('defaultValue')}</span> {t('labelDefaultExplain')}
                         </p>
                     </div>
 
                     {loadingConfig ? (
-                        <p className={`text-[13px] font-medium ${UI.textMuted}`}>Đang tải cấu hình…</p>
+                        <p className={`text-[13px] font-medium ${UI.textMuted}`}>{t('loadingConfig')}</p>
                     ) : (
                         <div className="space-y-4">
                             <div className="space-y-2">
@@ -781,7 +774,7 @@ export default function AutoDuckEnvSettingsPanel({
                                         type="search"
                                         value={configSearch}
                                         onChange={(e) => setConfigSearch(e.target.value)}
-                                        placeholder="Tìm setting… (vd: futures, short, đòn bẩy, quality)"
+                                        placeholder={t('searchSettings')}
                                         className={`w-full h-10 pl-9 pr-9 rounded-xl text-[13px] font-medium outline-none border-2 transition-colors ${
                                             isDark
                                                 ? 'bg-[#0a0f18] text-slate-100 border-white/35 focus:border-cyan-400 placeholder:text-slate-500'
@@ -792,7 +785,7 @@ export default function AutoDuckEnvSettingsPanel({
                                         <button
                                             type="button"
                                             onClick={() => setConfigSearch('')}
-                                            title="Xóa tìm kiếm"
+                                            title={t('clearSearch')}
                                             className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors ${
                                                 isDark ? 'text-slate-400 hover:bg-white/10 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                             }`}
@@ -805,22 +798,22 @@ export default function AutoDuckEnvSettingsPanel({
                                     {[
                                         {
                                             id: 'ignoreCase',
-                                            label: 'Không phân biệt hoa/thường',
-                                            title: 'Giống Word: tắt Match case — Live = live',
+                                            label: t('matchCaseInsensitive'),
+                                            title: t('searchMatchCaseTitle'),
                                             checked: searchIgnoreCase,
                                             onChange: setSearchIgnoreCase,
                                         },
                                         {
                                             id: 'ignoreDiacritics',
-                                            label: 'Khớp không dấu',
-                                            title: 'Bỏ dấu tiếng Việt — “don bay” khớp “đòn bẩy”',
+                                            label: t('matchNoDiacritics'),
+                                            title: t('searchNoDiacriticsTitle'),
                                             checked: searchIgnoreDiacritics,
                                             onChange: setSearchIgnoreDiacritics,
                                         },
                                         {
                                             id: 'wholeWord',
-                                            label: 'Khớp hoàn toàn (cả từ)',
-                                            title: 'Giống Word: Find whole words only — chỉ khớp từ đứng riêng',
+                                            label: t('matchWholeWord'),
+                                            title: t('searchWholeWordTitle'),
                                             checked: searchWholeWord,
                                             onChange: setSearchWholeWord,
                                         },
@@ -849,8 +842,11 @@ export default function AutoDuckEnvSettingsPanel({
                             {searchQuery && (
                                 <p className={`text-[12px] font-medium ${UI.textMuted}`}>
                                     {filteredGroups.length === 0
-                                        ? `Không tìm thấy setting khớp “${searchQuery}”.`
-                                        : `Tìm thấy ${filteredGroups.reduce((n, g) => n + (g.keys || []).length, 0)} setting trong ${filteredGroups.length} nhóm.`}
+                                        ? t('searchNoResults', { query: searchQuery })
+                                        : t('searchResults', {
+                                            count: filteredGroups.reduce((n, g) => n + (g.keys || []).length, 0),
+                                            groups: filteredGroups.length,
+                                        })}
                                 </p>
                             )}
                             {filteredGroups.map((group) => {
@@ -894,12 +890,12 @@ export default function AutoDuckEnvSettingsPanel({
                                                             ? 'bg-red-500/25 text-red-200 border-red-400/50'
                                                             : 'bg-red-100 text-red-700 border-red-300'
                                                     }`}>
-                                                        Chưa lưu
+                                                        {t('unsavedBadge')}
                                                     </span>
                                                 )}
                                             </span>
                                             <span className={`text-[12px] font-semibold shrink-0 ${isDark ? 'text-cyan-200' : 'text-cyan-700'}`}>
-                                                {(group.keys || []).length} mục
+                                                {t('itemsCount', { count: (group.keys || []).length })}
                                             </span>
                                         </button>
 
@@ -909,26 +905,20 @@ export default function AutoDuckEnvSettingsPanel({
                                                     <div className={`mb-4 rounded-xl border-2 p-3.5 space-y-3 ${isDark ? 'border-purple-400/45 bg-purple-950/25' : 'border-purple-200 bg-purple-50/80'}`}>
                                                         <div>
                                                             <p className={`text-[13px] font-semibold mb-1 ${UI.textBold}`}>
-                                                                Xuất dữ liệu lệnh LIVE
+                                                                {t('exportLiveDataTitle')}
                                                             </p>
                                                             <p className={`text-[12px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                                                Tải lịch sử lệnh AutoDuck <strong className="font-semibold">LIVE</strong> (tiền thật)
-                                                                kèm lệnh sàn, gói vốn và thống kê hiệu suất — dùng để rà soát, báo cáo hoặc phân tích ngoài app.
-                                                                Có thể giới hạn theo <strong className="font-semibold">khoảng ngày</strong> (giờ Việt Nam) hoặc xuất toàn bộ.
-                                                                Mỗi lần xuất gồm <strong className="font-semibold">JSON</strong> (dump đầy đủ),
-                                                                <strong className="font-semibold"> Markdown</strong> (báo cáo tóm tắt) và
-                                                                <strong className="font-semibold"> Excel</strong> (6 sheet: trades, orders, packages, theo symbol, equity, early/late).
-                                                                Chi tiết từng file xem ở mục <span className="font-medium">Bộ file sẽ được xuất</span> bên dưới.
+                                                                {t('exportLiveDataDesc', { filesSection: t('filesToExport') })}
                                                             </p>
                                                         </div>
                                                         <div>
-                                                            <span className={fieldLabelClass}>Khoảng thời gian</span>
+                                                            <span className={fieldLabelClass}>{t('timeRange')}</span>
                                                             <div className="flex flex-wrap items-center gap-2 mb-2">
                                                                 {[
-                                                                    { id: 'all', label: 'Tất cả' },
-                                                                    { id: '7', label: '7 ngày' },
-                                                                    { id: '30', label: '30 ngày' },
-                                                                    { id: '90', label: '90 ngày' },
+                                                                    { id: 'all', label: t('all') },
+                                                                    { id: '7', label: t('range7d') },
+                                                                    { id: '30', label: t('range30d') },
+                                                                    { id: '90', label: t('range90d') },
                                                                 ].map(({ id, label }) => (
                                                                     <button
                                                                         key={id}
@@ -954,7 +944,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                                             }
                                                                         }}
                                                                         placeholder="14"
-                                                                        aria-label="Số ngày tùy chỉnh"
+                                                                        aria-label={t('customDaysAria')}
                                                                         className={`w-[4.5rem] h-8 px-2 rounded-lg text-[12px] font-semibold border text-center transition-colors ${
                                                                             exportCustomDaysActive
                                                                                 ? (isDark
@@ -965,12 +955,12 @@ export default function AutoDuckEnvSettingsPanel({
                                                                                     : 'border-slate-200 bg-white text-slate-700 placeholder:text-slate-400')
                                                                         }`}
                                                                     />
-                                                                    <span className={hintInlineClass}>ngày · Enter</span>
+                                                                    <span className={hintInlineClass}>{t('daysEnterHint')}</span>
                                                                 </div>
                                                             </div>
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                                 <label className="block">
-                                                                    <span className={`${hintInlineClass} block mb-1`}>Từ ngày</span>
+                                                                    <span className={`${hintInlineClass} block mb-1`}>{t('fromDate')}</span>
                                                                     <input
                                                                         type="date"
                                                                         value={exportDateFrom}
@@ -979,7 +969,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                                     />
                                                                 </label>
                                                                 <label className="block">
-                                                                    <span className={`${hintInlineClass} block mb-1`}>Đến ngày</span>
+                                                                    <span className={`${hintInlineClass} block mb-1`}>{t('toDate')}</span>
                                                                     <input
                                                                         type="date"
                                                                         value={exportDateTo}
@@ -989,16 +979,14 @@ export default function AutoDuckEnvSettingsPanel({
                                                                 </label>
                                                             </div>
                                                             <span className={hintClass}>
-                                                                Lọc lệnh có thời gian mở/đóng giao với khoảng đã chọn (00:00–23:59 giờ VN).
-                                                                Nhập số ngày tùy ý rồi bấm Enter, hoặc chọn Từ/Đến ngày bên dưới.
-                                                                Đang chọn: <span className="font-medium">{exportDateRangePreview.label}</span>
+                                                                {t('exportDateFilterHint', { label: exportDateRangePreview.label })}
                                                                 {exportRangeInvalid && (
-                                                                    <span className="text-red-400 font-medium"> — kiểm tra lại ngày bắt đầu/kết thúc</span>
+                                                                    <span className="text-red-400 font-medium">{t('exportDateInvalid')}</span>
                                                                 )}
                                                             </span>
                                                         </div>
                                                         <div>
-                                                            <span className={fieldLabelClass}>Thư mục xuất</span>
+                                                            <span className={fieldLabelClass}>{t('exportFolder')}</span>
                                                             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                                                                 <input
                                                                     type="text"
@@ -1017,33 +1005,33 @@ export default function AutoDuckEnvSettingsPanel({
                                                                     {exportBtnBusy ? (
                                                                         <>
                                                                             <Download size={14} className="animate-pulse" />
-                                                                            <span>Đang xuất…</span>
+                                                                            <span>{t('exporting')}</span>
                                                                         </>
                                                                     ) : exportBtnState === 'success' ? (
                                                                         <>
                                                                             <Check size={16} strokeWidth={2.5} />
-                                                                            <span className="truncate">{exportBtnMessage || 'Đã xuất'}</span>
+                                                                            <span className="truncate">{exportBtnMessage || t('exportedSuccess')}</span>
                                                                         </>
                                                                     ) : exportBtnState === 'error' ? (
                                                                         <>
                                                                             <X size={16} strokeWidth={2.5} />
-                                                                            <span className="truncate">{exportBtnMessage || 'Lỗi xuất'}</span>
+                                                                            <span className="truncate">{exportBtnMessage || t('exportError')}</span>
                                                                         </>
                                                                     ) : (
                                                                         <>
                                                                             <Download size={14} />
-                                                                            <span>Xuất dữ liệu lệnh Live</span>
+                                                                            <span>{t('exportLiveOrders')}</span>
                                                                         </>
                                                                     )}
                                                                 </button>
                                                             </div>
                                                             <span className={hintClass}>
-                                                                Mặc định <code className="text-[11px] not-italic font-mono">exports/</code> — đường dẫn tương đối tính từ gốc backend
+                                                                {t('defaultValue')} <code className="text-[11px] not-italic font-mono">exports/</code> — {t('exportPathHint')}
                                                             </span>
                                                         </div>
                                                         <label className="block mt-5 pt-1">
                                                             <span className={fieldLabelClass}>
-                                                                Mẫu tên file gốc (không gồm phần mở rộng .json / .md / .xlsx)
+                                                                {t('exportFileNamePatternLabel')}
                                                             </span>
                                                             <div className="flex gap-2 items-center">
                                                                 <input
@@ -1058,7 +1046,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                                     type="button"
                                                                     onClick={clearExportFileNamePattern}
                                                                     disabled={!exportFileNamePattern}
-                                                                    title="Xóa toàn bộ mẫu tên file"
+                                                                    title={t('clearFileNamePatternTitle')}
                                                                     className={`h-10 px-3 rounded-xl text-[12px] font-semibold border-2 shrink-0 transition-colors active:scale-[0.98] ${
                                                                         !exportFileNamePattern
                                                                             ? (isDark
@@ -1069,11 +1057,11 @@ export default function AutoDuckEnvSettingsPanel({
                                                                                 : 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100')
                                                                     }`}
                                                                 >
-                                                                    Xóa hết
+                                                                    {t('clearAll')}
                                                                 </button>
                                                             </div>
                                                             <span className={hintClass}>
-                                                                Có thể dùng tiếng Việt có dấu; tag thời gian theo múi giờ Việt Nam (VN).
+                                                                {t('exportFileNameHint')}
                                                             </span>
                                                         </label>
                                                         <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
@@ -1081,7 +1069,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                                 <div key={tag} className="flex items-center gap-1.5">
                                                                     <button
                                                                         type="button"
-                                                                        title={`Chèn ${tag} · vd: ${example}`}
+                                                                        title={t('insertTagTitle', { tag, example })}
                                                                         onClick={() => insertExportNameTag(tag)}
                                                                         className={`px-2 py-1 rounded-lg text-[10px] font-mono border transition-colors active:scale-[0.97] shrink-0 ${
                                                                             isDark
@@ -1105,7 +1093,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                             <p className={`text-[11px] font-bold uppercase tracking-wider mb-2 ${
                                                                 isDark ? 'text-cyan-300' : 'text-cyan-700'
                                                             }`}>
-                                                                Xem trước tên file
+                                                                {t('previewFileName')}
                                                             </p>
                                                             <p className={`text-[15px] sm:text-base font-mono font-bold break-all leading-snug ${
                                                                 isDark ? 'text-white' : 'text-slate-900'
@@ -1131,9 +1119,9 @@ export default function AutoDuckEnvSettingsPanel({
                                                                 }`}
                                                             >
                                                                 <span className={`text-[11px] font-semibold uppercase tracking-wide ${UI.textMuted}`}>
-                                                                    Bộ file sẽ được xuất
+                                                                    {t('filesToExport')}
                                                                     <span className={`normal-case tracking-normal font-medium ml-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                        (3 file)
+                                                                        {t('exportFileCount')}
                                                                     </span>
                                                                 </span>
                                                                 <ChevronDown
@@ -1149,18 +1137,18 @@ export default function AutoDuckEnvSettingsPanel({
                                                                                 <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-purple-500/20 text-purple-100' : 'bg-purple-100 text-purple-900'}`}>
                                                                                     {exportNamePreview}{item.extension}
                                                                                 </span>
-                                                                                <span className={`ml-2 font-semibold ${UI.textBold}`}>{item.label}</span>
+                                                                                <span className={`ml-2 font-semibold ${UI.textBold}`}>{t(item.labelKey)}</span>
                                                                             </p>
                                                                             <p className={`${hintClass} text-[11px] mt-0.5 mb-0 pl-0.5`}>
-                                                                                {item.purpose}
+                                                                                {t(item.purposeKey)}
                                                                             </p>
                                                                             {item.sheets?.length ? (
                                                                                 <ul className={`mt-1 ml-3 list-disc space-y-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                                                     {item.sheets.map((sheet) => (
-                                                                                        <li key={sheet.name}>
-                                                                                            <span className="font-medium text-[10px]">{sheet.name}</span>
+                                                                                        <li key={sheet.nameKey}>
+                                                                                            <span className="font-medium text-[10px]">{t(sheet.nameKey)}</span>
                                                                                             {' — '}
-                                                                                            {sheet.purpose}
+                                                                                            {t(sheet.purposeKey)}
                                                                                         </li>
                                                                                     ))}
                                                                                 </ul>
@@ -1173,21 +1161,25 @@ export default function AutoDuckEnvSettingsPanel({
                                                         {lastLiveExport && (
                                                             <div className={`text-[11px] leading-relaxed rounded-lg px-3 py-2 ${isDark ? 'bg-black/30 text-slate-200' : 'bg-white/80 text-slate-700'}`}>
                                                                 <p>
-                                                                    <span className="font-semibold">Lần xuất gần nhất:</span>{' '}
+                                                                    <span className="font-semibold">{t('lastExport')}</span>{' '}
                                                                     {lastLiveExport.baseName || lastLiveExport.stamp}
                                                                 </p>
                                                                 {lastLiveExport.fileNamePattern && (
                                                                     <p className="opacity-80 font-mono text-[10px] break-all">
-                                                                        mẫu: {lastLiveExport.fileNamePattern}
+                                                                        {t('lastExportPattern', { pattern: lastLiveExport.fileNamePattern })}
                                                                     </p>
                                                                 )}
                                                                 {lastLiveExport.dateRange?.label && (
                                                                     <p className="opacity-80">
-                                                                        khoảng: {lastLiveExport.dateRange.label}
+                                                                        {t('lastExportRange', { label: lastLiveExport.dateRange.label })}
                                                                     </p>
                                                                 )}
                                                                 <p className="opacity-90">
-                                                                    {lastLiveExport.summary?.autoTradeLive} lệnh LIVE · win {lastLiveExport.summary?.winRatePct}% · PnL {lastLiveExport.summary?.totalPnlVnd?.toLocaleString('vi-VN')} VND
+                                                                    {t('lastExportSummary', {
+                                                                        count: lastLiveExport.summary?.autoTradeLive,
+                                                                        winRate: lastLiveExport.summary?.winRatePct,
+                                                                        pnl: lastLiveExport.summary?.totalPnlVnd?.toLocaleString('vi-VN'),
+                                                                    })}
                                                                 </p>
                                                                 <p className="opacity-75 break-all">{lastLiveExport.outputDir}</p>
                                                                 <ul className="mt-2 space-y-2 opacity-90 list-none pl-0">
@@ -1229,7 +1221,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                         }`}
                                                     >
                                                         <RotateCcw size={13} className={isResetting ? 'animate-spin' : ''} />
-                                                        {isResetting ? 'Đang đặt lại…' : 'Đặt lại mặc định'}
+                                                        {isResetting ? t('resettingDefaults') : t('resetDefaults')}
                                                     </button>
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1273,7 +1265,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                             )}
                                                             {!enabled && (
                                                                 <p className={`text-[11px] mb-2 font-medium ${isDark ? 'text-amber-200/90' : 'text-amber-700'}`}>
-                                                                    Đang khóa vì phụ thuộc công tắc liên quan đang tắt.
+                                                                    {t('lockedDependentToggle')}
                                                                 </p>
                                                             )}
                                                             {field.type === 'boolean' ? (
@@ -1284,7 +1276,7 @@ export default function AutoDuckEnvSettingsPanel({
                                                                         onChange={(next) => setDraftValue(field.key, next, 'boolean')}
                                                                     />
                                                                     <span className={`text-[13px] font-medium ${UI.textBold}`}>
-                                                                        {draft[field.key] ? 'Bật' : 'Tắt'}
+                                                                        {draft[field.key] ? t('toggleOn') : t('toggleOff')}
                                                                     </span>
                                                                 </div>
                                                             ) : (
@@ -1321,7 +1313,7 @@ export default function AutoDuckEnvSettingsPanel({
                                     }`}
                                 >
                                     <ChevronDown size={14} className="-rotate-90" />
-                                    Thu gọn tất cả
+                                    {t('collapseAll')}
                                 </button>
                                 <button
                                     type="button"
@@ -1336,7 +1328,7 @@ export default function AutoDuckEnvSettingsPanel({
                                     }`}
                                 >
                                     <Save size={14} />
-                                    {saving ? 'Đang lưu…' : 'Lưu cấu hình'}
+                                    {saving ? t('savingConfig') : t('saveConfig')}
                                 </button>
                             </div>
                         </div>

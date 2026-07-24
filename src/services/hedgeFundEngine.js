@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { generateWithRole } from './aiService.js';
 import { parseLlmJson } from '../utils/parseLlmJson.js';
 import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../scrapers/vnNewsSearch.js';
+import { aiLanguageInstruction } from '../utils/i18nMessages.js';
 
 //=========================================================
 //OMNI DUCK — DEBATE PIPELINE
@@ -9,6 +10,9 @@ import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../s
 
 export async function runDebatePipeline(ticker, data, emitProgress, onDebateChunk = () => {}, reqContext = { isDisconnected: false }) {
     const companyName = data?.companyProfile?.companyName || ticker;
+    const language = reqContext?.language === 'en' ? 'en' : 'vi';
+    const langInstr = aiLanguageInstruction(language);
+    const withLang = (prompt) => `${String(prompt).replace(/- Chỉ trả lời bằng tiếng Việt\./g, `- ${langInstr}`)}\n\n${langInstr}`;
 
     emitProgress({ step: 'DEBATE_INIT', message: 'Triệu tập Hội đồng Phân tích Độc lập...', progress: 60 });
 
@@ -197,11 +201,11 @@ Giới hạn: 180 từ.
 
     const [techRes, fundRes, newsRes] = await Promise.all([
         //Technical — Fast Groq + Cerebras fallback (128K context is enough for technical data)
-        generateWithRole('tech', [{ text: techPrompt }]),
+        generateWithRole('tech', [{ text: withLang(techPrompt) }]),
         //Basic — Cerebras/SambaNova (long context for financial reports)
-        generateWithRole('fundamental', [{ text: fundPrompt }]),
+        generateWithRole('fundamental', [{ text: withLang(fundPrompt) }]),
         //Sentiment & macro — SambaNova + Groq fallback
-        generateWithRole('news', [{ text: newsPrompt }]),
+        generateWithRole('news', [{ text: withLang(newsPrompt) }]),
     ]);
 
     const techAnalysis = typeof techRes === 'string' ? techRes : techRes.response?.text?.() || techRes;
@@ -280,7 +284,7 @@ Giới hạn: 180 từ.
     `;
     //Bulls — Groq (fast, optimistic, looking for reasons to buy)
     if (reqContext.isDisconnected) throw new Error('Client disconnected before bull opening');
-    const bullRes = await generateWithRole('bull', [{ text: bullPrompt }]);
+    const bullRes = await generateWithRole('bull', [{ text: withLang(bullPrompt) }]);
     const bullCase = typeof bullRes === 'string' ? bullRes : bullRes.response?.text?.() || bullRes;
     onDebateChunk({ type: 'bull', content: bullCase }); //✅
 
@@ -327,7 +331,7 @@ Giới hạn: 180 từ.
     `;
     //Bears — Cerebras (good reasoning, finding weaknesses)
     if (reqContext.isDisconnected) throw new Error('Client disconnected before bear rebuttal');
-    const bearRes = await generateWithRole('bear', [{ text: bearPrompt }]);
+    const bearRes = await generateWithRole('bear', [{ text: withLang(bearPrompt) }]);
     const bearCase = typeof bearRes === 'string' ? bearRes : bearRes.response?.text?.() || bearRes;
     onDebateChunk({ type: 'bear', content: bearCase }); //Call
 
@@ -360,7 +364,7 @@ Giới hạn 180 từ.
 `;
     //Bull counterattack — Groq/Cerebras (needs to be fast and logical)
     if (reqContext.isDisconnected) throw new Error('Client disconnected before bull defense');
-    const bullDefenseRes = await generateWithRole('bull_defense', [{ text: bullDefensePrompt }]);
+    const bullDefenseRes = await generateWithRole('bull_defense', [{ text: withLang(bullDefensePrompt) }]);
     const bullDefense = typeof bullDefenseRes === 'string' ? bullDefenseRes : bullDefenseRes.response?.text?.() || bullDefenseRes;
     onDebateChunk({ type: 'def', content: bullDefense });
 
@@ -440,7 +444,7 @@ Tổng độ dài dưới 700 từ.
 
      //Portfolio Manager — Groq (summary, final decision)
      if (reqContext.isDisconnected) throw new Error('Client disconnected before PM decision');
-     const pmRes = await generateWithRole('pm', [{ text: pmPrompt }]);
+     const pmRes = await generateWithRole('pm', [{ text: withLang(pmPrompt) }]);
     const pmDecision = typeof pmRes === 'string' ? pmRes : pmRes.response?.text?.() || pmRes;
     onDebateChunk({ type: 'pm', content: pmDecision });
 

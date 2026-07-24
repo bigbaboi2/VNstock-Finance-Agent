@@ -17,6 +17,7 @@ import {
     getRateLimitStatus,
     resetProviderBlock,
 } from '../services/aiService.js';
+import { resolveLanguage } from '../utils/i18nMessages.js';
 import { searchVnNewsDirectly, rescoreSentiment, fetchFireAntSocial, fetchRedditMacro, MIN_COUNT_BY_MODE } from '../scrapers/vnNewsSearch.js';
 import { scrapeArticleContent } from '../scrapers/contentScraper.js';
 import { scrapeCafefMarketOverview } from '../scrapers/cafefMarketScraper.js';
@@ -323,7 +324,7 @@ export const getLiveNews = async (req, res) => {
 
 export const analyzeDerivatives = async (req, res) => {
     try {
-        const payload = req.body;
+        const payload = { ...req.body, language: resolveLanguage(req) };
         
          const aiResult = await analyzeDerivativesWithGemini(payload);
 
@@ -450,6 +451,7 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
         emitProgress({ step: 'DEBATE_CACHE', message: 'Sử dụng phán quyết AI từ bản nháp', progress: 85 });
     }
     fullData.debateResult = debateResult;
+    fullData.language = reqContext?.language === 'en' ? 'en' : 'vi';
 
     if (reqContext.isDisconnected) {
         const abortErr = new Error('Client disconnected after debate');
@@ -505,7 +507,16 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
             return res.json({ success: true, ...cachedResult, cached: true });
         }
 
-        const { aiReport, actionPanelData } = await runStockAnalysis(ticker, fullData, user, undefined, inputHash);
+        const { aiReport, actionPanelData } = await runStockAnalysis(
+            ticker,
+            fullData,
+            user,
+            undefined,
+            inputHash,
+            null,
+            () => {},
+            { isDisconnected: false, language: resolveLanguage(req) },
+        );
         return res.json({ success: true, aiReport, actionPanelData, cached: false });
     } catch (error) {
         return res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -518,7 +529,7 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
     const user = fullData.user || 'Unknown';
     const startedAt = Date.now();
     let lastProgress = 1;
-    const reqContext = { isDisconnected: false };
+    const reqContext = { isDisconnected: false, language: resolveLanguage(req) };
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'ngrok-skip-browser-warning, Content-Type');
@@ -827,9 +838,13 @@ export const debugFeed = async (req, res) => {
 export const stockChat = async (req, res) => {
     const ticker = req.params.ticker.toUpperCase();
     const { question, history = [], aiReport, user } = req.body;
+    const language = resolveLanguage(req);
  
     if (!question || !question.trim()) {
-        return res.status(400).json({ success: false, message: 'Câu hỏi không được để trống.' });
+        return res.status(400).json({
+            success: false,
+            message: language === 'en' ? 'Question cannot be empty.' : 'Câu hỏi không được để trống.',
+        });
     }
  
     try {
@@ -842,10 +857,15 @@ export const stockChat = async (req, res) => {
                 reportContent = bestReport?.content || null;
             }
         }
-        const answer = await chatWithStockAI(ticker, question.trim(), history, reportContent);
+        const answer = await chatWithStockAI(ticker, question.trim(), history, reportContent, language);
         return res.json({ success: true, answer });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'AI đang bận, vui lòng thử lại sau vài giây.' });
+        return res.status(500).json({
+            success: false,
+            message: language === 'en'
+                ? 'AI is busy, please try again in a few seconds.'
+                : 'AI đang bận, vui lòng thử lại sau vài giây.',
+        });
     }
 };
 

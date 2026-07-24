@@ -1,7 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TerminalSquare } from 'lucide-react';
 
 export default function DraggableLog({ isDark, logs, onClose }) {
+    const { t } = useTranslation('market');
     const logRef = useRef(null);
     const [position, setPosition] = useState({
         x: window.innerWidth - 420,
@@ -58,7 +60,7 @@ export default function DraggableLog({ isDark, logs, onClose }) {
             >
             <div className="flex items-center gap-2">
             <TerminalSquare size={16} className="text-yellow-500" />
-            SYSTEM LOG
+            {t('systemLog')}
             </div>
             <button
             onClick={onClose}
@@ -71,7 +73,7 @@ export default function DraggableLog({ isDark, logs, onClose }) {
         <div className={`p-4 font-mono text-xs leading-relaxed overflow-y-auto max-h-[58vh] custom-scroll
         ${isDark ? 'text-emerald-300/90' : 'text-slate-700'}`}>
             {logs.length === 0 ? (
-            <p className="text-slate-500 italic">Chưa có hoạt động nào...</p>
+            <p className="text-slate-500 italic">{t('noActivityYet')}</p>
             ) : (
             logs.map((log, i) => (
                 <div

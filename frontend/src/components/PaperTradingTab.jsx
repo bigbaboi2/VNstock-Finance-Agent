@@ -9,6 +9,7 @@ import StockAiChat from './StockAiChat';
 import UltraStack from './UltraStack';
 import { formatCompanyName } from '../lib/formatCompanyName';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 // ─── Tooltip nhỏ gọn (đồng bộ DerivativesTab) ────────────────────────────────
@@ -90,6 +91,7 @@ function SectionLabel({ icon: Icon, label, color = 'text-slate-400', tip, action
 
 // ─── ScrollableColumn (đồng bộ DerivativesTab, accent đổi sang purple) ────────
 function ScrollableColumn({ children, className = '', isDark }) {
+    const { t } = useTranslation('paper');
     const scrollRef = useRef(null);
     const [canScrollUp, setCanScrollUp] = useState(false);
     const [canScrollDown, setCanScrollDown] = useState(false);
@@ -126,7 +128,7 @@ function ScrollableColumn({ children, className = '', isDark }) {
         <div className="relative h-auto lg:h-full flex flex-col min-h-0 w-full">
             {canScrollUp && (
                 <div className="hidden lg:flex absolute top-1 left-0 right-3 justify-center z-20 pointer-events-none">
-                    <button onClick={() => scrollByAmount(-250)} title="Cuộn lên" className={btnBase}>
+                    <button onClick={() => scrollByAmount(-250)} title={t('scrollUp')} className={btnBase}>
                         <ChevronUp size={14} strokeWidth={3} />
                     </button>
                 </div>
@@ -136,7 +138,7 @@ function ScrollableColumn({ children, className = '', isDark }) {
             </div>
             {canScrollDown && (
                 <div className="hidden lg:flex absolute bottom-1 left-0 right-3 justify-center z-20 pointer-events-none">
-                    <button onClick={() => scrollByAmount(250)} title="Cuộn xuống" className={btnBase}>
+                    <button onClick={() => scrollByAmount(250)} title={t('scrollDown')} className={btnBase}>
                         <ChevronDown size={14} strokeWidth={3} />
                     </button>
                 </div>
@@ -164,25 +166,27 @@ function MobileTabBtn({ active, onClick, icon: Icon, label, isDark }) {
 
 // ─── Badge: trạng thái lệnh ───────────────────────────────────────────────────
 function OrderTypeBadge({ type }) {
+    const { t } = useTranslation('paper');
     if (type === 'BUY') return (
         <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-            <TrendingUp size={9} /> MUA
+            <TrendingUp size={9} /> {t('buy')}
         </span>
     );
     return (
         <span className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/20">
-            <TrendingDown size={9} /> BÁN
+            <TrendingDown size={9} /> {t('sell')}
         </span>
     );
 }
 
 // ─── Badge: loại thị trường ───────────────────────────────────────────────────
 function MarketBadge({ market }) {
+    const { t } = useTranslation('paper');
     const map = {
-        VN_STOCKS: { label: 'HOSE/HNX', color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
-        CRYPTO: { label: 'CRYPTO', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
-        VN_DERIVATIVES: { label: 'F1M', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
-        GLOBAL: { label: 'GLOBAL', color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' },
+        VN_STOCKS: { label: t('marketHoseHnx'), color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
+        CRYPTO: { label: t('marketCrypto'), color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
+        VN_DERIVATIVES: { label: t('marketF1m'), color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+        GLOBAL: { label: t('marketGlobal'), color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' },
     };
     const m = map[market] || map.GLOBAL;
     return (
@@ -220,6 +224,7 @@ export default function PaperTradingTab({
     const [livePrices, setLivePrices] = useState({});
     const [ultraOpenId, setUltraOpenId] = useState(null);
     const isUltra = uiStyle === 'ultra';
+    const { t } = useTranslation('paper');
 
     // ─── Live price polling (giữ nguyên logic gốc) ─────────────────────────
     useEffect(() => {
@@ -277,13 +282,13 @@ export default function PaperTradingTab({
         const ultraSections = [
             {
                 id: 'portfolio',
-                title: 'Ví & danh mục',
+                title: t('walletPortfolio'),
                 icon: Wallet,
                 summary: portfolio?.cash != null ? `${Number(portfolio.cash).toLocaleString('vi-VN')} ₫` : 'Đóng',
                 render: () => (
                     <div className="space-y-2">
                         <div className={`rounded-xl border p-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                            <p className={`text-[10px] font-black uppercase ${c.neutral}`}>Sức mua</p>
+                            <p className={`text-[10px] font-black uppercase ${c.neutral}`}>{t('buyingPower')}</p>
                             <p className={`text-xl font-black ${c.accent}`}>
                                 {portfolio?.cash != null ? Number(portfolio.cash).toLocaleString('vi-VN') + ' ₫' : '—'}
                             </p>
@@ -294,13 +299,13 @@ export default function PaperTradingTab({
                                 <p className={`text-[11px] ${c.neutral}`}>{h.quantity} CP</p>
                             </div>
                         ))}
-                        {!portfolio?.holdings?.length && <p className={`text-sm ${c.neutral}`}>Chưa có mã nắm giữ.</p>}
+                        {!portfolio?.holdings?.length && <p className={`text-sm ${c.neutral}`}>{t('noHoldings')}</p>}
                     </div>
                 ),
             },
             {
                 id: 'chart',
-                title: paperSymbol ? `Chart · ${paperSymbol}` : 'Biểu đồ',
+                title: paperSymbol ? `Chart · ${paperSymbol}` : t('chart'),
                 icon: BarChart3,
                 summary: paperSymbol || 'Chưa chọn mã',
                 render: () => (
@@ -313,23 +318,23 @@ export default function PaperTradingTab({
                                 currentInterval={paperInterval}
                             />
                         ) : (
-                            <p className={`text-sm ${c.neutral}`}>Tìm mã để hiện chart.</p>
+                            <p className={`text-sm ${c.neutral}`}>{t('findSymbolForChart')}</p>
                         )}
                     </div>
                 ),
             },
             {
                 id: 'order',
-                title: 'Đặt lệnh',
+                title: t('placeOrder'),
                 icon: Activity,
                 summary: paperMarket?.replace('_', ' ') || 'Đóng',
                 render: () => (
                     <div className="space-y-3">
                         <div className="flex flex-wrap gap-1.5">
                             {[
-                                { id: 'VN_STOCKS', label: 'CK VN' },
-                                { id: 'VN_DERIVATIVES', label: 'Phái sinh' },
-                                { id: 'CRYPTO', label: 'Crypto' },
+                                { id: 'VN_STOCKS', label: t('marketCkVn') },
+                                { id: 'VN_DERIVATIVES', label: t('marketDerivatives') },
+                                { id: 'CRYPTO', label: t('marketCrypto') },
                             ].map((m) => (
                                 <button
                                     key={m.id}
@@ -356,7 +361,7 @@ export default function PaperTradingTab({
                                 className={`flex-1 h-10 rounded-xl px-3 font-black uppercase border outline-none ${
                                     isDark ? 'bg-black/40 border-white/10 text-yellow-400' : 'bg-slate-50 border-slate-300 text-yellow-700'
                                 }`}
-                                placeholder="Mã…"
+                                placeholder={t('symbolPlaceholder')}
                             />
                             <button
                                 type="button"
@@ -367,8 +372,8 @@ export default function PaperTradingTab({
                             </button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => handlePaperTrade('BUY')} className="h-11 rounded-xl bg-emerald-500 text-white font-black uppercase">Mua</button>
-                            <button type="button" onClick={() => handlePaperTrade('SELL')} className="h-11 rounded-xl bg-red-500 text-white font-black uppercase">Bán</button>
+                            <button type="button" onClick={() => handlePaperTrade('BUY')} className="h-11 rounded-xl bg-emerald-500 text-white font-black uppercase">{t('buyBtn')}</button>
+                            <button type="button" onClick={() => handlePaperTrade('SELL')} className="h-11 rounded-xl bg-red-500 text-white font-black uppercase">{t('sellBtn')}</button>
                         </div>
                     </div>
                 ),
@@ -378,8 +383,8 @@ export default function PaperTradingTab({
         return (
             <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
                 <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-400">Siêu tối giản · Paper</p>
-                    <p className={`text-sm font-bold ${c.white}`}>Ngăn xếp — chỉ render khi mở</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-400">{t('ultraMinimalPaper')}</p>
+                    <p className={`text-sm font-bold ${c.white}`}>{t('stackHint')}</p>
                 </div>
                 <UltraStack
                     sections={ultraSections}
@@ -405,9 +410,9 @@ export default function PaperTradingTab({
 
             {/* ── MOBILE TAB BAR ──────────────────────────────────────────── */}
             <div className={`lg:hidden flex w-full shrink-0 border-b ${isDark ? 'bg-[#080C11] border-white/8' : `${UI?.leftCol || 'bg-slate-50 border-slate-200'}`}`}>
-                <MobileTabBtn isDark={isDark} active={mobileTab === 'portfolio'} onClick={() => setMobileTab('portfolio')} icon={Wallet} label="Ví" />
-                <MobileTabBtn isDark={isDark} active={mobileTab === 'trade'} onClick={() => setMobileTab('trade')} icon={BarChart3} label="Giao dịch" />
-                <MobileTabBtn isDark={isDark} active={mobileTab === 'orders'} onClick={() => setMobileTab('orders')} icon={BookOpen} label="Lệnh chờ" />
+                <MobileTabBtn isDark={isDark} active={mobileTab === 'portfolio'} onClick={() => setMobileTab('portfolio')} icon={Wallet} label={t('mobileWallet')} />
+                <MobileTabBtn isDark={isDark} active={mobileTab === 'trade'} onClick={() => setMobileTab('trade')} icon={BarChart3} label={t('mobileTrade')} />
+                <MobileTabBtn isDark={isDark} active={mobileTab === 'orders'} onClick={() => setMobileTab('orders')} icon={BookOpen} label={t('mobilePendingOrders')} />
             </div>
 
             {/* ── 3-COLUMN LAYOUT (đồng bộ cấu trúc DerivativesTab) ─────── */}
@@ -424,11 +429,11 @@ export default function PaperTradingTab({
                                     <Wallet size={15} className="text-purple-500" />
                                 </div>
                                 <div>
-                                    <p className={`text-[13px] font-black ${c.accent}`}>Đầu Tư Giả Lập</p>
+                                    <p className={`text-[13px] font-black ${c.accent}`}>{t('paperInvesting')}</p>
                                     <div className="flex items-center gap-1.5">
                                         <CircleDot size={8} className={marketOpen ? 'text-emerald-400' : 'text-slate-500'} />
                                         <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                                            {marketOpen ? 'Thị trường mở' : 'Ngoài giờ GD'}
+                                            {marketOpen ? t('marketOpen') : t('afterHours')}
                                         </span>
                                     </div>
                                 </div>
@@ -447,9 +452,9 @@ export default function PaperTradingTab({
                                             Cơ chế Shadow Matching
                                         </h4>
                                         <div className="space-y-2">
-                                            <p className="flex gap-2"><span className="text-emerald-400 shrink-0">■</span><span><strong className="text-emerald-400">Trong giờ GD:</strong> Lệnh MP khớp ngay theo giá TT. Lệnh LO treo chờ, tự động khớp khi giá chạm mục tiêu.</span></p>
-                                            <p className="flex gap-2"><span className="text-yellow-400 shrink-0">■</span><span><strong className="text-yellow-400">Ngoài giờ GD:</strong> Lệnh nằm an toàn trong Sổ Lệnh Chờ đến khi thị trường mở lại.</span></p>
-                                            <p className="flex gap-2"><span className="text-blue-400 shrink-0">■</span><span><strong className="text-blue-400">Quản trị vốn:</strong> Lệnh MUA chờ phong tỏa sức mua. Hủy lệnh hoàn trả tiền ngay lập tức.</span></p>
+                                            <p className="flex gap-2"><span className="text-emerald-400 shrink-0">■</span><span><strong className="text-emerald-400">{t('helpInSession')}</strong> Lệnh MP khớp ngay theo giá TT. Lệnh LO treo chờ, tự động khớp khi giá chạm mục tiêu.</span></p>
+                                            <p className="flex gap-2"><span className="text-yellow-400 shrink-0">■</span><span><strong className="text-yellow-400">{t('helpAfterHours')}</strong> Lệnh nằm an toàn trong Sổ Lệnh Chờ đến khi thị trường mở lại.</span></p>
+                                            <p className="flex gap-2"><span className="text-blue-400 shrink-0">■</span><span><strong className="text-blue-400">{t('helpCapitalMgmt')}</strong> Lệnh MUA chờ phong tỏa sức mua. Hủy lệnh hoàn trả tiền ngay lập tức.</span></p>
                                         </div>
                                     </div>
                                 )}
@@ -469,7 +474,7 @@ export default function PaperTradingTab({
                         <p className={`text-2xl font-black tabular-nums mb-3 ${c.white}`}>
                             {portfolio?.balance != null
                                 ? portfolio.balance.toLocaleString('vi-VN')
-                                : <span className="text-slate-500 text-base">Đang đồng bộ...</span>
+                                : <span className="text-slate-500 text-base">{t('syncing')}</span>
                             }
                             {portfolio?.balance != null && (
                                 <span className={`text-[11px] font-bold ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>₫</span>
@@ -493,7 +498,7 @@ export default function PaperTradingTab({
                         <div className={`px-5 pb-2.5 shrink-0 flex items-center justify-between`}>
                             <SectionLabel
                                 icon={Activity}
-                                label="Danh mục đầu tư"
+                                label={t('portfolioTitle')}
                                 color="text-purple-500"
                                 tip="Tất cả tài sản đang nắm giữ. Nhấn vào mã để xem chi tiết lịch sử khớp lệnh và tải chart."
                             />
@@ -563,9 +568,9 @@ export default function PaperTradingTab({
                                         <div className={`h-px mb-2 ${isDark ? 'bg-white/6' : 'bg-slate-200'}`} />
                                         <div className="grid grid-cols-3 gap-1">
                                             {[
-                                                { label: 'Giá vốn', value: h.avgPrice.toLocaleString('vi-VN') },
-                                                { label: 'Giá TT', value: currentPrice.toLocaleString('vi-VN'), highlight: isActive },
-                                                { label: 'KL (CP)', value: h.volume.toLocaleString('vi-VN') },
+                                                { label: t('costPrice'), value: h.avgPrice.toLocaleString('vi-VN') },
+                                                { label: t('marketPrice'), value: currentPrice.toLocaleString('vi-VN'), highlight: isActive },
+                                                { label: t('qtyShares'), value: h.volume.toLocaleString('vi-VN') },
                                             ].map(s => (
                                                 <div key={s.label}>
                                                     <p className="text-[8px] font-bold text-slate-500 uppercase">{s.label}</p>
@@ -579,7 +584,7 @@ export default function PaperTradingTab({
                                         {/* Expand button */}
                                         <div className={`mt-2 flex items-center justify-end gap-1 text-[9px] font-bold uppercase tracking-wide ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
                                             {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                            {isExpanded ? 'Ẩn lịch sử' : 'Xem lịch sử'}
+                                            {isExpanded ? t('hideHistory') : t('viewHistory')}
                                         </div>
 
                                         {/* Expanded: history log */}
@@ -590,7 +595,7 @@ export default function PaperTradingTab({
                                                 </p>
                                                 <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1.5 pr-0.5">
                                                     {(portfolio?.history?.filter(item => item.symbol === h.symbol) || []).length === 0 ? (
-                                                        <p className="text-[10px] italic text-slate-500 text-center py-3">Chưa ghi nhận khớp lệnh.</p>
+                                                        <p className="text-[10px] italic text-slate-500 text-center py-3">{t('noFillsYet')}</p>
                                                     ) : (
                                                         portfolio.history
                                                             .filter(item => item.symbol === h.symbol)
@@ -609,7 +614,7 @@ export default function PaperTradingTab({
                                                                         <p className={`font-mono font-black text-[11px] tabular-nums ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                                                                             {histItem.volume.toLocaleString('vi-VN')} CP
                                                                         </p>
-                                                                        <span className="text-[8px] font-black text-emerald-400 uppercase">Đã khớp</span>
+                                                                        <span className="text-[8px] font-black text-emerald-400 uppercase">{t('filled')}</span>
                                                                     </div>
                                                                 </div>
                                                             ))
@@ -626,7 +631,7 @@ export default function PaperTradingTab({
                                 <div className={`mt-2 pt-4 border-t ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
                                     <SectionLabel
                                         icon={Clock}
-                                        label="Sổ lệnh chờ"
+                                        label={t('pendingOrderBook')}
                                         color="text-yellow-500"
                                         tip="Lệnh giới hạn (LO) đang chờ giá thị trường chạm ngưỡng. Hủy lệnh để hoàn trả sức mua."
                                     />
@@ -652,7 +657,7 @@ export default function PaperTradingTab({
                                                 </div>
                                                 <div className="flex items-center gap-2.5">
                                                     <div className="text-right">
-                                                        <p className={`text-[8px] font-bold uppercase text-slate-500`}>Giá chờ</p>
+                                                        <p className={`text-[8px] font-bold uppercase text-slate-500`}>{t('pendingPrice')}</p>
                                                         <p className={`font-mono font-black text-[12px] tabular-nums ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                                                             {order.targetPrice.toLocaleString('vi-VN')}
                                                         </p>
@@ -660,7 +665,7 @@ export default function PaperTradingTab({
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCancelOrder(order._id); }}
                                                         className={`h-7 w-7 flex items-center justify-center rounded-lg border transition-all active:scale-95 ${isDark ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-red-50 border-red-200 text-red-500 hover:bg-red-500 hover:text-white'}`}
-                                                        title="Hủy lệnh chờ"
+                                                        title={t('cancelPendingOrder')}
                                                     >
                                                         <X size={12} strokeWidth={2.5} />
                                                     </button>
@@ -680,10 +685,10 @@ export default function PaperTradingTab({
                     {/* ─── MARKET SELECTOR (header strip) ──────────────── */}
                     <div className={`shrink-0 px-4 py-2.5 flex items-center gap-2 border-b overflow-x-auto custom-scrollbar ${isDark ? 'bg-[#080C11] border-white/6' : `${UI?.header || 'bg-slate-50 border-slate-200'}`}`}>
                         {[
-                            { id: 'VN_STOCKS', label: 'Chứng khoán VN' },
-                            { id: 'VN_DERIVATIVES', label: 'Phái sinh' },
-                            { id: 'CRYPTO', label: 'Crypto' },
-                            { id: 'GLOBAL', label: 'Quốc tế' },
+                            { id: 'VN_STOCKS', label: t('marketVnStocks') },
+                            { id: 'VN_DERIVATIVES', label: t('marketDerivatives') },
+                            { id: 'CRYPTO', label: t('marketCrypto') },
+                            { id: 'GLOBAL', label: t('marketInternational') },
                         ].map((market) => (
                             <button
                                 key={market.id}
@@ -730,7 +735,7 @@ export default function PaperTradingTab({
 
                             <SectionLabel
                                 icon={BarChart3}
-                                label={`Đặt lệnh · ${paperMarket.replace('_', ' ')}`}
+                                label={`${t('placeOrder')} · ${paperMarket.replace('_', ' ')}`}
                                 color="text-purple-500"
                             />
 
@@ -753,7 +758,7 @@ export default function PaperTradingTab({
                                                     ? 'bg-black/50 border-white/10 text-yellow-400 focus:border-purple-500/60 placeholder:text-slate-600'
                                                     : 'bg-slate-50 border-slate-300 text-yellow-600 focus:border-purple-400 placeholder:text-slate-400'
                                             }`}
-                                            placeholder="VD: MBB..."
+                                            placeholder={t('symbolExample')}
                                         />
                                         <button
                                             onClick={() => executePaperSearch(paperSearchInput)}
@@ -795,10 +800,10 @@ export default function PaperTradingTab({
                                         <Tip
                                             key={type}
                                             text={
-                                                type === 'MP' ? 'Lệnh thị trường — khớp ngay theo giá hiện tại.' :
-                                                type === 'LO' ? 'Lệnh giới hạn — chờ khớp khi giá chạm ngưỡng đặt.' :
-                                                type === 'ATO' ? 'Khớp lệnh khi mở cửa (ATO).' :
-                                                'Khớp lệnh khi đóng cửa (ATC).'
+                                                type === 'MP' ? t('orderMpTip') :
+                                                type === 'LO' ? t('orderLoTip') :
+                                                type === 'ATO' ? t('orderAtoTip') :
+                                                t('orderAtcTip')
                                             }
                                         >
                                             <button
@@ -828,7 +833,7 @@ export default function PaperTradingTab({
                                         type="number"
                                         disabled={paperOrderType !== 'LO'}
                                         value={paperOrderType === 'LO' ? paperLimitPrice : ''}
-                                        placeholder={paperOrderType !== 'LO' ? 'Theo TT' : 'VD: 24500'}
+                                        placeholder={paperOrderType !== 'LO' ? t('priceByMarket') : t('priceExample')}
                                         onChange={(e) => setPaperLimitPrice(e.target.value)}
                                         className={`w-full h-10 rounded-xl px-3 font-black text-sm border outline-none transition-colors ${
                                             isDark
@@ -858,13 +863,13 @@ export default function PaperTradingTab({
                             {paperChartData && (
                                 <Card isDark={isDark} className="gap-0">
                                     <StatRow
-                                        label="Giá market hiện tại"
+                                        label={t('currentMarketPrice')}
                                         value={currentMarketPrice ? currentMarketPrice.toLocaleString('vi-VN') + ' ₫' : '---'}
                                         valueClass={c.white}
                                         tip="Giá đóng cửa nến gần nhất từ chart đang hiển thị."
                                     />
                                     <StatRow
-                                        label="Dự tính thanh toán"
+                                        label={t('estimatedPayment')}
                                         value={estimatedTotal ? estimatedTotal.toLocaleString('vi-VN') + ' ₫' : '---'}
                                         valueClass="text-purple-400"
                                         tip="Ước tính = Giá đặt × Khối lượng. Chưa tính phí."
@@ -894,14 +899,14 @@ export default function PaperTradingTab({
                                     className="h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                                 >
                                     <TrendingUp size={16} />
-                                    Mua
+                                    {t('buyBtn')}
                                 </button>
                                 <button
                                     onClick={() => handlePaperTrade('SELL')}
                                     className="h-12 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-red-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                                 >
                                     <TrendingDown size={16} />
-                                    Bán
+                                    {t('sellBtn')}
                                 </button>
                             </div>
 

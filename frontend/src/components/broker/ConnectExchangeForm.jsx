@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, Loader2, ShieldAlert, ShieldCheck, X, ExternalLink, Info } from 'lucide-react';
 import ExchangeGuideModal from './ExchangeGuideModal';
 
@@ -28,6 +29,7 @@ const EXCHANGES = [
 ];
 
 export default function ConnectExchangeForm({ username, isDark, UI, onClose, onCreated }) {
+    const { t } = useTranslation('broker');
     const [form, setForm] = useState({
         exchangeName: 'BINANCE',
         label: '',
@@ -82,7 +84,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
     return (
         <div className={`rounded-2xl border p-5 ${UI.card} animate-in fade-in slide-in-from-top-2 duration-200`}>
             <div className="flex items-center justify-between mb-4">
-                <h3 className={`font-black text-sm uppercase tracking-wider ${UI.textBold}`}>🔑 Thêm kết nối sàn mới</h3>
+                <h3 className={`font-black text-sm uppercase tracking-wider ${UI.textBold}`}>🔑 {t('addConnection')}</h3>
                 <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}>
                     <X size={16} className={UI.textMuted} />
                 </button>
@@ -111,19 +113,19 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {/* HƯỚNG DẪN LẤY KEY */}
                 <button type="button" onClick={() => setShowGuide(true)}
                     className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:underline w-fit">
-                    <Info size={14} /> Hướng dẫn: Xem cách tạo API key trên {exchange.name} tại đây
+                    <Info size={14} /> {t('apiKeyGuide')} {exchange.name} tại đây
                 </button>
 
                 {/* KHUYẾN NGHỊ QUYỀN */}
                 <div className={`rounded-xl p-3 text-xs font-semibold border ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <p className="text-emerald-500 mb-1 font-black">Quyền khuyến nghị khi tạo key trên sàn:</p>
-                    <p className={UI.textMuted}>✅ Bật: Đọc thông tin tài khoản &nbsp;|&nbsp; ✅ Bật: Giao dịch Spot</p>
-                    <p className="text-red-400 font-black mt-1">❌ TUYỆT ĐỐI KHÔNG cấp quyền Rút tiền (Withdraw)!</p>
+                    <p className="text-emerald-500 mb-1 font-black">{t('recommendedPerms')}</p>
+                    <p className={UI.textMuted}>✅ {t('enableRead')} &nbsp;|&nbsp; ✅ {t('enableSpot')}</p>
+                    <p className="text-red-400 font-black mt-1">❌ {t('neverWithdraw')}</p>
                 </div>
 
                 {/* NHÃN */}
                 <div>
-                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Nhãn hiển thị</label>
+                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>{t('displayLabel')}</label>
                     <input className={inputCls} placeholder={`Vd: ${exchange.name} main account`}
                         value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} />
                 </div>
@@ -131,7 +133,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {/* API KEY / USERNAME */}
                 <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
-                        API Key
+                        {t('apiKey')}
                     </label>
                     <div className="relative">
                         <input className={inputCls} type={showKey ? 'text' : 'password'} autoComplete="off"
@@ -146,7 +148,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {/* SECRET / PASSWORD */}
                 <div>
                     <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
-                        Secret Key
+                        {t('secretKey')}
                     </label>
                     <div className="relative">
                         <input className={inputCls} type={showSecret ? 'text' : 'password'} autoComplete="off"
@@ -162,7 +164,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 {exchange.needsPassphrase && (
                     <div>
                         <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
-                            {exchange.isVNStock ? 'Mã PIN (Dùng để xác thực Trading Token)' : 'Passphrase (OKX bắt buộc)'}
+                            {exchange.isVNStock ? t('pinCode') : t('passphrase')}
                         </label>
                         <input className={inputCls} type="password" autoComplete="off"
                             value={form.passphrase} onChange={e => setForm({ ...form, passphrase: e.target.value })} />
@@ -171,7 +173,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
 
                 {/* MÔI TRƯỜNG */}
                 <div>
-                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>Môi trường</label>
+                    <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>{t('environment')}</label>
                     <div className="grid grid-cols-2 gap-2 mt-1">
                         <button type="button" onClick={() => setForm({ ...form, environment: 'TESTNET' })}
                             className={`py-2.5 rounded-xl font-black text-sm border-2 transition-all flex items-center justify-center gap-2 ${
@@ -179,7 +181,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                                     ? 'bg-emerald-500 border-emerald-500 text-white'
                                     : (isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-600')
                             }`}>
-                            <ShieldCheck size={15} /> Testnet (an toàn)
+                            <ShieldCheck size={15} /> {t('testnetSafe')}
                         </button>
                         <button type="button" onClick={() => setForm({ ...form, environment: 'LIVE' })}
                             className={`py-2.5 rounded-xl font-black text-sm border-2 transition-all flex items-center justify-center gap-2 ${
@@ -187,12 +189,12 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                                     ? 'bg-red-500 border-red-500 text-white'
                                     : (isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-600')
                             }`}>
-                            <ShieldAlert size={15} /> Live ⚠️
+                            <ShieldAlert size={15} /> {t('liveWarn')}
                         </button>
                     </div>
                     {form.environment === 'LIVE' && (
                         <p className="text-xs font-black text-red-400 mt-2 animate-pulse">
-                            ⚠️ CẢNH BÁO: Môi trường LIVE — lệnh sẽ được gửi THỰC TẾ ra sàn bằng tiền thật!
+                            ⚠️ {t('liveWarningText')}
                         </p>
                     )}
                 </div>
@@ -217,7 +219,7 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
 
                 <button type="submit" disabled={loading}
                     className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                    {loading ? <><Loader2 size={16} className="animate-spin" /> Đang kiểm tra kết nối với sàn...</> : 'Lưu & Kiểm tra kết nối'}
+                    {loading ? <><Loader2 size={16} className="animate-spin" /> {t('savingConnection')}</> : t('saveAndTest')}
                 </button>
             </form>
             {showGuide && (

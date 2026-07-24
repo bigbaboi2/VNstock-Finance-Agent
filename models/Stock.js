@@ -29,6 +29,8 @@ const ReportSchema = new mongoose.Schema({
 const StockSchema = new mongoose.Schema({
     symbol: { type: String, required: true, unique: true },
     companyName: { type: String, default: "N/A" },
+    /** Official English legal/trade name from Vietcap listing (enOrganName). */
+    companyNameEn: { type: String, default: '' },
     exchange: { type: String, default: "VNX" },
     sector: { type: String, default: "KH%C3%81C" },
     cafeF: { type: mongoose.Schema.Types.Mixed, default: null },

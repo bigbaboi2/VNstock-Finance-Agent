@@ -1,73 +1,54 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Activity, Globe, Zap, X, User, Bot, Plug,
   Settings, ArrowLeft, Sun, Moon, BookOpen, Sparkles, Minus, Type, Layers, Landmark,
 } from 'lucide-react';
 import { APP_MODES, buildAppPath } from '../routes/appRoutes';
 
-const MODE_ITEMS = [
+const MODE_DEFS = [
   {
     mode: APP_MODES.VN_STOCKS,
-    label: '1. Chứng khoán VN',
+    labelKey: 'menu.modeVnStocks',
     pathHint: '/vn-stocks',
     icon: Activity,
     activeClass: 'bg-yellow-400 text-black',
   },
   {
     mode: APP_MODES.VN_DERIVATIVES,
-    label: '2. Phái sinh VN',
+    labelKey: 'menu.modeVnDerivatives',
     pathHint: '/vn-derivatives',
     icon: Zap,
     activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20',
   },
   {
     mode: APP_MODES.CRYPTO,
-    label: '3. Tài sản số (Crypto)',
+    labelKey: 'menu.modeCrypto',
     pathHint: '/crypto',
     icon: Globe,
     activeClass: 'bg-blue-500 text-white',
   },
   {
     mode: APP_MODES.INTERNATIONAL,
-    label: '4. Quốc tế',
+    labelKey: 'menu.modeInternational',
     pathHint: '/international',
     icon: Landmark,
     activeClass: 'bg-teal-500 text-white shadow-lg shadow-teal-500/20',
   },
 ];
 
-const STYLE_OPTIONS = [
-  {
-    id: 'classic',
-    label: 'Hiện tại',
-    desc: 'Giao diện đầy đủ hiệu ứng',
-    icon: Sparkles,
-  },
-  {
-    id: 'minimal',
-    label: 'Tối giản',
-    desc: 'Giảm hiệu ứng, ưu tiên FPS',
-    icon: Minus,
-  },
-  {
-    id: 'ultra',
-    label: 'Siêu tối giản',
-    desc: 'Ngăn xếp — chỉ render khi mở',
-    icon: Layers,
-  },
-  {
-    id: 'book',
-    label: 'Chế độ sách',
-    desc: 'Font & màu kiểu trang sách',
-    icon: BookOpen,
-  },
+const STYLE_DEFS = [
+  { id: 'classic', labelKey: 'settings.styleClassic', descKey: 'settings.styleClassicDesc', icon: Sparkles },
+  { id: 'minimal', labelKey: 'settings.styleMinimal', descKey: 'settings.styleMinimalDesc', icon: Minus },
+  { id: 'ultra', labelKey: 'settings.styleUltra', descKey: 'settings.styleUltraDesc', icon: Layers },
+  { id: 'book', labelKey: 'settings.styleBook', descKey: 'settings.styleBookDesc', icon: BookOpen },
 ];
 
-const FONT_SCALE_OPTIONS = [
-  { id: 'sm', label: 'A', hint: 'Nhỏ', sampleClass: 'text-[11px]' },
-  { id: 'md', label: 'A', hint: 'Vừa', sampleClass: 'text-sm' },
-  { id: 'lg', label: 'A', hint: 'Lớn', sampleClass: 'text-base' },
-  { id: 'xl', label: 'A', hint: 'Rất lớn', sampleClass: 'text-lg' },
+const FONT_SCALE_DEFS = [
+  { id: 'sm', label: 'A', hintKey: 'settings.fontSm', sampleClass: 'text-[11px]' },
+  { id: 'md', label: 'A', hintKey: 'settings.fontMd', sampleClass: 'text-sm' },
+  { id: 'lg', label: 'A', hintKey: 'settings.fontLg', sampleClass: 'text-base' },
+  { id: 'xl', label: 'A', hintKey: 'settings.fontXl', sampleClass: 'text-lg' },
 ];
 
 export default function UserMenu({
@@ -76,11 +57,14 @@ export default function UserMenu({
   is3DClock = true,
   uiStyle = 'classic',
   fontScale = 'md',
+  language = 'vi',
   handleToggleTheme,
   handleToggleClockMode,
   handleSetUiStyle,
   handleSetFontScale,
+  handleSetLanguage,
 }) {
+  const { t } = useTranslation('common');
   const [menuView, setMenuView] = useState('main');
   const go = (mode, extras) => {
     setActiveMode(mode, extras);
@@ -112,15 +96,15 @@ export default function UserMenu({
                 <User size={20} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className={`text-[10px] uppercase tracking-widest font-bold ${UI.textMuted}`}>Hệ thống Omni Duck</p>
+                <p className={`text-[10px] uppercase tracking-widest font-bold ${UI.textMuted}`}>{t('brand.systemName')}</p>
                 <p className={`font-bold text-sm truncate ${UI.textBold}`}>{currentUser}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setMenuView('settings')}
                 className={`${touchBtn} w-11 shrink-0 flex items-center justify-center rounded-xl border transition-colors ${UI.btnLog}`}
-                title="Cài đặt phong cách"
-                aria-label="Cài đặt phong cách"
+                title={t('menu.settingsTitle')}
+                aria-label={t('menu.settingsAria')}
               >
                 <Settings size={18} />
               </button>
@@ -128,7 +112,7 @@ export default function UserMenu({
           </div>
 
           <div className="p-2 flex flex-col gap-1 max-h-[min(60dvh,28rem)] overflow-y-auto">
-            {MODE_ITEMS.map(({ mode, label, pathHint, icon: Icon, activeClass }) => (
+            {MODE_DEFS.map(({ mode, labelKey, pathHint, icon: Icon, activeClass }) => (
               <button
                 key={mode}
                 type="button"
@@ -136,7 +120,7 @@ export default function UserMenu({
                 onClick={() => go(mode)}
                 className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all ${activeMode === mode ? activeClass : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}
               >
-                <Icon size={16} /> {label}
+                <Icon size={16} /> {t(labelKey)}
               </button>
             ))}
 
@@ -150,7 +134,7 @@ export default function UserMenu({
                   : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
               }`}
             >
-              <Activity size={16} /> 5. Giao dịch giả lập
+              <Activity size={16} /> {t('menu.modePaperTrading')}
             </button>
 
             <button
@@ -163,7 +147,7 @@ export default function UserMenu({
                   : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
               }`}
             >
-              <Bot size={16} /> 6. Tự động vào lệnh AI
+              <Bot size={16} /> {t('menu.modeAutoTrade')}
             </button>
 
             <button
@@ -176,7 +160,7 @@ export default function UserMenu({
                   : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
               }`}
             >
-              <Plug size={16} /> 7. Kết nối sàn / Broker
+              <Plug size={16} /> {t('menu.modeBroker')}
             </button>
           </div>
 
@@ -186,7 +170,7 @@ export default function UserMenu({
               onClick={handleLogout}
               className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 font-semibold text-sm transition-colors text-left`}
             >
-              <X size={16} /> Đăng xuất hệ thống
+              <X size={16} /> {t('menu.logout')}
             </button>
           </div>
         </div>
@@ -197,20 +181,48 @@ export default function UserMenu({
               type="button"
               onClick={() => setMenuView('main')}
               className={`${touchBtn} w-11 shrink-0 flex items-center justify-center rounded-xl border ${UI.btnLog}`}
-              title="Trở lại"
-              aria-label="Trở lại menu"
+              title={t('settings.backTitle')}
+              aria-label={t('settings.backAria')}
             >
               <ArrowLeft size={18} />
             </button>
             <div className="min-w-0">
-              <p className={`text-[10px] uppercase tracking-widest font-black ${UI.textMuted}`}>Cài đặt</p>
-              <p className={`font-black text-sm truncate ${UI.textBold}`}>Cài đặt phong cách</p>
+              <p className={`text-[10px] uppercase tracking-widest font-black ${UI.textMuted}`}>{t('settings.sectionEyebrow')}</p>
+              <p className={`font-black text-sm truncate ${UI.textBold}`}>{t('settings.sectionTitle')}</p>
             </div>
           </div>
 
           <div className="p-3 flex flex-col gap-4 max-h-[min(70dvh,32rem)] overflow-y-auto">
             <div>
-              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>Giao diện sáng / tối</p>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>{t('settings.languageSection')}</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { id: 'vi', label: t('settings.languageVi') },
+                  { id: 'en', label: t('settings.languageEn') },
+                ].map(({ id, label }) => {
+                  const active = language === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => handleSetLanguage?.(id)}
+                      className={`${touchBtn} flex items-center justify-center px-3 py-2.5 rounded-xl border font-bold text-sm transition-colors ${
+                        active
+                          ? (uiStyle === 'book'
+                            ? (isDark ? 'bg-[#3d3428] border-[#c4a574] text-[#f2ebe0]' : 'bg-[#efe8dc] border-[#8a6b3d] text-[#1f1912]')
+                            : 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300')
+                          : UI.btnLog
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>{t('settings.themeSection')}</p>
               <button
                 type="button"
                 onClick={handleToggleTheme}
@@ -218,14 +230,16 @@ export default function UserMenu({
               >
                 <span className="flex items-center gap-2">
                   {isDark ? <Sun size={16} className="text-yellow-400" /> : <Moon size={16} />}
-                  {isDark ? 'Chế độ tối' : 'Chế độ sáng'}
+                  {isDark ? t('settings.themeDark') : t('settings.themeLight')}
                 </span>
-                <span className={`text-[10px] uppercase ${UI.textMuted}`}>{isDark ? 'Dark' : 'Light'}</span>
+                <span className={`text-[10px] uppercase ${UI.textMuted}`}>
+                  {isDark ? t('settings.themeDarkBadge') : t('settings.themeLightBadge')}
+                </span>
               </button>
             </div>
 
             <div>
-              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>Đồng hồ</p>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>{t('settings.clockSection')}</p>
               <button
                 type="button"
                 onClick={(e) => {
@@ -235,7 +249,7 @@ export default function UserMenu({
                 }}
                 className={`${touchBtn} w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border font-bold text-sm ${UI.btnLog}`}
               >
-                <span>Clock {is3DClock ? '3D' : '2D'}</span>
+                <span>{is3DClock ? t('settings.clockLabel3d') : t('settings.clockLabel2d')}</span>
                 <span
                   className={`relative flex items-center w-11 h-6 rounded-full p-[2px] border pointer-events-none ${
                     isDark ? 'border-white/10' : 'border-slate-300'
@@ -254,11 +268,12 @@ export default function UserMenu({
 
             <div>
               <p className={`text-[10px] uppercase tracking-widest font-black mb-2 flex items-center gap-1.5 ${UI.textMuted}`}>
-                <Type size={12} /> Cỡ chữ
+                <Type size={12} /> {t('settings.fontSection')}
               </p>
               <div className="grid grid-cols-4 gap-1.5">
-                {FONT_SCALE_OPTIONS.map(({ id, label, hint, sampleClass }) => {
+                {FONT_SCALE_DEFS.map(({ id, label, hintKey, sampleClass }) => {
                   const active = fontScale === id;
+                  const hint = t(hintKey);
                   return (
                     <button
                       key={id}
@@ -279,13 +294,13 @@ export default function UserMenu({
                   );
                 })}
               </div>
-              <p className={`mt-2 text-[11px] ${UI.textMuted}`}>Áp dụng toàn app · lưu theo tài khoản</p>
+              <p className={`mt-2 text-[11px] ${UI.textMuted}`}>{t('settings.fontHint')}</p>
             </div>
 
             <div>
-              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>Phong cách frontend</p>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>{t('settings.styleSection')}</p>
               <div className="flex flex-col gap-1.5">
-                {STYLE_OPTIONS.map(({ id, label, desc, icon: Icon }) => {
+                {STYLE_DEFS.map(({ id, labelKey, descKey, icon: Icon }) => {
                   const active = uiStyle === id;
                   return (
                     <button
@@ -302,8 +317,8 @@ export default function UserMenu({
                     >
                       <Icon size={16} className="mt-0.5 shrink-0" />
                       <span className="min-w-0">
-                        <span className={`block font-black text-sm ${active ? '' : UI.textBold}`}>{label}</span>
-                        <span className={`block text-[11px] mt-0.5 ${active ? 'opacity-80' : UI.textMuted}`}>{desc}</span>
+                        <span className={`block font-black text-sm ${active ? '' : UI.textBold}`}>{t(labelKey)}</span>
+                        <span className={`block text-[11px] mt-0.5 ${active ? 'opacity-80' : UI.textMuted}`}>{t(descKey)}</span>
                       </span>
                     </button>
                   );

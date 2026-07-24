@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { localizeIntervalLabel } from '../i18n/vnMarketLabels';
 import { init, dispose, registerIndicator, registerOverlay } from 'klinecharts';
 import {
   Pencil, MoveHorizontal, Baseline, Trash2,
@@ -509,46 +511,46 @@ if (!_drawOverlaysRegistered) {
 }
 
 const MAIN_INDICATORS = [
-  { key:'MA',          label:'MA — Đường trung bình' },
-  { key:'EMA',         label:'EMA — Trung bình mũ' },
-  { key:'BOLL_CUSTOM', label:'BOLL — Bollinger Bands' },
-  { key:'CUSTOM_SAR',  label:'SAR — Parabolic SAR' },
+  { key:'MA',          labelKey:'ma' },
+  { key:'EMA',         labelKey:'ema' },
+  { key:'BOLL_CUSTOM', labelKey:'boll' },
+  { key:'CUSTOM_SAR',  labelKey:'sar' },
 ];
 const SUB_INDICATORS = [
-  { key:'VOL',  label:'Volume'       },
-  { key:'MACD', label:'MACD'         },
-  { key:'RSI',  label:'RSI'          },
-  { key:'KDJ',  label:'KDJ/Stoch'   },
-  { key:'CCI',  label:'CCI'          },
-  { key:'ATR',  label:'ATR'          },
-  { key:'OBV',  label:'OBV'          },
-  { key:'WR',   label:'Williams %R'  },
+  { key:'VOL',  labelKey:'volume' },
+  { key:'MACD', labelKey:'macd' },
+  { key:'RSI',  labelKey:'rsi' },
+  { key:'KDJ',  labelKey:'kdj' },
+  { key:'CCI',  labelKey:'cci' },
+  { key:'ATR',  labelKey:'atr' },
+  { key:'OBV',  labelKey:'obv' },
+  { key:'WR',   labelKey:'williamsR' },
 ];
 
 const DRAW_TOOLS = [
-  { name:'select',                 Icon:MousePointer,   title:'Chọn / Di chuyển' },
-  { name:'segment',                Icon:Pencil,         title:'Trendline (đoạn thẳng)' },
-  { name:'straightLine',           Icon:MoveHorizontal, title:'Đường thẳng vô hạn' },
-  { name:'horizontalStraightLine', Icon:Minus,          title:'Đường ngang' },
-  { name:'fibonacciLine',          Icon:Baseline,       title:'Fibonacci Retracement' },
-  { name:'parallelStraightLine',   Icon:TrendingUp,     title:'Kênh song song' },
+  { name:'select',                 Icon:MousePointer,   titleKey:'toolSelect' },
+  { name:'segment',                Icon:Pencil,         titleKey:'toolTrendline' },
+  { name:'straightLine',           Icon:MoveHorizontal, titleKey:'toolInfiniteLine' },
+  { name:'horizontalStraightLine', Icon:Minus,          titleKey:'toolHorizontal' },
+  { name:'fibonacciLine',          Icon:Baseline,       titleKey:'toolFibonacci' },
+  { name:'parallelStraightLine',   Icon:TrendingUp,     titleKey:'toolParallelChannel' },
 ];
 
  const STROKE_STYLES = [
-  { val:'solid',  label:'Liền' },
-  { val:'dashed', label:'Đứt khúc' },
-  { val:'dotted', label:'Chấm' },
+  { val:'solid',  labelKey:'strokeSolid' },
+  { val:'dashed', labelKey:'strokeDashed' },
+  { val:'dotted', labelKey:'strokeDotted' },
 ];
 
 const INTERVALS_MINUTE = ['1 phút','3 phút','5 phút','15 phút','30 phút'];
 const INTERVALS_DAY    = ['1 giờ','2 giờ','4 giờ','1 ngày','1 tuần','1 tháng','1 năm'];
 const CHART_TYPES = [
-  {id:'candle_solid',     label:'Nến Đặc (Solid)'},
-  {id:'candle_up_stroke', label:'Nến Rỗng (Hollow)'},
-  {id:'candle_stroke',    label:'Nến Viền (Stroke)'},
-  {id:'ohlc',             label:'Hình Thanh (Bar)'},
-  {id:'area',             label:'Biểu đồ Vùng'},
-  {id:'heikin_ashi',      label:'Heikin Ashi'},
+  {id:'candle_solid',     labelKey:'candleSolid'},
+  {id:'candle_up_stroke', labelKey:'candleHollow'},
+  {id:'candle_stroke',    labelKey:'candleStroke'},
+  {id:'ohlc',             labelKey:'barChart'},
+  {id:'area',             labelKey:'areaChart'},
+  {id:'heikin_ashi',      labelKey:'heikinAshi'},
 ];
 const OVERLAY_COLORS_VIOLET = ['#8B5CF6','#A855F7','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
 const OVERLAY_COLORS_YELLOW = ['#EAB308','#FACC15','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
@@ -626,6 +628,8 @@ export default React.memo(function TradingChart({
   /** Ultra mode: cho phép cuộn trang khi hover chart (tắt zoom bánh xe) */
   allowPageScroll = false,
 }) {
+  const { t, i18n } = useTranslation('chart');
+  const lang = i18n.language === 'en' ? 'en' : 'vi';
   const A = ACCENT[accent] || ACCENT.violet;
   const chartContainerRef   = useRef(null);
   const chartInstance       = useRef(null);
@@ -847,10 +851,13 @@ export default React.memo(function TradingChart({
         const yyyy= d.getFullYear();
         const hh  = String(d.getHours()).padStart(2,'0');
         const min = String(d.getMinutes()).padStart(2,'0');
+        const monthLabel = lang === 'en'
+          ? d.toLocaleString('en-US', { month: 'short' })
+          : `Tháng ${mm}`;
         if (type===2 || type==='xAxis') {
           switch(format) {
             case 'YYYY':        return `${yyyy}`;
-            case 'YYYY-MM':     return `Tháng ${mm}, ${yyyy}`;
+            case 'YYYY-MM':     return lang === 'en' ? `${monthLabel} ${yyyy}` : `Tháng ${mm}, ${yyyy}`;
             case 'MM-DD':       return `${dd}/${mms}`;
             case 'YYYY-MM-DD':  return `${dd}/${mms}/${yy}`;
             case 'HH:mm':       return `${hh}:${min}`;
@@ -859,6 +866,11 @@ export default React.memo(function TradingChart({
           }
         }
         const isDaily = (hh==='07'&&min==='00')||(hh==='00'&&min==='00');
+        if (lang === 'en') {
+          return isDaily
+            ? `${monthLabel} ${dd}, ${yyyy}`
+            : `${monthLabel} ${dd}, ${yyyy} ${hh}:${min}`;
+        }
         return isDaily ? `${dd} Tháng ${mm}, ${yyyy}` : `${dd}/${mms}/${yyyy} ${hh}:${min}`;
       }
     });
@@ -969,7 +981,7 @@ export default React.memo(function TradingChart({
 
     chart.subscribeAction('onScroll', () => setActiveOverlay(null));
     chart.subscribeAction('onZoom',   () => setActiveOverlay(null));
-  }, [theme, isDark, chartType, interactivePaneOptions]);
+  }, [theme, isDark, chartType, interactivePaneOptions, lang]);
 
   useEffect(() => {
     let rafId = null;
@@ -1049,17 +1061,21 @@ export default React.memo(function TradingChart({
       const dt=new Date(d.timestamp);
       const hh=String(dt.getHours()).padStart(2,'0'), mn=String(dt.getMinutes()).padStart(2,'0');
       const isDaily=(hh==='07'&&mn==='00')||(hh==='00'&&mn==='00');
-      const timeStr = isDaily
-        ? `${String(dt.getDate()).padStart(2,'0')} Tháng ${dt.getMonth()+1}, ${dt.getFullYear()}`
-        : `${String(dt.getDate()).padStart(2,'0')} Tháng ${dt.getMonth()+1}, ${dt.getFullYear()} ${hh}:${mn}`;
+      const timeStr = lang === 'en'
+        ? (isDaily
+          ? dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }))
+        : (isDaily
+          ? `${String(dt.getDate()).padStart(2,'0')} Tháng ${dt.getMonth()+1}, ${dt.getFullYear()}`
+          : `${String(dt.getDate()).padStart(2,'0')} Tháng ${dt.getMonth()+1}, ${dt.getFullYear()} ${hh}:${mn}`);
       topBarRef.current.innerHTML = `
         <div style="display:flex;flex-wrap:wrap;gap:12px;font-family:Inter,sans-serif;background:${bg};padding:5px 12px;border-radius:6px;backdrop-filter:blur(4px);box-shadow:0 1px 4px rgba(0,0,0,0.15);">
-          <span style="color:${lblColor}">Time: <span style="color:${valColor}">${timeStr}</span></span>
-          <span style="color:${lblColor}">O: <span style="color:${color}">${d.open.toFixed(2)}</span></span>
-          <span style="color:${lblColor}">H: <span style="color:${color}">${d.high.toFixed(2)}</span></span>
-          <span style="color:${lblColor}">L: <span style="color:${color}">${d.low.toFixed(2)}</span></span>
-          <span style="color:${lblColor}">C: <span style="color:${color}">${d.close.toFixed(2)}</span></span>
-          <span style="color:${lblColor}">Vol: <span style="color:${color}">${fmtVol(d.volume)}</span></span>
+          <span style="color:${lblColor}">${t('tooltipTime')}: <span style="color:${valColor}">${timeStr}</span></span>
+          <span style="color:${lblColor}">${t('tooltipOpen')}: <span style="color:${color}">${d.open.toFixed(2)}</span></span>
+          <span style="color:${lblColor}">${t('tooltipHigh')}: <span style="color:${color}">${d.high.toFixed(2)}</span></span>
+          <span style="color:${lblColor}">${t('tooltipLow')}: <span style="color:${color}">${d.low.toFixed(2)}</span></span>
+          <span style="color:${lblColor}">${t('tooltipClose')}: <span style="color:${color}">${d.close.toFixed(2)}</span></span>
+          <span style="color:${lblColor}">${t('tooltipVol')}: <span style="color:${color}">${fmtVol(d.volume)}</span></span>
         </div>`;
     };
 
@@ -1100,7 +1116,7 @@ export default React.memo(function TradingChart({
     if (chartInstance.current) chartInstance.current.subscribeAction('onCrosshairChange', onCross);
     updateTopBar();
     return () => { if (chartInstance.current) chartInstance.current.unsubscribeAction('onCrosshairChange', onCross); };
-  }, [isDark, data]);
+  }, [isDark, data, t, lang]);
 
   useEffect(() => {
     const fmt  = (v) => v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v);
@@ -1187,21 +1203,21 @@ const rowBtn = React.useCallback((active) =>
             onClick={() => { setShowIntervalMenu(v=>!v); setShowTypeMenu(false); setShowIndicatorMenu(false); setShowStrokePanel(false); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIntervalMenu)}`}
           >
-            <Clock size={13}/> {interval} <ChevronDown size={12} className={showIntervalMenu?'rotate-180':''}/>
+            <Clock size={13}/> {localizeIntervalLabel(interval, lang)} <ChevronDown size={12} className={showIntervalMenu?'rotate-180':''}/>
           </button>
           {showIntervalMenu && (
             <div className={`${menuBase} w-40`}>
-              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">Phút</p>
-              {INTERVALS_MINUTE.map(t=>(
-                <button key={t} onClick={()=>{setInterval(t);setShowIntervalMenu(false);onIntervalChange?.(t);}} className={rowBtn(interval===t)}>
-                  {t}{interval===t&&<Check size={12}/>}
+              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('minutes')}</p>
+              {INTERVALS_MINUTE.map(iv=>(
+                <button key={iv} onClick={()=>{setInterval(iv);setShowIntervalMenu(false);onIntervalChange?.(iv);}} className={rowBtn(interval===iv)}>
+                  {localizeIntervalLabel(iv, lang)}{interval===iv&&<Check size={12}/>}
                 </button>
               ))}
               <div className="h-px bg-white/10 my-1"/>
-              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">Giờ &amp; Ngày</p>
-              {INTERVALS_DAY.map(t=>(
-                <button key={t} onClick={()=>{setInterval(t);setShowIntervalMenu(false);onIntervalChange?.(t);}} className={rowBtn(interval===t)}>
-                  {t}{interval===t&&<Check size={12}/>}
+              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('hoursAndDays')}</p>
+              {INTERVALS_DAY.map(iv=>(
+                <button key={iv} onClick={()=>{setInterval(iv);setShowIntervalMenu(false);onIntervalChange?.(iv);}} className={rowBtn(interval===iv)}>
+                  {localizeIntervalLabel(iv, lang)}{interval===iv&&<Check size={12}/>}
                 </button>
               ))}
             </div>
@@ -1214,7 +1230,7 @@ const rowBtn = React.useCallback((active) =>
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showTypeMenu)}`}
           >
             <BarChart2 size={13}/>
-            {{candle_solid:'Nến Đặc',candle_up_stroke:'Nến Rỗng',candle_stroke:'Nến Viền',ohlc:'Thanh',area:'Vùng',heikin_ashi:'Heikin Ashi'}[chartType]||'Nến'}
+            {{candle_solid:t('typeSolidShort'),candle_up_stroke:t('typeHollowShort'),candle_stroke:t('typeStrokeShort'),ohlc:t('typeBarShort'),area:t('typeAreaShort'),heikin_ashi:t('heikinAshi')}[chartType]||t('typeCandleFallback')}
             <ChevronDown size={12} className={showTypeMenu?'rotate-180':''}/>
           </button>
           {showTypeMenu && (
@@ -1222,7 +1238,7 @@ const rowBtn = React.useCallback((active) =>
               {CHART_TYPES.map(tp=>(
                 <button key={tp.id} onClick={()=>{setChartType(tp.id);setShowTypeMenu(false);}}
                   className={rowBtn(chartType===tp.id)}>
-                  {tp.label}{chartType===tp.id&&<Check size={12}/>}
+                  {t(tp.labelKey)}{chartType===tp.id&&<Check size={12}/>}
                 </button>
               ))}
             </div>
@@ -1234,21 +1250,21 @@ const rowBtn = React.useCallback((active) =>
             onClick={()=>{setShowIndicatorMenu(v=>!v);setShowTypeMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIndicatorMenu)}`}
           >
-            <Settings2 size={13}/> Chỉ Báo <ChevronDown size={12} className={showIndicatorMenu?'rotate-180':''}/>
+            <Settings2 size={13}/> {t('indicators')} <ChevronDown size={12} className={showIndicatorMenu?'rotate-180':''}/>
           </button>
           {showIndicatorMenu && (
             <div className={`${menuBase} w-64`}>
-              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">Chỉ báo chồng nến</p>
+              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('overlayIndicators')}</p>
               {MAIN_INDICATORS.map(ind=>(
                 <button key={ind.key} onClick={()=>toggleIndicator(ind.key,true)} className={rowBtn(activeMain.includes(ind.key))}>
-                  {ind.label}{activeMain.includes(ind.key)&&<Check size={12}/>}
+                  {t(ind.labelKey)}{activeMain.includes(ind.key)&&<Check size={12}/>}
                 </button>
               ))}
               <div className="h-px bg-white/10 my-2"/>
-              <p className="px-4 pb-1 text-[9px] font-black text-slate-500 uppercase">Chỉ báo phụ</p>
+              <p className="px-4 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('subIndicators')}</p>
               {SUB_INDICATORS.map(ind=>(
                 <button key={ind.key} onClick={()=>toggleIndicator(ind.key,false)} className={rowBtn(activeSub.includes(ind.key))}>
-                  {ind.label}{activeSub.includes(ind.key)&&<Check size={12}/>}
+                  {t(ind.labelKey)}{activeSub.includes(ind.key)&&<Check size={12}/>}
                 </button>
               ))}
             </div>
@@ -1256,7 +1272,7 @@ const rowBtn = React.useCallback((active) =>
         </div>
 
         <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
-          <span className={`text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>Màu:</span>
+          <span className={`text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>{t('color')}</span>
           {A.overlayColors.map(hex=>(
             <button key={hex} onClick={()=>handleOverlayColorChange(hex)}
               className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${overlayColor===hex?'ring-1 ring-offset-1':''}`}
@@ -1266,7 +1282,7 @@ const rowBtn = React.useCallback((active) =>
           <div className="relative ml-1 z-[210]">
             <button
               onClick={e=>{e.stopPropagation();setShowStrokePanel(v=>!v);}}
-              title="Tùy chỉnh nét vẽ"
+              title={t('customizeStroke')}
               className={`p-1 rounded-lg transition-all ${showStrokePanel?`${A.solid} ${A.solidText}`:(isDark?A.strokeIdleDark:A.strokeIdleLight)}`}
             >
               <SlidersHorizontal size={14}/>
@@ -1277,7 +1293,7 @@ const rowBtn = React.useCallback((active) =>
                 style={{ boxShadow: isDark?'0 8px 32px rgba(0,0,0,0.8)':'0 8px 32px rgba(0,0,0,0.15)' }}
                 onClick={e=>e.stopPropagation()}
               >
-                <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>Độ dày nét</p>
+                <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>{t('strokeWidth')}</p>
                 <div className="flex gap-2 mb-3">
                   {STROKE_SIZES.map(s=>(
                     <button key={s} onClick={()=>handleStrokeSizeChange(s)}
@@ -1287,7 +1303,7 @@ const rowBtn = React.useCallback((active) =>
                     </button>
                   ))}
                 </div>
-                <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>Kiểu nét</p>
+                <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>{t('strokeStyle')}</p>
                 {STROKE_STYLES.map(s=>(
                   <button key={s.val} onClick={()=>handleStrokeStyleChange(s.val)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle===s.val?`${A.solid} ${A.solidText}`:(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
@@ -1296,7 +1312,7 @@ const rowBtn = React.useCallback((active) =>
                       {s.val==='dashed' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="6 3"/>}
                       {s.val==='dotted' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="2 3"/>}
                     </svg>
-                    {s.label}
+                    {t(s.labelKey)}
                     {strokeStyle===s.val&&<Check size={12} className="ml-auto"/>}
                   </button>
                 ))}
@@ -1311,10 +1327,10 @@ const rowBtn = React.useCallback((active) =>
 
         {!isMini && (
           <div className={`w-12 shrink-0 border-r flex flex-col items-center py-3 gap-1 z-[20] relative ${isDark?'bg-[#0B0F14] border-white/5':'bg-slate-50 border-slate-200'}`}>
-            {DRAW_TOOLS.map(({ name, Icon, title }) => {
+            {DRAW_TOOLS.map(({ name, Icon, titleKey }) => {
             const isActive = activeTool===name;
             return (
-              <button key={name} title={title}
+              <button key={name} title={t(titleKey)}
                 onClick={e=>{e.stopPropagation();handleActivateTool(name);}}
                 className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all
                   ${isActive?`${A.solid} ${A.solidText} ${A.toolShadow}`
@@ -1348,7 +1364,7 @@ const rowBtn = React.useCallback((active) =>
             <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[30] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
               <div className={`flex items-center gap-2 ${isDark ? A.selectedTextDark : A.selectedTextLight}`}>
                 <Pencil size={12}/>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark?A.selectedTextDark:A.selectedTextLight}`}>Đã chọn đường vẽ</span>
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isDark?A.selectedTextDark:A.selectedTextLight}`}>{t('selectedDrawing')}</span>
               </div>
               <div className={`w-px h-4 ${isDark?'bg-white/10':'bg-slate-200'}`}/>
               <button

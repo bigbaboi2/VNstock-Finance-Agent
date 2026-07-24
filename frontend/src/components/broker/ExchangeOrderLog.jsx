@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 const STATUS_STYLE = {
@@ -21,36 +22,37 @@ const fmtTime = (v) => {
 };
 
 export default function ExchangeOrderLog({ orders, isDark, UI }) {
+    const { t } = useTranslation('broker');
     return (
         <div className={`rounded-2xl border overflow-hidden ${UI.card}`}>
             <div className={`px-4 py-3 border-b ${UI.border}`}>
                 <h3 className={`font-black text-sm uppercase tracking-wider ${UI.textBold}`}>
-                    📋 Log lệnh thực gửi ra sàn
+                    📋 {t('liveOrderHistory')}
                 </h3>
-                <p className={`text-[10px] ${UI.textMuted}`}>Mọi lệnh live đều được ghi lại, kể cả lệnh thất bại</p>
+                <p className={`text-[10px] ${UI.textMuted}`}>{t('orderLogSubtitle')}</p>
             </div>
 
             {(!orders || orders.length === 0) ? (
                 <div className={`p-8 text-center text-sm font-bold ${UI.textMuted}`}>
                     Chưa có lệnh thực nào được gửi ra sàn.
-                    <p className="text-[11px] font-normal mt-1">Lệnh sẽ xuất hiện khi bạn tạo gói lệnh AutoDuck với chế độ LIVE và engine khớp được tín hiệu.</p>
+                    <p className="text-[11px] font-normal mt-1">{t('orderLogEmpty')}</p>
                 </div>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                         <thead>
                             <tr className={`text-[9px] uppercase tracking-widest font-black ${UI.textMuted} ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
-                                <th className="px-3 py-2 text-left">Thời gian</th>
-                                <th className="px-3 py-2 text-left">Sàn</th>
-                                <th className="px-3 py-2 text-left">Symbol</th>
-                                <th className="px-3 py-2 text-left">Side</th>
-                                <th className="px-3 py-2 text-left">Loại</th>
-                                <th className="px-3 py-2 text-right">Qty</th>
-                                <th className="px-3 py-2 text-right">Giá khớp</th>
-                                <th className="px-3 py-2 text-right">Số tiền</th>
-                                <th className="px-3 py-2 text-right">Lãi lỗ</th>
-                                <th className="px-3 py-2 text-center">Status</th>
-                                <th className="px-3 py-2 text-left">External ID</th>
+                                <th className="px-3 py-2 text-left">{t('colTime')}</th>
+                                <th className="px-3 py-2 text-left">{t('colExchange')}</th>
+                                <th className="px-3 py-2 text-left">{t('colSymbol')}</th>
+                                <th className="px-3 py-2 text-left">{t('colSide')}</th>
+                                <th className="px-3 py-2 text-left">{t('colType')}</th>
+                                <th className="px-3 py-2 text-right">{t('colQty')}</th>
+                                <th className="px-3 py-2 text-right">{t('colFillPrice')}</th>
+                                <th className="px-3 py-2 text-right">{t('colAmount')}</th>
+                                <th className="px-3 py-2 text-right">{t('colPnl')}</th>
+                                <th className="px-3 py-2 text-center">{t('colStatus')}</th>
+                                <th className="px-3 py-2 text-left">{t('colExternalId')}</th>
                             </tr>
                         </thead>
                         <tbody>

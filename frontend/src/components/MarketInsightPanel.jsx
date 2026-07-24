@@ -16,9 +16,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { API_BASE_URL, API_FETCH_HEADERS } from '../lib/apiBase';
+import { normalizeLanguage } from '../i18n/formatLocale';
 import {
   BrainCircuit, TrendingUp, TrendingDown, Minus,
   RefreshCw, ChevronDown, ChevronUp, Clock, Zap,
@@ -30,7 +32,7 @@ import {
 
 const SENTIMENT_CONFIG = {
   'TÍCH CỰC': {
-    label: 'TÍCH CỰC',
+    labelKey: 'sentimentPositive',
     icon: '🟢',
     color: 'text-emerald-400',
     border: 'border-emerald-500/40',
@@ -41,7 +43,7 @@ const SENTIMENT_CONFIG = {
     colorLight: 'text-emerald-700',
   },
   'TRUNG TÍNH': {
-    label: 'TRUNG TÍNH',
+    labelKey: 'sentimentNeutral',
     icon: '🟡',
     color: 'text-yellow-400',
     border: 'border-yellow-500/40',
@@ -52,7 +54,7 @@ const SENTIMENT_CONFIG = {
     colorLight: 'text-yellow-700',
   },
   'TIÊU CỰC': {
-    label: 'TIÊU CỰC',
+    labelKey: 'sentimentNegative',
     icon: '🔴',
     color: 'text-red-400',
     border: 'border-red-500/40',
@@ -67,18 +69,21 @@ const SENTIMENT_CONFIG = {
 const ACTION_CONFIG = {
   'MUA': {
     icon: <TrendingUp size={11} />,
+    labelKey: 'actionBuy',
     cls: (isDark) => isDark
       ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
       : 'bg-emerald-50 text-emerald-700 border-emerald-300',
   },
   'TRÁNH': {
     icon: <TrendingDown size={11} />,
+    labelKey: 'actionAvoid',
     cls: (isDark) => isDark
       ? 'bg-red-500/15 text-red-400 border-red-500/40'
       : 'bg-red-50 text-red-700 border-red-300',
   },
   'THEO DÕI': {
     icon: <Eye size={11} />,
+    labelKey: 'actionWatch',
     cls: (isDark) => isDark
       ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
       : 'bg-yellow-50 text-yellow-700 border-yellow-300',
@@ -86,9 +91,9 @@ const ACTION_CONFIG = {
 };
 
 const HORIZON_CONFIG = {
-  'NGẮN HẠN': { icon: <Zap size={9} />, label: 'Ngắn hạn' },
-  'DÀI HẠN':  { icon: <Target size={9} />, label: 'Dài hạn' },
-  'CẢ HAI':   { icon: <BarChart3 size={9} />, label: 'Cả hai' },
+  'NGẮN HẠN': { icon: <Zap size={9} />, labelKey: 'horizonShort' },
+  'DÀI HẠN':  { icon: <Target size={9} />, labelKey: 'horizonLong' },
+  'CẢ HAI':   { icon: <BarChart3 size={9} />, labelKey: 'horizonBoth' },
 };
 
 function formatDate(str) {
@@ -98,24 +103,28 @@ function formatDate(str) {
   return `${d}/${m}/${y}`;
 }
 
-function timeAgo(dateObj) {
+function timeAgo(dateObj, t) {
   if (!dateObj) return '';
   const diff = Date.now() - new Date(dateObj).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'vừa xong';
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return t('justNow');
+  if (mins < 60) return t('minutesAgo', { count: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} giờ trước`;
-  return `${Math.floor(hrs / 24)} ngày trước`;
+  if (hrs < 24) return t('hoursAgo', { count: hrs });
+  return t('daysAgo', { count: Math.floor(hrs / 24) });
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 /** Card mã cổ phiếu tiềm năng */
-const PickCard = React.memo(({ pick, isDark, onSelect }) => {
+const PickCard = React.memo(({ pick, isDark, onSelect, lang }) => {
+  const { t } = useTranslation('market');
   const action = ACTION_CONFIG[pick.action] || ACTION_CONFIG['THEO DÕI'];
   const horizon = HORIZON_CONFIG[pick.horizon] || HORIZON_CONFIG['NGẮN HẠN'];
   const score = Number(pick.score) || 0;
+  const reasonText = lang === 'en' && pick.reasonEn
+    ? pick.reasonEn
+    : pick.reason;
 
   const scoreColor = score >= 80
     ? (isDark ? 'text-emerald-400' : 'text-emerald-600')
@@ -129,7 +138,7 @@ const PickCard = React.memo(({ pick, isDark, onSelect }) => {
       className={`group relative flex flex-col gap-2 p-3 rounded-xl border cursor-pointer transition-all duration-200 active:scale-[0.98] ${
         isDark
           ? 'bg-white/4 border-white/8 hover:bg-white/8 hover:border-yellow-400/25'
-          : 'bg-white border-slate-200 hover:bg-yellow-50/60 hover:border-yellow-300 shadow-sm hover:shadow'
+          : 'bg-white border-slate-400 hover:bg-yellow-50/60 hover:border-yellow-300 shadow-sm hover:shadow panel-outline'
       }`}
     >
       {/* Header */}
@@ -140,13 +149,13 @@ const PickCard = React.memo(({ pick, isDark, onSelect }) => {
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {/* Horizon badge */}
           <span className={`flex items-center gap-1 text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border ${
-            isDark ? 'text-slate-400 border-white/10' : 'text-slate-500 border-slate-200'
+            isDark ? 'text-slate-400 border-white/10' : 'text-slate-500 border-slate-300'
           }`}>
-            {horizon.icon} {horizon.label}
+            {horizon.icon} {t(horizon.labelKey)}
           </span>
           {/* Action badge */}
           <span className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${action.cls(isDark)}`}>
-            {action.icon} {pick.action}
+            {action.icon} {t(action.labelKey)}
           </span>
         </div>
       </div>
@@ -167,9 +176,9 @@ const PickCard = React.memo(({ pick, isDark, onSelect }) => {
       )}
 
       {/* Reason */}
-      {pick.reason && (
+      {reasonText && (
         <p className={`text-[10px] leading-snug line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-          {pick.reason}
+          {reasonText}
         </p>
       )}
     </div>
@@ -198,6 +207,8 @@ const CACHE_TTL_MS = 10 * 60 * 1000; // 10 phút
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 
 export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketData }) {
+  const { t, i18n } = useTranslation('market');
+  const lang = normalizeLanguage(i18n.language);
   // Khởi tạo từ cache nếu còn hạn — tránh loading flicker khi navigate đi về
   const hasFreshCache = _cachedInsight && (Date.now() - _cacheTime) < CACHE_TTL_MS;
   const [insight, setInsight]           = useState(hasFreshCache ? _cachedInsight : null);
@@ -214,7 +225,9 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
 
   const fetchInsight = useCallback(async (forceRescan = false) => {
     // Nếu có cache hợp lệ và không phải force → dùng cache, không fetch lại
-    if (!forceRescan && _cachedInsight && (Date.now() - _cacheTime) < CACHE_TTL_MS) {
+    // (trừ khi EN mà cache chưa có summaryEn — cần gọi lại để backfill)
+    const cacheNeedsEn = lang === 'en' && _cachedInsight && !_cachedInsight.summaryEn;
+    if (!forceRescan && _cachedInsight && (Date.now() - _cacheTime) < CACHE_TTL_MS && !cacheNeedsEn) {
       setInsight(_cachedInsight);
       setLoading(false);
       return;
@@ -231,7 +244,10 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
 
       const res = await fetch(API_BASE_URL + url, {
         credentials: 'include',
-        headers: API_FETCH_HEADERS,
+        headers: {
+          ...API_FETCH_HEADERS,
+          'X-Omni-Language': lang,
+        },
       });
 
       if (res.status === 429) {
@@ -255,18 +271,18 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
       setInsight(data);
       setCooldownSec(0);
     } catch (err) {
-      setError(err.message || 'Không thể tải nhận định thị trường');
+      setError(err.message || t('cannotLoadInsight'));
     } finally {
       setLoading(false);
       setIsScanning(false);
     }
-  }, []);
+  }, [t, lang]);
 
   // Cooldown countdown timer
   useEffect(() => {
     if (cooldownSec <= 0) return;
-    const t = setInterval(() => setCooldownSec(s => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setCooldownSec(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(timer);
   }, [cooldownSec]);
 
   useEffect(() => {
@@ -292,23 +308,29 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
   const buyCount    = (insight?.topPicks || []).filter(p => p.action === 'MUA').length;
   const avoidCount  = (insight?.topPicks || []).filter(p => p.action === 'TRÁNH').length;
   const watchCount  = (insight?.topPicks || []).filter(p => p.action === 'THEO DÕI').length;
+  const displaySummary = lang === 'en' && insight?.summaryEn
+    ? insight.summaryEn
+    : insight?.summary;
+  const displayReport = lang === 'en' && insight?.reportEn
+    ? insight.reportEn
+    : insight?.report;
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
   // Loading state
   if (loading) {
     return (
-      <div className={`w-full rounded-2xl border p-5 mb-4 ${isDark ? 'bg-[#080c14] border-white/8' : 'bg-white border-slate-200 shadow-sm'}`}>
+      <div className={`w-full rounded-2xl border p-5 mb-4 panel-outline ${isDark ? 'bg-[#080c14] border-white/8' : 'bg-white border-slate-400 shadow-sm'}`}>
         <div className="flex items-center gap-3 mb-4">
           <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isDark ? 'bg-yellow-400/15' : 'bg-yellow-50'}`}>
             <BrainCircuit size={16} className="text-yellow-400 animate-pulse" />
           </div>
           <div>
             <p className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-              AI Market Intelligence
+              {t('aiMarketIntelligence')}
             </p>
             <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Đang tải nhận định thị trường...
+              {t('loadingInsight')}
             </p>
           </div>
         </div>
@@ -326,7 +348,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
             <AlertTriangle size={16} className="text-red-400 shrink-0" />
             <div>
               <p className={`text-[11px] font-black uppercase tracking-widest text-red-400`}>
-                Không thể tải nhận định
+                {t('cannotLoadInsight')}
               </p>
               <p className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{error}</p>
             </div>
@@ -334,10 +356,10 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
           <button
             onClick={() => fetchInsight(false)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all border ${
-              isDark ? 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              isDark ? 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            <RefreshCw size={12} /> Thử lại
+            <RefreshCw size={12} /> {t('retry')}
           </button>
         </div>
       </div>
@@ -347,13 +369,13 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
   // No data
   if (!insight) {
     return (
-      <div className={`w-full rounded-2xl border p-5 mb-4 text-center ${isDark ? 'bg-[#080c14] border-white/8' : 'bg-white border-slate-200 shadow-sm'}`}>
+      <div className={`w-full rounded-2xl border p-5 mb-4 text-center panel-outline ${isDark ? 'bg-[#080c14] border-white/8' : 'bg-white border-slate-400 shadow-sm'}`}>
         <BrainCircuit size={28} className={`mx-auto mb-2 ${isDark ? 'text-slate-600' : 'text-slate-300'}`} />
         <p className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-          Chưa có báo cáo hôm nay
+          {t('noReportToday')}
         </p>
         <p className={`text-[10px] mt-1 mb-3 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-          Báo cáo tự động chạy lúc 7:00 SA mỗi ngày làm việc
+          {t('autoReportSchedule')}
         </p>
         <button
           onClick={() => fetchInsight(true)}
@@ -367,8 +389,8 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
           }`}
         >
           {isScanning
-            ? <><Loader2 size={13} className="animate-spin" /> Đang quét...</>
-            : <><Zap size={13} /> Quét ngay</>
+            ? <><Loader2 size={13} className="animate-spin" /> {t('scanning')}</>
+            : <><Zap size={13} /> {t('scanNow')}</>
           }
         </button>
       </div>
@@ -378,15 +400,15 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
   // ── Main render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className={`w-full rounded-2xl border overflow-hidden mb-4 transition-all duration-300 ${
+    <div className={`w-full rounded-2xl border overflow-hidden mb-4 transition-all duration-300 panel-outline ${
       isDark
         ? `bg-[#080c14] border-white/8 ${sentimentCfg.glow}`
-        : `bg-white border-slate-200 shadow-sm`
+        : `bg-white border-slate-400 shadow-sm`
     }`}>
 
       {/* ═══ HEADER ═══ */}
       <div className={`px-4 py-3 border-b flex items-center justify-between gap-3 ${
-        isDark ? 'border-white/5' : 'border-slate-100'
+        isDark ? 'border-white/5' : 'border-slate-300'
       }`}>
         <div className="flex items-center gap-3 min-w-0">
           {/* Icon */}
@@ -399,7 +421,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                AI Market Intelligence
+                {t('aiMarketIntelligence')}
               </p>
               {/* Sentiment badge */}
               <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
@@ -407,12 +429,12 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
                   ? `${sentimentCfg.bg} ${sentimentCfg.border} ${sentimentCfg.color}`
                   : `${sentimentCfg.bgLight} ${sentimentCfg.borderLight} ${sentimentCfg.colorLight}`
               }`}>
-                {sentimentCfg.icon} {sentimentCfg.label}
+                {sentimentCfg.icon} {t(sentimentCfg.labelKey)}
               </span>
               {insight.isWeekend && (
                 <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${
-                  isDark ? 'text-slate-500 border-white/10' : 'text-slate-400 border-slate-200'
-                }`}>Cuối tuần</span>
+                  isDark ? 'text-slate-500 border-white/10' : 'text-slate-400 border-slate-300'
+                }`}>{t('weekend')}</span>
               )}
             </div>
             {/* Meta info */}
@@ -421,7 +443,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
                 <Calendar size={9} /> {formatDate(insight.date)}
               </span>
               <span className={`flex items-center gap-1 text-[9px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                <Clock size={9} /> {timeAgo(insight.scannedAt)}
+                <Clock size={9} /> {timeAgo(insight.scannedAt, t)}
               </span>
               {insight.model && (
                 <span className={`flex items-center gap-1 text-[8px] font-mono ${isDark ? 'text-slate-600' : 'text-slate-300'}`}>
@@ -437,7 +459,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
           {/* Nút refresh + cooldown countdown */}
           {cooldownSec > 0 ? (
             <div className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black ${
-              isDark ? 'bg-white/5 border-white/10 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'
+              isDark ? 'bg-white/5 border-white/10 text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-400'
             }`}>
               <RefreshCw size={10} className="opacity-40" />
               {cooldownSec}s
@@ -446,13 +468,13 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
             <button
               onClick={() => fetchInsight(true)}
               disabled={isScanning}
-              title="Quét lại ngay"
+              title={t('rescanNow')}
               className={`p-2 rounded-lg border transition-all ${
                 isScanning
                   ? 'opacity-40 cursor-not-allowed'
                   : isDark
                   ? 'bg-white/5 border-white/10 text-slate-400 hover:text-yellow-400 hover:border-yellow-400/30'
-                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-yellow-600 hover:border-yellow-300'
+                  : 'bg-slate-50 border-slate-300 text-slate-500 hover:text-yellow-600 hover:border-yellow-300'
               }`}
             >
               <RefreshCw size={13} className={isScanning ? 'animate-spin' : ''} />
@@ -462,20 +484,20 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
       </div>
 
       {/* ═══ SUMMARY ═══ */}
-      {insight.summary && (
+      {displaySummary && (
         <div className={`px-4 py-2.5 border-b text-[11px] font-medium leading-relaxed ${
-          isDark ? 'border-white/5 text-slate-300' : 'border-slate-100 text-slate-700'
+          isDark ? 'border-white/5 text-slate-300' : 'border-slate-300 text-slate-700'
         }`}>
           <span className={`font-black mr-1.5 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>▶</span>
-          {insight.summary}
+          {displaySummary}
         </div>
       )}
 
       {/* ═══ TABS ═══ */}
-      <div className={`flex border-b px-4 ${isDark ? 'border-white/5' : 'border-slate-100'}`}>
+      <div className={`flex border-b px-4 ${isDark ? 'border-white/5' : 'border-slate-300'}`}>
         {[
-          { id: 'picks', label: 'Top Picks', icon: <Target size={11} /> },
-          { id: 'report', label: 'Báo cáo đầy đủ', icon: <BookOpen size={11} /> },
+          { id: 'picks', label: t('tabTopPicks'), icon: <Target size={11} /> },
+          { id: 'report', label: t('tabFullReport'), icon: <BookOpen size={11} /> },
         ].map(tab => (
           <button
             key={tab.id}
@@ -503,10 +525,10 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
           {(insight.topPicks?.length || 0) > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
-                { key: 'ALL', label: 'Tất cả', count: insight.topPicks?.length || 0 },
-                { key: 'MUA', label: '🟢 Mua', count: buyCount },
-                { key: 'TRÁNH', label: '🔴 Tránh', count: avoidCount },
-                { key: 'THEO DÕI', label: '👁 Theo dõi', count: watchCount },
+                { key: 'ALL', label: t('filterAll'), count: insight.topPicks?.length || 0 },
+                { key: 'MUA', label: `🟢 ${t('filterBuy')}`, count: buyCount },
+                { key: 'TRÁNH', label: `🔴 ${t('filterAvoid')}`, count: avoidCount },
+                { key: 'THEO DÕI', label: `👁 ${t('filterWatch')}`, count: watchCount },
               ].filter(f => f.key === 'ALL' || f.count > 0).map(f => (
                 <button
                   key={f.key}
@@ -518,7 +540,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
                         : 'bg-yellow-50 border-yellow-400 text-yellow-700'
                       : isDark
                       ? 'bg-white/4 border-white/10 text-slate-500 hover:text-slate-300'
-                      : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700'
+                      : 'bg-slate-50 border-slate-300 text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {f.label}
@@ -540,6 +562,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
                   key={`${pick.symbol}-${i}`}
                   pick={pick}
                   isDark={isDark}
+                  lang={lang}
                   onSelect={handleSelectStock}
                 />
               ))}
@@ -547,14 +570,14 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
           ) : (
             <div className={`text-center py-6 ${isDark ? 'text-slate-600' : 'text-slate-300'}`}>
               <Minus size={24} className="mx-auto mb-2" />
-              <p className="text-[10px] font-black uppercase tracking-widest">Không có mã nào trong nhóm này</p>
+              <p className="text-[10px] font-black uppercase tracking-widest">{t('noSymbolsInGroup')}</p>
             </div>
           )}
 
           {/* Click to analyze hint */}
           {filteredPicks.length > 0 && (
             <p className={`text-[9px] text-center ${isDark ? 'text-slate-600' : 'text-slate-300'}`}>
-              ✦ Click vào mã để phân tích chi tiết
+              {t('clickSymbolHint')}
             </p>
           )}
         </div>
@@ -597,7 +620,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
             `}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {/* Bỏ block JSON ở cuối khi render Markdown */}
-                {(insight.report || '').replace(/```json[\s\S]*?```/g, '').trim()}
+                {(displayReport || '').replace(/```json[\s\S]*?```/g, '').trim()}
               </ReactMarkdown>
             </div>
 
@@ -617,12 +640,12 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
             className={`mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-[0.99] ${
               isDark
                 ? 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-slate-200'
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                : 'bg-slate-50 border-slate-300 text-slate-500 hover:bg-slate-100'
             }`}
           >
             {isExpanded
-              ? <><ChevronUp size={13} /> Thu gọn</>
-              : <><ChevronDown size={13} /> Xem toàn bộ báo cáo</>
+              ? <><ChevronUp size={13} /> {t('collapse')}</>
+              : <><ChevronDown size={13} /> {t('viewFullReport')}</>
             }
           </button>
 
@@ -633,10 +656,10 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
             }`}>
               <Loader2 size={28} className="text-yellow-400 animate-spin mb-3" />
               <p className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                Đang quét thị trường...
+                {t('scanning')}
               </p>
               <p className={`text-[10px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-               AI đang phân tích · ~30 giây
+                  {t('aiAnalyzingHint')}
               </p>
             </div>
           )}
@@ -645,29 +668,29 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
 
       {/* ═══ FOOTER: Quick stats ═══ */}
       <div className={`px-4 py-2.5 border-t flex items-center gap-4 flex-wrap ${
-        isDark ? 'border-white/5' : 'border-slate-100'
+        isDark ? 'border-white/5' : 'border-slate-300'
       }`}>
         <div className="flex items-center gap-1.5">
           <CheckCircle2 size={11} className="text-emerald-400" />
           <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            {buyCount} nên mua
+            {t('footerBuy', { count: buyCount })}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <AlertTriangle size={11} className="text-red-400" />
           <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            {avoidCount} nên tránh
+            {t('footerAvoid', { count: avoidCount })}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <Eye size={11} className="text-yellow-400" />
           <span className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            {watchCount} theo dõi
+            {t('footerWatch', { count: watchCount })}
           </span>
         </div>
         <div className="ml-auto">
           <span className={`text-[8px] font-mono ${isDark ? 'text-slate-700' : 'text-slate-300'}`}>
-            Cập nhật 7:00 SA / ngày làm việc
+            {t('updateSchedule')}
           </span>
         </div>
       </div>

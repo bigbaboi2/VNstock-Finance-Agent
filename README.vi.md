@@ -49,18 +49,18 @@ Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. 
 <br/>
 
 <details open>
-<summary><b>▸ Bìa</b> — các tab chính</summary>
+<summary><b>▸ Bìa</b> — các tab chính (Quốc tế = Tab 4, đã mở trên UI — chưa có screenshot)</summary>
 
 <table>
 <tr>
-<td align="center" width="33%"><b>CK VN</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="100%" alt="CK VN — chi tiết &amp; AI"/></td>
-<td align="center" width="33%"><b>Phái sinh</b><br/><img src="docs/screenshots/deriv.png" width="100%" alt="Phái sinh"/></td>
-<td align="center" width="33%"><b>Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
+<td align="center" width="33%"><b>1. CK VN</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="100%" alt="CK VN — chi tiết &amp; AI"/></td>
+<td align="center" width="33%"><b>2. Phái sinh</b><br/><img src="docs/screenshots/deriv.png" width="100%" alt="Phái sinh"/></td>
+<td align="center" width="33%"><b>3. Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
 </tr>
 <tr>
-<td align="center"><b>Giao dịch giả lập</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
-<td align="center"><b>Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
-<td align="center"><b>Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
+<td align="center"><b>5. Giao dịch giả lập</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
+<td align="center"><b>6. Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
+<td align="center"><b>7. Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
 </tr>
 </table>
 
@@ -108,21 +108,25 @@ Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. 
 </details>
 
 <details>
-<summary><b>▸ Themes</b> — Sáng / Tối × Hiện tại · Tối giản · Siêu tối giản · Sách · cỡ chữ · đồng hồ · lưu theo tài khoản</summary>
+<summary><b>▸ Themes</b> — Sáng/Tối × Hiện tại · Tối giản · Siêu tối giản · Sách · cỡ chữ · đồng hồ · ngôn ngữ (vi/en) · lưu theo tài khoản</summary>
 
 <table>
 <tr>
 <td align="center"><b>Light</b><br/><img src="docs/screenshots/theme-light-overview.png" width="240" alt="Theme sáng"/></td>
 <td align="center"><b>Chế độ sách</b><br/><img src="docs/screenshots/theme-book-overview.png" width="240" alt="Chế độ sách"/></td>
 <td align="center"><b>Sách · chart</b><br/><img src="docs/screenshots/theme-book-chart.png" width="240" alt="Chart chế độ sách"/></td>
-<td align="center"><b>Cài đặt</b><br/><img src="docs/screenshots/theme-style-settings.png" width="180" alt="Cài đặt phong cách"/></td>
+<td align="center"><b>Sách · AutoDuck</b><br/><img src="docs/screenshots/theme-book-autoduck.png" width="240" alt="AutoDuck chế độ sách"/></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><b>Cài đặt phong cách</b><br/><img src="docs/screenshots/theme-style-settings.png" width="220" alt="Cài đặt phong cách"/></td>
+<td align="center" colspan="2"><b>Menu phong cách</b><br/><img src="docs/screenshots/theme-style-menu.png" width="220" alt="Menu desktop"/></td>
 </tr>
 </table>
 
 </details>
 
 <details>
-<summary><b>▸ CLI Terminal</b> — TUI (`node cli/omni-cli.js`)</summary>
+<summary><b>▸ CLI Terminal</b> — TUI (`node cli/omni-cli.js`) · equity · crypto · market radar</summary>
 
 <table>
 <tr>
@@ -161,8 +165,9 @@ Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. 
 | 🔌 Broker / LIVE | ✅ Hoạt động | Binance, OKX, Bybit (crypto) + DNSE (CK VN) — testnet & live |
 | 📊 Biểu đồ | ⚠️ Đang phát triển | KlineCharts + Lightweight Charts |
 | 🔄 AutoTrading | ⚠️ Đang cải thiện | Tỷ lệ thắng, AI lessons, mô phỏng + LIVE |
+| 🎨 Theme UI + i18n | ✅ Hoạt động | Sáng/Tối × Hiện tại/Tối giản/Siêu tối giản/Sách, cỡ chữ, đồng hồ, **vi/en** — đồng bộ `/api/auth/preferences` |
 
-**Đăng nhập:** Đăng ký / đăng nhập theo user (MongoDB). Cài đặt và danh mục gắn với tài khoản đang đăng nhập.
+**Đăng nhập:** Đăng ký / đăng nhập theo user (MongoDB). Danh mục và preference UI gắn tài khoản. Mật khẩu đang lưu **plaintext** (tiện self-host — chưa cứng production; bcrypt nằm trên roadmap). API key sàn mã hóa AES-256-GCM bằng `ENCRYPTION_KEY`.
 
 ---
 
@@ -211,17 +216,17 @@ Mở **http://localhost:5173** → đăng ký tài khoản → chọn tab từ m
 
 ## 🗂️ Hướng dẫn các tab
 
-Menu người dùng có **7 tab**.
+Menu người dùng có **7 tab** (deep link: `/vn-stocks`, `/vn-derivatives`, `/crypto`, `/international`, `/paper-trading`, `/auto-duck`, `/broker`). Ảnh xem ở [Xem giao diện](#-xem-giao-diện).
 
-| # | Tab | Nội dung | Ảnh |
-|---|-----|----------|-----|
-| 1 | **Chứng khoán VN** | Giá realtime, heatmap ngành, AI market intel, tranh luận, biểu đồ, chat AI nổi | [chi tiết](docs/screenshots/vn-stock-detail.png) · [tổng quan](docs/screenshots/vn-stock-overview.png) · [tin](docs/screenshots/vn-stock-news.png) · [cấu hình](docs/screenshots/vn-stock-ai-config.png) |
-| 2 | **Phái sinh VN** | VN30F1M / HNX, tin vĩ mô, tín hiệu cơ học + AI (DXY, Dow, USD/VND) | [phái sinh](docs/screenshots/deriv.png) |
-| 3 | **Crypto** | Market radar (Fear & Greed, dominance, funding, liquidations, top movers), nến đa khung + volume profile, chiến lược AI (RSI/MACD/CVD/ATR/VWAP → entry/SL/TP), tin coin có tag sentiment | [terminal](docs/screenshots/crypto.png) · [radar](docs/screenshots/crypto-terminal.png) · [AI](docs/screenshots/crypto-ai-strategy.png) · [tin](docs/screenshots/crypto-news.png) |
-| 4 | **Quốc tế** | **Đang mở trên UI** (`/international`). Watchlist Mỹ / Nhật / Hàn / TQ–HK / Âu; Yahoo Finance OHLC + chart đa khung; điểm kỹ thuật; tin sentiment Google / Reddit / X; đề xuất thô **Tech 70% + Tin 30%** — **không dùng LLM**. Search/quote qua `/api/international/*` | — |
-| 5 | **Giao dịch giả lập** | Danh mục ảo 10 tỷ VND, LO/ATO/ATC, P&L đa tài sản | [paper-trading](docs/screenshots/paper-trading.png) |
-| 6 | **Tự động vào lệnh AI** | Scheduler (crypto 24/7, VN 15 phút), risk 1–4, mô phỏng vs LIVE, AI lessons | [1](docs/screenshots/autotrade-1.png) · [2](docs/screenshots/autotrade-2.png) · [3](docs/screenshots/autotrade-3.png) |
-| 7 | **Kết nối sàn / Broker** | API sàn (Binance/OKX/Bybit crypto + DNSE CK VN), vị thế LIVE, lịch sử lệnh, cảnh báo quyền API | [broker](docs/screenshots/broker.png) |
+| # | Tab | Nội dung |
+|---|-----|----------|
+| 1 | **Chứng khoán VN** | Giá realtime (VNDirect, TCBS, CafeF), heatmap ngành, AI market intel, tranh luận, biểu đồ, chat AI nổi |
+| 2 | **Phái sinh VN** | VN30F1M / HNX, tin vĩ mô, tín hiệu cơ học + AI (DXY, Dow, USD/VND) |
+| 3 | **Crypto** | Market radar (Fear & Greed, dominance, funding, liquidations, top movers), nến đa khung + volume profile, chiến lược AI (RSI/MACD/CVD/ATR/VWAP → entry/SL/TP), tin coin có tag sentiment |
+| 4 | **Quốc tế** | **Đã mở** (`/international`). Watchlist Mỹ / Nhật / Hàn / TQ–HK / Âu; Yahoo OHLC + chart đa khung; điểm TA; tin sentiment Google / Reddit / X; đề xuất **Tech 70% + Tin 30%** — **không LLM** |
+| 5 | **Giao dịch giả lập** | 10 tỷ VND ảo; thị trường: CK VN · phái sinh · crypto · **global**; LO/ATO/ATC; P&L đa tài sản |
+| 6 | **Tự động vào lệnh AI** | Scheduler (crypto 24/7, VN ~15 phút), risk 1–4, mô phỏng vs LIVE, AI lessons, audit/funnel log |
+| 7 | **Kết nối sàn / Broker** | API sàn (Binance/OKX/Bybit crypto + DNSE CK VN), vị thế LIVE, lịch sử lệnh, cảnh báo quyền API |
 
 **Pipeline Auto Duck (rút gọn):**
 
@@ -230,7 +235,7 @@ startAutoDuckScheduler() → runAutoTradePipeline()
   → Lấy context → Quét universe → Phân tích (OHLCV + kỹ thuật + tin + AI) → Vào/Thoát lệnh
 ```
 
-Lệnh mô phỏng chạy nền để AI học; lệnh thật trên sàn hiển thị ở tab **Broker** khi bật chế độ LIVE và có kết nối TRADE active.
+Lệnh mô phỏng chạy nền để AI học; lệnh thật trên sàn hiển thị ở tab **Broker** khi bật LIVE và có kết nối TRADE active.
 
 ---
 
@@ -277,15 +282,16 @@ BCTC TCBS: `https://static.tcbs.com.vn/oneclick/{TICKER}.pdf` → Python FastAPI
 
 ### ✈️ Telegram
 
-- Nguồn tin nhóm/kênh bổ sung; lọc AI trước khi vào Auto Duck
-- Cảnh báo admin: provider lỗi, mã biến động mạnh, kết quả lệnh
+Kênh ops tùy chọn khi có `TELEGRAM_BOT_TOKEN`. Tin nhóm/kênh có thể nuôi Auto Duck (lọc AI). Cảnh báo admin: provider lỗi, biến động, kết quả lệnh.
 
-| Lệnh | Mô tả |
-|------|-------|
-| `/check` | Vốn, lệnh mở, tỷ lệ thắng 30 ngày |
-| `/stop` | Khóa pipeline (theo dõi lệnh cũ) |
-| `/start` | Mở khóa pipeline |
-| `/help` | Danh sách lệnh |
+| Nhóm | Lệnh |
+|------|------|
+| Tra cứu | `/market` · `/info <mã>` · `/insight` |
+| Giám sát GD | `/check` · `/live` · `/sim` · `/pnl` · `/portfolio` · `/stats` · `/funnel` |
+| Lệnh manual LIVE | `/trade` · `/close` · `/manual` |
+| Hệ thống | `/health` · `/settings` · `/broker` · `/ai` · `/stop` · `/start` · `/help` |
+
+Alias: `/mkt` → `/market`, `/i` → `/info`. Đầy đủ: `/help`.
 
 ---
 
@@ -336,9 +342,9 @@ Với mỗi mã VN, tranh luận đầu tư có cấu trúc:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  FRONTEND  React 19 + Vite + Tailwind                           │
-│  VnStocksTab │ DerivativesTab │ CryptoTab │ PaperTradingTab       │
-│  AutoDuckTab │ BrokerConnectionTab │ StockAiChat │ Charts         │
+│  FRONTEND  React 19 + Vite + Tailwind + i18n (vi/en)            │
+│  VnStocks · Derivatives · Crypto · International · Paper        │
+│  AutoDuck · Broker · StockAiChat · Charts · Style prefs         │
 └────────────────────────────┬────────────────────────────────────┘
                              │  REST / SSE  (cổng 3001)
                              ▼
@@ -349,6 +355,7 @@ Với mỗi mã VN, tranh luận đầu tư có cấu trúc:
 └──────────────┬──────────────────────┬───────────────────────────┘
                ▼                      ▼
           MongoDB Atlas          API bên ngoài + Python :8000
+                             VNDirect, TCBS, Yahoo, Binance, DNSE…
 ```
 
 | Tầng | Công nghệ |
@@ -371,10 +378,12 @@ Toàn bộ cấu hình trong **một file `.env` ở thư mục gốc** (Vite pr
 | Cốt lõi | `MONGODB_URI` | ✅ (boot) |
 | AI | `GEMINI_API_KEY_MAIN` (+ tùy chọn `_ACTION` / `_INSIGHT`) | Khuyến nghị |
 | AI dự phòng | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`, `DEEPINFRA_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Khuyến nghị |
-| Dữ liệu thị trường | `FIREANT_TOKEN`, `COINGLASS_API_KEY` | Tùy chọn |
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`… | Tùy chọn |
-| Bảo mật | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ENCRYPTION_KEY` | Production |
-| Frontend | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Tùy chọn |
+| Dữ liệu thị trường | `FIREANT_TOKEN`, `COINGECKO_API_KEY`, `COINGLASS_API_KEY` | Tùy chọn |
+| Telegram / tunnel | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_*_CHAT_ID`, `WEBHOOK_BASE_URL`, `FRONTEND_URL`, `NGROK_DOMAIN` | Tùy chọn |
+| Prefetch tin VN | `VN_NEWS_PREFETCH_ENABLED` (+ TTL / universe) | Tùy chọn (cron làm nóng AutoDuck + tab CK) |
+| Bảo mật | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ADMIN_CODE`, `ENCRYPTION_KEY` | Production |
+| Frontend (Vite) | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Tùy chọn (tunnel / remote) |
+| AutoTrade | UI: Auto Duck → Cấu hình AutoTrade (MongoDB `Setting`) | Admin |
 
 > Backend hardcode `PORT=3001` trong `server.js`. Các biến như `PORT`, `JWT_SECRET`, `REDIS_*` **không** được đọc từ `.env` hiện tại. Key AI để trống sẽ bị router bỏ qua.
 
@@ -387,43 +396,51 @@ Toàn bộ cấu hình trong **một file `.env` ở thư mục gốc** (Vite pr
 
 **Auth**
 - `POST /api/auth/register` · `POST /api/auth/login`
+- `GET /api/auth/preferences` · `POST /api/auth/preferences`
 
 **Thị trường**
-- `GET /api/market/symbols` · `GET /api/market/heatmap` · `GET /api/market/radar`
-- `GET /api/market-insight/today` · `GET /api/market-insight/history`
+- `GET /api/market/symbols` · `GET /api/market/info/:ticker` · `GET /api/market/heatmap` · `GET /api/market/radar`
+- `GET /api/market/home-news` · `GET /api/market/tcbs-pdf/:ticker`
+- `GET /api/market-insight/today` · `GET /api/market-insight/history` · `POST /api/market-insight/scan`
 
 **Cổ phiếu & AI**
-- `GET /api/market/info/:ticker`
 - `POST /api/ai/analyze/:ticker` · `POST /api/ai/analyze/:ticker/stream` (SSE)
-- `GET /api/ai/news/:ticker` · `POST /api/ai/stock-chat/:ticker`
-- `POST /api/ai/analyze-derivatives` · `POST /api/ai/action-panel/:ticker`
+- `GET /api/ai/analyze/latest/:symbol` · `GET /api/ai/news/:ticker` · `GET /api/ai/ai-news/:ticker`
+- `POST /api/ai/stock-chat/:ticker` · `POST /api/ai/action-panel/:ticker`
+- `POST /api/ai/analyze-derivatives` · `GET /api/ai/provider-status`
+
+**History**
+- `GET /api/history/:ticker` · `GET /api/history/crypto/:symbol`
 
 **Phái sinh**
-- `GET /api/derivatives/radar` · `GET /api/derivatives/news`
+- `GET /api/derivatives/radar` · `GET /api/derivatives/news` · `POST /api/derivatives/news/refresh`
 
 **Crypto**
 - `GET /api/crypto/symbols` · `GET /api/crypto/price/:symbol` · `GET /api/crypto/radar`
-- `GET /api/crypto/funding` · `POST /api/crypto/signal`
+- `GET /api/crypto/funding` · `GET /api/crypto/liquidations` · `GET /api/crypto/top-movers`
+- `GET /api/crypto/news/:symbol` · `GET /api/crypto/history/:symbol` · `POST /api/crypto/signal`
 
 **Quốc tế (Tab 4)**
-- `GET /api/international/markets` · `GET /api/international/search`
-- `GET /api/international/quotes` · `GET /api/international/history/:symbol`
-- `GET /api/international/proposal/:symbol`
+- `GET /api/international/markets` · `GET /api/international/search` · `GET /api/international/quotes`
+- `GET /api/international/history/*symbol` · `GET /api/international/news/*symbol`
+- `GET /api/international/proposal/*symbol`
 
 **Giao dịch giả lập**
-- `GET /api/portfolio/:username` · `POST /api/portfolio/trade`
+- `GET /api/portfolio/:username` · `POST /api/portfolio/trade` · `POST /api/portfolio/cancel-order`
 
 **Auto Duck**
-- `GET /api/auto-trade/settings` · `POST /api/auto-trade/settings`
-- `GET /api/auto-trade/user-order/:username` · `GET /api/auto-trade/ai-lessons`
-- `POST /api/auto-trade/force-trigger`
+- `GET|POST /api/auto-trade/settings` · `GET|POST /api/auto-trade/env-config`
+- `GET /api/auto-trade/user-order/:username` · `POST /api/auto-trade/user-order`
+- `GET /api/auto-trade/ai-lessons` · `GET /api/auto-trade/pipeline-logs` · `GET /api/auto-trade/funnel-logs`
+- `GET /api/auto-trade/analytics` · `POST /api/auto-trade/force-trigger` · `POST /api/auto-trade/export-live-stats`
 
 **Broker / sàn**
 - `GET /api/exchange-connections/:username` · `POST /api/exchange-connections`
-- `POST /api/exchange-connections/:id/test` · `GET /api/exchange-connections/orders/:username`
+- `POST /api/exchange-connections/:id/test` · `GET /api/exchange-connections/:id/balance`
+- `GET /api/exchange-connections/orders/:username`
 
 **Telegram**
-- `POST /api/telegram/webhook` · `GET /api/telegram/set-webhook`
+- `POST /api/telegram/webhook` · `GET /api/telegram/set-webhook` · `GET /api/telegram/webhook-info`
 
 </details>
 
@@ -449,7 +466,7 @@ ProjectFinance/
 
 ## 💻 CLI tùy chọn
 
-TUI full-screen trên cùng API — xem ảnh ở **[Xem giao diện → CLI Terminal](#-xem-giao-diện)**.
+TUI full-screen trên cùng API (equity · market radar · crypto · phái sinh). Ảnh: **[Xem giao diện → CLI Terminal](#-xem-giao-diện)**.
 
 ```bash
 # Backend phải chạy ở :3001

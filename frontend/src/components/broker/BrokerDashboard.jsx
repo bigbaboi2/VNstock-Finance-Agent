@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { Wallet, Activity, TrendingUp, Plug, Landmark, RotateCcw, Loader2, Briefcase } from 'lucide-react';
 
 const MAX_CONNECTIONS = 5;
@@ -12,14 +13,14 @@ const fmtSignedUsd = (n) => {
     return `${v >= 0 ? '+' : ''}${fmtUsd(v)}`;
 };
 
-const timeAgoShort = (date) => {
+const timeAgoShort = (date, t) => {
     if (!date) return null;
     const diffMin = Math.round((Date.now() - new Date(date).getTime()) / 60000);
-    if (diffMin < 1) return 'vừa xong';
-    if (diffMin < 60) return `${diffMin} phút trước`;
+    if (diffMin < 1) return t('justNow');
+    if (diffMin < 60) return t('minutesAgo', { count: diffMin });
     const diffH = Math.round(diffMin / 60);
-    if (diffH < 24) return `${diffH} giờ trước`;
-    return `${Math.round(diffH / 24)} ngày trước`;
+    if (diffH < 24) return t('hoursAgo', { count: diffH });
+    return t('daysAgo', { count: Math.round(diffH / 24) });
 };
 
 function MetricCard({ icon: Icon, label, value, sub, color, UI, footer }) {
@@ -47,6 +48,7 @@ export default function BrokerDashboard({
     onChanged,
     enriching = false,
 }) {
+    const { t } = useTranslation('broker');
     const [resetBusy, setResetBusy] = useState(false);
 
     const metrics = useMemo(() => {
@@ -130,9 +132,7 @@ export default function BrokerDashboard({
     const handleResetAllBaselines = async () => {
         const active = connections.filter(c => c.isActive);
         if (active.length === 0) return;
-        if (!window.confirm(
-            `Đặt lại mốc ví cho ${active.length} kết nối active?\nPnL ví sẽ về ~$0 so với equity hiện tại (không ảnh hưởng PnL lệnh AutoDuck).`
-        )) return;
+        if (!window.confirm(t('resetBaselineConfirm', { count: active.length }))) return;
 
         setResetBusy(true);
         try {
@@ -143,7 +143,7 @@ export default function BrokerDashboard({
             );
             onChanged?.();
         } catch (err) {
-            window.alert(err.response?.data?.message || 'Không đặt lại được mốc ví.');
+            window.alert(err.response?.data?.message || t('resetBaselineFailed'));
         } finally {
             setResetBusy(false);
         }
@@ -174,16 +174,16 @@ export default function BrokerDashboard({
                 <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
                     isDark ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400' : 'border-cyan-300 bg-cyan-50 text-cyan-700'
                 }`}>
-                    Ví sàn
+                    {t('exchangeWallet')}
                 </span>
                 <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
                     isDark ? 'border-violet-500/30 bg-violet-500/10 text-violet-400' : 'border-violet-300 bg-violet-50 text-violet-700'
                 }`}>
-                    Sổ bot AutoDuck
+                    {t('botLedger')}
                 </span>
                 {metrics.usdVnd != null && (
                     <span className={`text-[10px] font-bold ${UI.textMuted}`}>
-                        Tỷ giá VCB: {Number(metrics.usdVnd).toLocaleString('vi-VN')} đ/USD
+                        {t('vcbFxRate')}: {Number(metrics.usdVnd).toLocaleString('vi-VN')} đ/USD
                     </span>
                 )}
             </div>
@@ -192,28 +192,31 @@ export default function BrokerDashboard({
                 <MetricCard
                     UI={UI}
                     icon={Wallet}
-                    label="Equity ví (ước tính)"
+                    label={t('equityWallet')}
                     value={metrics.walletPending ? '…' : `~${fmtUsd(metrics.equity)}`}
                     sub={metrics.walletPending
-                        ? 'Đang quy giá coin trên sàn…'
-                        : `Stable ${fmtUsd(metrics.stable)} · Coin khác ~${fmtUsd(metrics.alts)}${
-                            metrics.unpriced > 0 ? ` · ${metrics.unpriced} asset chưa quy giá` : ''
+                        ? t('pricingCoins')
+                        : `${t('stableAltsSub', { stable: fmtUsd(metrics.stable), alts: fmtUsd(metrics.alts) })}${
+                            metrics.unpriced > 0 ? ` · ${t('unpricedAssets', { count: metrics.unpriced })}` : ''
                         }`}
                     color="text-cyan-400"
                 />
                 <MetricCard
                     UI={UI}
                     icon={Landmark}
-                    label="PnL ví vs mốc"
+                    label={t('walletPnlVsBaseline')}
                     value={metrics.walletPending
                         ? '…'
                         : metrics.walletPnl == null ? '—' : fmtSignedUsd(metrics.walletPnl)}
                     sub={
                         metrics.walletPending
-                            ? 'Đang tải mốc equity…'
+                            ? t('loadingBaseline')
                             : metrics.baseline == null
-                                ? 'Chưa có mốc — bấm Test/Balance để ghi lần đầu'
-                                : `Mốc ${fmtUsd(metrics.baseline)}${earliestBaseline ? ` · ${timeAgoShort(earliestBaseline)}` : ''} · gồm coin ngoài bot`
+                                ? t('noBaselineYet')
+                                : t('baselineWithOutside', {
+                                    baseline: fmtUsd(metrics.baseline),
+                                    ago: earliestBaseline ? ` · ${timeAgoShort(earliestBaseline, t)}` : '',
+                                })
                     }
                     color={walletPnlColor}
                     footer={
@@ -228,64 +231,74 @@ export default function BrokerDashboard({
                             }`}
                         >
                             {resetBusy ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
-                            Đặt lại mốc ví
+                            {t('resetWalletBaseline')}
                         </button>
                     }
                 />
                 <MetricCard
                     UI={UI}
                     icon={TrendingUp}
-                    label="PnL Autoduck Tổng (từ đầu)"
+                    label={t('autoduckTotalPnl')}
                     value={metrics.realizedPnl == null ? '…' : fmtSignedUsd(metrics.realizedPnl)}
                     sub={
                         metrics.realizedPnl == null
-                            ? 'Đang tính fill − phí…'
+                            ? t('computingFills')
                             : metrics.realizedPnlVnd != null
-                                ? `Mọi lệnh LIVE đã đóng · ${metrics.eligibleTrades ?? '—'} lệnh · ≈${Number(metrics.realizedPnlVnd).toLocaleString('vi-VN')}đ · kể cả gói đã xóa`
-                                : 'Fill − phí · mọi lệnh LIVE từ lúc khởi tạo'
+                                ? t('allLiveClosed', {
+                                    count: metrics.eligibleTrades ?? '—',
+                                    vnd: Number(metrics.realizedPnlVnd).toLocaleString('vi-VN'),
+                                })
+                                : t('fillMinusFeeAll')
                     }
                     color={botPnlColor}
                 />
                 <MetricCard
                     UI={UI}
                     icon={Briefcase}
-                    label="PnL gói hiện tại"
+                    label={t('currentPackagePnl')}
                     value={metrics.currentPkgPnl == null
                         ? (enriching ? '…' : '—')
                         : fmtSignedUsd(metrics.currentPkgPnl)}
                     sub={
                         enriching && metrics.currentPkgPnl == null
-                            ? 'Đang lọc PnL theo gói Tab 6…'
+                            ? t('filteringPackagePnl')
                             : metrics.currentPkgCount === 0
-                                ? 'Không còn gói LIVE trên Tab 6'
+                                ? t('noLivePackages')
                                 : metrics.currentPkgPnlVnd != null
-                                    ? `${metrics.currentPkgCount} gói · ${metrics.currentPkgTrades ?? 0} lệnh đóng · ≈${Number(metrics.currentPkgPnlVnd).toLocaleString('vi-VN')}đ`
-                                    : `${metrics.currentPkgCount} gói LIVE còn trong danh sách`
+                                    ? t('pkgPnlWithVnd', {
+                                        count: metrics.currentPkgCount,
+                                        trades: metrics.currentPkgTrades ?? 0,
+                                        vnd: Number(metrics.currentPkgPnlVnd).toLocaleString('vi-VN'),
+                                    })
+                                    : t('pkgLiveRemaining', { count: metrics.currentPkgCount })
                     }
                     color={currentPkgPnlColor}
                 />
                 <MetricCard
                     UI={UI}
                     icon={Activity}
-                    label="Lệnh live đã khớp"
-                    value={`${metrics.liveOrders} lệnh`}
-                    sub={`${metrics.pendingOrders} đang chờ · ${metrics.failedOrders} lỗi`}
+                    label={t('liveFilledOrders')}
+                    value={t('ordersCount', { count: metrics.liveOrders })}
+                    sub={t('pendingFailedSub', {
+                        pending: metrics.pendingOrders,
+                        failed: metrics.failedOrders,
+                    })}
                     color="text-cyan-400"
                 />
                 <MetricCard
                     UI={UI}
                     icon={Wallet}
-                    label="Stablecoin (cash)"
+                    label={t('stablecoinCash')}
                     value={`~${fmtUsd(metrics.stable)}`}
-                    sub="USDT/USDC… trong snapshot — phần sẵn sàng vào lệnh"
+                    sub={t('stablecoinSub')}
                     color="text-emerald-400"
                 />
                 <MetricCard
                     UI={UI}
                     icon={Plug}
-                    label="Kết nối Active"
+                    label={t('activeConnections')}
                     value={`${metrics.activeCount}/${MAX_CONNECTIONS}`}
-                    sub="Giới hạn mỗi tài khoản"
+                    sub={t('activeConnectionsSub')}
                     color="text-yellow-400"
                 />
             </div>

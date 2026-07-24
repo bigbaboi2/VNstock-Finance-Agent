@@ -49,18 +49,18 @@ Screenshot album — cover grid below; open a folder for more views. Collapse th
 <br/>
 
 <details open>
-<summary><b>▸ Cover</b> — main tabs</summary>
+<summary><b>▸ Cover</b> — main tabs (International = Tab 4, live in UI — screenshot TBD)</summary>
 
 <table>
 <tr>
-<td align="center" width="33%"><b>VN Stocks</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="100%" alt="VN Stocks — stock detail &amp; AI"/></td>
-<td align="center" width="33%"><b>Derivatives</b><br/><img src="docs/screenshots/deriv.png" width="100%" alt="Derivatives"/></td>
-<td align="center" width="33%"><b>Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
+<td align="center" width="33%"><b>1. VN Stocks</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="100%" alt="VN Stocks — stock detail &amp; AI"/></td>
+<td align="center" width="33%"><b>2. Derivatives</b><br/><img src="docs/screenshots/deriv.png" width="100%" alt="Derivatives"/></td>
+<td align="center" width="33%"><b>3. Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
 </tr>
 <tr>
-<td align="center"><b>Paper Trading</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
-<td align="center"><b>Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
-<td align="center"><b>Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
+<td align="center"><b>5. Paper Trading</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
+<td align="center"><b>6. Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
+<td align="center"><b>7. Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
 </tr>
 </table>
 
@@ -108,21 +108,25 @@ Screenshot album — cover grid below; open a folder for more views. Collapse th
 </details>
 
 <details>
-<summary><b>▸ Themes</b> — Light / Dark × Classic · Minimal · Ultra · Book · font scale · clock · prefs per account</summary>
+<summary><b>▸ Themes</b> — Light/Dark × Classic · Minimal · Ultra · Book · font scale · clock · language (vi/en) · prefs per account</summary>
 
 <table>
 <tr>
 <td align="center"><b>Light</b><br/><img src="docs/screenshots/theme-light-overview.png" width="240" alt="Light theme"/></td>
 <td align="center"><b>Book</b><br/><img src="docs/screenshots/theme-book-overview.png" width="240" alt="Book mode"/></td>
 <td align="center"><b>Book · chart</b><br/><img src="docs/screenshots/theme-book-chart.png" width="240" alt="Book chart"/></td>
-<td align="center"><b>Settings</b><br/><img src="docs/screenshots/theme-style-settings.png" width="180" alt="Style settings"/></td>
+<td align="center"><b>Book · AutoDuck</b><br/><img src="docs/screenshots/theme-book-autoduck.png" width="240" alt="Book mode AutoDuck"/></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><b>Style settings</b><br/><img src="docs/screenshots/theme-style-settings.png" width="220" alt="Style settings"/></td>
+<td align="center" colspan="2"><b>Style menu</b><br/><img src="docs/screenshots/theme-style-menu.png" width="220" alt="Desktop style menu"/></td>
 </tr>
 </table>
 
 </details>
 
 <details>
-<summary><b>▸ CLI Terminal</b> — TUI (`node cli/omni-cli.js`)</summary>
+<summary><b>▸ CLI Terminal</b> — TUI (`node cli/omni-cli.js`) · equity · crypto · market radar</summary>
 
 <table>
 <tr>
@@ -161,8 +165,9 @@ Screenshot album — cover grid below; open a folder for more views. Collapse th
 | 🔌 Broker / Live Trading | ✅ Working | Binance, OKX, Bybit (crypto) + DNSE (VN stocks) — testnet & live |
 | 📊 Charts | ⚠️ Developing | KlineCharts + Lightweight Charts, UX ongoing |
 | 🔄 AutoTrading | ⚠️ Improving | Win-rate tuning, AI lessons, simulation + LIVE modes |
+| 🎨 UI Themes + i18n | ✅ Working | Light/Dark × Classic/Minimal/Ultra/Book, font scale, clock 2D/3D, **vi/en** — synced via `/api/auth/preferences` |
 
-**Auth:** Register / login per user (MongoDB). Settings and portfolios are scoped to the logged-in username.
+**Auth:** Register / login per user (MongoDB). Portfolios and UI preferences are scoped to the logged-in username. Passwords are stored **plaintext** today (local/self-host convenience — not production-hardened; bcrypt is on the roadmap). Exchange API keys are AES-256-GCM encrypted with `ENCRYPTION_KEY`.
 
 ---
 
@@ -211,17 +216,17 @@ Open **http://localhost:5173** → register a user → explore tabs from the men
 
 ## 🗂️ Tabs Guide
 
-The UI exposes **7 tabs** from the user menu.
+The user menu exposes **7 tabs** (deep links under `/vn-stocks`, `/vn-derivatives`, `/crypto`, `/international`, `/paper-trading`, `/auto-duck`, `/broker`). Screenshots live in the [Visual Tour](#-visual-tour) album.
 
-| # | Tab | What you get | Screenshot |
-|---|-----|--------------|------------|
-| 1 | **VN Stocks** | Real-time quotes (VNDirect, TCBS, CafeF), sector heatmap, AI market intel, debate analysis, KlineCharts, floating `StockAiChat` | [detail](docs/screenshots/vn-stock-detail.png) · [overview](docs/screenshots/vn-stock-overview.png) · [news](docs/screenshots/vn-stock-news.png) · [config](docs/screenshots/vn-stock-ai-config.png) |
-| 2 | **Derivatives** | VN30F1M / HNX futures, macro news, mechanical signal + confluence score, AI deriv analysis (DXY, Dow, USD/VND) | [deriv](docs/screenshots/deriv.png) |
-| 3 | **Crypto** | Market radar (Fear & Greed, dominance, funding, liquidations, top movers), multi-TF candles + volume profile, AI quantitative strategy (RSI/MACD/CVD/ATR/VWAP → entry/SL/TP), coin news with sentiment tags | [terminal](docs/screenshots/crypto.png) · [radar](docs/screenshots/crypto-terminal.png) · [AI](docs/screenshots/crypto-ai-strategy.png) · [news](docs/screenshots/crypto-news.png) |
-| 4 | **International** | **Live in UI** (`/international`). Country watchlists US / JP / KR / CN–HK / EU; Yahoo Finance OHLC + multi-interval chart; technical score; news sentiment from Google / Reddit / X; deterministic proposal **Tech 70% + News 30%** — intentionally **no LLM**. Search + quote refresh via `/api/international/*` | — |
-| 5 | **Paper Trading** | Virtual 10B VND portfolio, LO/ATO/ATC, multi-asset P&L | [paper-trading](docs/screenshots/paper-trading.png) |
-| 6 | **Auto Duck** | Scheduler pipeline (crypto 24/7, VN 15 min), risk levels 1–4, simulation vs LIVE execution, AI lessons | [1](docs/screenshots/autotrade-1.png) · [2](docs/screenshots/autotrade-2.png) · [3](docs/screenshots/autotrade-3.png) |
-| 7 | **Broker** | Connect exchange APIs (Binance/OKX/Bybit crypto + DNSE VN stocks), live positions, order history, balance sync, permission warnings | [broker](docs/screenshots/broker.png) |
+| # | Tab | What you get |
+|---|-----|--------------|
+| 1 | **VN Stocks** | Real-time quotes (VNDirect, TCBS, CafeF), sector heatmap, AI market intel, debate analysis, Klinecharts, floating `StockAiChat` |
+| 2 | **Derivatives** | VN30F1M / HNX futures, macro news, mechanical signal + confluence score, AI deriv analysis (DXY, Dow, USD/VND) |
+| 3 | **Crypto** | Market radar (Fear & Greed, dominance, funding, liquidations, top movers), multi-TF candles + volume profile, AI quantitative strategy (RSI/MACD/CVD/ATR/VWAP → entry/SL/TP), coin news with sentiment tags |
+| 4 | **International** | **Live** (`/international`). Country watchlists US / JP / KR / CN–HK / EU; Yahoo Finance OHLC + multi-interval chart; technical score; news sentiment Google / Reddit / X; deterministic proposal **Tech 70% + News 30%** — intentionally **no LLM** |
+| 5 | **Paper Trading** | Virtual 10B VND; markets: VN stocks · derivatives · crypto · **global**; LO/ATO/ATC; multi-asset P&L |
+| 6 | **Auto Duck** | Scheduler (crypto 24/7, VN ~15 min), risk levels 1–4, simulation vs LIVE, AI lessons, audit/funnel logs |
+| 7 | **Broker** | Exchange APIs (Binance/OKX/Bybit crypto + DNSE VN), live positions, order history, balance sync, permission warnings |
 
 **Auto Duck pipeline (simplified):**
 
@@ -277,15 +282,16 @@ TCBS daily reports: `https://static.tcbs.com.vn/oneclick/{TICKER}.pdf` → Pytho
 
 ### ✈️ Telegram
 
-- News groups/channels as an extra source; AI-filtered before Auto Duck
-- Admin alerts: provider downtime, volatile stocks, order results
+Optional ops channel when `TELEGRAM_BOT_TOKEN` is set. News groups/channels can feed Auto Duck (AI-filtered). Admin alerts: provider downtime, volatility, order results.
 
-| Command | Description |
-|---------|-------------|
-| `/check` | Capital, open orders, 30-day win rate |
-| `/stop` | Lock pipeline (monitor existing orders) |
-| `/start` | Unlock pipeline |
-| `/help` | Command list |
+| Group | Commands |
+|-------|----------|
+| Lookup | `/market` · `/info <symbol>` · `/insight` |
+| Trading monitor | `/check` · `/live` · `/sim` · `/pnl` · `/portfolio` · `/stats` · `/funnel` |
+| Manual LIVE | `/trade` · `/close` · `/manual` |
+| System | `/health` · `/settings` · `/broker` · `/ai` · `/stop` · `/start` · `/help` |
+
+Aliases: `/mkt` → `/market`, `/i` → `/info`. Full list: `/help`.
 
 ---
 
@@ -336,9 +342,9 @@ For any VN ticker, a structured multi-phase debate runs in parallel then sequent
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  FRONTEND  React 19 + Vite + Tailwind                           │
-│  VnStocksTab │ DerivativesTab │ CryptoTab │ PaperTradingTab       │
-│  AutoDuckTab │ BrokerConnectionTab │ StockAiChat │ Charts         │
+│  FRONTEND  React 19 + Vite + Tailwind + i18n (vi/en)            │
+│  VnStocks · Derivatives · Crypto · International · Paper        │
+│  AutoDuck · Broker · StockAiChat · Charts · Style prefs         │
 └────────────────────────────┬────────────────────────────────────┘
                              │  REST / SSE  (port 3001)
                              ▼
@@ -350,7 +356,7 @@ For any VN ticker, a structured multi-phase debate runs in parallel then sequent
 └──────────────┬──────────────────────┬───────────────────────────┘
                ▼                      ▼
           MongoDB Atlas          External APIs + Python :8000
-          (Mongoose models)    VNDirect, TCBS, Binance, DNSE, FireAnt…
+          (Mongoose models)    VNDirect, TCBS, Yahoo, Binance, DNSE…
 ```
 
 | Layer | Stack |
@@ -375,11 +381,12 @@ All **bootstrap / secrets** live in **one root `.env`** (Vite proxies `/api` →
 | Core | `MONGODB_URI` | ✅ (boot) |
 | AI | `GEMINI_API_KEY_MAIN` (+ optional `GEMINI_API_KEY_ACTION` / `_INSIGHT`) | Recommended |
 | AI fallbacks | `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY`, `DEEPINFRA_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Recommended |
-| Market data | `FIREANT_TOKEN`, `COINGLASS_API_KEY` | Optional |
-| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_CHAT_ID`, `WEBHOOK_BASE_URL` | Optional |
+| Market data | `FIREANT_TOKEN`, `COINGECKO_API_KEY`, `COINGLASS_API_KEY` | Optional |
+| Telegram / tunnel | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_*_CHAT_ID`, `WEBHOOK_BASE_URL`, `FRONTEND_URL`, `NGROK_DOMAIN` | Optional |
+| VN news prefetch | `VN_NEWS_PREFETCH_ENABLED` (+ TTL / universe knobs) | Optional (cron warms AutoDuck + VN tab) |
 | Security | `EXTERNAL_SIGNAL_SECRET`, `ADMIN_RESET_KEY`, `ADMIN_CODE`, `ENCRYPTION_KEY` | Production |
-| Frontend | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Optional |
-| AutoTrade | UI: Auto Duck → Cấu hình AutoTrade | Admin |
+| Frontend (Vite) | `VITE_API_BASE_URL`, `VITE_AI_PRICE_SIGNIFICANT_THRESHOLD` | Optional (tunnel / remote) |
+| AutoTrade | UI: Auto Duck → Cấu hình AutoTrade (MongoDB `Setting`) | Admin |
 
 > Backend hardcodes `PORT=3001` in `server.js`. Variables like `PORT`, `JWT_SECRET`, `REDIS_*` are **not** read from `.env` in the current code. Empty AI provider keys are skipped by the multi-provider router.
 
@@ -392,46 +399,51 @@ All **bootstrap / secrets** live in **one root `.env`** (Vite proxies `/api` →
 
 **Auth**
 - `POST /api/auth/register` · `POST /api/auth/login`
+- `GET /api/auth/preferences` · `POST /api/auth/preferences`
 
 **Market**
-- `GET /api/market/symbols` · `GET /api/market/heatmap` · `GET /api/market/radar`
-- `GET /api/market-insight/today` · `GET /api/market-insight/history`
+- `GET /api/market/symbols` · `GET /api/market/info/:ticker` · `GET /api/market/heatmap` · `GET /api/market/radar`
+- `GET /api/market/home-news` · `GET /api/market/tcbs-pdf/:ticker`
+- `GET /api/market-insight/today` · `GET /api/market-insight/history` · `POST /api/market-insight/scan`
 
 **Stock & AI**
-- `GET /api/market/info/:ticker`
 - `POST /api/ai/analyze/:ticker` · `POST /api/ai/analyze/:ticker/stream` (SSE debate)
-- `GET /api/ai/news/:ticker` · `POST /api/ai/stock-chat/:ticker`
-- `POST /api/ai/analyze-derivatives` · `POST /api/ai/action-panel/:ticker`
+- `GET /api/ai/analyze/latest/:symbol` · `GET /api/ai/news/:ticker` · `GET /api/ai/ai-news/:ticker`
+- `POST /api/ai/stock-chat/:ticker` · `POST /api/ai/action-panel/:ticker`
+- `POST /api/ai/analyze-derivatives` · `GET /api/ai/provider-status`
+
+**History**
+- `GET /api/history/:ticker` · `GET /api/history/crypto/:symbol`
 
 **Derivatives**
 - `GET /api/derivatives/radar` · `GET /api/derivatives/news` · `POST /api/derivatives/news/refresh`
 
 **Crypto**
 - `GET /api/crypto/symbols` · `GET /api/crypto/price/:symbol` · `GET /api/crypto/radar`
-- `GET /api/crypto/funding` · `GET /api/crypto/liquidations` · `POST /api/crypto/signal`
+- `GET /api/crypto/funding` · `GET /api/crypto/liquidations` · `GET /api/crypto/top-movers`
+- `GET /api/crypto/news/:symbol` · `GET /api/crypto/history/:symbol` · `POST /api/crypto/signal`
 
 **International (Tab 4)**
-- `GET /api/international/markets` · `GET /api/international/search`
-- `GET /api/international/quotes` · `GET /api/international/history/:symbol`
-- `GET /api/international/proposal/:symbol`
+- `GET /api/international/markets` · `GET /api/international/search` · `GET /api/international/quotes`
+- `GET /api/international/history/*symbol` · `GET /api/international/news/*symbol`
+- `GET /api/international/proposal/*symbol`
 
 **Paper trading**
 - `GET /api/portfolio/:username` · `POST /api/portfolio/trade` · `POST /api/portfolio/cancel-order`
 
 **Auto Duck**
-- `GET /api/auto-trade/settings` · `POST /api/auto-trade/settings`
-- `GET /api/auto-trade/env-config` · `POST /api/auto-trade/env-config`
+- `GET|POST /api/auto-trade/settings` · `GET|POST /api/auto-trade/env-config`
 - `GET /api/auto-trade/user-order/:username` · `POST /api/auto-trade/user-order`
-- `GET /api/auto-trade/ai-lessons` · `GET /api/auto-trade/pipeline-logs`
-- `POST /api/auto-trade/force-trigger`
+- `GET /api/auto-trade/ai-lessons` · `GET /api/auto-trade/pipeline-logs` · `GET /api/auto-trade/funnel-logs`
+- `GET /api/auto-trade/analytics` · `POST /api/auto-trade/force-trigger` · `POST /api/auto-trade/export-live-stats`
 
 **Broker / exchange**
 - `GET /api/exchange-connections/:username` · `POST /api/exchange-connections`
 - `POST /api/exchange-connections/:id/test` · `GET /api/exchange-connections/:id/balance`
 - `GET /api/exchange-connections/orders/:username`
 
-**Telegram admin**
-- `POST /api/telegram/webhook` · `GET /api/telegram/set-webhook`
+**Telegram**
+- `POST /api/telegram/webhook` · `GET /api/telegram/set-webhook` · `GET /api/telegram/webhook-info`
 
 </details>
 
@@ -464,7 +476,7 @@ ProjectFinance/
 
 ## 💻 Optional CLI
 
-Full-screen TUI over the same APIs — see **[Visual Tour → CLI Terminal](#-visual-tour)** for screenshots.
+Full-screen TUI over the same APIs (equity lookup · market radar · crypto · derivatives). Screenshots: **[Visual Tour → CLI Terminal](#-visual-tour)**.
 
 ```bash
 # Backend must be running on :3001
