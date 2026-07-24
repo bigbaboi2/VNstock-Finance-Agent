@@ -7,6 +7,10 @@ const CryptoCoinSchema = new mongoose.Schema({
     marketCap: Number,
     currentPrice: Number,
     change24h: Number,
+    ath: Number,
+    athChange: Number,
+    circulatingSupply: Number,
+    maxSupply: Number,
     lastUpdated: { type: Date, default: Date.now }
 });
 

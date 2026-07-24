@@ -18,11 +18,11 @@ import {
 // HELPERS: Format
 // ─────────────────────────────────────────────────────────────
 const fmt = (n, dec = 2) => n != null && !isNaN(n) ? Number(n).toFixed(dec) : '-';
-const fmtUSD = (n) => n != null && !isNaN(n)
+const fmtUSD = (n) => (n != null && !isNaN(n) && Number(n) > 0)
     ? `$${Number(n) >= 1 ? Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Number(n).toFixed(6)}`
     : '-';
 const fmtLarge = (n) => {
-    if (!n || isNaN(n)) return '-';
+    if (n == null || isNaN(n) || Number(n) <= 0) return '-';
     if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
     if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
     if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
@@ -350,15 +350,28 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
             .catch(err => console.error("Lỗi tải danh sách coin:", err));
     }, []);
 
-    // ── FILTER GỢI Ý ──
+    // ── FILTER GỢI Ý (ưu tiên khớp đúng symbol, rồi prefix, rồi chứa) ──
     useEffect(() => {
         if (!searchInput.trim()) { setSuggestions([]); return; }
         const kw = searchInput.toUpperCase().trim();
-        setSuggestions(
-            allCryptos
-                .filter(c => c.symbol?.toUpperCase().includes(kw) || c.name?.toUpperCase().includes(kw))
-                .slice(0, 8)
-        );
+        const scored = allCryptos
+            .map(c => {
+                const sym = c.symbol?.toUpperCase() || '';
+                const name = c.name?.toUpperCase() || '';
+                let score = 0;
+                if (sym === kw) score = 300;
+                else if (sym.startsWith(kw)) score = 200;
+                else if (name.startsWith(kw)) score = 150;
+                else if (sym.includes(kw)) score = 100;
+                else if (name.includes(kw)) score = 50;
+                else return null;
+                return { coin: c, score };
+            })
+            .filter(Boolean)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 8)
+            .map(x => x.coin);
+        setSuggestions(scored);
     }, [searchInput, allCryptos]);
 
     // ── CLOSE DROPDOWN KHI CLICK NGOÀI ──
@@ -457,7 +470,34 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
     const fetchMovers = useCallback(async () => {
         try {
             const res = await axios.get('/api/crypto/top-movers');
-            if (res.data.success) setTopMovers(res.data.data);
+            if (res.data.success) {
+                const data = res.data.data;
+                setTopMovers(data);
+                // Gộp mã top movers vào danh sách tìm kiếm (M, FIGR_HELOC…)
+                const extras = [
+                    ...(data.gainers || []),
+                    ...(data.losers || []),
+                    ...(data.markets || []),
+                ];
+                if (extras.length) {
+                    setAllCryptos(prev => {
+                        const map = new Map(
+                            (Array.isArray(prev) ? prev : []).map(c => [String(c.symbol || '').toUpperCase(), c])
+                        );
+                        for (const c of extras) {
+                            const sym = String(c.symbol || '').toUpperCase();
+                            if (!sym) continue;
+                            const existing = map.get(sym);
+                            map.set(sym, {
+                                symbol: sym,
+                                name: c.name || existing?.name || sym,
+                                image: c.image || existing?.image || '',
+                            });
+                        }
+                        return [...map.values()];
+                    });
+                }
+            }
         } catch (e) { /* silent */ }
     }, []);
 
@@ -532,9 +572,10 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
         });
     }, [initialSymbol]);
 
-    // ── CHANGE INTERVAL — FIX: đảm bảo cập nhật state và trigger effect ──
+    // ── CHANGE INTERVAL — reload chart + radar (radar không phụ thuộc khung, nhưng lần đầu hay miss data)
     const handleIntervalChange = (label) => {
         setCryptoInterval(label);
+        fetchRadar();
         // Effect [symbol, cryptoInterval] tự động gọi fetchCoin với interval mới
     };
 
@@ -652,9 +693,16 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                             key={coin.symbol}
                                             type="button"
                                             onClick={() => selectCoin(coin.symbol)}
-                                            className={`px-3 py-2 rounded-lg border text-left text-xs font-bold ${symbol === coin.symbol ? `${T.accentBg} ${T.accentBorder}` : T.border(isDark)}`}
+                                            title={coin.name ? `${coin.symbol} · ${coin.name}` : coin.symbol}
+                                            className={`flex items-center gap-1.5 min-w-0 px-2.5 py-2 rounded-lg border text-left text-xs font-bold ${symbol === coin.symbol ? `${T.accentBg} ${T.accentBorder}` : T.border(isDark)}`}
                                         >
-                                            {coin.symbol} <span className={coin.change >= 0 ? T.bull : T.bear}>{fmtPct(coin.change)}</span>
+                                            <span className="min-w-0 truncate">
+                                                {coin.symbol}
+                                                {coin.name && coin.symbol.length <= 2 ? (
+                                                    <span className={`font-medium opacity-60`}> · {coin.name}</span>
+                                                ) : null}
+                                            </span>
+                                            <span className={`shrink-0 font-mono ${coin.change >= 0 ? T.bull : T.bear}`}>{fmtPct(coin.change)}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -782,6 +830,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                     companyName={allCryptos.find(c => c.symbol === symbol)?.name || symbol}
                     aiReport={aiSignal ? `Phân tích kỹ thuật: ${aiSignal.tech_analysis}\n\nVĩ mô: ${aiSignal.macro_analysis}\n\nChiến lược: ${aiSignal.advice}` : null}
                     isDark={isDark}
+                    assetType="crypto"
                 />
             </div>
         );
@@ -935,8 +984,10 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                         return (
                                             <button
                                                 key={coin.symbol}
+                                                type="button"
                                                 onClick={() => selectCoin(coin.symbol)}
-                                                className={`flex items-center justify-between px-3 py-2 rounded-lg border text-left transition-all active:scale-95 ${
+                                                title={coin.name ? `${coin.symbol} · ${coin.name}` : coin.symbol}
+                                                className={`flex items-center gap-1.5 min-w-0 px-2.5 py-2 rounded-lg border text-left transition-all active:scale-95 ${
                                                     symbol === coin.symbol
                                                         ? `${T.accentBg} ${T.accentBorder}`
                                                         : isDark
@@ -944,8 +995,13 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                                             : 'border-slate-100 hover:bg-slate-50'
                                                 }`}
                                             >
-                                                <span className={`text-xs font-bold ${T.textBody(isDark)}`}>{coin.symbol}</span>
-                                                <span className={`text-xs font-mono font-semibold flex items-center gap-0.5 ${isGain ? T.bull : T.bear}`}>
+                                                <span className={`min-w-0 truncate text-xs font-bold ${T.textBody(isDark)}`}>
+                                                    {coin.symbol}
+                                                    {coin.name && coin.symbol.length <= 2 ? (
+                                                        <span className={`font-medium ${T.textMute(isDark)}`}> · {coin.name}</span>
+                                                    ) : null}
+                                                </span>
+                                                <span className={`shrink-0 text-xs font-mono font-semibold flex items-center gap-0.5 ${isGain ? T.bull : T.bear}`}>
                                                     {isGain ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                                                     {fmtPct(coin.change)}
                                                 </span>
@@ -963,7 +1019,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 <StatRow label="ATH"           value={fmtUSD(priceData.ath)} isDark={isDark} help="All-Time High: mức giá cao nhất trong lịch sử" />
                                 <StatRow
                                     label="Từ ATH"
-                                    value={fmtPct(priceData.athChange)}
+                                    value={priceData.ath != null ? fmtPct(priceData.athChange) : '-'}
                                     color={parseFloat(priceData.athChange) >= 0 ? T.bull : T.bear}
                                     isDark={isDark}
                                     help="Khoảng cách % từ giá hiện tại đến ATH"
@@ -971,11 +1027,11 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                 <StatRow label="Vốn hóa"      value={fmtLarge(priceData.marketCap)} isDark={isDark} />
                                 <StatRow
                                     label="Lưu hành"
-                                    value={priceData.circulatingSupply ? `${Number(priceData.circulatingSupply).toLocaleString('en-US', { maximumFractionDigits: 0 })} ${symbol}` : '-'}
+                                    value={priceData.circulatingSupply > 0 ? `${Number(priceData.circulatingSupply).toLocaleString('en-US', { maximumFractionDigits: 0 })} ${symbol}` : '-'}
                                     isDark={isDark}
                                     help="Số lượng coin đang được lưu hành trên thị trường"
                                 />
-                                {priceData.maxSupply > 0 && (
+                                {priceData.maxSupply > 0 && priceData.circulatingSupply > 0 && (
                                     <>
                                         <StatRow
                                             label="Tổng cung"
@@ -1532,6 +1588,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                 companyName={allCryptos.find(c => c.symbol === symbol)?.name || symbol}
                 aiReport={aiSignal ? `Phân tích kỹ thuật: ${aiSignal.tech_analysis}\n\nVĩ mô: ${aiSignal.macro_analysis}\n\nChiến lược: ${aiSignal.advice}` : null}
                 isDark={isDark}
+                assetType="crypto"
             />
         </div>
     );

@@ -15,7 +15,7 @@
 
 🇻🇳 [Đọc bản tiếng Việt](README.vi.md)
 
-[Quick Start](#-quick-start) · [Visual Tour](#-visual-tour) · [Themes](#-ui-theme-mechanism) · [Tabs](#-tabs-guide) · [Features](#-core-features) · [CLI](#-optional-cli) · [Configuration](#%EF%B8%8F-environment-configuration)
+[Quick Start](#-quick-start) · [Visual Tour](#-visual-tour) · [Tabs](#-tabs-guide) · [Features](#-core-features) · [CLI](#-optional-cli) · [Configuration](#%EF%B8%8F-environment-configuration)
 
 </div>
 
@@ -24,112 +24,120 @@
 ## 📋 Table of Contents
 
 1. [Visual Tour](#-visual-tour)
-2. [UI Theme Mechanism](#-ui-theme-mechanism)
-3. [Overview](#-overview)
-4. [Quick Start](#-quick-start)
-5. [Tabs Guide](#-tabs-guide)
-6. [Core Features](#-core-features)
-7. [AI System](#-ai-system)
-8. [Architecture](#%EF%B8%8F-system-architecture)
-9. [Environment Configuration](#%EF%B8%8F-environment-configuration)
-10. [API Endpoints](#-api-endpoints)
-11. [Project Structure](#-project-structure)
-12. [Optional CLI](#-optional-cli)
-13. [Roadmap](#%EF%B8%8F-roadmap)
-14. [Disclaimer](#%EF%B8%8F-disclaimer)
+2. [Overview](#-overview)
+3. [Quick Start](#-quick-start)
+4. [Tabs Guide](#-tabs-guide)
+5. [Core Features](#-core-features)
+6. [AI System](#-ai-system)
+7. [Architecture](#%EF%B8%8F-system-architecture)
+8. [Environment Configuration](#%EF%B8%8F-environment-configuration)
+9. [API Endpoints](#-api-endpoints)
+10. [Project Structure](#-project-structure)
+11. [Optional CLI](#-optional-cli)
+12. [Roadmap](#%EF%B8%8F-roadmap)
+13. [Disclaimer](#%EF%B8%8F-disclaimer)
 
 ---
 
 ## 📸 Visual Tour
 
+Screenshot album — cover grid below; open a folder for more views. Collapse the parent to hide everything.
+
 <details open>
-<summary><b>App screenshots</b> — 6 main tabs at a glance (click to collapse)</summary>
+<summary><b>📷 Album</b> · Cover · VN · Crypto · Auto Duck · Themes · CLI</summary>
+
+<br/>
+
+<details open>
+<summary><b>▸ Cover</b> — main tabs</summary>
 
 <table>
 <tr>
-<td align="center"><b>1. VN Stocks</b><br/><img src="docs/screenshots/vn-stock-overview.png" width="240" alt="VN Stocks overview"/></td>
-<td align="center"><b>2. Derivatives</b><br/><img src="docs/screenshots/deriv.png" width="240" alt="Derivatives tab"/></td>
-<td align="center"><b>3. Crypto</b><br/><img src="docs/screenshots/crypto.png" width="240" alt="Crypto tab"/></td>
+<td align="center" width="33%"><b>VN Stocks</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="100%" alt="VN Stocks — stock detail &amp; AI"/></td>
+<td align="center" width="33%"><b>Derivatives</b><br/><img src="docs/screenshots/deriv.png" width="100%" alt="Derivatives"/></td>
+<td align="center" width="33%"><b>Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
 </tr>
 <tr>
-<td align="center"><b>5. Paper Trading</b><br/><img src="docs/screenshots/paper-trading.png" width="240" alt="Paper trading tab"/></td>
-<td align="center"><b>6. Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="240" alt="Auto Duck overview"/></td>
-<td align="center"><b>7. Broker</b><br/><img src="docs/screenshots/broker.png" width="240" alt="Broker connection tab"/></td>
-</tr>
-</table>
-
-<details>
-<summary><b>VN Stocks</b> — 3 views (overview · news · AI config)</summary>
-
-<table>
-<tr>
-<td align="center"><b>Market overview</b><br/><img src="docs/screenshots/vn-stock-overview.png" width="240" alt="VN market overview"/></td>
-<td align="center"><b>Live news stream</b><br/><img src="docs/screenshots/vn-stock-news.png" width="240" alt="Live news stream"/></td>
-<td align="center"><b>AI & PDF config</b><br/><img src="docs/screenshots/vn-stock-ai-config.png" width="240" alt="AI and PDF configuration"/></td>
+<td align="center"><b>Paper Trading</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
+<td align="center"><b>Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
+<td align="center"><b>Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
 </tr>
 </table>
 
 </details>
 
 <details>
-<summary><b>Auto Duck</b> — 3 views (capital · performance · signal log)</summary>
+<summary><b>▸ VN Stocks</b> — detail · overview · news · AI config</summary>
 
 <table>
 <tr>
-<td align="center"><b>Capital & packages</b><br/><img src="docs/screenshots/autotrade-1.png" width="240" alt="Auto Duck capital manager"/></td>
-<td align="center"><b>System performance</b><br/><img src="docs/screenshots/autotrade-2.png" width="240" alt="Auto Duck performance"/></td>
-<td align="center"><b>AI signal log & lessons</b><br/><img src="docs/screenshots/autotrade-3.png" width="240" alt="AI signal log"/></td>
+<td align="center"><b>Stock detail &amp; AI</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="240" alt="Stock detail and AI report"/></td>
+<td align="center"><b>Market overview</b><br/><img src="docs/screenshots/vn-stock-overview.png" width="240" alt="Market overview"/></td>
+<td align="center"><b>Live news</b><br/><img src="docs/screenshots/vn-stock-news.png" width="240" alt="Live news"/></td>
+<td align="center"><b>AI &amp; PDF config</b><br/><img src="docs/screenshots/vn-stock-ai-config.png" width="240" alt="AI config"/></td>
 </tr>
 </table>
 
 </details>
 
+<details>
+<summary><b>▸ Crypto</b> — terminal · AI strategy · news</summary>
+
+<table>
+<tr>
+<td align="center"><b>Crypto terminal</b><br/><img src="docs/screenshots/crypto.png" width="240" alt="Crypto terminal"/></td>
+<td align="center"><b>Radar + chart</b><br/><img src="docs/screenshots/crypto-terminal.png" width="240" alt="Market radar and BTC chart"/></td>
+<td align="center"><b>AI strategy</b><br/><img src="docs/screenshots/crypto-ai-strategy.png" width="240" alt="AI quantitative strategy"/></td>
+<td align="center"><b>Market news</b><br/><img src="docs/screenshots/crypto-news.png" width="240" alt="BTC market news"/></td>
+</tr>
+</table>
+
 </details>
 
----
-
-## 🎨 UI Theme Mechanism
-
-The terminal is not locked to a single dark/light skin. Appearance is controlled by four independent axes, applied via `data-theme`, `data-ui-style`, and `data-font-scale` on `<html>` (plus CSS variables such as `--omni-font-scale`). Preferences are saved per account through `/api/auth/preferences`, with `localStorage` as an offline fallback.
-
-| Axis | Options | What it changes |
-|------|---------|-----------------|
-| **Theme** | Light · Dark | Background, surfaces, borders, semantic text contrast |
-| **Frontend style** | Classic · Minimal · Ultra · Book | Density, motion, typography, and whether panels mount lazily |
-| **Font scale** | Small · Medium · Large · XL | App-wide rem scaling (`0.875` → `1.25`) |
-| **Clock** | 2D · 3D | Header clock rendering mode |
-
-**Frontend styles at a glance**
-
-| Style (`uiStyle`) | Label (UI) | Behavior |
-|-------------------|------------|----------|
-| `classic` | Hiện tại | Full effects and dense multi-panel layout |
-| `minimal` | Tối giản | Reduced motion / effects — prioritizes FPS |
-| `ultra` | Siêu tối giản | Stack navigation — sections mount only when opened |
-| `book` | Chế độ sách | Paper/parchment palette + book typography (`font-book`) |
-
-Open **Cài đặt phong cách** from the user menu (header) to switch any of the above live.
-
-<details open>
-<summary><b>Theme showcase</b> — light · book · settings (click to collapse)</summary>
+<details>
+<summary><b>▸ Auto Duck</b> — capital · performance · signal log</summary>
 
 <table>
 <tr>
-<td align="center" width="50%"><b>Light — market overview</b><br/><img src="docs/screenshots/theme-light-overview.png" width="100%" alt="Light theme market overview"/></td>
-<td align="center" width="50%"><b>Book mode — parchment overview</b><br/><img src="docs/screenshots/theme-book-overview.png" width="100%" alt="Book mode market overview"/></td>
-</tr>
-<tr>
-<td align="center"><b>Book mode — chart & analysis</b><br/><img src="docs/screenshots/theme-book-chart.png" width="100%" alt="Book mode chart and analysis"/></td>
-<td align="center"><b>Book mode — AutoDuck</b><br/><img src="docs/screenshots/theme-book-autoduck.png" width="100%" alt="Book mode AutoDuck"/></td>
+<td align="center"><b>Capital &amp; packages</b><br/><img src="docs/screenshots/autotrade-1.png" width="240" alt="Capital"/></td>
+<td align="center"><b>Performance</b><br/><img src="docs/screenshots/autotrade-2.png" width="240" alt="Performance"/></td>
+<td align="center"><b>Signal log</b><br/><img src="docs/screenshots/autotrade-3.png" width="240" alt="Signal log"/></td>
 </tr>
 </table>
 
+</details>
+
+<details>
+<summary><b>▸ Themes</b> — Light / Dark × Classic · Minimal · Ultra · Book · font scale · clock · prefs per account</summary>
+
 <table>
 <tr>
-<td align="center" width="50%"><b>Style settings panel</b><br/><img src="docs/screenshots/theme-style-settings.png" width="320" alt="Style settings: theme, clock, font, frontend style"/></td>
-<td align="center" width="50%"><b>Style menu (desktop)</b><br/><img src="docs/screenshots/theme-style-menu.png" width="320" alt="Desktop style menu with font scale and frontend presets"/></td>
+<td align="center"><b>Light</b><br/><img src="docs/screenshots/theme-light-overview.png" width="240" alt="Light theme"/></td>
+<td align="center"><b>Book</b><br/><img src="docs/screenshots/theme-book-overview.png" width="240" alt="Book mode"/></td>
+<td align="center"><b>Book · chart</b><br/><img src="docs/screenshots/theme-book-chart.png" width="240" alt="Book chart"/></td>
+<td align="center"><b>Settings</b><br/><img src="docs/screenshots/theme-style-settings.png" width="180" alt="Style settings"/></td>
 </tr>
 </table>
+
+</details>
+
+<details>
+<summary><b>▸ CLI Terminal</b> — TUI (`node cli/omni-cli.js`)</summary>
+
+<table>
+<tr>
+<td align="center"><b>Equity workspace</b><br/><img src="docs/screenshots/cli-equity-workspace.png" width="240" alt="CLI equity"/></td>
+<td align="center"><b>Equity detail</b><br/><img src="docs/screenshots/cli-equity-detail.png" width="240" alt="CLI detail"/></td>
+<td align="center"><b>Equity chart</b><br/><img src="docs/screenshots/cli-equity-chart.png" width="240" alt="CLI chart"/></td>
+</tr>
+<tr>
+<td align="center"><b>Crypto chart</b><br/><img src="docs/screenshots/cli-crypto-chart.png" width="240" alt="CLI crypto"/></td>
+<td align="center"><b>Crypto news</b><br/><img src="docs/screenshots/cli-crypto-news.png" width="240" alt="CLI news"/></td>
+<td align="center"><b>Market Radar</b><br/><img src="docs/screenshots/cli-market-radar.png" width="240" alt="CLI radar"/></td>
+</tr>
+</table>
+
+</details>
 
 </details>
 
@@ -147,9 +155,10 @@ Open **Cài đặt phong cách** from the user menu (header) to switch any of th
 | 📈 VN Stock Analysis | ✅ Strong | VNDirect, TCBS, CafeF, VNstock-py, FireAnt social |
 | 🤖 AI Debate Pipeline | ✅ Strong | Multi-phase Bull/Bear/PM decision engine |
 | 🔴 Derivatives | ✅ Working | VN30F1M, macro news, AI analysis |
+| 🪙 Crypto | ✅ Working | Fear & Greed, dominance, funding, liquidations, volume profile, AI signal engine + coin news |
+| 🌍 International | ✅ Working | Tab 4 — country watchlists (US/JP/KR/CN–HK/EU), Yahoo OHLC, TA score, news sentiment (Google/Reddit/X); proposal Tech 70% + News 30% (**no AI**) |
 | 🎮 Paper Trading | ✅ Working | Virtual 10B VND, LO/ATO/ATC orders, P&L |
 | 🔌 Broker / Live Trading | ✅ Working | Binance, OKX, Bybit (crypto) + DNSE (VN stocks) — testnet & live |
-| 🪙 Crypto | ⚠️ Developing | CoinGecko/Binance data, limited signals |
 | 📊 Charts | ⚠️ Developing | KlineCharts + Lightweight Charts, UX ongoing |
 | 🔄 AutoTrading | ⚠️ Improving | Win-rate tuning, AI lessons, simulation + LIVE modes |
 
@@ -202,14 +211,14 @@ Open **http://localhost:5173** → register a user → explore tabs from the men
 
 ## 🗂️ Tabs Guide
 
-The UI exposes **7 tabs** from the user menu (tab 4 is disabled — coming soon).
+The UI exposes **7 tabs** from the user menu.
 
 | # | Tab | What you get | Screenshot |
 |---|-----|--------------|------------|
-| 1 | **VN Stocks** | Real-time quotes (VNDirect, TCBS, CafeF), sector heatmap, AI market intel, debate analysis, KlineCharts, floating `StockAiChat` | [overview](docs/screenshots/vn-stock-overview.png) · [news](docs/screenshots/vn-stock-news.png) · [config](docs/screenshots/vn-stock-ai-config.png) |
+| 1 | **VN Stocks** | Real-time quotes (VNDirect, TCBS, CafeF), sector heatmap, AI market intel, debate analysis, KlineCharts, floating `StockAiChat` | [detail](docs/screenshots/vn-stock-detail.png) · [overview](docs/screenshots/vn-stock-overview.png) · [news](docs/screenshots/vn-stock-news.png) · [config](docs/screenshots/vn-stock-ai-config.png) |
 | 2 | **Derivatives** | VN30F1M / HNX futures, macro news, mechanical signal + confluence score, AI deriv analysis (DXY, Dow, USD/VND) | [deriv](docs/screenshots/deriv.png) |
-| 3 | **Crypto** | CoinGecko/Binance prices, funding, fear & greed, multi-timeframe charts, AI signal engine | [crypto](docs/screenshots/crypto.png) |
-| 4 | **International** | *Coming soon* — disabled in UI | — |
+| 3 | **Crypto** | Market radar (Fear & Greed, dominance, funding, liquidations, top movers), multi-TF candles + volume profile, AI quantitative strategy (RSI/MACD/CVD/ATR/VWAP → entry/SL/TP), coin news with sentiment tags | [terminal](docs/screenshots/crypto.png) · [radar](docs/screenshots/crypto-terminal.png) · [AI](docs/screenshots/crypto-ai-strategy.png) · [news](docs/screenshots/crypto-news.png) |
+| 4 | **International** | **Live in UI** (`/international`). Country watchlists US / JP / KR / CN–HK / EU; Yahoo Finance OHLC + multi-interval chart; technical score; news sentiment from Google / Reddit / X; deterministic proposal **Tech 70% + News 30%** — intentionally **no LLM**. Search + quote refresh via `/api/international/*` | — |
 | 5 | **Paper Trading** | Virtual 10B VND portfolio, LO/ATO/ATC, multi-asset P&L | [paper-trading](docs/screenshots/paper-trading.png) |
 | 6 | **Auto Duck** | Scheduler pipeline (crypto 24/7, VN 15 min), risk levels 1–4, simulation vs LIVE execution, AI lessons | [1](docs/screenshots/autotrade-1.png) · [2](docs/screenshots/autotrade-2.png) · [3](docs/screenshots/autotrade-3.png) |
 | 7 | **Broker** | Connect exchange APIs (Binance/OKX/Bybit crypto + DNSE VN stocks), live positions, order history, balance sync, permission warnings | [broker](docs/screenshots/broker.png) |
@@ -401,6 +410,11 @@ All **bootstrap / secrets** live in **one root `.env`** (Vite proxies `/api` →
 - `GET /api/crypto/symbols` · `GET /api/crypto/price/:symbol` · `GET /api/crypto/radar`
 - `GET /api/crypto/funding` · `GET /api/crypto/liquidations` · `POST /api/crypto/signal`
 
+**International (Tab 4)**
+- `GET /api/international/markets` · `GET /api/international/search`
+- `GET /api/international/quotes` · `GET /api/international/history/:symbol`
+- `GET /api/international/proposal/:symbol`
+
 **Paper trading**
 - `GET /api/portfolio/:username` · `POST /api/portfolio/trade` · `POST /api/portfolio/cancel-order`
 
@@ -450,41 +464,14 @@ ProjectFinance/
 
 ## 💻 Optional CLI
 
-Full-screen TUI alternative to the React dashboard — same backend APIs, keyboard-first workflow. Palette lives in `cli/theme.js` (amber brand, cyan frames, green/red P&L); charts and dense tables render with ANSI + box-drawing characters.
+Full-screen TUI over the same APIs — see **[Visual Tour → CLI Terminal](#-visual-tour)** for screenshots.
 
 ```bash
-# From project root (backend must be running on :3001)
+# Backend must be running on :3001
 node cli/omni-cli.js
 
-# Or on Windows: double-click omni-manager.bat
+# Windows: double-click omni-manager.bat
 ```
-
-| Workspace | What you get |
-|-----------|----------------|
-| **Equity** | Lookup → overview / candles / AI report / news |
-| **Market Radar** | VN-INDEX status, sector flow, top movers |
-| **Crypto** | Quote, candlestick + volume, news feed |
-| **Derivatives** | Futures / index views (same stack) |
-
-<details open>
-<summary><b>CLI showcase</b> — equity · crypto · market radar (click to collapse)</summary>
-
-<table>
-<tr>
-<td align="center" width="50%"><b>Equity workspace</b><br/><img src="docs/screenshots/cli-equity-workspace.png" width="100%" alt="CLI equity lookup workspace"/></td>
-<td align="center" width="50%"><b>Equity detail</b><br/><img src="docs/screenshots/cli-equity-detail.png" width="100%" alt="CLI equity detail with tech &amp; valuation"/></td>
-</tr>
-<tr>
-<td align="center"><b>Equity chart</b><br/><img src="docs/screenshots/cli-equity-chart.png" width="100%" alt="CLI candlestick chart for MBB"/></td>
-<td align="center"><b>Crypto chart</b><br/><img src="docs/screenshots/cli-crypto-chart.png" width="100%" alt="CLI BTC quote and candlestick chart"/></td>
-</tr>
-<tr>
-<td align="center"><b>Crypto news</b><br/><img src="docs/screenshots/cli-crypto-news.png" width="100%" alt="CLI crypto news feed"/></td>
-<td align="center"><b>Market Radar</b><br/><img src="docs/screenshots/cli-market-radar.png" width="100%" alt="CLI VN-INDEX market radar"/></td>
-</tr>
-</table>
-
-</details>
 
 ---
 
@@ -495,7 +482,7 @@ node cli/omni-cli.js
 - [ ] Crypto — stronger signals, cross-exchange data
 - [ ] UI/UX — skeletons, mobile, chart toolbar
 - [ ] Auto-trade win rate — ADX, VWAP, OBV, Stoch RSI
-- [ ] International markets tab (currently disabled in UI)
+- [x] International markets tab (live — TA + news sentiment; no AI)
 
 **Medium**
 - [ ] Redis caching · DB indexing · bcrypt passwords · Jest unit tests · WebSocket prices

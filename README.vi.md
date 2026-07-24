@@ -15,7 +15,7 @@
 
 🇬🇧 [English version](README.md)
 
-[Bắt đầu nhanh](#-bắt-đầu-nhanh) · [Xem giao diện](#-xem-giao-diện) · [Theme](#-cơ-chế-theme-ui) · [Các tab](#-hướng-dẫn-các-tab) · [Tính năng](#-tính-năng-chính) · [CLI](#-cli-tùy-chọn) · [Cấu hình](#%EF%B8%8F-cấu-hình-môi-trường)
+[Bắt đầu nhanh](#-bắt-đầu-nhanh) · [Xem giao diện](#-xem-giao-diện) · [Các tab](#-hướng-dẫn-các-tab) · [Tính năng](#-tính-năng-chính) · [CLI](#-cli-tùy-chọn) · [Cấu hình](#%EF%B8%8F-cấu-hình-môi-trường)
 
 </div>
 
@@ -24,112 +24,120 @@
 ## 📋 Mục lục
 
 1. [Xem giao diện](#-xem-giao-diện)
-2. [Cơ chế theme UI](#-cơ-chế-theme-ui)
-3. [Tổng quan](#-tổng-quan)
-4. [Bắt đầu nhanh](#-bắt-đầu-nhanh)
-5. [Hướng dẫn các tab](#-hướng-dẫn-các-tab)
-6. [Tính năng chính](#-tính-năng-chính)
-7. [Hệ thống AI](#-hệ-thống-ai)
-8. [Kiến trúc](#%EF%B8%8F-kiến-trúc-hệ-thống)
-9. [Cấu hình môi trường](#%EF%B8%8F-cấu-hình-môi-trường)
-10. [API Endpoints](#-api-endpoints)
-11. [Cấu trúc dự án](#-cấu-trúc-dự-án)
-12. [CLI tùy chọn](#-cli-tùy-chọn)
-13. [Lộ trình](#%EF%B8%8F-lộ-trình-phát-triển)
-14. [Miễn trừ trách nhiệm](#%EF%B8%8F-miễn-trừ-trách-nhiệm)
+2. [Tổng quan](#-tổng-quan)
+3. [Bắt đầu nhanh](#-bắt-đầu-nhanh)
+4. [Hướng dẫn các tab](#-hướng-dẫn-các-tab)
+5. [Tính năng chính](#-tính-năng-chính)
+6. [Hệ thống AI](#-hệ-thống-ai)
+7. [Kiến trúc](#%EF%B8%8F-kiến-trúc-hệ-thống)
+8. [Cấu hình môi trường](#%EF%B8%8F-cấu-hình-môi-trường)
+9. [API Endpoints](#-api-endpoints)
+10. [Cấu trúc dự án](#-cấu-trúc-dự-án)
+11. [CLI tùy chọn](#-cli-tùy-chọn)
+12. [Lộ trình](#%EF%B8%8F-lộ-trình-phát-triển)
+13. [Miễn trừ trách nhiệm](#%EF%B8%8F-miễn-trừ-trách-nhiệm)
 
 ---
 
 ## 📸 Xem giao diện
 
+Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. Thu gọn thư mục mẹ để ẩn toàn bộ.
+
 <details open>
-<summary><b>Ảnh chụp màn hình</b> — 6 tab chính (bấm để thu gọn)</summary>
+<summary><b>📷 Album</b> · Bìa · CK VN · Crypto · Auto Duck · Themes · CLI</summary>
+
+<br/>
+
+<details open>
+<summary><b>▸ Bìa</b> — các tab chính</summary>
 
 <table>
 <tr>
-<td align="center"><b>1. Chứng khoán VN</b><br/><img src="docs/screenshots/vn-stock-overview.png" width="240" alt="Tổng quan CK VN"/></td>
-<td align="center"><b>2. Phái sinh</b><br/><img src="docs/screenshots/deriv.png" width="240" alt="Tab phái sinh"/></td>
-<td align="center"><b>3. Crypto</b><br/><img src="docs/screenshots/crypto.png" width="240" alt="Tab crypto"/></td>
+<td align="center" width="33%"><b>CK VN</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="100%" alt="CK VN — chi tiết &amp; AI"/></td>
+<td align="center" width="33%"><b>Phái sinh</b><br/><img src="docs/screenshots/deriv.png" width="100%" alt="Phái sinh"/></td>
+<td align="center" width="33%"><b>Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
 </tr>
 <tr>
-<td align="center"><b>5. Giao dịch giả lập</b><br/><img src="docs/screenshots/paper-trading.png" width="240" alt="Tab giao dịch giả lập"/></td>
-<td align="center"><b>6. Tự động vào lệnh AI</b><br/><img src="docs/screenshots/autotrade-1.png" width="240" alt="Auto Duck tổng quan"/></td>
-<td align="center"><b>7. Kết nối sàn / Broker</b><br/><img src="docs/screenshots/broker.png" width="240" alt="Tab broker"/></td>
-</tr>
-</table>
-
-<details>
-<summary><b>Chứng khoán VN</b> — 3 góc nhìn (tổng quan · tin tức · cấu hình AI)</summary>
-
-<table>
-<tr>
-<td align="center"><b>Tổng quan thị trường</b><br/><img src="docs/screenshots/vn-stock-overview.png" width="240" alt="Tổng quan"/></td>
-<td align="center"><b>Live News Stream</b><br/><img src="docs/screenshots/vn-stock-news.png" width="240" alt="Tin tức trực tiếp"/></td>
-<td align="center"><b>Phân tích AI & PDF</b><br/><img src="docs/screenshots/vn-stock-ai-config.png" width="240" alt="Cấu hình AI"/></td>
+<td align="center"><b>Giao dịch giả lập</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
+<td align="center"><b>Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
+<td align="center"><b>Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
 </tr>
 </table>
 
 </details>
 
 <details>
-<summary><b>Tự động vào lệnh AI (Auto Duck)</b> — 3 góc nhìn (vốn · hiệu suất · nhật ký tín hiệu)</summary>
+<summary><b>▸ Chứng khoán VN</b> — chi tiết · tổng quan · tin · cấu hình AI</summary>
 
 <table>
 <tr>
-<td align="center"><b>Quản lý vốn & gói lệnh</b><br/><img src="docs/screenshots/autotrade-1.png" width="240" alt="Quản lý vốn"/></td>
-<td align="center"><b>Hiệu suất hệ thống</b><br/><img src="docs/screenshots/autotrade-2.png" width="240" alt="Hiệu suất"/></td>
-<td align="center"><b>Nhật ký tín hiệu & AI Lessons</b><br/><img src="docs/screenshots/autotrade-3.png" width="240" alt="Nhật ký tín hiệu"/></td>
+<td align="center"><b>Chi tiết &amp; AI</b><br/><img src="docs/screenshots/vn-stock-detail.png" width="240" alt="Chi tiết mã &amp; báo cáo AI"/></td>
+<td align="center"><b>Tổng quan</b><br/><img src="docs/screenshots/vn-stock-overview.png" width="240" alt="Tổng quan thị trường"/></td>
+<td align="center"><b>Tin tức</b><br/><img src="docs/screenshots/vn-stock-news.png" width="240" alt="Tin tức"/></td>
+<td align="center"><b>Cấu hình AI</b><br/><img src="docs/screenshots/vn-stock-ai-config.png" width="240" alt="Cấu hình AI"/></td>
 </tr>
 </table>
 
 </details>
 
+<details>
+<summary><b>▸ Crypto</b> — terminal · chiến lược AI · tin</summary>
+
+<table>
+<tr>
+<td align="center"><b>Crypto terminal</b><br/><img src="docs/screenshots/crypto.png" width="240" alt="Crypto terminal"/></td>
+<td align="center"><b>Radar + chart</b><br/><img src="docs/screenshots/crypto-terminal.png" width="240" alt="Market radar và chart BTC"/></td>
+<td align="center"><b>Chiến lược AI</b><br/><img src="docs/screenshots/crypto-ai-strategy.png" width="240" alt="AI quantitative strategy"/></td>
+<td align="center"><b>Tin thị trường</b><br/><img src="docs/screenshots/crypto-news.png" width="240" alt="Tin BTC"/></td>
+</tr>
+</table>
+
 </details>
 
----
-
-## 🎨 Cơ chế theme UI
-
-Giao diện không chỉ sáng/tối. Hệ thống tách thành bốn trục độc lập, gắn qua `data-theme`, `data-ui-style`, `data-font-scale` trên `<html>` (kèm CSS variable như `--omni-font-scale`). Preference lưu theo tài khoản qua `/api/auth/preferences`, fallback `localStorage` khi offline.
-
-| Trục | Tùy chọn | Tác dụng |
-|------|----------|----------|
-| **Theme** | Sáng · Tối | Nền, bề mặt, viền, độ tương phản chữ |
-| **Phong cách Frontend** | Hiện tại · Tối giản · Siêu tối giản · Chế độ sách | Mật độ UI, hiệu ứng, typography, mount lazy panel |
-| **Cỡ chữ** | Nhỏ · Vừa · Lớn · Rất lớn | Scale rem toàn app (`0.875` → `1.25`) |
-| **Đồng hồ** | 2D · 3D | Kiểu render đồng hồ trên header |
-
-**Bốn phong cách Frontend**
-
-| Style (`uiStyle`) | Nhãn UI | Hành vi |
-|-------------------|---------|---------|
-| `classic` | Hiện tại | Đầy đủ hiệu ứng, layout nhiều panel |
-| `minimal` | Tối giản | Giảm motion/hiệu ứng — ưu tiên FPS |
-| `ultra` | Siêu tối giản | Ngăn xếp — chỉ render section khi mở |
-| `book` | Chế độ sách | Palette giấy/parchment + font sách (`font-book`) |
-
-Mở **Cài đặt phong cách** từ menu user (header) để đổi realtime.
-
-<details open>
-<summary><b>Showcase theme</b> — sáng · sách · cài đặt (bấm để thu gọn)</summary>
+<details>
+<summary><b>▸ Auto Duck</b> — vốn · hiệu suất · nhật ký</summary>
 
 <table>
 <tr>
-<td align="center" width="50%"><b>Light — tổng quan thị trường</b><br/><img src="docs/screenshots/theme-light-overview.png" width="100%" alt="Theme sáng — tổng quan"/></td>
-<td align="center" width="50%"><b>Chế độ sách — parchment</b><br/><img src="docs/screenshots/theme-book-overview.png" width="100%" alt="Chế độ sách — tổng quan"/></td>
-</tr>
-<tr>
-<td align="center"><b>Chế độ sách — chart & phân tích</b><br/><img src="docs/screenshots/theme-book-chart.png" width="100%" alt="Chế độ sách — chart"/></td>
-<td align="center"><b>Chế độ sách — AutoDuck</b><br/><img src="docs/screenshots/theme-book-autoduck.png" width="100%" alt="Chế độ sách — AutoDuck"/></td>
+<td align="center"><b>Vốn &amp; gói lệnh</b><br/><img src="docs/screenshots/autotrade-1.png" width="240" alt="Vốn"/></td>
+<td align="center"><b>Hiệu suất</b><br/><img src="docs/screenshots/autotrade-2.png" width="240" alt="Hiệu suất"/></td>
+<td align="center"><b>Nhật ký tín hiệu</b><br/><img src="docs/screenshots/autotrade-3.png" width="240" alt="Nhật ký"/></td>
 </tr>
 </table>
 
+</details>
+
+<details>
+<summary><b>▸ Themes</b> — Sáng / Tối × Hiện tại · Tối giản · Siêu tối giản · Sách · cỡ chữ · đồng hồ · lưu theo tài khoản</summary>
+
 <table>
 <tr>
-<td align="center" width="50%"><b>Panel cài đặt phong cách</b><br/><img src="docs/screenshots/theme-style-settings.png" width="320" alt="Cài đặt: theme, đồng hồ, cỡ chữ, phong cách"/></td>
-<td align="center" width="50%"><b>Menu phong cách (desktop)</b><br/><img src="docs/screenshots/theme-style-menu.png" width="320" alt="Menu desktop: cỡ chữ và preset Frontend"/></td>
+<td align="center"><b>Light</b><br/><img src="docs/screenshots/theme-light-overview.png" width="240" alt="Theme sáng"/></td>
+<td align="center"><b>Chế độ sách</b><br/><img src="docs/screenshots/theme-book-overview.png" width="240" alt="Chế độ sách"/></td>
+<td align="center"><b>Sách · chart</b><br/><img src="docs/screenshots/theme-book-chart.png" width="240" alt="Chart chế độ sách"/></td>
+<td align="center"><b>Cài đặt</b><br/><img src="docs/screenshots/theme-style-settings.png" width="180" alt="Cài đặt phong cách"/></td>
 </tr>
 </table>
+
+</details>
+
+<details>
+<summary><b>▸ CLI Terminal</b> — TUI (`node cli/omni-cli.js`)</summary>
+
+<table>
+<tr>
+<td align="center"><b>Equity workspace</b><br/><img src="docs/screenshots/cli-equity-workspace.png" width="240" alt="CLI equity"/></td>
+<td align="center"><b>Equity detail</b><br/><img src="docs/screenshots/cli-equity-detail.png" width="240" alt="CLI detail"/></td>
+<td align="center"><b>Equity chart</b><br/><img src="docs/screenshots/cli-equity-chart.png" width="240" alt="CLI chart"/></td>
+</tr>
+<tr>
+<td align="center"><b>Crypto chart</b><br/><img src="docs/screenshots/cli-crypto-chart.png" width="240" alt="CLI crypto"/></td>
+<td align="center"><b>Crypto news</b><br/><img src="docs/screenshots/cli-crypto-news.png" width="240" alt="CLI news"/></td>
+<td align="center"><b>Market Radar</b><br/><img src="docs/screenshots/cli-market-radar.png" width="240" alt="CLI radar"/></td>
+</tr>
+</table>
+
+</details>
 
 </details>
 
@@ -147,9 +155,10 @@ Mở **Cài đặt phong cách** từ menu user (header) để đổi realtime.
 | 📈 Phân tích CK VN | ✅ Mạnh | VNDirect, TCBS, CafeF, VNstock-py, FireAnt |
 | 🤖 Pipeline tranh luận AI | ✅ Mạnh | Bull/Bear/PM đa giai đoạn |
 | 🔴 Phái sinh | ✅ Hoạt động | VN30F1M, tin vĩ mô, phân tích AI |
+| 🪙 Crypto | ✅ Hoạt động | Fear & Greed, dominance, funding, liquidations, volume profile, AI signal + tin coin |
+| 🌍 Quốc tế | ✅ Hoạt động | Tab 4 — watchlist theo nước (Mỹ/Nhật/Hàn/TQ–HK/Âu), Yahoo OHLC, điểm TA, tin sentiment (Google/Reddit/X); đề xuất Tech 70% + Tin 30% (**không AI**) |
 | 🎮 Giao dịch giả lập | ✅ Hoạt động | 10 tỷ VND ảo, lệnh LO/ATO/ATC, P&L |
 | 🔌 Broker / LIVE | ✅ Hoạt động | Binance, OKX, Bybit (crypto) + DNSE (CK VN) — testnet & live |
-| 🪙 Crypto | ⚠️ Đang phát triển | CoinGecko/Binance, tín hiệu còn hạn chế |
 | 📊 Biểu đồ | ⚠️ Đang phát triển | KlineCharts + Lightweight Charts |
 | 🔄 AutoTrading | ⚠️ Đang cải thiện | Tỷ lệ thắng, AI lessons, mô phỏng + LIVE |
 
@@ -202,14 +211,14 @@ Mở **http://localhost:5173** → đăng ký tài khoản → chọn tab từ m
 
 ## 🗂️ Hướng dẫn các tab
 
-Menu người dùng có **7 tab** (tab 4 đang tắt — sắp ra mắt).
+Menu người dùng có **7 tab**.
 
 | # | Tab | Nội dung | Ảnh |
 |---|-----|----------|-----|
-| 1 | **Chứng khoán VN** | Giá realtime, heatmap ngành, AI market intel, tranh luận, biểu đồ, chat AI nổi | [tổng quan](docs/screenshots/vn-stock-overview.png) · [tin](docs/screenshots/vn-stock-news.png) · [cấu hình](docs/screenshots/vn-stock-ai-config.png) |
+| 1 | **Chứng khoán VN** | Giá realtime, heatmap ngành, AI market intel, tranh luận, biểu đồ, chat AI nổi | [chi tiết](docs/screenshots/vn-stock-detail.png) · [tổng quan](docs/screenshots/vn-stock-overview.png) · [tin](docs/screenshots/vn-stock-news.png) · [cấu hình](docs/screenshots/vn-stock-ai-config.png) |
 | 2 | **Phái sinh VN** | VN30F1M / HNX, tin vĩ mô, tín hiệu cơ học + AI (DXY, Dow, USD/VND) | [phái sinh](docs/screenshots/deriv.png) |
-| 3 | **Crypto** | Giá CoinGecko/Binance, funding, fear & greed, biểu đồ đa khung, AI signal | [crypto](docs/screenshots/crypto.png) |
-| 4 | **Quốc tế** | *Sắp ra mắt* — đang disabled trên UI | — |
+| 3 | **Crypto** | Market radar (Fear & Greed, dominance, funding, liquidations, top movers), nến đa khung + volume profile, chiến lược AI (RSI/MACD/CVD/ATR/VWAP → entry/SL/TP), tin coin có tag sentiment | [terminal](docs/screenshots/crypto.png) · [radar](docs/screenshots/crypto-terminal.png) · [AI](docs/screenshots/crypto-ai-strategy.png) · [tin](docs/screenshots/crypto-news.png) |
+| 4 | **Quốc tế** | **Đang mở trên UI** (`/international`). Watchlist Mỹ / Nhật / Hàn / TQ–HK / Âu; Yahoo Finance OHLC + chart đa khung; điểm kỹ thuật; tin sentiment Google / Reddit / X; đề xuất thô **Tech 70% + Tin 30%** — **không dùng LLM**. Search/quote qua `/api/international/*` | — |
 | 5 | **Giao dịch giả lập** | Danh mục ảo 10 tỷ VND, LO/ATO/ATC, P&L đa tài sản | [paper-trading](docs/screenshots/paper-trading.png) |
 | 6 | **Tự động vào lệnh AI** | Scheduler (crypto 24/7, VN 15 phút), risk 1–4, mô phỏng vs LIVE, AI lessons | [1](docs/screenshots/autotrade-1.png) · [2](docs/screenshots/autotrade-2.png) · [3](docs/screenshots/autotrade-3.png) |
 | 7 | **Kết nối sàn / Broker** | API sàn (Binance/OKX/Bybit crypto + DNSE CK VN), vị thế LIVE, lịch sử lệnh, cảnh báo quyền API | [broker](docs/screenshots/broker.png) |
@@ -396,6 +405,11 @@ Toàn bộ cấu hình trong **một file `.env` ở thư mục gốc** (Vite pr
 - `GET /api/crypto/symbols` · `GET /api/crypto/price/:symbol` · `GET /api/crypto/radar`
 - `GET /api/crypto/funding` · `POST /api/crypto/signal`
 
+**Quốc tế (Tab 4)**
+- `GET /api/international/markets` · `GET /api/international/search`
+- `GET /api/international/quotes` · `GET /api/international/history/:symbol`
+- `GET /api/international/proposal/:symbol`
+
 **Giao dịch giả lập**
 - `GET /api/portfolio/:username` · `POST /api/portfolio/trade`
 
@@ -435,41 +449,14 @@ ProjectFinance/
 
 ## 💻 CLI tùy chọn
 
-TUI full-screen thay cho React dashboard — cùng API backend, điều khiển bằng bàn phím. Palette nằm ở `cli/theme.js` (amber brand, khung cyan, P&L xanh/đỏ); chart và bảng dày dùng ANSI + box-drawing.
+TUI full-screen trên cùng API — xem ảnh ở **[Xem giao diện → CLI Terminal](#-xem-giao-diện)**.
 
 ```bash
-# Từ thư mục gốc (backend phải chạy ở :3001)
+# Backend phải chạy ở :3001
 node cli/omni-cli.js
 
 # Windows: double-click omni-manager.bat
 ```
-
-| Workspace | Nội dung |
-|-----------|----------|
-| **Equity** | Tra cứu mã → overview / nến / báo cáo AI / tin |
-| **Market Radar** | Trạng thái VN-INDEX, dòng tiền ngành, top movers |
-| **Crypto** | Quote, nến + volume, news feed |
-| **Phái sinh** | Futures / index (cùng stack) |
-
-<details open>
-<summary><b>Showcase CLI</b> — equity · crypto · market radar (bấm để thu gọn)</summary>
-
-<table>
-<tr>
-<td align="center" width="50%"><b>Equity workspace</b><br/><img src="docs/screenshots/cli-equity-workspace.png" width="100%" alt="CLI equity lookup"/></td>
-<td align="center" width="50%"><b>Equity detail</b><br/><img src="docs/screenshots/cli-equity-detail.png" width="100%" alt="CLI equity detail"/></td>
-</tr>
-<tr>
-<td align="center"><b>Equity chart</b><br/><img src="docs/screenshots/cli-equity-chart.png" width="100%" alt="CLI chart nến MBB"/></td>
-<td align="center"><b>Crypto chart</b><br/><img src="docs/screenshots/cli-crypto-chart.png" width="100%" alt="CLI chart BTC"/></td>
-</tr>
-<tr>
-<td align="center"><b>Crypto news</b><br/><img src="docs/screenshots/cli-crypto-news.png" width="100%" alt="CLI crypto news"/></td>
-<td align="center"><b>Market Radar</b><br/><img src="docs/screenshots/cli-market-radar.png" width="100%" alt="CLI market radar VN-INDEX"/></td>
-</tr>
-</table>
-
-</details>
 
 ---
 
@@ -480,7 +467,7 @@ node cli/omni-cli.js
 - [ ] Crypto — tín hiệu mạnh hơn, dữ liệu đa sàn
 - [ ] UI/UX — mobile, skeleton loading
 - [ ] Tỷ lệ thắng Auto-trade — ADX, VWAP, OBV
-- [ ] Tab thị trường quốc tế (đang tắt trên UI)
+- [x] Tab thị trường quốc tế (đã mở — TA + tin sentiment; không AI)
 
 **Trung bình:** Redis cache · index DB · bcrypt · Jest · WebSocket giá
 

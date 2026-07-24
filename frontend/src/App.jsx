@@ -6,6 +6,7 @@ import { X, FileText} from 'lucide-react'
 ////import components
 import AppHeader from './components/AppHeader';
 import CryptoTab from './components/CryptoTab';
+import InternationalTab from './components/InternationalTab';
 import PaperTradingTab from './components/PaperTradingTab';
 import VnStocksTab from './components/VnStocksTab';
 import AuthScreen from './components/AuthScreen';
@@ -365,6 +366,7 @@ const handleSetFontScale = (nextScale) => {
   const routeSymbolLoadedRef = useRef('');
   const paperRouteSymbolLoadedRef = useRef('');
   const [cryptoDeepSymbol, setCryptoDeepSymbol] = useState(null);
+  const [intlDeepSymbol, setIntlDeepSymbol] = useState(null);
 
   //LOGIC: PERSIST NEWS MODE SELECTION
   useEffect(() => {
@@ -1627,6 +1629,16 @@ useEffect(() => {
     setCryptoDeepSymbol(routeInfo.symbol);
   }, [routeInfo.mode, routeInfo.symbol, navigate]);
 
+  // Deep-link: /international/:symbol (default AAPL)
+  useEffect(() => {
+    if (routeInfo.mode !== APP_MODES.INTERNATIONAL) return;
+    if (!routeInfo.symbol) {
+      navigate(buildAppPath({ mode: APP_MODES.INTERNATIONAL, symbol: 'AAPL' }), { replace: true });
+      return;
+    }
+    setIntlDeepSymbol(routeInfo.symbol);
+  }, [routeInfo.mode, routeInfo.symbol, navigate]);
+
   // Deep-link: /paper-trading/:market/:symbol
   useEffect(() => {
     if (!currentUser) return;
@@ -2143,7 +2155,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         isDark={isDark} UI={UI}
         uiStyle={uiStyle}
         activeMode={activeMode} 
-        marketOpen={activeMode === 'CRYPTO' ? true : marketOpen}
+        marketOpen={activeMode === 'CRYPTO' || activeMode === 'INTERNATIONAL' ? true : marketOpen}
         input={input} setInput={setInput}
         showSuggestions={showSuggestions} setShowSuggestions={setShowSuggestions}
         suggestions={suggestions} setSuggestions={setSuggestions}
@@ -2266,6 +2278,24 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                   if (!clean) return;
                   setCryptoDeepSymbol(clean);
                   navigate(buildAppPath({ mode: APP_MODES.CRYPTO, symbol: clean }), { replace: true });
+                }}
+            />
+        )}
+        {/*========================================================= */}
+        {/*MODE 4: INTERNATIONAL EQUITIES */}
+        {/*========================================================= */}
+        {activeMode === 'INTERNATIONAL' && (
+            <InternationalTab
+                isDark={isDark}
+                UI={UI}
+                uiStyle={uiStyle}
+                addLog={addLog}
+                initialSymbol={intlDeepSymbol || routeInfo.symbol || 'AAPL'}
+                onSymbolChange={(sym) => {
+                  const clean = String(sym || '').trim().toUpperCase();
+                  if (!clean) return;
+                  setIntlDeepSymbol(clean);
+                  navigate(buildAppPath({ mode: APP_MODES.INTERNATIONAL, symbol: clean }), { replace: true });
                 }}
             />
         )}

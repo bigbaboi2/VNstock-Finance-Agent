@@ -554,7 +554,7 @@ const OVERLAY_COLORS_VIOLET = ['#8B5CF6','#A855F7','#FF9600','#089981','#F23645'
 const OVERLAY_COLORS_YELLOW = ['#EAB308','#FACC15','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
 const STROKE_SIZES   = [1,2,3,4];
 
-/** Accent: crypto=violet, vnstock/derivatives=yellow */
+/** Accent: crypto=violet, vnstock/derivatives=yellow, international=teal */
 const ACCENT = {
   violet: {
     solid: 'bg-violet-600',
@@ -593,6 +593,25 @@ const ACCENT = {
     selectedTextLight: 'text-yellow-600',
     defaultOverlay: '#EAB308',
     overlayColors: OVERLAY_COLORS_YELLOW,
+  },
+  teal: {
+    solid: 'bg-teal-600',
+    solidText: 'text-white',
+    solidBorder: 'border-teal-600',
+    idleBorder: 'border-teal-500/30',
+    idleText: 'text-teal-400',
+    idleTextLight: 'text-teal-600',
+    hoverSolid: 'hover:bg-teal-600 hover:text-white hover:border-teal-600',
+    rowHover: 'hover:bg-teal-600/80 hover:text-white',
+    toolIdleDark: 'text-slate-500 hover:bg-white/8 hover:text-teal-400',
+    toolIdleLight: 'text-slate-500 hover:bg-teal-500/20 hover:text-teal-700',
+    toolShadow: 'shadow-md shadow-teal-600/30',
+    strokeIdleDark: 'text-slate-400 hover:text-teal-400',
+    strokeIdleLight: 'text-slate-500 hover:text-teal-600',
+    selectedTextDark: 'text-teal-400',
+    selectedTextLight: 'text-teal-600',
+    defaultOverlay: '#14B8A6',
+    overlayColors: OVERLAY_COLORS_VIOLET,
   },
 };
 

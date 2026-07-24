@@ -16,6 +16,7 @@ export const APP_MODES = {
   VN_STOCKS: 'VN_STOCKS',
   VN_DERIVATIVES: 'VN_DERIVATIVES',
   CRYPTO: 'CRYPTO',
+  INTERNATIONAL: 'INTERNATIONAL',
   PAPER_TRADING: 'PAPER_TRADING',
   AUTO_TRADE: 'AUTO_TRADE',
   BROKER_CONNECTION: 'BROKER_CONNECTION',
@@ -32,6 +33,7 @@ const MODE_BASE = {
   [APP_MODES.VN_STOCKS]: '/vn-stocks',
   [APP_MODES.VN_DERIVATIVES]: '/vn-derivatives',
   [APP_MODES.CRYPTO]: '/crypto',
+  [APP_MODES.INTERNATIONAL]: '/international',
   [APP_MODES.PAPER_TRADING]: '/paper-trading',
   [APP_MODES.AUTO_TRADE]: '/auto-duck',
   [APP_MODES.BROKER_CONNECTION]: '/broker',
@@ -59,6 +61,8 @@ const LEGACY_MODE_ALIASES = {
   DERIVATIVES: APP_MODES.VN_DERIVATIVES,
   DERIV: APP_MODES.VN_DERIVATIVES,
   CRYPTO: APP_MODES.CRYPTO,
+  INTERNATIONAL: APP_MODES.INTERNATIONAL,
+  INTL: APP_MODES.INTERNATIONAL,
   PAPER: APP_MODES.PAPER_TRADING,
   PAPER_TRADING: APP_MODES.PAPER_TRADING,
   AUTO: APP_MODES.AUTO_TRADE,
@@ -99,7 +103,8 @@ export function buildAppPath({
     sym &&
     (normalizedMode === APP_MODES.VN_STOCKS ||
       normalizedMode === APP_MODES.CRYPTO ||
-      normalizedMode === APP_MODES.VN_DERIVATIVES)
+      normalizedMode === APP_MODES.VN_DERIVATIVES ||
+      normalizedMode === APP_MODES.INTERNATIONAL)
   ) {
     return `${base}/${encodeURIComponent(sym)}`;
   }

@@ -7,6 +7,10 @@ export const cryptoCache = {
     globalMarket: { totalMarketCap: 0, volume24h: 0, updatedAt: 0 },
     topMovers:    { gainers: [], losers: [], updatedAt: 0 },
     prices:       {},
+    /** symbol → CoinGecko id (vd. M → memecore) — fallback nến khi không có trên CEX */
+    cgIds:        {},
+    /** symbol → { meta, updatedAt } — cache ATH/vốn hóa/supply (~15 phút) */
+    marketMeta:   {},
 };
 
 //2. UTILITY FUNCTION
@@ -178,17 +182,237 @@ const fetchBybitKlines = async (symbol, iv, limit) => {
     } catch { return null; }
 };
 
+const CG_OHLC_DAYS = {
+    '1m': 1, '3m': 1, '5m': 1, '15m': 1, '30m': 1,
+    '1h': 7, '2h': 14, '4h': 30,
+    '1d': 90, '1w': 365, '1M': 365,
+};
+
+const resolveCoinGeckoId = async (symbol) => {
+    const sym = String(symbol || '').toUpperCase();
+    if (!sym) return null;
+    if (cryptoCache.cgIds?.[sym]) return cryptoCache.cgIds[sym];
+    // Bootstrap id phổ biến — tránh phụ thuộc top-movers đã chạy trước
+    const WELL_KNOWN = {
+        BTC: 'bitcoin', ETH: 'ethereum', BNB: 'binancecoin', SOL: 'solana', XRP: 'ripple',
+        DOGE: 'dogecoin', ADA: 'cardano', AVAX: 'avalanche-2', DOT: 'polkadot', LINK: 'chainlink',
+        MATIC: 'matic-network', POL: 'polygon-ecosystem-token', TRX: 'tron', LTC: 'litecoin',
+        UNI: 'uniswap', ATOM: 'cosmos', NEAR: 'near', APT: 'aptos', ARB: 'arbitrum', OP: 'optimism',
+        SUI: 'sui', PEPE: 'pepe', SHIB: 'shiba-inu', TON: 'the-open-network', M: 'memecore',
+    };
+    if (WELL_KNOWN[sym]) {
+        cryptoCache.cgIds[sym] = WELL_KNOWN[sym];
+        return WELL_KNOWN[sym];
+    }
+    try {
+        const r = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+            params: { vs_currency: 'usd', symbols: sym.toLowerCase(), per_page: 10 },
+            timeout: 8000,
+        });
+        const rows = Array.isArray(r.data) ? r.data : [];
+        const exact = rows.find(c => String(c.symbol || '').toUpperCase() === sym) || rows[0];
+        if (exact?.id) {
+            cryptoCache.cgIds[sym] = exact.id;
+            return exact.id;
+        }
+    } catch {}
+    return null;
+};
+
+const META_TTL_MS = 15 * 60 * 1000;
+const PAPRIKA_IDS = {
+    BTC: 'btc-bitcoin', ETH: 'eth-ethereum', BNB: 'bnb-binance-coin', SOL: 'sol-solana',
+    XRP: 'xrp-xrp', DOGE: 'doge-dogecoin', ADA: 'ada-cardano', AVAX: 'avax-avalanche',
+    DOT: 'dot-polkadot', LINK: 'link-chainlink', TRX: 'trx-tron', LTC: 'ltc-litecoin',
+    UNI: 'uni-uniswap', ATOM: 'atom-cosmos', NEAR: 'near-near-protocol', APT: 'apt-aptos',
+    ARB: 'arb-arbitrum', OP: 'op-optimism', SUI: 'sui-sui', PEPE: 'pepe-pepe',
+    SHIB: 'shib-shiba-inu', TON: 'ton-the-open-network',
+};
+
+const normalizeMeta = (raw) => {
+    if (!raw) return null;
+    const marketCap = raw.marketCap != null ? Number(raw.marketCap) : null;
+    const circulatingSupply = raw.circulatingSupply != null ? Number(raw.circulatingSupply) : null;
+    const maxSupply = raw.maxSupply != null ? Number(raw.maxSupply) : null;
+    const ath = raw.ath != null ? Number(raw.ath) : null;
+    let athChange = raw.athChange != null ? Number(raw.athChange) : null;
+    // Tự tính % từ ATH nếu API không trả
+    if ((athChange == null || Number.isNaN(athChange)) && ath > 0 && raw.currentPrice > 0) {
+        athChange = ((Number(raw.currentPrice) - ath) / ath) * 100;
+    }
+    if (!(marketCap > 0 || ath > 0 || circulatingSupply > 0)) return null;
+    return {
+        marketCap: marketCap > 0 ? marketCap : null,
+        circulatingSupply: circulatingSupply > 0 ? circulatingSupply : null,
+        maxSupply: maxSupply > 0 ? maxSupply : null,
+        ath: ath > 0 ? ath : null,
+        athChange: athChange != null && !Number.isNaN(athChange) ? athChange : null,
+        name: raw.name || '',
+        image: raw.image || '',
+        id: raw.id || '',
+    };
+};
+
+const fetchMetaFromCoinPaprika = async (symbol) => {
+    const paprikaId = PAPRIKA_IDS[String(symbol || '').toUpperCase()];
+    if (!paprikaId) return null;
+    try {
+        const r = await axios.get(`https://api.coinpaprika.com/v1/tickers/${paprikaId}`, { timeout: 8000 });
+        const d = r.data;
+        const q = d?.quotes?.USD;
+        if (!q) return null;
+        return normalizeMeta({
+            marketCap: q.market_cap,
+            circulatingSupply: d.circulating_supply,
+            maxSupply: d.max_supply || d.total_supply,
+            ath: q.ath_price,
+            athChange: q.percent_from_price_ath,
+            currentPrice: q.price,
+            name: d.name || '',
+            image: '',
+            id: d.id || paprikaId,
+        });
+    } catch {
+        return null;
+    }
+};
+
+/** ATH / vốn hóa / supply — cache 15p, CoinGecko → CoinPaprika, tránh mất data khi đổi khung nến. */
+export const fetchCoinGeckoMarketMeta = async (symbol, { currentPrice = null } = {}) => {
+    const sym = String(symbol || '').toUpperCase();
+    if (!sym) return null;
+
+    const cached = cryptoCache.marketMeta?.[sym];
+    if (cached?.meta && Date.now() - cached.updatedAt < META_TTL_MS) {
+        const hit = normalizeMeta({ ...cached.meta, currentPrice: currentPrice ?? cached.meta.currentPrice });
+        if (hit) return hit;
+    }
+
+    const pickMarkets = (d) => d ? normalizeMeta({
+        marketCap: d.market_cap,
+        circulatingSupply: d.circulating_supply,
+        maxSupply: d.max_supply || d.total_supply,
+        ath: d.ath,
+        athChange: d.ath_change_percentage,
+        currentPrice: currentPrice ?? d.current_price,
+        name: d.name || '',
+        image: d.image || '',
+        id: d.id || '',
+    }) : null;
+
+    let meta = null;
+    const coinId = await resolveCoinGeckoId(sym);
+
+    if (coinId) {
+        try {
+            const r = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+                params: { vs_currency: 'usd', ids: coinId },
+                timeout: 8000,
+            });
+            meta = pickMarkets(r.data?.[0]);
+        } catch {}
+
+        // Nếu thiếu ATH/supply dù đã có vốn hóa → gọi chi tiết coin
+        if (!meta?.ath || !meta?.circulatingSupply) {
+            try {
+                const r = await axios.get(`https://api.coingecko.com/api/v3/coins/${coinId}`, {
+                    params: {
+                        localization: false,
+                        tickers: false,
+                        market_data: true,
+                        community_data: false,
+                        developer_data: false,
+                    },
+                    timeout: 10000,
+                });
+                const d = r.data;
+                const md = d?.market_data;
+                if (md) {
+                    const detail = normalizeMeta({
+                        marketCap: md.market_cap?.usd ?? meta?.marketCap,
+                        circulatingSupply: md.circulating_supply ?? meta?.circulatingSupply,
+                        maxSupply: md.max_supply || md.total_supply || meta?.maxSupply,
+                        ath: md.ath?.usd ?? meta?.ath,
+                        athChange: md.ath_change_percentage?.usd ?? meta?.athChange,
+                        currentPrice: currentPrice ?? md.current_price?.usd,
+                        name: d.name || meta?.name || '',
+                        image: d.image?.small || meta?.image || '',
+                        id: d.id || coinId,
+                    });
+                    if (detail) meta = detail;
+                }
+            } catch {}
+        }
+    }
+
+    if (!meta?.ath || !meta?.circulatingSupply || !meta?.marketCap) {
+        const paprika = await fetchMetaFromCoinPaprika(sym);
+        if (paprika) {
+            meta = normalizeMeta({
+                marketCap: meta?.marketCap ?? paprika.marketCap,
+                circulatingSupply: meta?.circulatingSupply ?? paprika.circulatingSupply,
+                maxSupply: meta?.maxSupply ?? paprika.maxSupply,
+                ath: meta?.ath ?? paprika.ath,
+                athChange: meta?.athChange ?? paprika.athChange,
+                currentPrice,
+                name: meta?.name || paprika.name,
+                image: meta?.image || paprika.image,
+                id: meta?.id || paprika.id,
+            }) || meta;
+        }
+    }
+
+    if (!meta) {
+        try {
+            const r = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+                params: { vs_currency: 'usd', symbols: sym.toLowerCase(), per_page: 10 },
+                timeout: 8000,
+            });
+            const rows = Array.isArray(r.data) ? r.data : [];
+            const exact = rows.find(c => String(c.symbol || '').toUpperCase() === sym) || rows[0];
+            meta = pickMarkets(exact);
+            if (meta?.id) cryptoCache.cgIds[sym] = meta.id;
+        } catch {}
+    }
+
+    if (meta) {
+        cryptoCache.marketMeta[sym] = { meta: { ...meta, currentPrice }, updatedAt: Date.now() };
+    }
+    return meta;
+};
+
+/** Fallback nến từ CoinGecko OHLC — dùng cho mã top movers không có trên Binance/OKX/Bybit (M, FIGR_HELOC…). */
+const fetchCoinGeckoKlines = async (symbol, iv) => {
+    try {
+        const coinId = await resolveCoinGeckoId(symbol);
+        if (!coinId) return null;
+        const days = CG_OHLC_DAYS[iv] || 30;
+        const r = await axios.get(`https://api.coingecko.com/api/v3/coins/${coinId}/ohlc`, {
+            params: { vs_currency: 'usd', days },
+            timeout: 10000,
+        });
+        if (!Array.isArray(r.data) || r.data.length === 0) return null;
+        return r.data.map(([ts, o, h, l, c]) => ({
+            time: fmtKlineTime(ts, iv),
+            open: +o, high: +h, low: +l, close: +c, volume: 0,
+        }));
+    } catch { return null; }
+};
+
 // Lấy nến từ nguồn khả dụng đầu tiên. Trả về [] nếu mọi nguồn đều fail.
 export const fetchKlines = async (symbol, interval) => {
     const iv = normalizeInterval(interval);
     const limit = KLINE_LIMIT[iv] || 300;
+    // Symbol có "_" (FIGR_HELOC) gần như không có trên CEX — bỏ qua CEX, đi thẳng CoinGecko
+    const skipCex = /[^A-Z0-9]/.test(String(symbol || '').toUpperCase());
     const pair = `${symbol}USDT`;
-    const sources = [
+    const sources = skipCex ? [] : [
         () => fetchBinanceStyle('https://data-api.binance.vision', pair, iv, limit),
         () => fetchBinanceStyle('https://api.binance.com', pair, iv, limit),
         () => fetchOkxKlines(symbol, iv, limit),
         () => fetchBybitKlines(symbol, iv, limit),
     ];
+    sources.push(() => fetchCoinGeckoKlines(symbol, iv));
     for (const src of sources) {
         const data = await src();
         if (data && data.length) return data;

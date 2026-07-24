@@ -28,6 +28,7 @@ import { streamTcbsPdf } from './controllers/market.controller.js';
 import aiRoutes from './routes/ai.routes.js';
 import historyRoutes from './routes/history.routes.js';
 import cryptoRoutes from './routes/crypto.routes.js';
+import internationalRoutes from './routes/international.routes.js';
 import autoTradeRoutes from './routes/autoTrade.routes.js'; 
 import telegramRoutes from './routes/telegram.routes.js';
 import exchangeConnectionRoutes from './routes/exchangeConnection.routes.js';
@@ -61,6 +62,7 @@ app.use(express.json());
 
 // ─── Prefixed routes (chuẩn) ────────────────────────────────────────────────
 app.use('/api/crypto',       cryptoRoutes);
+app.use('/api/international', internationalRoutes);
 app.use('/api/auth',         authRoutes);
 app.use('/api/portfolio',    portfolioRoutes);
 app.use('/api/derivatives',  derivativesRoutes);

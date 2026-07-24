@@ -177,10 +177,10 @@ export default function StockAiChat({
     ? [
         "Xu hướng kỹ thuật ngắn hạn (1D/4H) hiện tại?",
         "Vùng hỗ trợ / kháng cự quan trọng nhất?",
-        "Sentiment thị trường Crypto toàn cầu đang nghiêng về đâu?",
-        "Rủi ro vĩ mô (Fed, thanh khoản) ảnh hưởng thế nào?",
-        "So sánh sức mạnh tương đối với BTC?",
-        "Chiến lược DCA hay chờ breakout?"
+        "Nên LONG / SHORT / đứng ngoài?",
+        "Funding, OI và thanh khoản đang nói gì?",
+        "Sức mạnh tương đối so với BTC thế nào?",
+        "Chiến lược vào lệnh / quản trị rủi ro hợp lý?"
       ]
     : [
         "Tóm tắt điểm mạnh và điểm yếu chính của doanh nghiệp?",

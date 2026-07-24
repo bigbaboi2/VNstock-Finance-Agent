@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-  Activity, Globe, Database, Zap, X, User, Bot, Plug,
-  Settings, ArrowLeft, Sun, Moon, BookOpen, Sparkles, Minus, Type, Layers,
+  Activity, Globe, Zap, X, User, Bot, Plug,
+  Settings, ArrowLeft, Sun, Moon, BookOpen, Sparkles, Minus, Type, Layers, Landmark,
 } from 'lucide-react';
 import { APP_MODES, buildAppPath } from '../routes/appRoutes';
 
@@ -26,6 +26,13 @@ const MODE_ITEMS = [
     pathHint: '/crypto',
     icon: Globe,
     activeClass: 'bg-blue-500 text-white',
+  },
+  {
+    mode: APP_MODES.INTERNATIONAL,
+    label: '4. Quốc tế',
+    pathHint: '/international',
+    icon: Landmark,
+    activeClass: 'bg-teal-500 text-white shadow-lg shadow-teal-500/20',
   },
 ];
 
@@ -132,10 +139,6 @@ export default function UserMenu({
                 <Icon size={16} /> {label}
               </button>
             ))}
-
-            <button type="button" disabled className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm opacity-40 grayscale cursor-not-allowed text-left`}>
-              <Database size={16} /> 4. Quốc tế (Update sau)
-            </button>
 
             <button
               type="button"

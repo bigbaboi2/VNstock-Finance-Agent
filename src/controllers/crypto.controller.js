@@ -4,7 +4,8 @@ import vader from 'vader-sentiment';
 import CryptoCoin from '../../models/CryptoCoin.js';
 import { analyzeCryptoSignalWithGemini } from '../services/aiService.js';
 import { buildCryptoSignalMessage, sendTelegramMessage } from '../services/telegramService.js';
-import { cryptoCache, formatLargeNumber, calcTechnicals, calcVolumeProfile, translateFearGreed, fetchKlines, fetchTicker24h } from '../services/cryptoService.js';
+import { cryptoCache, formatLargeNumber, calcTechnicals, calcVolumeProfile, translateFearGreed, fetchKlines, fetchTicker24h, fetchCoinGeckoMarketMeta } from '../services/cryptoService.js';
+import { ensureCryptoUpdaterRunning, ensureRadarData } from '../jobs/cryptoUpdater.js';
 
 export const getCryptoNews = async (req, res) => {
     const sym = req.params.symbol.toUpperCase();
@@ -73,6 +74,9 @@ export const getCryptoDerivatives = async (req, res) => {
 
 export const getCryptoRadar = async (req, res) => {
     try {
+        // Đợi updater + đảm bảo có vốn hóa thật (tránh trả --- do race lần đầu)
+        await ensureCryptoUpdaterRunning();
+        await ensureRadarData({ force: req.query.refresh === '1' });
         const { fearGreed, dominance, globalMarket } = cryptoCache;
         const altSeason = parseFloat(dominance.btc) < 48 ? 'Altseason đang diễn ra' : parseFloat(dominance.btc) > 55 ? 'BTC dẫn dắt mạnh' : 'Chưa kích hoạt';
         return res.json({
@@ -80,8 +84,12 @@ export const getCryptoRadar = async (req, res) => {
             data: {
                 fearGreed: { value: fearGreed.value, label: fearGreed.label, labelVi: translateFearGreed(fearGreed.label) },
                 dominance: { btc: dominance.btc, eth: dominance.eth, altSeason, btcDominantSignal: parseFloat(dominance.btc) > 50 ? 'BTC dẫn dắt' : 'Altcoin mùa' },
-                globalMarket: { totalMarketCap: formatLargeNumber(globalMarket.totalMarketCap), volume24h: formatLargeNumber(globalMarket.volume24h), marketCapChangePercent: globalMarket.marketCapChangePercent }
-            }
+                globalMarket: {
+                    totalMarketCap: formatLargeNumber(globalMarket.totalMarketCap),
+                    volume24h: formatLargeNumber(globalMarket.volume24h),
+                    marketCapChangePercent: globalMarket.marketCapChangePercent,
+                },
+            },
         });
     } catch (error) { return res.status(500).json({ success: false, message: error.message }); }
 };
@@ -90,7 +98,11 @@ export const getCryptoPrice = async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
     const interval = req.query.interval || '4h';
     let lastSignal = null;
-    try { const coinRecord = await CryptoCoin.findOne({ symbol }); if (coinRecord?.reports?.length > 0) lastSignal = coinRecord.reports[coinRecord.reports.length - 1]; } catch(e) {}
+    let coinRecord = null;
+    try {
+        coinRecord = await CryptoCoin.findOne({ symbol });
+        if (coinRecord?.reports?.length > 0) lastSignal = coinRecord.reports[coinRecord.reports.length - 1];
+    } catch (e) {}
 
     try {
         // Nến + ticker qua tầng nguồn đa dạng (chống geo-block Binance/Bybit)
@@ -113,11 +125,45 @@ export const getCryptoPrice = async (req, res) => {
             }
         } catch (e) {}
 
-        let marketCap = 0, circulatingSupply = 0, maxSupply = 0, ath = 0, athChange = 0;
-        try {
-            const cgRes = await axios.get(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols=${symbol.toLowerCase()}`, { timeout: 4000 });
-            if (cgRes.data?.[0]) { const d = cgRes.data[0]; marketCap = d.market_cap; circulatingSupply = d.circulating_supply; maxSupply = d.max_supply || d.total_supply; ath = d.ath; athChange = d.ath_change_percentage; }
-        } catch (cgErr) {}
+        // On-chain meta: cache → CoinGecko → CoinPaprika → DB (tránh mất ATH khi đổi khung / rate-limit)
+        let marketCap = null, circulatingSupply = null, maxSupply = null, ath = null, athChange = null;
+        const pxNow = ticker?.lastPrice ?? candles[candles.length - 1]?.close ?? null;
+        const cgMeta = await fetchCoinGeckoMarketMeta(symbol, { currentPrice: pxNow });
+        if (cgMeta) {
+            marketCap = cgMeta.marketCap;
+            circulatingSupply = cgMeta.circulatingSupply;
+            maxSupply = cgMeta.maxSupply;
+            ath = cgMeta.ath;
+            athChange = cgMeta.athChange;
+            // Persist để lần sau vẫn có đủ field khi CG bị chặn
+            CryptoCoin.updateOne(
+                { symbol },
+                {
+                    $set: {
+                        ...(cgMeta.name ? { name: cgMeta.name } : {}),
+                        ...(cgMeta.image ? { image: cgMeta.image } : {}),
+                        ...(marketCap != null ? { marketCap } : {}),
+                        ...(circulatingSupply != null ? { circulatingSupply } : {}),
+                        ...(maxSupply != null ? { maxSupply } : {}),
+                        ...(ath != null ? { ath } : {}),
+                        ...(athChange != null ? { athChange } : {}),
+                        ...(pxNow != null ? { currentPrice: pxNow } : {}),
+                        lastUpdated: new Date(),
+                    },
+                    $setOnInsert: { symbol, name: cgMeta.name || symbol },
+                },
+                { upsert: true }
+            ).catch(() => {});
+        } else if (coinRecord) {
+            marketCap = coinRecord.marketCap ?? null;
+            circulatingSupply = coinRecord.circulatingSupply ?? null;
+            maxSupply = coinRecord.maxSupply ?? null;
+            ath = coinRecord.ath ?? null;
+            athChange = coinRecord.athChange ?? null;
+            if ((athChange == null || Number.isNaN(athChange)) && ath > 0 && pxNow > 0) {
+                athChange = ((pxNow - ath) / ath) * 100;
+            }
+        }
 
         return res.json({
             success: true,
@@ -128,7 +174,8 @@ export const getCryptoPrice = async (req, res) => {
                 volume24h: formatLargeNumber(ticker?.quoteVolume ?? 0),
                 high24h: ticker?.highPrice ?? 0, low24h: ticker?.lowPrice ?? 0,
                 candles, technicals: calcTechnicals(candles), volProfile: calcVolumeProfile(candles.slice(-50)),
-                cvd: Math.round(candles.slice(-20).reduce((sum, c) => sum + (c.close >= c.open ? c.volume : -c.volume), 0)), orderbookImbalance, marketCap, circulatingSupply, maxSupply, ath, athChange, lastSignal
+                cvd: Math.round(candles.slice(-20).reduce((sum, c) => sum + (c.close >= c.open ? c.volume : -c.volume), 0)),
+                orderbookImbalance, marketCap, circulatingSupply, maxSupply, ath, athChange, lastSignal
             }
         });
     } catch (error) { return res.status(200).json({ success: false, message: 'Lỗi tải dữ liệu: ' + error.message }); }
@@ -165,9 +212,25 @@ export const getTopMovers = async (req, res) => {
             { timeout: 10000 }
         );
         const rows = Array.isArray(resData.data) ? resData.data : [];
+        // Lưu CoinGecko id để fallback nến khi mã không có trên CEX (M, FIGR_HELOC…)
+        for (const c of rows) {
+            const sym = String(c.symbol || '').toUpperCase();
+            if (sym && c.id) cryptoCache.cgIds[sym] = c.id;
+        }
+        const mapMover = (c) => ({
+            symbol: String(c.symbol || '').toUpperCase(),
+            name: c.name || '',
+            id: c.id || '',
+            change: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
+            price: c.current_price,
+            change24h: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
+            currentPrice: c.current_price,
+            image: c.image || '',
+        });
         const markets = rows.slice(0, 20).map(c => ({
             symbol: String(c.symbol || '').toUpperCase(),
             name: c.name || '',
+            id: c.id || '',
             currentPrice: c.current_price ?? 0,
             change24h: c.price_change_percentage_24h ?? 0,
             marketCap: c.market_cap ?? 0,
@@ -180,23 +243,58 @@ export const getTopMovers = async (req, res) => {
         const gainers = sorted
             .filter(c => (c.price_change_percentage_24h || 0) > 0)
             .slice(0, 5)
-            .map(c => ({
-                symbol: String(c.symbol || '').toUpperCase(),
-                change: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
-                price: c.current_price,
-                change24h: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
-                currentPrice: c.current_price,
-            }));
+            .map(mapMover);
         const losers = sorted
             .filter(c => (c.price_change_percentage_24h || 0) < 0)
             .slice(0, 5)
-            .map(c => ({
-                symbol: String(c.symbol || '').toUpperCase(),
-                change: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
-                price: c.current_price,
-                change24h: parseFloat((c.price_change_percentage_24h || 0).toFixed(2)),
-                currentPrice: c.current_price,
-            }));
+            .map(mapMover);
+        // Đồng bộ vào DB + cache meta (ATH/supply) để On-chain không trống khi CG rate-limit
+        CryptoCoin.bulkWrite(
+            rows.map(c => {
+                const symbol = String(c.symbol || '').toUpperCase();
+                const $set = {
+                    symbol,
+                    name: c.name || symbol,
+                    image: c.image || '',
+                    marketCap: c.market_cap || 0,
+                    currentPrice: c.current_price || 0,
+                    change24h: c.price_change_percentage_24h || 0,
+                    lastUpdated: new Date(),
+                };
+                if (c.ath != null) $set.ath = c.ath;
+                if (c.ath_change_percentage != null) $set.athChange = c.ath_change_percentage;
+                if (c.circulating_supply != null) $set.circulatingSupply = c.circulating_supply;
+                if (c.max_supply != null || c.total_supply != null) $set.maxSupply = c.max_supply || c.total_supply;
+                return {
+                    updateOne: {
+                        filter: { symbol },
+                        update: { $set },
+                        upsert: true,
+                    },
+                };
+            }),
+            { ordered: false }
+        ).catch(() => {});
+        for (const c of rows) {
+            const sym = String(c.symbol || '').toUpperCase();
+            if (!sym) continue;
+            if (c.ath || c.market_cap || c.circulating_supply) {
+                cryptoCache.marketMeta[sym] = {
+                    meta: {
+                        marketCap: c.market_cap || null,
+                        circulatingSupply: c.circulating_supply || null,
+                        maxSupply: c.max_supply || c.total_supply || null,
+                        ath: c.ath || null,
+                        athChange: c.ath_change_percentage ?? null,
+                        name: c.name || '',
+                        image: c.image || '',
+                        id: c.id || '',
+                        currentPrice: c.current_price || null,
+                    },
+                    updatedAt: Date.now(),
+                };
+            }
+        }
         cryptoCache.topMovers = { gainers, losers, markets, updatedAt: Date.now() };
         return res.json({ success: true, data: { gainers, losers, markets } });
     } catch (error) {

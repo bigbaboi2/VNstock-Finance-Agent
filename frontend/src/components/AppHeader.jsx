@@ -114,6 +114,11 @@ const AppHeader = ({
                     <Globe size={16} className="text-purple-500 mr-2 sm:mr-3 animate-pulse sm:w-[18px] sm:h-[18px] shrink-0" />
                     <span className="text-purple-500 font-black uppercase tracking-widest text-[10px] sm:text-sm truncate">Crypto Terminal</span>
                 </div>
+            ) : activeMode === 'INTERNATIONAL' ? (
+              <div className={`flex items-center justify-center h-9 sm:h-12 border rounded-xl sm:rounded-2xl px-2 sm:px-4 border-teal-500/30 bg-teal-500/5`}>
+                    <Globe size={16} className="text-teal-400 mr-2 sm:mr-3 sm:w-[18px] sm:h-[18px] shrink-0" />
+                    <span className="text-teal-400 font-black uppercase tracking-widest text-[10px] sm:text-sm truncate">International Terminal</span>
+                </div>
             ) : (activeMode === 'AUTO_TRADE' || activeMode === 'BROKER_CONNECTION') ? (
                 <div
                   className={`flex items-center h-9 sm:h-12 border rounded-xl sm:rounded-2xl px-2 sm:px-4 opacity-45 grayscale pointer-events-none select-none ${UI.searchBg}`}
@@ -176,7 +181,7 @@ const AppHeader = ({
             )}
 
             {/*DROPDOWN STOCK SUGGESTIONS */}
-            {showSuggestions && suggestions.length > 0 && activeMode !== 'CRYPTO' && activeMode !== 'AUTO_TRADE' && activeMode !== 'BROKER_CONNECTION' && (
+            {showSuggestions && suggestions.length > 0 && activeMode !== 'CRYPTO' && activeMode !== 'INTERNATIONAL' && activeMode !== 'AUTO_TRADE' && activeMode !== 'BROKER_CONNECTION' && (
               <div
                 className={`absolute top-[calc(100%+8px)] left-0 right-0 z-[70] border rounded-2xl overflow-y-auto max-h-[min(50dvh,420px)] shadow-2xl backdrop-blur-2xl custom-scrollbar ${UI.card}`}
                 style={{ isolation: 'isolate' }}
