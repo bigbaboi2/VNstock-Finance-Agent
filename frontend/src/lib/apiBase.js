@@ -1,6 +1,6 @@
 export const API_BASE_URL = import.meta.env.DEV
     ? ''
-    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/+$/, '').replace(/\/api$/i, '');
 
 /** Bypass ngrok free interstitial so browser CORS sees real API headers. */
 export const API_FETCH_HEADERS = { 'ngrok-skip-browser-warning': 'true' };

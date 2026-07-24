@@ -35,7 +35,7 @@ import {
 // Khi build production: dùng VITE_API_BASE_URL (URL backend đã deploy).
 export const API_BASE_URL = import.meta.env.DEV
     ? ''
-    : (import.meta.env.VITE_API_BASE_URL || "http://localhost:3001");
+    : (import.meta.env.VITE_API_BASE_URL || "http://localhost:3001").replace(/\/+$/, '').replace(/\/api$/i, '');
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 axios.defaults.headers.common['X-Omni-Language'] = normalizeLanguage(
