@@ -26,9 +26,21 @@ import brokerEn from './locales/en/broker.json';
 import chartEn from './locales/en/chart.json';
 import marketEn from './locales/en/market.json';
 
-const saved = typeof localStorage !== 'undefined'
-  ? normalizeLanguage(localStorage.getItem('omni_lang'))
-  : 'vi';
+const getInitialLang = () => {
+  if (typeof localStorage === 'undefined') return 'vi';
+  try {
+    const user = localStorage.getItem('omni_user');
+    if (user) {
+      const perUser = localStorage.getItem(`omni_lang_${user}`);
+      if (perUser) return normalizeLanguage(perUser);
+    }
+    return normalizeLanguage(localStorage.getItem('omni_lang'));
+  } catch {
+    return 'vi';
+  }
+};
+
+const saved = getInitialLang();
 
 void i18n.use(initReactI18next).init({
   resources: {

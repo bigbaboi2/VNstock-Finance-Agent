@@ -200,9 +200,34 @@ const InsightSkeleton = ({ isDark }) => (
 );
 
 // ── Module-level cache: giữ data khi unmount/remount (nav đi rồi về) ─────────
+const INSIGHT_STORAGE_KEY = 'omni_market_insight_cache';
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 phút
+
 let _cachedInsight = null;   // data cuối cùng fetch thành công
 let _cacheTime = 0;          // timestamp lần fetch cuối
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 phút
+
+if (typeof localStorage !== 'undefined') {
+  try {
+    const raw = localStorage.getItem(INSIGHT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.data && parsed?.ts) {
+        _cachedInsight = parsed.data;
+        _cacheTime = Number(parsed.ts) || 0;
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+function saveInsightCache(data) {
+  _cachedInsight = data;
+  _cacheTime = Date.now();
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(INSIGHT_STORAGE_KEY, JSON.stringify({ data, ts: _cacheTime }));
+    } catch { /* ignore */ }
+  }
+}
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 
@@ -224,12 +249,25 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
   // ── Fetch report ────────────────────────────────────────────────────────────
 
   const fetchInsight = useCallback(async (forceRescan = false) => {
-    // Nếu có cache hợp lệ và không phải force → dùng cache, không fetch lại
-    // (trừ khi EN mà cache chưa có summaryEn — cần gọi lại để backfill)
-    const cacheNeedsEn = lang === 'en' && _cachedInsight && !_cachedInsight.summaryEn;
-    if (!forceRescan && _cachedInsight && (Date.now() - _cacheTime) < CACHE_TTL_MS && !cacheNeedsEn) {
+    // Prefer module cache for instant language switches — do not re-hit API every time.
+    if (!forceRescan && _cachedInsight && (Date.now() - _cacheTime) < CACHE_TTL_MS) {
       setInsight(_cachedInsight);
       setLoading(false);
+      // If EN needs summaryEn, backfill in background without blocking UI
+      if (lang === 'en' && !_cachedInsight.summaryEn) {
+        void (async () => {
+          try {
+            const res = await fetch(API_BASE_URL + '/api/market-insight/today', {
+              credentials: 'include',
+              headers: { ...API_FETCH_HEADERS, 'X-Omni-Language': 'en' },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            saveInsightCache(data);
+            setInsight(data);
+          } catch { /* ignore */ }
+        })();
+      }
       return;
     }
 
@@ -251,11 +289,9 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
       });
 
       if (res.status === 429) {
-        // Cooldown từ force-scan — KHÔNG show error đỏ, chỉ show timer
         const json = await res.json().catch(() => ({}));
         const secs = json.remainSec || 60;
         setCooldownSec(secs);
-        // Vẫn hiển thị data cũ nếu có (cache hoặc state)
         return;
       }
 
@@ -265,9 +301,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
       }
 
       const data = await res.json();
-      // Lưu vào module-level cache
-      _cachedInsight = data;
-      _cacheTime = Date.now();
+      saveInsightCache(data);
       setInsight(data);
       setCooldownSec(0);
     } catch (err) {
@@ -285,9 +319,11 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
     return () => clearInterval(timer);
   }, [cooldownSec]);
 
+  // Mount / force only — language flips reuse cache + local summaryEn/reasonEn fields
   useEffect(() => {
     fetchInsight(false);
-  }, [fetchInsight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally once on mount
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 

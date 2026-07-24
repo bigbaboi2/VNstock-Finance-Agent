@@ -1136,7 +1136,7 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     onClick={() => selectCoin(searchInput)}
                                     className={`h-9 px-4 rounded-lg ${T.accentSolid} text-white font-semibold text-xs transition-all active:scale-95 shrink-0`}
                                 >
-                                    Tìm kiếm
+                                    {t('search')}
                                 </button>
 
                                 {/* Refresh */}

@@ -56,4 +56,7 @@ StockSchema.index({
 StockSchema.index({
     lastUpdated: -1
 });
+StockSchema.index({
+    deepNewsFetchedAt: -1
+});
 export default mongoose.model('Stock', StockSchema);

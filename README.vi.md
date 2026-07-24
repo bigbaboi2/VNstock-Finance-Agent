@@ -44,12 +44,12 @@
 Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. Thu gọn thư mục mẹ để ẩn toàn bộ.
 
 <details open>
-<summary><b>📷 Album</b> · Bìa · CK VN · Crypto · Auto Duck · Themes · CLI</summary>
+<summary><b>📷 Album</b> · Bìa · CK VN · Crypto · Quốc tế · Auto Duck · Themes · CLI</summary>
 
 <br/>
 
 <details open>
-<summary><b>▸ Bìa</b> — các tab chính (Quốc tế = Tab 4, đã mở trên UI — chưa có screenshot)</summary>
+<summary><b>▸ Bìa</b> — 7 tab chính</summary>
 
 <table>
 <tr>
@@ -58,9 +58,14 @@ Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. 
 <td align="center" width="33%"><b>3. Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
 </tr>
 <tr>
+<td align="center"><b>4. Quốc tế</b><br/><img src="docs/screenshots/international.png" width="100%" alt="International terminal"/></td>
 <td align="center"><b>5. Giao dịch giả lập</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
 <td align="center"><b>6. Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
+</tr>
+<tr>
 <td align="center"><b>7. Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
+<td></td>
+<td></td>
 </tr>
 </table>
 
@@ -89,6 +94,17 @@ Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. 
 <td align="center"><b>Radar + chart</b><br/><img src="docs/screenshots/crypto-terminal.png" width="240" alt="Market radar và chart BTC"/></td>
 <td align="center"><b>Chiến lược AI</b><br/><img src="docs/screenshots/crypto-ai-strategy.png" width="240" alt="AI quantitative strategy"/></td>
 <td align="center"><b>Tin thị trường</b><br/><img src="docs/screenshots/crypto-news.png" width="240" alt="Tin BTC"/></td>
+</tr>
+</table>
+
+</details>
+
+<details>
+<summary><b>▸ Quốc tế</b> — watchlist theo nước · chart Yahoo · TA · tin (không AI)</summary>
+
+<table>
+<tr>
+<td align="center"><b>International terminal</b><br/><img src="docs/screenshots/international.png" width="480" alt="Tab Quốc tế — GOOGL"/></td>
 </tr>
 </table>
 

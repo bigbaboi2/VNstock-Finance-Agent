@@ -18,6 +18,7 @@ let _isQuantRunning = false;
 //1. Get the list of stock codes
 export const getSymbols = async (req, res) => {
     try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
         // Chỉ trả fields cần cho search / heatmap — tránh kéo cafeF/tcbs/news/reports (rất nặng).
         let symbolsData = await Stock.find(
             {},
@@ -35,6 +36,15 @@ export const getSymbols = async (req, res) => {
                 }));
             }
         }
+
+        // Backfill EN names in background — never block this request (was freezing language toggle).
+        const withEn = (symbolsData || []).filter((s) => s?.companyNameEn).length;
+        if ((symbolsData || []).length > 100 && withEn < (symbolsData.length * 0.3)) {
+            import('../services/symbolUpdater.js')
+                .then(({ syncEnglishCompanyNamesFromVci }) => syncEnglishCompanyNamesFromVci())
+                .catch(() => {});
+        }
+
         return res.json(symbolsData);
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Lỗi đọc danh sách mã từ hệ thống Cloud MongoDB.' });
@@ -229,32 +239,107 @@ export const streamTcbsPdf = async (req, res) => {
 };
 
 // Get macro and recent symbol news for home page
+// In-memory cache + lean aggregation — first byte must be fast.
+let _homeNewsMem = { data: null, ts: 0, building: null };
+const HOME_NEWS_TTL_MS = 5 * 60 * 1000;
+
+async function buildHomeNewsPayload() {
+    // Macro only is the fast path users see first; symbol news is capped + $slice.
+    const [macroNews, recentStocks] = await Promise.all([
+        DerivNews.find()
+            .sort({ timestamp: -1 })
+            .limit(12)
+            .select('title link source content sentiment timestamp date')
+            .lean(),
+        Stock.aggregate([
+            { $match: { 'deepNewsData.0': { $exists: true } } },
+            { $sort: { deepNewsFetchedAt: -1 } },
+            { $limit: 15 },
+            {
+                $project: {
+                    symbol: 1,
+                    deepNewsData: { $slice: ['$deepNewsData', 1] },
+                },
+            },
+        ]),
+    ]);
+
+    const userNews = [];
+    for (const stock of recentStocks) {
+        const n = stock.deepNewsData?.[0];
+        if (!n?.title) continue;
+        userNews.push({
+            title: `[${stock.symbol}] ${n.title}`,
+            link: n.link,
+            source: n.source,
+            content: n.content,
+            sentiment: n.sentiment,
+            date: n.date || n.publishedAt,
+            mode: n.mode,
+            isAiGenerated: n.isAiGenerated,
+        });
+    }
+
+    const combined = [
+        ...macroNews.map((n) => ({
+            ...n,
+            date: n.date || n.timestamp,
+            isMacro: true,
+        })),
+        ...userNews,
+    ];
+    combined.sort(
+        (a, b) =>
+            new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0)
+    );
+    return combined.slice(0, 20);
+}
+
 export const getHomeNews = async (req, res) => {
     try {
-        const macroNews = await DerivNews.find().sort({ date: -1 }).limit(10);
-        
-        const recentStocks = await Stock.find({ 'deepNewsData.0': { $exists: true } })
-            .select('symbol deepNewsData')
-            .lean();
-            
-        let userNews = [];
-        recentStocks.forEach(stock => {
-            if (stock.deepNewsData && stock.deepNewsData.length > 0) {
-                const newsItems = stock.deepNewsData.slice(0, 3).map(n => ({
-                    ...n,
-                    title: `[${stock.symbol}] ${n.title}`
-                }));
-                userNews = userNews.concat(newsItems);
+        res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+
+        const now = Date.now();
+        const fresh = _homeNewsMem.data && (now - _homeNewsMem.ts) < HOME_NEWS_TTL_MS;
+
+        // Instant: serve memory cache
+        if (fresh) {
+            return res.json({ success: true, data: _homeNewsMem.data, cached: true });
+        }
+
+        // Stale-while-revalidate: return stale immediately, refresh in background
+        if (_homeNewsMem.data?.length) {
+            if (!_homeNewsMem.building) {
+                _homeNewsMem.building = buildHomeNewsPayload()
+                    .then((data) => {
+                        _homeNewsMem = { data, ts: Date.now(), building: null };
+                    })
+                    .catch(() => { _homeNewsMem.building = null; });
             }
-        });
-        
-        userNews.sort((a, b) => new Date(b.date || b.fetchedAt || 0) - new Date(a.date || a.fetchedAt || 0));
-        userNews = userNews.slice(0, 15);
-        
-        const combinedNews = [...macroNews.map(n => ({...n.toObject(), isMacro: true})), ...userNews];
-        combinedNews.sort((a, b) => new Date(b.date || b.fetchedAt || 0) - new Date(a.date || a.fetchedAt || 0));
-        
-        return res.json({ success: true, data: combinedNews });
+            return res.json({ success: true, data: _homeNewsMem.data, cached: true, stale: true });
+        }
+
+        // Cold start — return macro-only in <100ms, enrich in background
+        const macroNews = await DerivNews.find()
+            .sort({ timestamp: -1 })
+            .limit(12)
+            .select('title link source content sentiment timestamp date')
+            .lean();
+        const quick = macroNews.map((n) => ({
+            ...n,
+            date: n.date || n.timestamp,
+            isMacro: true,
+        }));
+        _homeNewsMem = { data: quick, ts: Date.now(), building: null };
+
+        // Upgrade with symbol headlines asynchronously
+        _homeNewsMem.building = buildHomeNewsPayload()
+            .then((data) => {
+                _homeNewsMem = { data, ts: Date.now(), building: null };
+            })
+            .catch(() => { _homeNewsMem.building = null; });
+
+        return res.json({ success: true, data: quick, partial: true });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }

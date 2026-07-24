@@ -733,7 +733,7 @@ export default function DerivativesTab({
 
                             {/* ── COL 2: CHỈ BÁO KỸ THUẬT ── */}
                             <ScrollableColumn isDark={isDark} className="p-4 pb-6 flex flex-col gap-4">
-                                <SectionLabel icon={Activity} label={t('quantIndicators', { action: derivAnalysis.mechAction })} color={derivAnalysis.mechColor} />
+                                <SectionLabel icon={Activity} label={t('quantIndicators', { action: t(derivAnalysis.mechActionKey || 'observe') })} color={derivAnalysis.mechColor} />
 
                                 {/* Entry / SL / TP */}
                                 <Card isDark={isDark} accent>

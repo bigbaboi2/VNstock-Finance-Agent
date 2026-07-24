@@ -44,12 +44,12 @@
 Screenshot album — cover grid below; open a folder for more views. Collapse the parent to hide everything.
 
 <details open>
-<summary><b>📷 Album</b> · Cover · VN · Crypto · Auto Duck · Themes · CLI</summary>
+<summary><b>📷 Album</b> · Cover · VN · Crypto · International · Auto Duck · Themes · CLI</summary>
 
 <br/>
 
 <details open>
-<summary><b>▸ Cover</b> — main tabs (International = Tab 4, live in UI — screenshot TBD)</summary>
+<summary><b>▸ Cover</b> — 7 main tabs</summary>
 
 <table>
 <tr>
@@ -58,9 +58,14 @@ Screenshot album — cover grid below; open a folder for more views. Collapse th
 <td align="center" width="33%"><b>3. Crypto</b><br/><img src="docs/screenshots/crypto.png" width="100%" alt="Crypto"/></td>
 </tr>
 <tr>
+<td align="center"><b>4. International</b><br/><img src="docs/screenshots/international.png" width="100%" alt="International terminal"/></td>
 <td align="center"><b>5. Paper Trading</b><br/><img src="docs/screenshots/paper-trading.png" width="100%" alt="Paper trading"/></td>
 <td align="center"><b>6. Auto Duck</b><br/><img src="docs/screenshots/autotrade-1.png" width="100%" alt="Auto Duck"/></td>
+</tr>
+<tr>
 <td align="center"><b>7. Broker</b><br/><img src="docs/screenshots/broker.png" width="100%" alt="Broker"/></td>
+<td></td>
+<td></td>
 </tr>
 </table>
 
@@ -89,6 +94,17 @@ Screenshot album — cover grid below; open a folder for more views. Collapse th
 <td align="center"><b>Radar + chart</b><br/><img src="docs/screenshots/crypto-terminal.png" width="240" alt="Market radar and BTC chart"/></td>
 <td align="center"><b>AI strategy</b><br/><img src="docs/screenshots/crypto-ai-strategy.png" width="240" alt="AI quantitative strategy"/></td>
 <td align="center"><b>Market news</b><br/><img src="docs/screenshots/crypto-news.png" width="240" alt="BTC market news"/></td>
+</tr>
+</table>
+
+</details>
+
+<details>
+<summary><b>▸ International</b> — country watchlists · Yahoo chart · TA · news (no AI)</summary>
+
+<table>
+<tr>
+<td align="center"><b>International terminal</b><br/><img src="docs/screenshots/international.png" width="480" alt="International terminal — GOOGL"/></td>
 </tr>
 </table>
 

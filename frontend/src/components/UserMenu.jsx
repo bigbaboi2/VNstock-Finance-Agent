@@ -5,6 +5,7 @@ import {
   Settings, ArrowLeft, Sun, Moon, BookOpen, Sparkles, Minus, Type, Layers, Landmark,
 } from 'lucide-react';
 import { APP_MODES, buildAppPath } from '../routes/appRoutes';
+import { normalizeLanguage } from '../i18n/formatLocale';
 
 const MODE_DEFS = [
   {
@@ -200,12 +201,16 @@ export default function UserMenu({
                   { id: 'vi', label: t('settings.languageVi') },
                   { id: 'en', label: t('settings.languageEn') },
                 ].map(({ id, label }) => {
-                  const active = language === id;
+                  const active = normalizeLanguage(language) === id;
                   return (
                     <button
                       key={id}
                       type="button"
-                      onClick={() => handleSetLanguage?.(id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSetLanguage?.(id);
+                      }}
                       className={`${touchBtn} flex items-center justify-center px-3 py-2.5 rounded-xl border font-bold text-sm transition-colors ${
                         active
                           ? (uiStyle === 'book'

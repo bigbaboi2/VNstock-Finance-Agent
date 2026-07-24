@@ -22,8 +22,11 @@ import AtomLoader from './AtomLoader';
 import MarketInsightPanel from './MarketInsightPanel';
 import { tcbsPdfEmbedUrl, tcbsPdfViewerUrl, API_BASE_URL, API_FETCH_HEADERS } from '../lib/apiBase';
 import { formatCompanyName, displayCompanyName } from '../lib/formatCompanyName';
+import { normalizeLanguage } from '../i18n/formatLocale';
 import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
 import UltraStack, { UltraPdfPages } from './UltraStack';
+import { fetchHomeNewsCached, peekHomeNews } from '../lib/homeNewsCache';
+
 // =====================================================================
 // SHARED SUB-COMPONENTS (đồng bộ với DerivativesTab)
 // =====================================================================
@@ -787,7 +790,7 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
   const [showMoreInternal, setShowMoreInternal] = useState(false);
   const showMore = showMoreProp !== undefined ? showMoreProp : showMoreInternal;
   const setShowMore = onShowMoreChange ?? setShowMoreInternal;
-  const lang = i18n.language === 'en' ? 'en' : 'vi';
+  const lang = normalizeLanguage(i18n.language);
   const sym = marketData?.stockInfo?.symbol;
   const showFullLayout = dockMode || !compact;
 
@@ -1224,7 +1227,7 @@ const ReportDockToolbar = React.memo(({
   onToggleExpand,
 }) => {
   const { t, i18n } = useTranslation('vnStocks');
-  const lang = i18n.language === 'en' ? 'en' : 'vi';
+  const lang = normalizeLanguage(i18n.language);
   const sym = marketData?.stockInfo?.symbol;
   const companyName = marketData?.companyProfile?.companyName;
   const safeTime = vnReportTimestamp ? new Date(vnReportTimestamp) : null;
@@ -1578,7 +1581,7 @@ export default function VnStocksTab({
   cancelAnalysis,
 }) {
     const { t, i18n } = useTranslation('vnStocks');
-    const lang = i18n.language === 'en' ? 'en' : 'vi';
+    const lang = normalizeLanguage(i18n.resolvedLanguage || i18n.language);
   const [mobileTab, setMobileTab] = useState('ai');
   // STATES & REFS
   const [isNewsOpen, setIsNewsOpen] = useState(false);
@@ -1655,31 +1658,33 @@ export default function VnStocksTab({
   const tooltipRef = useRef(null);
   const newsScrollRef = useRef(null);
   const [showNewsScroll, setShowNewsScroll] = useState(false);
-  const [homeNews, setHomeNews] = useState([]);
-  const [loadingHomeNews, setLoadingHomeNews] = useState(false);
+  const [homeNews, setHomeNews] = useState(() => peekHomeNews());
+  const [loadingHomeNews, setLoadingHomeNews] = useState(() => peekHomeNews().length === 0);
 
-  // Fetch home news
+  // Stale-while-revalidate: show cache instantly, refresh in background
   useEffect(() => {
-    if (!marketData && homeNews.length === 0) {
-      const fetchHomeNews = async () => {
-        setLoadingHomeNews(true);
-        try {
-          const res = await fetch(API_BASE_URL + '/api/market/home-news', {
-            headers: API_FETCH_HEADERS,
-          });
-          const data = await res.json();
-          if (data.success) {
-            setHomeNews(data.data);
-          }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setLoadingHomeNews(false);
-        }
-      };
-      fetchHomeNews();
+    if (marketData) return undefined;
+    let cancelled = false;
+    const cached = peekHomeNews();
+    if (cached.length) {
+      setHomeNews(cached);
+      setLoadingHomeNews(false);
+    } else {
+      setLoadingHomeNews(true);
     }
-  }, [marketData, homeNews.length]);
+    (async () => {
+      try {
+        const list = await fetchHomeNewsCached({ force: false });
+        if (cancelled) return;
+        setHomeNews(list);
+      } catch (e) {
+        if (!cancelled) console.error(e);
+      } finally {
+        if (!cancelled) setLoadingHomeNews(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [marketData]);
 
   const [showFullReportModal, setShowFullReportModal] = useState(false);
   const [analysisNotice, setAnalysisNotice] = useState(null);
@@ -2167,6 +2172,15 @@ export default function VnStocksTab({
       .sort((a, b) => a.changePct - b.changePct)
       .slice(0, 10);
   }, [heatmapData]);
+
+  // O(1) lookup for official EN/VI company names on heatmap lists
+  const stockMetaBySym = useMemo(() => {
+    const map = new Map();
+    for (const s of allStocks || []) {
+      if (s?.symbol) map.set(String(s.symbol).toUpperCase(), s);
+    }
+    return map;
+  }, [allStocks]);
 
   // HANDLE EXPORT DATA
   const handleExportData = useCallback(async () => {
@@ -3656,8 +3670,8 @@ export default function VnStocksTab({
                       let cardStyle;
                       if (news.isMacro) cardStyle = isDark ? 'bg-[#080e18] border-sky-500/30' : 'bg-sky-50/60 border-sky-200';
                       else if (news.isAiGenerated) cardStyle = isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
-                      else if (news.sentiment === 'negative') cardStyle = isDark ? 'bg-[#130c0c] border-red-900/40' : 'bg-red-50/50 border-red-200';
-                      else if (news.sentiment === 'positive') cardStyle = isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
+                      else if (news.sentiment === 'negative') cardStyle = isDark ? 'bg-[#130c0c] border-red-500/35 panel-outline' : 'bg-red-50/50 border-red-300 shadow-sm panel-outline';
+                      else if (news.sentiment === 'positive') cardStyle = isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)] panel-outline' : 'bg-emerald-50 border-emerald-400 shadow-sm panel-outline';
                       else cardStyle = isDark ? 'bg-[#131922] border-white/6' : 'bg-white border-slate-400 shadow-sm panel-outline';
 
                       const titleColor = news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : news.sentiment === 'negative' ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}` : news.sentiment === 'positive' ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}` : `group-hover:text-yellow-500 ${UI.textNormal}`;
@@ -3965,11 +3979,15 @@ export default function VnStocksTab({
                   const sec = heatmapData.find(s => s.name === heatmapSector);
                   if (sec) {
                     hmData = sec.stocks.map(s => {
-                      const info = allStocks.find(as => as.symbol === s.sym) || {};
+                      const info = stockMetaBySym.get(String(s.sym || '').toUpperCase()) || {};
                       return {
-                        id: s.sym, name: s.sym,                         fullName: info.companyName || info.name || '',
-                        exchange: info.exchange || 'VNX', price: s.price,
-                        changePct: s.changePct, weight: getWeight(s)
+                        id: s.sym,
+                        name: s.sym,
+                        fullName: displayCompanyName(info, lang) || info.companyName || info.name || '',
+                        exchange: info.exchange || 'VNX',
+                        price: s.price,
+                        changePct: s.changePct,
+                        weight: getWeight(s),
                       };
                     });
                     hmTotal = hmData.reduce((sum, d) => sum + d.weight, 0);
@@ -4280,10 +4298,9 @@ export default function VnStocksTab({
                                   <div className="flex items-center gap-3">
                                     <span className="text-yellow-400 font-black text-lg w-10">{s.sym}</span>
                                     <div className="flex flex-col">
-                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>{(() => {
-                                        const meta = allStocks.find(stock => stock.symbol === s.sym);
-                                        return displayCompanyName(meta, lang) || '';
-                                      })()}</span>
+                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>
+                                        {displayCompanyName(stockMetaBySym.get(String(s.sym || '').toUpperCase()), lang) || ''}
+                                      </span>
                                       <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>{t('industry')}: {localizeSector(s.sector, lang)}</span>
                                     </div>
                                   </div>
@@ -4307,16 +4324,15 @@ export default function VnStocksTab({
                             {heatmapDroplist.map((s, i) => (
                                 <div key={i}
                                   onClick={() => { setInput(s.sym); fetchMarketData(s.sym); }}
-                                  className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02]
-                                    ${isDark ? 'bg-[#131922] border-red-500/10 hover:bg-red-500/5' : 'bg-white border-red-200 hover:bg-red-50'}`}
+                                  className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02] panel-outline
+                                    ${isDark ? 'bg-[#131922] border-red-500/35 hover:border-red-500/50 hover:bg-red-500/10' : 'bg-white border-red-300 hover:border-red-400 hover:bg-red-50 shadow-sm'}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <span className="text-red-400 font-black text-lg w-10">{s.sym}</span>
                                     <div className="flex flex-col">
-                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>{(() => {
-                                        const meta = allStocks.find(stock => stock.symbol === s.sym);
-                                        return displayCompanyName(meta, lang) || '';
-                                      })()}</span>
+                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>
+                                        {displayCompanyName(stockMetaBySym.get(String(s.sym || '').toUpperCase()), lang) || ''}
+                                      </span>
                                       <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>{t('industry')}: {localizeSector(s.sector, lang)}</span>
                                     </div>
                                   </div>
@@ -4331,14 +4347,18 @@ export default function VnStocksTab({
                         </>
                       )}
                       
-                      {/* HOME NEWS STREAM */}
-                      {!marketData && homeNews && homeNews.length > 0 && (
+                      {/* HOME NEWS STREAM — show as soon as idle home, with skeleton while loading */}
+                      {!marketData && (loadingHomeNews || (homeNews && homeNews.length > 0)) && (
                         <div className="mt-8 mb-4">
                             <h2 className={`text-sm font-black tracking-widest uppercase mb-4 mt-6 ${UI.textBold}`}>
                                 {t('macroMarketNews')} <span className="text-yellow-500">📰</span>
                             </h2>
-                            {loadingHomeNews ? (
-                                <div className="flex justify-center p-8"><Loader2 className="animate-spin text-yellow-500" /></div>
+                            {loadingHomeNews && homeNews.length === 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {[1, 2, 3].map((i) => (
+                                    <div key={i} className={`h-28 rounded-2xl animate-pulse ${isDark ? 'bg-white/5' : 'bg-slate-100'}`} />
+                                  ))}
+                                </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {homeNews.map((news, index) => {
@@ -4357,8 +4377,8 @@ export default function VnStocksTab({
                                         let cardStyle;
                                         if (news.isMacro) cardStyle = isDark ? 'bg-[#080e18] border-sky-500/30' : 'bg-sky-50/60 border-sky-200';
                                         else if (news.isAiGenerated) cardStyle = isDark ? 'bg-[#1a1025] border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' : 'bg-purple-50 border-purple-400';
-                                        else if (news.sentiment === 'negative') cardStyle = isDark ? 'bg-[#130c0c] border-red-900/40' : 'bg-red-50/50 border-red-200';
-                                        else if (news.sentiment === 'positive') cardStyle = isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)]' : 'bg-emerald-50 border-emerald-400';
+                                        else if (news.sentiment === 'negative') cardStyle = isDark ? 'bg-[#130c0c] border-red-500/35 panel-outline' : 'bg-red-50/50 border-red-300 shadow-sm panel-outline';
+                                        else if (news.sentiment === 'positive') cardStyle = isDark ? 'bg-[#071a10] border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.12)] panel-outline' : 'bg-emerald-50 border-emerald-400 shadow-sm panel-outline';
                                         else cardStyle = isDark ? 'bg-[#131922] border-white/6' : 'bg-white border-slate-400 shadow-sm panel-outline';
 
                                         const titleColor = news.isAiGenerated ? 'text-purple-400 group-hover:text-purple-300' : news.sentiment === 'negative' ? `text-red-400 group-hover:text-red-300 ${isDark ? '' : 'text-red-600 group-hover:text-red-700'}` : news.sentiment === 'positive' ? `text-emerald-400 group-hover:text-emerald-300 ${isDark ? '' : 'text-emerald-700 group-hover:text-emerald-600'}` : `group-hover:text-yellow-500 ${UI.textNormal}`;

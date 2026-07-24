@@ -4,5 +4,7 @@ export function formatLocale(lang) {
 }
 
 export function normalizeLanguage(value) {
-  return value === 'en' ? 'en' : 'vi';
+  if (!value) return 'vi';
+  const str = String(value).trim().toLowerCase();
+  return str.startsWith('en') ? 'en' : 'vi';
 }

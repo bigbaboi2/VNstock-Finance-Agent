@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import './App.css'
 import axios from 'axios'
+import { prefetchHomeNews } from './lib/homeNewsCache'
 import { X, FileText} from 'lucide-react'
 import i18n from './i18n'
 import { formatLocale, normalizeLanguage } from './i18n/formatLocale'
@@ -138,7 +139,7 @@ const readLocalFontScaleFallback = (user) => {
 const readLocalLanguageFallback = (user) => {
   if (user) {
     const perUser = localStorage.getItem(`omni_lang_${user}`);
-    if (perUser === 'vi' || perUser === 'en') return perUser;
+    if (perUser) return normalizeLanguage(perUser);
   }
   return normalizeLanguage(localStorage.getItem('omni_lang'));
 };
@@ -180,13 +181,11 @@ const applyUiPreferences = useCallback((prefs, user = currentUser) => {
   setUiStyle(next.uiStyle);
   setFontScale(next.fontScale);
   setLanguage(next.language);
-  if (i18n.language !== next.language) {
-    void i18n.changeLanguage(next.language);
-  }
+  void i18n.changeLanguage(next.language).catch(() => {});
   document.documentElement.lang = next.language;
   axios.defaults.headers.common['X-Omni-Language'] = next.language;
   return next;
-}, [currentUser]);
+}, [currentUser, i18n]);
 
 const persistUiPreferences = useCallback(async (partial, user = currentUser) => {
   const nextTheme = partial.theme === 'light' || partial.theme === 'dark'
@@ -595,7 +594,7 @@ if (!forceRefresh && aiDerivReport && !isSignificantChange && !enoughTimeElapsed
             totalImpact: currentSnapshot.totalImpact,
             score:       derivAnalysis.score,
             mechTrend:   derivAnalysis.mechTrend,
-            mechAction:  derivAnalysis.mechAction,
+            mechAction:  derivAnalysis.mechActionKey,
             rrRatio:     derivAnalysis.rrRatio,
             sl:          derivAnalysis.sl,
             tp1:         derivAnalysis.tp1,
@@ -827,13 +826,13 @@ const volumeProfile = React.useMemo(() => {
 //DERIVATIVES ANALYSIS ENGINE  
 //================================================
 const derivAnalysis = React.useMemo(() => {
-    const td = (key, opts) => t(`derivatives:${key}`, opts);
+    // Store i18n keys (not translated strings) so language flips don't recompute this engine.
     if (!derivChartData || derivChartData.length < 10 || !derivRadar) {
         return {
             score: 50,
-            mechTrend: td('oiScanning'),
-            mechAction: td('observe'),
-            oiInterpretation: { label: td('oiScanning'), color: 'text-slate-500' },
+            mechTrend: 'SIDEWAY',
+            mechActionKey: 'observe',
+            oiInterpretation: { key: 'oiScanning', color: 'text-slate-500' },
             mechColor: "text-yellow-500",
             bgColor: "bg-yellow-500/10 border-yellow-500/30",
             currentF1M: derivRadar?.vn30f1m || 0,
@@ -855,7 +854,7 @@ const derivAnalysis = React.useMemo(() => {
             cvd: 0,
             roc5: "0.0",
             ema8: "0.0",
-            mechReason: '',
+            mechReasonParts: [],
             pocDistance: '0%',
         };
     }
@@ -918,13 +917,13 @@ const derivAnalysis = React.useMemo(() => {
           / derivChartData.at(-6).close * 100).toFixed(2)
         : 0;
 
-    //OI Interpretation
+    //OI Interpretation (keys only — translate in DerivativesTab)
     const oiInterpretation = (() => {
         const priceUp = derivRadar?.change > 0;
-        if (oiUp && priceUp)  return { label: td('oiLongEntering'), color: 'text-emerald-500' };
-        if (oiUp && !priceUp) return { label: td('oiShortEntering'), color: 'text-red-500' };
-        if (!oiUp && priceUp) return { label: td('oiShortClosing'), color: 'text-emerald-300' };
-        return { label: td('oiLongClosing'), color: 'text-red-300' };
+        if (oiUp && priceUp)  return { key: 'oiLongEntering', color: 'text-emerald-500' };
+        if (oiUp && !priceUp) return { key: 'oiShortEntering', color: 'text-red-500' };
+        if (!oiUp && priceUp) return { key: 'oiShortClosing', color: 'text-emerald-300' };
+        return { key: 'oiLongClosing', color: 'text-red-300' };
     })();
 
     //=== CONFLUENCE SCORE 0-100 ===
@@ -938,28 +937,28 @@ const derivAnalysis = React.useMemo(() => {
 
     //=== MECHANICAL ACTION ===
     let mechTrend = "SIDEWAY";
-    let mechAction = td('observe');
+    let mechActionKey = 'observe';
     let mechColor = "text-yellow-500";
     let bgColor = "bg-yellow-500/10 border-yellow-500/30";
 
     if (score >= 68 && shortTermTrend === 1) {
         mechTrend = "BULLISH STRONG";
-        mechAction = td('watchLong');
+        mechActionKey = 'watchLong';
         mechColor = "text-emerald-500";
         bgColor = "bg-emerald-500/10 border-emerald-500/30";
     } else if (score <= 32 && shortTermTrend === -1) {
         mechTrend = "BEARISH STRONG";
-        mechAction = td('watchShort');
+        mechActionKey = 'watchShort';
         mechColor = "text-red-500";
         bgColor = "bg-red-500/10 border-red-500/30";
     } else if (score >= 55 && shortTermTrend === 1) {
         mechTrend = "BULLISH BIAS";
-        mechAction = td('observeLong');
+        mechActionKey = 'observeLong';
         mechColor = "text-emerald-400";
         bgColor = "bg-emerald-500/10 border-emerald-500/30";
     } else if (score <= 45 && shortTermTrend === -1) {
         mechTrend = "BEARISH BIAS";
-        mechAction = td('observeShort');
+        mechActionKey = 'observeShort';
         mechColor = "text-red-400";
         bgColor = "bg-red-500/10 border-red-500/30";
     }
@@ -977,52 +976,43 @@ const derivAnalysis = React.useMemo(() => {
     const rrRatio = (Math.abs(tp1 - currentF1M) / Math.abs(sl - currentF1M) || 1).toFixed(1);
     
     const mechReasonParts = [];
-     //Basis
     if (Math.abs(speed) > 0.5) {
         mechReasonParts.push(
             speed > 0
-                ? td('basisWidening', { speed })
-                : td('basisNarrowing', { speed })
+                ? { key: 'basisWidening', opts: { speed } }
+                : { key: 'basisNarrowing', opts: { speed } }
         );
     }
-     //EMA cross
-    if (shortTermTrend === 1)  mechReasonParts.push(td('emaCrossUp', { ema3: ema3.toFixed(1), ema8: ema8.toFixed(1) }));
-    if (shortTermTrend === -1) mechReasonParts.push(td('emaCrossDown', { ema3: ema3.toFixed(1), ema8: ema8.toFixed(1) }));
-     //Cylindrical force
+    if (shortTermTrend === 1)  mechReasonParts.push({ key: 'emaCrossUp', opts: { ema3: ema3.toFixed(1), ema8: ema8.toFixed(1) } });
+    if (shortTermTrend === -1) mechReasonParts.push({ key: 'emaCrossDown', opts: { ema3: ema3.toFixed(1), ema8: ema8.toFixed(1) } });
     if (Math.abs(totalImpact) > 0.5) {
         mechReasonParts.push(
             totalImpact > 0
-                ? td('leadersBuy', { totalImpact })
-                : td('leadersSell', { totalImpact })
+                ? { key: 'leadersBuy', opts: { totalImpact } }
+                : { key: 'leadersSell', opts: { totalImpact } }
         );
     }
-    //OI
-    mechReasonParts.push(oiUp ? td('oiRising') : td('oiFalling'));
-    //Foreign sector
+    mechReasonParts.push({ key: oiUp ? 'oiRising' : 'oiFalling' });
     if (Math.abs(fNet) > 100) {
         mechReasonParts.push(
             fNet > 0
-                ? td('foreignBuyPressure', { fNet })
-                : td('foreignSellPressure', { fNet })
+                ? { key: 'foreignBuyPressure', opts: { fNet } }
+                : { key: 'foreignSellPressure', opts: { fNet } }
         );
     }
-    //Price vs POC
     const pocVal = parseFloat(poc) || currentF1M;
     const pocDist = ((currentF1M - pocVal) / pocVal * 100); 
     mechReasonParts.push(
         currentF1M > pocVal
-            ? td('priceAbovePoc', { poc: pocVal, pocDist: pocDist.toFixed(2) })
-            : td('priceBelowPoc', { poc: pocVal, pocDist: Math.abs(pocDist).toFixed(2) })
+            ? { key: 'priceAbovePoc', opts: { poc: pocVal, pocDist: pocDist.toFixed(2) } }
+            : { key: 'priceBelowPoc', opts: { poc: pocVal, pocDist: Math.abs(pocDist).toFixed(2) } }
     );
-    //Confluence score
-    mechReasonParts.push(td('confluenceScore', { score }));
- 
-    const mechReason = mechReasonParts.join('. ') + '.';
+    mechReasonParts.push({ key: 'confluenceScore', opts: { score } });
 
     return {
         score,
         mechTrend,
-        mechAction,
+        mechActionKey,
         mechColor,
         bgColor,
         currentF1M,
@@ -1038,17 +1028,17 @@ const derivAnalysis = React.useMemo(() => {
         rrRatio,
         shortTermTrend,
         ema3: ema3.toFixed(1),
-         vwap: vwapPrice,
+        vwap: vwapPrice,
         sessionHigh: sessionHigh.toFixed(1),
         sessionLow: sessionLow.toFixed(1),
         cvd,
         roc5,
         oiInterpretation,
         ema8: ema8.toFixed(1),
-        mechReason,  
+        mechReasonParts,
         pocDistance: pocDist.toFixed(2) + '%',
     };
-}, [derivChartData, derivRadar, t, i18n.language]);
+}, [derivChartData, derivRadar]);
 
   useEffect(() => {
     if (currentUser) fetchUserHistory();
@@ -1102,8 +1092,16 @@ const derivAnalysis = React.useMemo(() => {
   }, []);
 
   useEffect(() => {
-      if (activeMode === 'VN_STOCKS') fetchHeatmap();
-  }, [activeMode]);
+      // Warm news cache as soon as app boots (idle home will paint instantly)
+      prefetchHomeNews();
+  }, []);
+
+  useEffect(() => {
+      if (activeMode === 'VN_STOCKS') {
+        fetchHeatmap();
+        prefetchHomeNews();
+      }
+  }, [activeMode, fetchHeatmap]);
 
   const [clock, setClock] = useState({ time: '00:00:00', ms: '000' });
 
@@ -1295,22 +1293,23 @@ const derivAnalysis = React.useMemo(() => {
     const addLog = useCallback((msg) => {
         setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 30))
     }, []);
-  useEffect(() => {
-    const loadSymbols = async () => {
-      try {
-        setLoadingSymbols(true)
-        addLog('[HỆ THỐNG] Đang tải danh sách mã...')
-        const response = await axios.get('/api/symbols')
-        setAllStocks(response.data)
-        addLog(`[HỆ THỐNG] Đã nạp ${response.data.length} mã chứng khoán`)
-      } catch (err) {
-        addLog('[LỖI] Kết nối Backend thất bại')
-      } finally {
-        setLoadingSymbols(false)
-      }
+  const loadSymbols = useCallback(async () => {
+    try {
+      setLoadingSymbols(true)
+      addLog('[HỆ THỐNG] Đang tải danh sách mã...')
+      const response = await axios.get('/api/symbols')
+      setAllStocks(Array.isArray(response.data) ? response.data : [])
+      addLog(`[HỆ THỐNG] Đã nạp ${response.data?.length || 0} mã chứng khoán`)
+    } catch (err) {
+      addLog('[LỖI] Kết nối Backend thất bại')
+    } finally {
+      setLoadingSymbols(false)
     }
+  }, [addLog])
+
+  useEffect(() => {
     loadSymbols()
-  }, [])
+  }, [loadSymbols])
 
   //LOGIC: (SMART SEARCH, debounce 120ms)
 useEffect(() => {

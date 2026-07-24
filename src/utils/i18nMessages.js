@@ -8,7 +8,7 @@ export function resolveLanguage(req) {
         req?.body?.language ||
         req?.query?.language ||
         'vi';
-    return String(raw).toLowerCase() === 'en' ? 'en' : 'vi';
+    return String(raw).trim().toLowerCase().startsWith('en') ? 'en' : 'vi';
 }
 
 const MESSAGES = {

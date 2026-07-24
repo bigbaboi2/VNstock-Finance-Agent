@@ -469,7 +469,7 @@ export default function PaperTradingTab({
                             <Zap size={36} className="text-purple-400" />
                         </div>
                         <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>
-                            Sức mua khả dụng
+                            {t('buyingPower')}
                         </p>
                         <p className={`text-2xl font-black tabular-nums mb-3 ${c.white}`}>
                             {portfolio?.balance != null
@@ -484,7 +484,7 @@ export default function PaperTradingTab({
                             <Tip text="Tổng lãi/lỗ thực tế đã khớp và chốt từ tất cả các lệnh bán trong lịch sử giao dịch.">
                                 <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-default ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                     <HelpCircle size={10} />
-                                    Tổng P&amp;L đã chốt
+                                    {t('totalRealizedPnL')}
                                 </span>
                             </Tip>
                             <span className={`font-mono font-black text-sm tabular-nums ${totalRealizedPnL >= 0 ? c.up : c.down}`}>
@@ -503,7 +503,7 @@ export default function PaperTradingTab({
                                 tip="Tất cả tài sản đang nắm giữ. Nhấn vào mã để xem chi tiết lịch sử khớp lệnh và tải chart."
                             />
                             <span className={`text-[9px] font-black text-slate-500 uppercase -mt-3`}>
-                                {portfolio?.holdings?.length || 0} mã
+                                {t('holdingsCount', { count: portfolio?.holdings?.length || 0 })}
                             </span>
                         </div>
 
@@ -724,7 +724,7 @@ export default function PaperTradingTab({
                                 <div className="flex-1 flex flex-col items-center justify-center gap-3">
                                     <Activity size={36} className={`animate-pulse ${isDark ? 'text-purple-500/40' : 'text-purple-300'}`} />
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
-                                        Tìm kiếm mã tài sản để hiển thị biểu đồ
+                                        {t('findSymbolForChart')}
                                     </p>
                                 </div>
                             )}
@@ -742,7 +742,7 @@ export default function PaperTradingTab({
                             {/* Tìm kiếm mã */}
                             <div>
                                 <label className={`text-[9px] font-black uppercase tracking-widest mb-1.5 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                    Mã tài sản
+                                    {t('assetSymbol')}
                                 </label>
                                 <div className="relative">
                                     <div className="flex gap-2">
@@ -793,7 +793,7 @@ export default function PaperTradingTab({
                             {/* Loại lệnh */}
                             <div>
                                 <label className={`text-[9px] font-black uppercase tracking-widest mb-1.5 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                    Loại lệnh
+                                    {t('orderType')}
                                 </label>
                                 <div className="grid grid-cols-4 gap-1.5">
                                     {['MP', 'LO', 'ATO', 'ATC'].map(type => (
@@ -827,7 +827,7 @@ export default function PaperTradingTab({
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className={`text-[9px] font-black uppercase tracking-widest mb-1.5 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                        Giá (₫)
+                                        {t('priceVnd')}
                                     </label>
                                     <input
                                         type="number"
@@ -844,7 +844,7 @@ export default function PaperTradingTab({
                                 </div>
                                 <div>
                                     <label className={`text-[9px] font-black uppercase tracking-widest mb-1.5 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                        Khối lượng
+                                        {t('volume')}
                                     </label>
                                     <input
                                         type="number"
