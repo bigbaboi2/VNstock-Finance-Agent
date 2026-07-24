@@ -6,6 +6,7 @@ import ConnectionCard from './broker/ConnectionCard';
 import BrokerDashboard from './broker/BrokerDashboard';
 import ExchangeOrderLog from './broker/ExchangeOrderLog';
 import LivePositionsPanel from './broker/LivePositionsPanel';
+import UltraStack from './UltraStack';
 
 /**
  * TAB 7 — TRUNG TÂM GIAO DỊCH LIVE / BROKER
@@ -38,7 +39,7 @@ function StepHeader({ step, color, icon: Icon, title, desc, UI, right }) {
     );
 }
 
-export default function BrokerConnectionTab({ username, isDark, UI }) {
+export default function BrokerConnectionTab({ username, isDark, UI, uiStyle = 'classic' }) {
     const [connections, setConnections] = useState([]);
     const [orders, setOrders] = useState([]);
     const [orderStats, setOrderStats] = useState(null);
@@ -46,6 +47,8 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
     const [liveTrades, setLiveTrades] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [ultraOpenId, setUltraOpenId] = useState(null);
+    const isUltra = uiStyle === 'ultra';
 
     const fetchAll = useCallback(async () => {
         if (!username) return;
@@ -84,6 +87,148 @@ export default function BrokerConnectionTab({ username, isDark, UI }) {
     }, [fetchAll]);
 
     const activeCount = connections.filter(c => c.isActive).length;
+
+    if (isUltra) {
+        const ultraSections = [
+            {
+                id: 'dashboard',
+                title: 'Tổng quan ví & lệnh',
+                icon: Plug,
+                summary: `${activeCount} kết nối · ${orderStats?.totalOrders || 0} lệnh`,
+                render: () => (
+                    <div className="space-y-3">
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={fetchAll}
+                                className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 ${UI.cardHover} ${UI.textNormal}`}
+                            >
+                                <RefreshCw size={14} /> Làm mới
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowAddForm(v => !v)}
+                                className="flex-1 px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black flex items-center justify-center gap-2"
+                            >
+                                <Plus size={14} /> Thêm kết nối
+                            </button>
+                        </div>
+                        <BrokerDashboard
+                            connections={connections}
+                            orderStats={orderStats}
+                            orders={orders}
+                            walletSummary={walletSummary}
+                            username={username}
+                            isDark={isDark}
+                            UI={UI}
+                            onChanged={fetchAll}
+                        />
+                    </div>
+                ),
+            },
+            {
+                id: 'connections',
+                title: 'Kết nối sàn',
+                icon: Link2,
+                summary: loading ? 'Đang tải…' : `${connections.length} sàn`,
+                render: () => (
+                    <div className="space-y-3">
+                        {showAddForm && (
+                            <ConnectExchangeForm
+                                username={username}
+                                isDark={isDark}
+                                UI={UI}
+                                onClose={() => setShowAddForm(false)}
+                                onCreated={() => { setShowAddForm(false); fetchAll(); }}
+                            />
+                        )}
+                        {loading ? (
+                            <div className={`flex items-center justify-center p-10 ${UI.textMuted}`}>
+                                <Loader2 size={20} className="animate-spin" />
+                            </div>
+                        ) : connections.length === 0 ? (
+                            <div className={`rounded-2xl border border-dashed p-8 text-center ${UI.border}`}>
+                                <Plug size={28} className={`mx-auto mb-2 ${UI.textMuted}`} />
+                                <p className={`text-sm font-black ${UI.textNormal}`}>Chưa có kết nối sàn nào</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddForm(true)}
+                                    className="mt-3 px-4 py-2 rounded-xl bg-emerald-500 text-white text-xs font-black"
+                                >
+                                    Thêm kết nối mới
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-3">
+                                {connections.map(conn => (
+                                    <ConnectionCard
+                                        key={conn._id}
+                                        conn={conn}
+                                        username={username}
+                                        isDark={isDark}
+                                        UI={UI}
+                                        onChanged={fetchAll}
+                                        managedBases={liveTrades.map(t => String(t.symbol || '').replace(/USDT$/i, '').toUpperCase()).filter(Boolean)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'positions',
+                title: 'Vị thế LIVE',
+                icon: Flame,
+                summary: `${liveTrades.length} vị thế`,
+                render: () => (
+                    <LivePositionsPanel liveTrades={liveTrades} isDark={isDark} UI={UI} />
+                ),
+            },
+            {
+                id: 'orders',
+                title: 'Lịch sử lệnh thực',
+                icon: History,
+                summary: orderStats ? `${orderStats.filledOrders || 0} khớp` : 'Đóng',
+                render: () => (
+                    <ExchangeOrderLog orders={orders} isDark={isDark} UI={UI} />
+                ),
+            },
+            {
+                id: 'safety',
+                title: 'Lưu ý bảo mật',
+                icon: ShieldCheck,
+                summary: 'AES-256 · Testnet',
+                render: () => (
+                    <div className={`rounded-2xl border p-4 text-[11px] font-semibold leading-relaxed flex gap-3 ${isDark ? 'bg-yellow-500/5 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'} ${UI.textMuted}`}>
+                        <ShieldCheck size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-yellow-500 font-black mb-1">Lưu ý bảo mật & an toàn</p>
+                            <p>· API key/secret được mã hóa AES-256-GCM trước khi lưu.</p>
+                            <p>· Tuyệt đối KHÔNG cấp quyền Rút tiền (Withdraw) cho key dùng ở đây.</p>
+                            <p>· LIVE: tạo gói lệnh ở tab AutoDuck và chọn kết nối sàn. Spot chỉ LONG/MUA.</p>
+                            <p>· Mặc định Testnet — kiểm chứng trước khi chuyển Live.</p>
+                        </div>
+                    </div>
+                ),
+            },
+        ];
+
+        return (
+            <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
+                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Siêu tối giản · Broker</p>
+                    <p className={`text-sm font-bold ${UI.textBold}`}>Chạm từng mục để mở · chỉ render khi cần</p>
+                </div>
+                <UltraStack
+                    sections={ultraSections}
+                    openId={ultraOpenId}
+                    onOpenChange={setUltraOpenId}
+                    isDark={isDark}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col gap-6 p-4 lg:p-6 max-w-[1400px] mx-auto w-full h-full overflow-y-auto">

@@ -19,6 +19,7 @@
     "klinecharts": "^9.8.5",
     "lightweight-charts": "^4.2.1",
     "lucide-react": "^1.14.0",
+    "pdfjs-dist": "^6.1.200",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",

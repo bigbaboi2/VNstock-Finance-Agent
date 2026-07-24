@@ -25,6 +25,7 @@ import {
     Loader2,
 } from 'lucide-react';
 import AutoDuckEnvSettingsPanel from './AutoDuckEnvSettingsPanel';
+import UltraStack from './UltraStack';
 
 const formatNumber = (value, digits = 0) => {
     const n = Number(value);
@@ -83,7 +84,7 @@ const countOpenOrdersInPackage = (order) => {
     return 0;
 };
 
-export default function AutoDuckTab({ username, isDark, UI }) {
+export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' }) {
     const isAdmin = username === 'admin';
     const [systemLogs, setSystemLogs] = useState([]);
     const [userOrders, setUserOrders] = useState([]);
@@ -135,6 +136,8 @@ export default function AutoDuckTab({ username, isDark, UI }) {
     });
     const [liveConnections, setLiveConnections] = useState([]);
     const [usdVndRate, setUsdVndRate] = useState(25400); // tỷ giá USD→VND, fetch realtime bên dưới
+    const [ultraOpenId, setUltraOpenId] = useState(null);
+    const isUltra = uiStyle === 'ultra';
 
     const performance = useMemo(() => {
         const closed = systemLogs.filter((log) => log.status === 'CLOSED' || log.status === 'REJECTED' || log.status === 'SKIP');
@@ -462,6 +465,243 @@ export default function AutoDuckTab({ username, isDark, UI }) {
         setFormData(prev => ({ ...prev, [targetKey]: vnd }));
         setActionMessage({ text: `Đã set ${vnd.toLocaleString('vi-VN')}đ (~${totalUSDT.toLocaleString('en-US', { maximumFractionDigits: 2 })} USDT từ ${liveConnections.length} kết nối).`, isError: false });
     };
+
+    if (isUltra) {
+        const ultraSections = [
+            {
+                id: 'settings',
+                title: 'Engine & cài đặt',
+                icon: Gauge,
+                summary: isEngineEnabled === false ? 'Tắt' : (isEngineEnabled ? 'Đang bật' : '…'),
+                render: () => (
+                    <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                            <MetricCard UI={UI} label="WIN RATE" value={`${metrics.winRate}%`} tone="text-emerald-500" />
+                            <MetricCard UI={UI} label="AVG PNL" value={`${metrics.avgPnl}%`} tone={Number(metrics.avgPnl) >= 0 ? 'text-emerald-500' : 'text-red-500'} />
+                            <MetricCard UI={UI} label="CLOSED" value={metrics.totalTrades} tone="text-cyan-500" />
+                            <MetricCard UI={UI} label="OPEN" value={performance.openTrades} tone="text-amber-500" />
+                        </div>
+                        <AutoDuckEnvSettingsPanel
+                            username={username}
+                            isAdmin={isAdmin}
+                            isDark={isDark}
+                            UI={UI}
+                            adminCode={adminCode}
+                            setAdminCode={setAdminCode}
+                            riskLevel={riskLevel}
+                            isEngineEnabled={isEngineEnabled}
+                            loading={loading}
+                            onToggleEngine={handleToggleEngine}
+                            onRiskLevelChange={handleRiskLevelChange}
+                            onMessage={setActionMessage}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowGuide(true)}
+                            className={`w-full py-2 rounded-xl border text-xs font-black uppercase tracking-widest ${isDark ? 'border-cyan-500/40 text-cyan-300' : 'border-cyan-300 text-cyan-600'}`}
+                        >
+                            <BookOpen size={14} className="inline mr-1.5" /> Hướng dẫn cơ chế
+                        </button>
+                    </div>
+                ),
+            },
+            {
+                id: 'packages',
+                title: 'Gói lệnh ủy thác',
+                icon: Briefcase,
+                summary: `${userOrderStats.packageCount} gói · ${userOrderStats.totalOpenRunning} đang chạy`,
+                render: () => (
+                    <div className="space-y-4">
+                        <section className={`rounded-xl border-2 p-4 ${UI.card} ${isDark ? '!border-white/80' : '!border-slate-300'}`}>
+                            <div className={`flex items-center gap-2 mb-3 pb-2 border-b ${UI.border}`}>
+                                <Briefcase size={16} className="text-emerald-500" />
+                                <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Tạo gói lệnh</span>
+                            </div>
+                            <form onSubmit={handleFormSubmit} className={`flex flex-col gap-3 ${isSubmittingPackage ? 'pointer-events-none opacity-80' : ''}`}>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button type="button" onClick={() => setFormData({ ...formData, allocationMode: 'FIXED' })}
+                                        className={`py-2 rounded-lg text-[10px] font-black border-2 ${formData.allocationMode === 'FIXED' ? 'bg-emerald-500 border-emerald-500 text-white' : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300')}`}>
+                                        Cố định
+                                    </button>
+                                    <button type="button" onClick={() => setFormData({ ...formData, allocationMode: 'PORTFOLIO' })}
+                                        className={`py-2 rounded-lg text-[10px] font-black border-2 ${formData.allocationMode === 'PORTFOLIO' ? 'bg-violet-500 border-violet-500 text-white' : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300')}`}>
+                                        Portfolio
+                                    </button>
+                                </div>
+                                {formData.allocationMode === 'FIXED' ? (
+                                    <FieldShell UI={UI} label="Vốn / lệnh (VNĐ)">
+                                        <input type="text" inputMode="numeric" value={Number(formData.capital || 0).toLocaleString('vi-VN')}
+                                            onChange={e => updateFormNumber('capital', e.target.value)}
+                                            className={`w-full bg-transparent font-mono font-black text-lg outline-none ${UI.textBold}`} />
+                                    </FieldShell>
+                                ) : (
+                                    <FieldShell UI={UI} label="Tổng quỹ (VNĐ)">
+                                        <input type="text" inputMode="numeric" value={Number(formData.totalCapital || 0).toLocaleString('vi-VN')}
+                                            onChange={e => updateFormNumber('totalCapital', e.target.value)}
+                                            className={`w-full bg-transparent font-mono font-black text-lg outline-none text-violet-400`} />
+                                    </FieldShell>
+                                )}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <FieldShell UI={UI} label="TP (+%)">
+                                        <input type="text" value={formData.targetPct} onChange={e => updateFormNumber('targetPct', e.target.value)}
+                                            className={`w-full bg-transparent font-mono font-black outline-none text-emerald-500`} />
+                                    </FieldShell>
+                                    <FieldShell UI={UI} label="SL (-%)">
+                                        <input type="text" value={formData.stopLossPct} onChange={e => updateFormNumber('stopLossPct', e.target.value)}
+                                            className={`w-full bg-transparent font-mono font-black outline-none text-red-500`} />
+                                    </FieldShell>
+                                </div>
+                                <FieldShell UI={UI} label="Thị trường">
+                                    <select value={formData.assetType} onChange={e => {
+                                        const assetType = e.target.value;
+                                        setFormData(prev => ({ ...prev, assetType, ...(assetType !== 'CRYPTO' ? { executionMode: 'SIMULATED', exchangeConnectionId: '' } : {}) }));
+                                    }} className={`w-full bg-transparent font-black text-sm outline-none ${UI.textBold}`}>
+                                        <option value="ALL">Tất cả</option>
+                                        <option value="VN_STOCK">CK VN</option>
+                                        <option value="CRYPTO">Crypto</option>
+                                        <option value="DERIVATIVES">Phái sinh</option>
+                                    </select>
+                                </FieldShell>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button type="button" onClick={() => setFormData({ ...formData, executionMode: 'SIMULATED', exchangeConnectionId: '' })}
+                                        className={`py-2 rounded-lg text-[10px] font-black border-2 ${formData.executionMode === 'SIMULATED' ? 'bg-cyan-500 border-cyan-500 text-white' : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300')}`}>
+                                        Mô phỏng
+                                    </button>
+                                    <button type="button" onClick={() => setFormData({ ...formData, executionMode: 'LIVE' })}
+                                        className={`py-2 rounded-lg text-[10px] font-black border-2 ${formData.executionMode === 'LIVE' ? 'bg-red-500 border-red-500 text-white' : (isDark ? 'border-white/80 text-slate-300' : 'border-slate-300')}`}>
+                                        Live
+                                    </button>
+                                </div>
+                                {formData.executionMode === 'LIVE' && (
+                                    <select value={formData.exchangeConnectionId} onChange={e => setFormData({ ...formData, exchangeConnectionId: e.target.value })}
+                                        className={`w-full px-2 py-2 rounded-lg border text-xs font-bold ${isDark ? 'bg-[#1a1f2e] border-slate-700' : 'bg-white border-slate-300'}`}>
+                                        <option value="">— Chọn kết nối sàn —</option>
+                                        {liveConnections.filter(c => formData.assetType === 'VN_STOCK' ? c.exchangeName === 'DNSE' : c.exchangeName !== 'DNSE').map(c => (
+                                            <option key={c._id} value={c._id}>{c.exchangeName} · {c.label}</option>
+                                        ))}
+                                    </select>
+                                )}
+                                <button type="submit" disabled={isSubmittingPackage}
+                                    className={`w-full py-3 rounded-xl font-black text-sm text-white ${formData.executionMode === 'LIVE' ? 'bg-red-500' : 'bg-emerald-500'} disabled:opacity-60`}>
+                                    {isSubmittingPackage ? 'Đang tạo…' : (formData.executionMode === 'LIVE' ? 'Đăng ký LIVE' : 'Đăng ký mô phỏng')}
+                                </button>
+                                {actionMessage.text && (
+                                    <p className={`text-[11px] font-bold ${actionMessage.isError ? 'text-red-400' : 'text-emerald-400'}`}>{actionMessage.text}</p>
+                                )}
+                            </form>
+                        </section>
+                        <section className={`rounded-xl border-2 flex flex-col overflow-hidden ${UI.card} ${isDark ? '!border-white/80' : '!border-slate-300'}`}>
+                            <div className={`px-4 py-3 border-b ${UI.border}`}>
+                                <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Gói của bạn ({userOrderStats.packageCount})</span>
+                            </div>
+                            <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-3 flex flex-col gap-3">
+                                {userOrders.length === 0 ? (
+                                    <p className={`text-sm font-bold text-center py-6 ${UI.textMuted}`}>Chưa có gói lệnh.</p>
+                                ) : (
+                                    userOrders.map((order, idx) => (
+                                        <UserOrderCard key={order._id} index={idx + 1} order={order} isDark={isDark} UI={UI} onStop={handleStopOrder} onDelete={handleDeleteOrder} />
+                                    ))
+                                )}
+                            </div>
+                        </section>
+                    </div>
+                ),
+            },
+            {
+                id: 'logs',
+                title: 'Nhật ký tín hiệu',
+                icon: Activity,
+                summary: `${filteredAndSortedLogs.length} lệnh`,
+                render: () => (
+                    <div className={`rounded-xl border-2 flex flex-col overflow-hidden ${UI.card} ${isDark ? '!border-white/80' : '!border-slate-300'}`}>
+                        <div className={`px-3 py-2 flex flex-wrap items-center gap-2 border-b ${UI.border}`}>
+                            {[
+                                { id: 'ALL', label: 'Tất cả' },
+                                { id: 'SIMULATED', label: 'SIM' },
+                                { id: 'LIVE', label: 'LIVE' },
+                            ].map(({ id, label }) => (
+                                <button key={id} type="button" onClick={() => setFilterExecMode(id)} disabled={logsLoading}
+                                    className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase border ${filterExecMode === id ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400' : (isDark ? 'border-white/15 text-slate-400' : 'border-slate-200 text-slate-500')}`}>
+                                    {label}
+                                </button>
+                            ))}
+                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} disabled={logsLoading}
+                                className={`text-[10px] font-bold px-2 py-1 rounded border ${isDark ? 'bg-[#1a1f2e] border-slate-700' : 'bg-white border-slate-300'}`}>
+                                <option value="ALL">Tất cả TT</option>
+                                <option value="OPEN">Đang chạy</option>
+                                <option value="CLOSED">Đã đóng</option>
+                            </select>
+                        </div>
+                        <div className="max-h-[min(60vh,520px)] overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                            {logsLoading ? (
+                                <div className={`flex flex-col items-center py-12 ${UI.textMuted}`}>
+                                    <Loader2 size={28} className="animate-spin text-blue-500" />
+                                </div>
+                            ) : filteredAndSortedLogs.length === 0 ? (
+                                <p className={`text-center py-8 text-[10px] font-black uppercase ${UI.textMuted}`}>Không có lệnh.</p>
+                            ) : (
+                                filteredAndSortedLogs.map((log) => <TradeCard key={log._id} log={log} isDark={isDark} UI={UI} />)
+                            )}
+                        </div>
+                    </div>
+                ),
+            },
+            {
+                id: 'capital',
+                title: 'Vốn & hiệu suất',
+                icon: LineChart,
+                summary: `${metrics.winRate}% win · ${formatNumber(metrics.totalPnlAmount)} đ`,
+                render: () => (
+                    <div className="space-y-3">
+                        <div className={`rounded-xl border p-4 ${UI.card}`}>
+                            <p className={`text-[10px] font-black uppercase mb-2 ${UI.textMuted}`}>Tổng vốn hệ thống</p>
+                            <p className={`text-xl font-mono font-black ${UI.textBold}`}>{totalCapital.toLocaleString()} đ</p>
+                            <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
+                                <div><span className={UI.textMuted}>Giải ngân: </span><span className="font-black text-emerald-500">{allocatedCapital.toLocaleString()} đ</span></div>
+                                <div><span className={UI.textMuted}>Khả dụng: </span><span className="font-black text-yellow-500">{(totalCapital - allocatedCapital).toLocaleString()} đ</span></div>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <ResultCard UI={UI} isDark={isDark} label="Tổng PnL" value={`${metrics.totalPnlAmount >= 0 ? '+' : ''}${formatNumber(metrics.totalPnlAmount)} đ`} tone={metrics.totalPnlAmount >= 0 ? 'text-emerald-500' : 'text-red-500'} detail={`${metrics.winningTrades || 0}T · ${metrics.losingTrades || 0}L`} />
+                            <ResultCard UI={UI} isDark={isDark} label="Vốn đang mở" value={`${formatNumber(performance.openExposure)} đ`} tone="text-amber-500" detail={`${performance.openTrades} vị thế`} />
+                        </div>
+                        {aiLessons.length > 0 && (
+                            <div className={`rounded-xl border p-3 ${UI.card}`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <BrainCircuit size={14} className="text-purple-500" />
+                                    <span className={`text-[10px] font-black uppercase ${UI.textBold}`}>AI lessons</span>
+                                </div>
+                                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                    {aiLessons.slice(0, 5).map((lesson) => (
+                                        <div key={lesson._id} className={`rounded-lg border p-2 text-[11px] ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
+                                            <p className={`font-black text-[10px] ${UI.textMuted}`}>{lesson.symbol}</p>
+                                            <p className={UI.textMuted}>{lesson.lesson}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ),
+            },
+        ];
+
+        return (
+            <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
+                {showGuide && <MechanismGuideModal isDark={isDark} UI={UI} onClose={() => setShowGuide(false)} />}
+                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Siêu tối giản · AutoDuck</p>
+                    <p className={`text-sm font-bold ${UI.textBold}`}>Chạm từng mục để mở · chỉ render khi cần</p>
+                </div>
+                <UltraStack
+                    sections={ultraSections}
+                    openId={ultraOpenId}
+                    onOpenChange={setUltraOpenId}
+                    isDark={isDark}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className={`w-full h-full flex flex-col overflow-y-auto custom-scrollbar p-4 lg:p-6 transition-colors duration-300 ${UI.main}`}>

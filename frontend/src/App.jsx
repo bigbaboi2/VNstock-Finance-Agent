@@ -76,10 +76,13 @@ function App() {
   const [authForm, setAuthForm] = useState({ username: '', password: '', isRegister: false });
 
 //CONFIG: THEME ENGINE + USER UI PREFERENCES (MongoDB)
-const UI_STYLES = new Set(['classic', 'minimal', 'book']);
-const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true, uiStyle: 'classic' };
+const UI_STYLES = new Set(['classic', 'minimal', 'book', 'ultra']);
+const FONT_SCALES = new Set(['sm', 'md', 'lg', 'xl']);
+const FONT_SCALE_VALUES = { sm: '0.875', md: '1', lg: '1.125', xl: '1.25' };
+const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true, uiStyle: 'classic', fontScale: 'md' };
 
 const normalizeUiStyle = (value) => (UI_STYLES.has(value) ? value : DEFAULT_UI_PREFS.uiStyle);
+const normalizeFontScale = (value) => (FONT_SCALES.has(value) ? value : DEFAULT_UI_PREFS.fontScale);
 
 const readLocalThemeFallback = (user) => {
   if (user) {
@@ -110,32 +113,46 @@ const readLocalUiStyleFallback = (user) => {
   return normalizeUiStyle(global);
 };
 
+const readLocalFontScaleFallback = (user) => {
+  if (user) {
+    const perUser = localStorage.getItem(`omni_font_scale_${user}`);
+    if (FONT_SCALES.has(perUser)) return perUser;
+  }
+  const global = localStorage.getItem('omni_font_scale');
+  return normalizeFontScale(global);
+};
+
 const cacheUiPreferencesLocally = (prefs, user) => {
   const theme = prefs?.theme === 'light' ? 'light' : 'dark';
   const clock3d = prefs?.clock3d !== false;
   const uiStyle = normalizeUiStyle(prefs?.uiStyle);
+  const fontScale = normalizeFontScale(prefs?.fontScale);
   localStorage.setItem('omni_theme', theme);
   localStorage.setItem('omni_clock_3d', String(clock3d));
   localStorage.setItem('omni_ui_style', uiStyle);
+  localStorage.setItem('omni_font_scale', fontScale);
   if (user) {
     localStorage.setItem(`omni_theme_${user}`, theme);
     localStorage.setItem(`omni_clock_3d_${user}`, String(clock3d));
     localStorage.setItem(`omni_ui_style_${user}`, uiStyle);
+    localStorage.setItem(`omni_font_scale_${user}`, fontScale);
   }
-  return { theme, clock3d, uiStyle };
+  return { theme, clock3d, uiStyle, fontScale };
 };
 
 const [theme, setTheme] = useState(() => readLocalThemeFallback(currentUser));
 const [is3DClock, setIs3DClock] = useState(() => readLocalClock3dFallback(currentUser));
 const [uiStyle, setUiStyle] = useState(() => readLocalUiStyleFallback(currentUser));
+const [fontScale, setFontScale] = useState(() => readLocalFontScaleFallback(currentUser));
 const isDark = theme === 'dark';
-const reduceMotion = uiStyle === 'minimal';
+const reduceMotion = uiStyle === 'minimal' || uiStyle === 'ultra';
 
 const applyUiPreferences = useCallback((prefs, user = currentUser) => {
   const next = cacheUiPreferencesLocally(prefs || DEFAULT_UI_PREFS, user);
   setTheme(next.theme);
   setIs3DClock(next.clock3d);
   setUiStyle(next.uiStyle);
+  setFontScale(next.fontScale);
   return next;
 }, [currentUser]);
 
@@ -149,10 +166,14 @@ const persistUiPreferences = useCallback(async (partial, user = currentUser) => 
   const nextUiStyle = UI_STYLES.has(partial.uiStyle)
     ? partial.uiStyle
     : uiStyle;
+  const nextFontScale = FONT_SCALES.has(partial.fontScale)
+    ? partial.fontScale
+    : fontScale;
   const next = applyUiPreferences({
     theme: nextTheme,
     clock3d: nextClock3d,
     uiStyle: nextUiStyle,
+    fontScale: nextFontScale,
   }, user);
   if (!user) return next;
   try {
@@ -161,12 +182,13 @@ const persistUiPreferences = useCallback(async (partial, user = currentUser) => 
       theme: next.theme,
       clock3d: next.clock3d,
       uiStyle: next.uiStyle,
+      fontScale: next.fontScale,
     });
   } catch (err) {
     console.warn('[UI prefs] Không lưu được preference lên server:', err?.response?.data?.message || err.message);
   }
   return next;
-}, [applyUiPreferences, currentUser, is3DClock, theme, uiStyle]);
+}, [applyUiPreferences, currentUser, fontScale, is3DClock, theme, uiStyle]);
 
 useEffect(() => {
   if (!currentUser) {
@@ -174,6 +196,7 @@ useEffect(() => {
       theme: readLocalThemeFallback(null),
       clock3d: readLocalClock3dFallback(null),
       uiStyle: readLocalUiStyleFallback(null),
+      fontScale: readLocalFontScaleFallback(null),
     }, null);
     return undefined;
   }
@@ -195,8 +218,10 @@ useEffect(() => {
   const root = document.documentElement;
   root.setAttribute('data-ui-style', uiStyle);
   root.setAttribute('data-theme', theme);
+  root.setAttribute('data-font-scale', fontScale);
+  root.style.setProperty('--omni-font-scale', FONT_SCALE_VALUES[fontScale] || '1');
   root.classList.toggle('ui-reduce-motion', reduceMotion);
-}, [uiStyle, theme, reduceMotion]);
+}, [uiStyle, theme, fontScale, reduceMotion]);
 
 const handleToggleTheme = () => {
   const newTheme = isDark ? 'light' : 'dark';
@@ -210,6 +235,11 @@ const handleToggleClockMode = () => {
 const handleSetUiStyle = (nextStyle) => {
   if (!UI_STYLES.has(nextStyle)) return;
   void persistUiPreferences({ uiStyle: nextStyle });
+};
+
+const handleSetFontScale = (nextScale) => {
+  if (!FONT_SCALES.has(nextScale)) return;
+  void persistUiPreferences({ fontScale: nextScale });
 };
   //LOGIC: AUTHENTICATION HANDLERS
   const [authError, setAuthError] = useState('');
@@ -1198,11 +1228,11 @@ const derivAnalysis = React.useMemo(() => {
         ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white'
         : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100 shadow-sm',
       radius: 'rounded-xl',
-      reduceMotion: uiStyle === 'minimal',
+      reduceMotion: uiStyle === 'minimal' || uiStyle === 'ultra',
       uiStyle,
     };
 
-    if (uiStyle === 'minimal') {
+    if (uiStyle === 'minimal' || uiStyle === 'ultra') {
       return {
         ...classic,
         header: isDark ? 'bg-[#0B0F14] border-white/10' : 'bg-white border-slate-300',
@@ -2128,11 +2158,13 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         handleToggleTheme={handleToggleTheme}
         handleToggleClockMode={handleToggleClockMode}
         handleSetUiStyle={handleSetUiStyle}
+        fontScale={fontScale}
+        handleSetFontScale={handleSetFontScale}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
 
       {/*GRID CONTAINER: 3 COLUMNS SYSTEM */}
-      <div className="flex-1 overflow-hidden flex relative w-full">
+      <div className="flex-1 overflow-hidden flex relative w-full min-h-0">
 
         {/*========================================================= */}
         {/*MODE 1: VIETNAM SECURITIES (BASE) */}
@@ -2184,6 +2216,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             vnReportTimestamp={vnReportTimestamp}
             debateResult={debateResult}
             liveDebate={liveDebate}
+            uiStyle={uiStyle}
         />
         )}
         {/*========================================================= */}
@@ -2199,6 +2232,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             analyzingDeriv={analyzingDeriv}
             handleAiDerivAnalysis={handleAiDerivAnalysis}
             isDark={isDark} UI={UI}
+            uiStyle={uiStyle}
             derivRadar={derivRadar}
             derivChartData={derivChartData}
             derivInterval={derivInterval} setDerivInterval={setDerivInterval}
@@ -2224,6 +2258,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             <CryptoTab
                 isDark={isDark}
                 UI={UI}
+                uiStyle={uiStyle}
                 addLog={addLog}
                 initialSymbol={cryptoDeepSymbol || routeInfo.symbol || 'BTC'}
                 onSymbolChange={(sym) => {
@@ -2240,6 +2275,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         {activeMode === 'PAPER_TRADING' && (
         <PaperTradingTab
             isDark={isDark} UI={UI}
+            uiStyle={uiStyle}
             currentUser={currentUser}
             portfolio={portfolio}
             allStocks={allStocks}
@@ -2269,6 +2305,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 username={currentUser}
                 isDark={isDark}    
                 UI={UI}
+                uiStyle={uiStyle}
             />
         )}
         {/*========================================================= */}
@@ -2279,6 +2316,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 username={currentUser}
                 isDark={isDark}    
                 UI={UI}
+                uiStyle={uiStyle}
             />
         )}
     </div>
@@ -2318,9 +2356,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
                 </div>
                 <div className="flex-1 w-full relative bg-white">
                     <iframe 
-                        src={tcbsPdfEmbedUrl(marketData.reportPdf)} 
+                        src={tcbsPdfEmbedUrl(marketData.reportPdf, marketData.stockInfo?.symbol)} 
                         className="absolute inset-0 w-full h-full border-none" 
                         title="PDF Full Viewer"
+                        referrerPolicy="no-referrer"
                    />
                 </div>
             </div>

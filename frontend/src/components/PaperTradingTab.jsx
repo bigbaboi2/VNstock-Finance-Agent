@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import TradingChart from './TradingChart';
 import StockAiChat from './StockAiChat';
+import UltraStack from './UltraStack';
+import { formatCompanyName } from '../lib/formatCompanyName';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
@@ -192,7 +194,7 @@ function MarketBadge({ market }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function PaperTradingTab({
-    isDark, UI,
+    isDark, UI, uiStyle = 'classic',
     currentUser,
     portfolio,
     allStocks,
@@ -216,6 +218,8 @@ export default function PaperTradingTab({
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [mobileTab, setMobileTab] = useState('trade');
     const [livePrices, setLivePrices] = useState({});
+    const [ultraOpenId, setUltraOpenId] = useState(null);
+    const isUltra = uiStyle === 'ultra';
 
     // ─── Live price polling (giữ nguyên logic gốc) ─────────────────────────
     useEffect(() => {
@@ -269,11 +273,138 @@ export default function PaperTradingTab({
         return price && paperVolume ? price * Number(paperVolume) : null;
     })();
 
+    if (isUltra) {
+        const ultraSections = [
+            {
+                id: 'portfolio',
+                title: 'Ví & danh mục',
+                icon: Wallet,
+                summary: portfolio?.cash != null ? `${Number(portfolio.cash).toLocaleString('vi-VN')} ₫` : 'Đóng',
+                render: () => (
+                    <div className="space-y-2">
+                        <div className={`rounded-xl border p-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                            <p className={`text-[10px] font-black uppercase ${c.neutral}`}>Sức mua</p>
+                            <p className={`text-xl font-black ${c.accent}`}>
+                                {portfolio?.cash != null ? Number(portfolio.cash).toLocaleString('vi-VN') + ' ₫' : '—'}
+                            </p>
+                        </div>
+                        {(portfolio?.holdings || []).map((h) => (
+                            <div key={h.symbol} className={`rounded-xl border px-3 py-2 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                                <p className="font-black text-purple-400">{h.symbol}</p>
+                                <p className={`text-[11px] ${c.neutral}`}>{h.quantity} CP</p>
+                            </div>
+                        ))}
+                        {!portfolio?.holdings?.length && <p className={`text-sm ${c.neutral}`}>Chưa có mã nắm giữ.</p>}
+                    </div>
+                ),
+            },
+            {
+                id: 'chart',
+                title: paperSymbol ? `Chart · ${paperSymbol}` : 'Biểu đồ',
+                icon: BarChart3,
+                summary: paperSymbol || 'Chưa chọn mã',
+                render: () => (
+                    <div className="h-[min(55vh,420px)] min-h-[280px]">
+                        {paperChartData ? (
+                            <TradingChart
+                                data={paperChartData}
+                                theme={isDark ? 'dark' : 'light'}
+                                onIntervalChange={setPaperInterval}
+                                currentInterval={paperInterval}
+                            />
+                        ) : (
+                            <p className={`text-sm ${c.neutral}`}>Tìm mã để hiện chart.</p>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'order',
+                title: 'Đặt lệnh',
+                icon: Activity,
+                summary: paperMarket?.replace('_', ' ') || 'Đóng',
+                render: () => (
+                    <div className="space-y-3">
+                        <div className="flex flex-wrap gap-1.5">
+                            {[
+                                { id: 'VN_STOCKS', label: 'CK VN' },
+                                { id: 'VN_DERIVATIVES', label: 'Phái sinh' },
+                                { id: 'CRYPTO', label: 'Crypto' },
+                            ].map((m) => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => setPaperMarket(m.id)}
+                                    className={`px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase ${
+                                        paperMarket === m.id
+                                            ? 'border-purple-500 bg-purple-500/15 text-purple-400'
+                                            : isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
+                                    }`}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={paperSearchInput}
+                                onChange={(e) => {
+                                    setPaperSearchInput(e.target.value.toUpperCase());
+                                    setShowPaperSuggestions(true);
+                                }}
+                                className={`flex-1 h-10 rounded-xl px-3 font-black uppercase border outline-none ${
+                                    isDark ? 'bg-black/40 border-white/10 text-yellow-400' : 'bg-slate-50 border-slate-300 text-yellow-700'
+                                }`}
+                                placeholder="Mã…"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => executePaperSearch(paperSearchInput)}
+                                className="h-10 px-4 rounded-xl bg-purple-500 text-white font-black text-xs"
+                            >
+                                <Search size={14} />
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button type="button" onClick={() => handlePaperTrade('BUY')} className="h-11 rounded-xl bg-emerald-500 text-white font-black uppercase">Mua</button>
+                            <button type="button" onClick={() => handlePaperTrade('SELL')} className="h-11 rounded-xl bg-red-500 text-white font-black uppercase">Bán</button>
+                        </div>
+                    </div>
+                ),
+            },
+        ];
+
+        return (
+            <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
+                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-400">Siêu tối giản · Paper</p>
+                    <p className={`text-sm font-bold ${c.white}`}>Ngăn xếp — chỉ render khi mở</p>
+                </div>
+                <UltraStack
+                    sections={ultraSections}
+                    openId={ultraOpenId}
+                    onOpenChange={setUltraOpenId}
+                    isDark={isDark}
+                />
+                <StockAiChat
+                    isOpen={isChatOpen}
+                    onClose={() => setIsChatOpen(false)}
+                    ticker={paperSymbol}
+                    companyName={formatCompanyName(allStocks.find(s => s.symbol === paperSymbol)?.companyName) || paperSymbol}
+                    aiReport={null}
+                    isDark={isDark}
+                    currentUser={currentUser}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col w-full h-full overflow-hidden">
 
             {/* ── MOBILE TAB BAR ──────────────────────────────────────────── */}
-            <div className={`lg:hidden flex w-full shrink-0 border-b ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`lg:hidden flex w-full shrink-0 border-b ${isDark ? 'bg-[#080C11] border-white/8' : `${UI?.leftCol || 'bg-slate-50 border-slate-200'}`}`}>
                 <MobileTabBtn isDark={isDark} active={mobileTab === 'portfolio'} onClick={() => setMobileTab('portfolio')} icon={Wallet} label="Ví" />
                 <MobileTabBtn isDark={isDark} active={mobileTab === 'trade'} onClick={() => setMobileTab('trade')} icon={BarChart3} label="Giao dịch" />
                 <MobileTabBtn isDark={isDark} active={mobileTab === 'orders'} onClick={() => setMobileTab('orders')} icon={BookOpen} label="Lệnh chờ" />
@@ -283,7 +414,7 @@ export default function PaperTradingTab({
             <div className="flex-1 flex flex-row w-full min-h-0 overflow-hidden">
 
                 {/* ══ COL 1: VÍ & DANH MỤC ════════════════════════════════ */}
-                <div className={`${mobileTab === 'portfolio' || mobileTab === 'orders' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[340px] xl:w-[380px] border-r flex-col overflow-hidden ${isDark ? 'bg-[#080C11] border-white/8' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`${mobileTab === 'portfolio' || mobileTab === 'orders' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[340px] xl:w-[380px] border-r flex-col overflow-hidden ${isDark ? 'bg-[#080C11] border-white/8' : `${UI?.leftCol || 'bg-slate-50 border-slate-200'}`}`}>
 
                     {/* Header nhỏ gọn */}
                     <div className={`px-5 pt-4 pb-3 shrink-0 border-b ${isDark ? 'border-white/6' : 'border-slate-200'}`}>
@@ -544,10 +675,10 @@ export default function PaperTradingTab({
                 </div>
 
                 {/* ══ COL 2 + 3: CHART & ORDER PANEL ══════════════════════ */}
-                <div className={`${mobileTab === 'trade' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col min-h-0 overflow-hidden`}>
+                <div className={`${mobileTab === 'trade' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col min-h-0 overflow-hidden ${isDark ? '' : (UI?.rightCol || '')}`}>
 
                     {/* ─── MARKET SELECTOR (header strip) ──────────────── */}
-                    <div className={`shrink-0 px-4 py-2.5 flex items-center gap-2 border-b overflow-x-auto custom-scrollbar ${isDark ? 'bg-[#080C11] border-white/6' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className={`shrink-0 px-4 py-2.5 flex items-center gap-2 border-b overflow-x-auto custom-scrollbar ${isDark ? 'bg-[#080C11] border-white/6' : `${UI?.header || 'bg-slate-50 border-slate-200'}`}`}>
                         {[
                             { id: 'VN_STOCKS', label: 'Chứng khoán VN' },
                             { id: 'VN_DERIVATIVES', label: 'Phái sinh' },
@@ -571,7 +702,7 @@ export default function PaperTradingTab({
                     </div>
 
                     {/* ─── CHART + ORDER PANEL GRID ─────────────────────── */}
-                    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-0 overflow-hidden">
+                    <div className={`flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-0 overflow-hidden ${isDark ? '' : (UI?.main || '')}`}>
 
                         {/* ── COL 2: BIỂU ĐỒ ── */}
                         <div className={`col-span-1 lg:col-span-2 flex flex-col h-[360px] lg:h-auto border-r overflow-hidden ${isDark ? 'border-white/6' : 'border-slate-200'}`}>

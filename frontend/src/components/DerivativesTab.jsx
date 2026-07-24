@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import StockAiChat from './StockAiChat';
 import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
+import UltraStack from './UltraStack';
 
 // ─── Tooltip nhỏ gọn, dùng lại ───────────────────────────────────────────────
 function Tip({ text, children, side = 'top' }) {
@@ -168,7 +169,7 @@ function MobileTabBtn({ active, onClick, icon: Icon, label, isDark }) {
 export default function DerivativesTab({
     derivNews, lastNewsSave, refreshingNews, handleRefreshDerivNews,
     aiDerivReport, analyzingDeriv, handleAiDerivAnalysis,
-    isDark, UI,
+    isDark, UI, uiStyle = 'classic',
     derivRadar, derivChartData,
     derivInterval, setDerivInterval,
     derivAnalysis, volumeProfile,
@@ -180,6 +181,8 @@ export default function DerivativesTab({
 }) {
     // MOBILE: 3 tab — radar/tin tức | chart+kỹ thuật | AI
     const [mobileTab, setMobileTab] = useState('chart');
+    const [ultraOpenId, setUltraOpenId] = useState(null);
+    const isUltra = uiStyle === 'ultra';
     const [chartHeight, setChartHeight] = useState(() =>
         typeof window !== 'undefined' && window.innerWidth < 1024 ? 340 : 480
     );
@@ -231,6 +234,101 @@ export default function DerivativesTab({
         accent: 'text-orange-500',
         white: isDark ? 'text-white' : 'text-slate-800',
     };
+
+    if (isUltra) {
+        const ultraSections = [
+            {
+                id: 'chart',
+                title: 'Biểu đồ VN30F1M',
+                icon: BarChart3,
+                summary: derivRadar?.lastPrice ? String(derivRadar.lastPrice) : 'Đóng',
+                render: () => (
+                    <div className="h-[min(55vh,420px)] min-h-[280px]">
+                        {derivChartData?.length ? (
+                            <TradingChart
+                                data={derivChartData}
+                                theme={isDark ? 'dark' : 'light'}
+                                accent="orange"
+                                onIntervalChange={setDerivInterval}
+                                currentInterval={derivInterval}
+                            />
+                        ) : (
+                            <AtomLoader message="Đang tải chart…" />
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'radar',
+                title: 'Radar & tin tức',
+                icon: Activity,
+                summary: derivNews?.length ? `${derivNews.length} tin` : 'Đóng',
+                render: () => (
+                    <div className="space-y-3">
+                        <div className={`rounded-xl border p-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                            <p className="text-2xl font-black text-orange-500">VN30F1M</p>
+                            <p className={`text-xl font-black mt-2 ${c.white}`}>{derivRadar?.lastPrice ?? '—'}</p>
+                            <p className={`text-sm font-bold mt-1 ${changeNum >= 0 ? c.up : c.down}`}>
+                                {changeNum >= 0 ? '+' : ''}{changeNum}
+                            </p>
+                        </div>
+                        <div className="space-y-1.5 max-h-[320px] overflow-y-auto custom-scrollbar">
+                            {(derivNews || []).slice(0, 20).map((n, i) => (
+                                <a
+                                    key={i}
+                                    href={n.url || n.link || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`block rounded-lg border px-3 py-2 ${isDark ? 'border-white/10 hover:bg-white/5' : 'border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    <p className={`text-[12px] font-bold line-clamp-2 ${c.white}`}>{n.title}</p>
+                                </a>
+                            ))}
+                            {!derivNews?.length && <p className={`text-sm ${c.neutral}`}>Chưa có tin.</p>}
+                        </div>
+                    </div>
+                ),
+            },
+            {
+                id: 'ai',
+                title: 'Phân tích AI',
+                icon: BrainCircuit,
+                summary: aiDerivReport ? 'Có báo cáo' : (analyzingDeriv ? 'Đang chạy…' : 'Đóng'),
+                render: () => (
+                    <div className="space-y-3">
+                        <button
+                            type="button"
+                            onClick={() => handleAiDerivAnalysis?.()}
+                            disabled={analyzingDeriv}
+                            className="w-full h-11 rounded-xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest disabled:opacity-40"
+                        >
+                            {analyzingDeriv ? 'Đang phân tích…' : 'Chạy AI Phái sinh'}
+                        </button>
+                        {aiDerivReport && (
+                            <div className={`prose prose-sm max-w-none rounded-xl border p-4 ${isDark ? 'prose-invert border-white/10' : 'border-slate-200'}`}>
+                                <ReactMarkdown>{aiDerivReport}</ReactMarkdown>
+                            </div>
+                        )}
+                    </div>
+                ),
+            },
+        ];
+
+        return (
+            <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
+                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Siêu tối giản · Phái sinh</p>
+                    <p className={`text-sm font-bold ${c.white}`}>Chạm từng mục để mở · chỉ render khi cần</p>
+                </div>
+                <UltraStack
+                    sections={ultraSections}
+                    openId={ultraOpenId}
+                    onOpenChange={setUltraOpenId}
+                    isDark={isDark}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col w-full h-full overflow-hidden">

@@ -18,8 +18,10 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMe
 import StockAiChat from './StockAiChat';
 import AtomLoader from './AtomLoader';
 import MarketInsightPanel from './MarketInsightPanel';
-import { tcbsPdfEmbedUrl, API_BASE_URL, API_FETCH_HEADERS } from '../lib/apiBase';
+import { tcbsPdfEmbedUrl, tcbsPdfViewerUrl, API_BASE_URL, API_FETCH_HEADERS } from '../lib/apiBase';
+import { formatCompanyName } from '../lib/formatCompanyName';
 import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
+import UltraStack, { UltraPdfPages } from './UltraStack';
 // =====================================================================
 // SHARED SUB-COMPONENTS (đồng bộ với DerivativesTab)
 // =====================================================================
@@ -419,6 +421,52 @@ const DebatePanel = React.memo(({ debateResult, isDark, UI, forceCollapsed = fal
 // =====================================================================
 // COMPONENT: TERMINAL NEWS STREAM ( UI IMPROVEMENTS)
 // =====================================================================
+const HeadlineNewsList = React.memo(({ newsList, loading, isDark }) => {
+  if (loading) {
+    return (
+      <div className={`flex-1 min-h-[200px] flex items-center justify-center gap-2 text-[12px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+        <Loader2 size={14} className="animate-spin" /> Đang tải tin...
+      </div>
+    );
+  }
+  if (!newsList?.length) {
+    return (
+      <div className={`flex-1 min-h-[200px] flex items-center justify-center text-[12px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+        Chưa có tin tức
+      </div>
+    );
+  }
+  return (
+    <div className={`flex-1 h-full min-h-[200px] overflow-y-auto custom-scrollbar p-3 space-y-1.5 ${isDark ? 'bg-[#080c11]' : 'bg-slate-50'}`}>
+      {newsList.map((news, i) => {
+        const tone = news.sentiment === 'positive'
+          ? 'border-l-emerald-500'
+          : news.sentiment === 'negative'
+            ? 'border-l-red-500'
+            : 'border-l-slate-400';
+        return (
+          <a
+            key={`${news.title}-${i}`}
+            href={news.url || news.link || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`block rounded-lg border border-l-4 px-3 py-2 transition-colors ${tone} ${
+              isDark
+                ? 'bg-white/3 border-white/8 hover:bg-white/6 text-slate-200'
+                : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-800'
+            }`}
+          >
+            <p className="text-[12px] font-bold leading-snug line-clamp-2">{news.title}</p>
+            {news.date && (
+              <p className={`text-[10px] mt-1 font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{news.date}</p>
+            )}
+          </a>
+        );
+      })}
+    </div>
+  );
+});
+
 const TerminalNewsStream = React.memo(({ newsList, loading, isDark }) => {
   const [displayedLines, setDisplayedLines] = useState([]);
   const [renderTick, setRenderTick] = useState(0); // single trigger for display updates
@@ -792,7 +840,7 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-widest text-yellow-500">Báo cáo Omni Duck AI</p>
             <p className={`text-[11px] font-bold truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {sym} · {marketData?.companyProfile?.companyName || ''}
+              {sym} · {formatCompanyName(marketData?.companyProfile?.companyName) || ''}
             </p>
           </div>
         </div>
@@ -889,7 +937,7 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
                 <p className={`text-[11px] font-black uppercase tracking-widest truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{sym}</p>
                 {marketData?.companyProfile?.companyName && (
                   <p className={`text-[9px] font-semibold truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {marketData.companyProfile.companyName}
+                    {formatCompanyName(marketData.companyProfile.companyName)}
                   </p>
                 )}
               </div>
@@ -1222,7 +1270,7 @@ const ReportDockToolbar = React.memo(({
           </div>
           {companyName && (
             <p className={`text-[10px] font-semibold truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {companyName}
+              {formatCompanyName(companyName)}
             </p>
           )}
           <p className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 truncate ${isDark ? 'text-yellow-500/80' : 'text-yellow-600'}`}>
@@ -1512,6 +1560,7 @@ export default function VnStocksTab({
   newsMode = 'balanced',
   setNewsMode,
   vnReportTimestamp,
+  uiStyle = 'classic',
   debateResult,
   liveDebate = {},
   cancelAnalysis,
@@ -1624,6 +1673,16 @@ export default function VnStocksTab({
   // ─── STATE ĐIỀU KHIỂN THU GỌN KHỐI PDF VÀ NEWS ────────────────────
   const [isPdfConfigOpen, setIsPdfConfigOpen] = useState(false);
   const [isNewsConfigOpen, setIsNewsConfigOpen] = useState(false);
+  const [ultraOpenId, setUltraOpenId] = useState(null);
+  const isUltra = uiStyle === 'ultra';
+
+  useEffect(() => {
+    if (!isUltra) return undefined;
+    setIsLeftColOpen(false);
+    setIsRightColOpen(false);
+    setUltraOpenId(null);
+    return undefined;
+  }, [isUltra]);
 
   const isFocusLayout = !isLeftColOpen && !isRightColOpen;
   const isReportReadingMode = !!(aiReport && !analyzing && marketData);
@@ -2527,6 +2586,421 @@ export default function VnStocksTab({
   // ─────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────
+
+  // ── Siêu tối giản: ngăn xếp, chỉ mount khi mở ──
+  if (isUltra) {
+    const sym = marketData?.stockInfo?.symbol;
+    const newsCount = marketData?.deepNewsData?.length || 0;
+    const ultraSections = [
+      {
+        id: 'market',
+        title: 'Dữ liệu thị trường',
+        icon: Database,
+        alwaysOpen: true,
+        summary: sym ? formatCompanyName(marketData?.companyProfile?.companyName) : '—',
+        render: () => (
+          <div className="space-y-3">
+            {marketData ? (
+              <>
+                <div className={`rounded-xl border p-4 ${isDark ? 'border-white/10 bg-white/3' : 'border-slate-200 bg-slate-50'}`}>
+                  <p className="text-2xl font-black text-yellow-400">{marketData.stockInfo?.symbol}</p>
+                  <p className={`text-sm font-semibold mt-1 ${UI.textMuted}`}>
+                    {formatCompanyName(marketData.companyProfile?.companyName || marketData.stockInfo?.companyName)}
+                  </p>
+                  <p className={`text-xl font-black mt-3 ${UI.textBold}`}>{marketData.stockInfo?.currentPrice ?? '—'}</p>
+                </div>
+                <MarketOverview isDark={isDark} UI={UI} marketIntel={marketIntel} vnIndexData={vnIndexData} />
+              </>
+            ) : (
+              <p className={`text-sm ${UI.textMuted}`}>Tìm mã cổ phiếu để xem dữ liệu.</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'stats',
+        title: 'Chỉ số & Tổng quan',
+        icon: BarChart3,
+        summary: marketData?.stockInfo?.pe != null ? `P/E ${marketData.stockInfo.pe}` : 'Đóng',
+        render: () => (
+          !marketData ? (
+            <p className={`text-sm ${UI.textMuted}`}>Chưa có dữ liệu mã.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 text-center ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200'}`}>
+                  <p className={`text-[9px] mb-1.5 font-black uppercase ${UI.textMuted}`}>Vốn hóa</p>
+                  <p className="font-black text-sm">{marketData.stockInfo?.marketCap ?? '—'}</p>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200'}`}>
+                  <p className={`text-[9px] mb-1.5 font-black uppercase ${UI.textMuted}`}>P/E</p>
+                  <p className="font-black text-sm text-yellow-500">{marketData.stockInfo?.pe ?? '—'}</p>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200'}`}>
+                  <p className={`text-[9px] mb-1.5 font-black uppercase ${UI.textMuted}`}>Tổng KL</p>
+                  <p className="font-black text-sm">{marketData.stockInfo?.totalVolume ?? '—'}</p>
+                </div>
+                <div className={`p-2.5 rounded-xl border flex flex-col justify-center gap-1 ${isDark ? 'bg-black/30 border-white/5' : 'bg-white border-gray-200'}`}>
+                  <div className="flex justify-between text-[11px] font-black text-emerald-500">
+                    <span className="text-[6px] uppercase text-slate-400">Mua</span>
+                    <span>{marketData.stockInfo?.buyVolume ?? '—'}</span>
+                  </div>
+                  <div className="w-full h-1.5 flex rounded-full overflow-hidden bg-gray-800/20">
+                    <div className="h-full bg-emerald-500 w-3/5" />
+                    <div className="h-full bg-red-500 w-2/5" />
+                  </div>
+                  <div className="flex justify-between text-[11px] font-black text-red-500">
+                    <span className="text-[6px] uppercase text-slate-400">Bán</span>
+                    <span>{marketData.stockInfo?.sellVolume ?? '—'}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExtraStats((v) => !v)}
+                className={`mx-auto flex items-center gap-1 text-[9px] font-black uppercase px-3 py-1 rounded-full border ${isDark ? 'text-slate-400 border-white/10' : 'text-gray-500 border-gray-300'}`}
+              >
+                {showExtraStats ? <><ChevronUp size={12} /> Thu gọn</> : <><ChevronDown size={12} /> Xem thêm chỉ số</>}
+              </button>
+              {showExtraStats && (
+                <div className={`grid grid-cols-3 gap-3 text-center p-3 rounded-2xl border ${isDark ? 'bg-[#0f1520] border-white/6' : 'bg-white border-gray-200'}`}>
+                  <div>
+                    <p className={`text-[9px] mb-1 font-black uppercase ${UI.textMuted}`}>EPS</p>
+                    <p className="font-black text-sm">{marketData.stockInfo?.eps ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className={`text-[9px] mb-1 font-black uppercase ${UI.textMuted}`}>P/B</p>
+                    <p className="font-black text-sm">{marketData.stockInfo?.pb ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className={`text-[9px] mb-1 font-black uppercase ${UI.textMuted}`}>GT sổ sách</p>
+                    <p className="font-black text-sm">{marketData.stockInfo?.bvps ?? '—'}</p>
+                  </div>
+                </div>
+              )}
+              <CompanyOverview profile={marketData.companyProfile} isDark={isDark} UI={UI} />
+            </div>
+          )
+        ),
+      },
+      {
+        id: 'ai-config',
+        title: 'Phân tích AI & Cấu hình',
+        icon: BrainCircuit,
+        accent: 'yellow',
+        summary: analyzing ? 'Đang chạy…' : (aiReport ? 'Có báo cáo' : 'Đóng'),
+        render: () => {
+          const elapsed = lastAiVnTime ? Date.now() - lastAiVnTime : Infinity;
+          const canCall = elapsed >= AI_REPORT_COOLDOWN_MS;
+          const remainSec = Math.max(0, Math.floor((AI_REPORT_COOLDOWN_MS - elapsed) / 1000));
+          const remainMin = Math.floor(remainSec / 60);
+          const remainSecStr = String(remainSec % 60).padStart(2, '0');
+          return (
+            <div className="space-y-3">
+              {setPdfMode && (
+                <div className={`rounded-xl border p-3 ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200'}`}>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${UI.textMuted}`}>Chế độ PDF</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {['turbo', 'fast', 'balanced', 'full'].map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setPdfMode(key)}
+                        className={`h-9 rounded-lg border text-[10px] font-black uppercase ${
+                          pdfMode === key
+                            ? 'bg-yellow-400/20 border-yellow-400 text-yellow-500'
+                            : isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {key}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {setNewsMode && (
+                <div className={`rounded-xl border p-3 ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200'}`}>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${UI.textMuted}`}>Chế độ tin tức</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { key: 'fast', label: 'Nhanh' },
+                      { key: 'balanced', label: 'Cân bằng' },
+                      { key: 'deep', label: 'Chuyên sâu' },
+                      { key: 'ultra', label: 'Ultra' },
+                    ].map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setNewsMode(key);
+                          if (marketData?.stockInfo?.symbol) fetchMarketData?.(marketData.stockInfo.symbol, key);
+                        }}
+                        className={`h-9 rounded-lg border text-[10px] font-black uppercase ${
+                          newsMode === key
+                            ? 'bg-yellow-400/20 border-yellow-400 text-yellow-500'
+                            : isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleExportData}
+                disabled={isExporting}
+                className={`w-full h-9 rounded-xl font-black text-[10px] uppercase border flex items-center justify-center gap-2 ${
+                  isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
+                }`}
+              >
+                {isExporting ? <Loader2 size={12} className="animate-spin" data-keep-spin /> : <FileJson size={12} />}
+                {isExporting ? 'Đang xuất…' : 'Xuất server data (JSON)'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setUltraOpenId('ai');
+                  const result = await handleAiAnalysis?.(false);
+                  if (result === 'cached') {
+                    setAnalysisNotice('Mã vừa được phân tích gần đây. Dùng "Quét lại ngay" nếu vẫn muốn chạy lại.');
+                  }
+                }}
+                disabled={analyzing || !marketData}
+                className="w-full h-12 rounded-xl font-black text-[12px] uppercase tracking-widest bg-yellow-400 text-black disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <BrainCircuit size={18} />
+                {analyzing ? 'Omni Duck đang tư duy…' : 'Phân tích với Omni Duck'}
+              </button>
+              {analyzing && (
+                <button
+                  type="button"
+                  onClick={cancelAnalysis}
+                  className={`w-full h-10 rounded-xl font-black text-[11px] uppercase border border-dashed ${isDark ? 'border-red-500/50 text-red-400' : 'border-red-400 text-red-600'}`}
+                >
+                  Hủy phân tích
+                </button>
+              )}
+              {marketData && !analyzing && (
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(true)}
+                  className={`w-full h-10 rounded-xl font-black text-[11px] uppercase border flex items-center justify-center gap-2 ${
+                    isDark ? 'border-yellow-500/30 text-yellow-400' : 'border-yellow-300 text-yellow-700'
+                  }`}
+                >
+                  <MessageSquare size={16} /> {aiReport ? 'Chat về báo cáo' : 'Hỏi đáp với AI'}
+                </button>
+              )}
+              <div className="flex items-center justify-between px-1">
+                <span className={`text-[10px] font-bold ${canCall ? 'text-emerald-400' : 'text-amber-500'}`}>
+                  {canCall ? 'AI sẵn sàng' : `Tối ưu lại sau ${remainMin}:${remainSecStr}`}
+                </span>
+                {(lastAiVnTime || aiReport) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowForceConfirm(true)}
+                    disabled={analyzing}
+                    className={`text-[9px] font-bold uppercase ${UI.textMuted}`}
+                  >
+                    Quét lại ngay
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'news',
+        title: 'Live News Stream',
+        icon: Newspaper,
+        summary: newsCount > 0 ? `${newsCount} tin` : 'Đóng',
+        render: () => (
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={fetchAiNews}
+                disabled={loadingAiNews}
+                className={`flex-1 h-9 rounded-xl font-black text-[9px] uppercase tracking-widest border border-dashed flex items-center justify-center gap-2 ${
+                  loadingAiNews
+                    ? 'opacity-50'
+                    : isDark
+                      ? 'border-purple-500/50 text-purple-400'
+                      : 'border-purple-400 text-purple-600'
+                }`}
+              >
+                <BrainCircuit size={14} />
+                {loadingAiNews ? 'Đang quét…' : 'Săn thêm tin bằng AI'}
+              </button>
+              {loadingMarket && (
+                <button
+                  type="button"
+                  onClick={stopNewsStream}
+                  className="h-9 px-3 rounded-xl border border-red-500/30 text-red-500 text-[9px] font-black uppercase"
+                >
+                  Dừng
+                </button>
+              )}
+            </div>
+            <HeadlineNewsList
+              newsList={marketData?.deepNewsData}
+              loading={loadingMarket || loadingAiNews}
+              isDark={isDark}
+            />
+          </div>
+        ),
+      },
+      {
+        id: 'chart',
+        title: sym ? `Biểu đồ · ${sym}` : 'Biểu đồ',
+        icon: BarChart3,
+        summary: sym || 'Chưa chọn mã',
+        render: () => (
+          <div
+            className={`h-[280px] w-full overflow-hidden rounded-xl border relative isolate z-0 ${
+              isDark ? 'border-white/10 bg-[#0a0f18]' : 'border-slate-200 bg-white'
+            }`}
+          >
+            {chartData?.length ? (
+              <TradingChart
+                data={chartData}
+                theme={isDark ? 'dark' : 'light'}
+                accent="yellow"
+                onIntervalChange={handleIntervalChange}
+                currentInterval={activeInterval}
+                allowPageScroll
+              />
+            ) : (
+              <div className={`h-full flex items-center justify-center text-sm ${UI.textMuted}`}>
+                {sym ? 'Đang tải chart…' : 'Chọn mã để xem chart'}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'ai',
+        title: 'Omni AI',
+        icon: BrainCircuit,
+        summary: aiReport ? 'Có báo cáo' : (analyzing ? 'Đang phân tích…' : 'Đóng'),
+        render: () => (
+          <div className="space-y-3">
+            {renderReportMetaPanels()}
+            {analyzing && (
+              <p className={`text-sm font-bold ${UI.textMuted}`}>
+                Đang phân tích… {typeof analysisProgress === 'number' ? `${Math.round(analysisProgress)}%` : ''}
+              </p>
+            )}
+            {aiReport && (
+              <div className={`prose prose-sm max-w-none rounded-xl border p-4 ${isDark ? 'prose-invert border-white/10' : 'border-slate-200'}`}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                  {aiReport}
+                </ReactMarkdown>
+              </div>
+            )}
+            {!aiReport && !analyzing && (
+              <div className="space-y-2">
+                <p className={`text-sm ${UI.textMuted}`}>Chưa có báo cáo. Mở “Phân tích AI & Cấu hình” để chạy Omni Duck.</p>
+                <button
+                  type="button"
+                  onClick={() => setUltraOpenId('ai-config')}
+                  className="w-full h-11 rounded-xl bg-yellow-400 text-black font-black text-sm uppercase tracking-widest"
+                >
+                  Mở cấu hình AI
+                </button>
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'radar',
+        title: 'Radar & PDF TCBS',
+        icon: Activity,
+        summary: marketData?.reportPdf ? 'Có PDF' : 'Đóng',
+        render: () => (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className={`rounded-xl border p-2 h-[200px] overflow-hidden ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                <span className="text-[9px] font-black text-yellow-500">VN-INDEX</span>
+                <div className="h-[170px]"><MarketRadar data={vnIndexData} theme={isDark ? 'dark' : 'light'} color="#facc15" /></div>
+              </div>
+              <div className={`rounded-xl border p-2 h-[200px] overflow-hidden ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                <span className="text-[9px] font-black text-blue-400">VN30</span>
+                <div className="h-[170px]"><MarketRadar data={vn30Data} theme={isDark ? 'dark' : 'light'} color="#60a5fa" /></div>
+              </div>
+            </div>
+            {marketData?.reportPdf ? (
+              <UltraPdfPages
+                src={tcbsPdfViewerUrl(marketData.stockInfo?.symbol) || tcbsPdfEmbedUrl(marketData.reportPdf, marketData.stockInfo?.symbol)}
+                isDark={isDark}
+              />
+            ) : (
+              <p className={`text-sm ${UI.textMuted}`}>Chưa có báo cáo PDF cho mã này.</p>
+            )}
+          </div>
+        ),
+      },
+    ];
+
+    return (
+      <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${isDark ? 'bg-[#06080B]' : 'bg-[#F8FAFC]'}`}>
+        <div className={`shrink-0 px-4 py-2.5 border-b flex items-center justify-between gap-2 ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-yellow-500">Siêu tối giản</p>
+            <p className={`text-sm font-bold truncate ${UI.textBold}`}>
+              {sym ? `${sym} · ${formatCompanyName(marketData?.companyProfile?.companyName)}` : 'Chọn mã để bắt đầu'}
+            </p>
+          </div>
+          <span className={`text-[10px] font-bold shrink-0 ${UI.textMuted}`}>Chạm mục để mở</span>
+        </div>
+        <UltraStack
+          sections={ultraSections}
+          openId={ultraOpenId}
+          onOpenChange={setUltraOpenId}
+          isDark={isDark}
+        />
+        <StockAiChat
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          ticker={sym}
+          companyName={formatCompanyName(marketData?.companyProfile?.companyName) || sym}
+          aiReport={aiReport}
+          isDark={isDark}
+          currentUser={currentUser}
+        />
+        {showForceConfirm && (
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 999998 }}>
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowForceConfirm(false)} />
+            <div className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl ${isDark ? 'bg-[#0f1520] border-yellow-500/25' : 'bg-white border-slate-200'}`}>
+              <h3 className={`text-sm font-black uppercase tracking-widest mb-2 ${UI.textBold}`}>Ép phân tích lại?</h3>
+              <p className={`text-[12px] leading-relaxed mb-4 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                Mã <strong>{sym}</strong> vừa được phân tích gần đây. Bạn vẫn muốn chạy lại ngay?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowForceConfirm(false)} className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>Hủy</button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowForceConfirm(false);
+                    setUltraOpenId('ai');
+                    await handleAiAnalysis?.(true);
+                  }}
+                  className="px-4 py-2 rounded-xl text-[11px] font-black uppercase bg-yellow-400 text-black"
+                >
+                  Phân tích lại
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
       {/* MOBILE TABS */}
@@ -2708,9 +3182,11 @@ export default function VnStocksTab({
                     </span>
                   </div>
                   <p className={`text-[12px] font-bold mt-1 leading-tight italic max-w-[220px] ${UI.textMuted}`}>
-                    {(marketData.companyProfile?.companyName && marketData.companyProfile.companyName !== marketData.stockInfo?.symbol)
-                      ? marketData.companyProfile.companyName
-                      : (allStocks.find(s => s.symbol === marketData.stockInfo?.symbol)?.companyName || 'Đang cập nhật...')}
+                    {formatCompanyName(
+                      (marketData.companyProfile?.companyName && marketData.companyProfile.companyName !== marketData.stockInfo?.symbol)
+                        ? marketData.companyProfile.companyName
+                        : (allStocks.find(s => s.symbol === marketData.stockInfo?.symbol)?.companyName || 'Đang cập nhật...')
+                    )}
                   </p>
                 </div>
 
@@ -3189,13 +3665,21 @@ export default function VnStocksTab({
                 </div>
               </details>
 
-              {/* Terminal when news closed */}
+              {/* Terminal when news closed — minimal: chỉ đề mục, không typewriter */}
               {!isNewsOpen && marketData && (
-                <TerminalNewsStream
-                  newsList={marketData.deepNewsData}
-                  loading={loadingMarket || loadingAiNews}
-                  isDark={isDark}
-                />
+                uiStyle === 'minimal' || uiStyle === 'ultra' ? (
+                  <HeadlineNewsList
+                    newsList={marketData.deepNewsData}
+                    loading={loadingMarket || loadingAiNews}
+                    isDark={isDark}
+                  />
+                ) : (
+                  <TerminalNewsStream
+                    newsList={marketData.deepNewsData}
+                    loading={loadingMarket || loadingAiNews}
+                    isDark={isDark}
+                  />
+                )
               )}
             </div>
 
@@ -3360,7 +3844,7 @@ export default function VnStocksTab({
                                 </span>
                               )}
                             </div>
-                            <p className={`text-sm uppercase italic whitespace-normal leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{item.companyName || 'N/A'}</p>
+                            <p className={`text-sm italic whitespace-normal leading-snug ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{formatCompanyName(item.companyName) || 'N/A'}</p>
                           </div>
                           <div className="flex flex-col items-end gap-y-1 min-w-0">
                             {hasLive ? (
@@ -3776,7 +4260,7 @@ export default function VnStocksTab({
                                   <div className="flex items-center gap-3">
                                     <span className="text-yellow-400 font-black text-lg w-10">{s.sym}</span>
                                     <div className="flex flex-col">
-                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>{allStocks.find(stock => stock.symbol === s.sym)?.companyName || 'Đang cập nhật...'}</span>
+                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>{formatCompanyName(allStocks.find(stock => stock.symbol === s.sym)?.companyName) || 'Đang cập nhật...'}</span>
                                       <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>Ngành: {s.sector}</span>
                                     </div>
                                   </div>
@@ -3806,7 +4290,7 @@ export default function VnStocksTab({
                                   <div className="flex items-center gap-3">
                                     <span className="text-red-400 font-black text-lg w-10">{s.sym}</span>
                                     <div className="flex flex-col">
-                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>{allStocks.find(stock => stock.symbol === s.sym)?.companyName || 'Đang cập nhật...'}</span>
+                                      <span className={`text-[10px] font-bold truncate max-w-[140px] lg:max-w-[180px] ${UI.textNormal}`}>{formatCompanyName(allStocks.find(stock => stock.symbol === s.sym)?.companyName) || 'Đang cập nhật...'}</span>
                                       <span className={`text-[8px] font-bold mt-0.5 ${UI.textMuted}`}>Ngành: {s.sector}</span>
                                     </div>
                                   </div>
@@ -4108,9 +4592,10 @@ export default function VnStocksTab({
             {marketData?.reportPdf ? (
               <iframe
                 key={marketData.stockInfo?.symbol || 'tcbs-pdf'}
-                src={tcbsPdfEmbedUrl(marketData.reportPdf)}
+                src={tcbsPdfEmbedUrl(marketData.reportPdf, marketData.stockInfo?.symbol)}
                 className="absolute inset-0 w-full h-full border-none bg-white"
                 title="TCBS Report Preview"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center opacity-20">

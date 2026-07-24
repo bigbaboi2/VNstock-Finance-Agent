@@ -1,18 +1,21 @@
 import User from '../../models/User.js';
 
-const UI_STYLES = new Set(['classic', 'minimal', 'book']);
+const UI_STYLES = new Set(['classic', 'minimal', 'book', 'ultra']);
+const FONT_SCALES = new Set(['sm', 'md', 'lg', 'xl']);
 
 const DEFAULT_PREFERENCES = Object.freeze({
     theme: 'dark',
     clock3d: true,
     uiStyle: 'classic',
+    fontScale: 'md',
 });
 
 const normalizePreferences = (prefs) => {
     const theme = prefs?.theme === 'light' ? 'light' : 'dark';
     const clock3d = prefs?.clock3d !== false;
     const uiStyle = UI_STYLES.has(prefs?.uiStyle) ? prefs.uiStyle : 'classic';
-    return { theme, clock3d, uiStyle };
+    const fontScale = FONT_SCALES.has(prefs?.fontScale) ? prefs.fontScale : 'md';
+    return { theme, clock3d, uiStyle, fontScale };
 };
 
 const findUserByUsername = async (username) => {
@@ -81,10 +84,10 @@ export const getPreferences = async (req, res) => {
     }
 };
 
-/** POST /api/auth/preferences — cập nhật theme / clock3d / uiStyle theo username. */
+/** POST /api/auth/preferences — cập nhật theme / clock3d / uiStyle / fontScale theo username. */
 export const updatePreferences = async (req, res) => {
     try {
-        const { username, theme, clock3d, uiStyle } = req.body || {};
+        const { username, theme, clock3d, uiStyle, fontScale } = req.body || {};
         const user = await findUserByUsername(username);
         if (!user) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản.' });
@@ -94,6 +97,7 @@ export const updatePreferences = async (req, res) => {
         if (theme === 'dark' || theme === 'light') next.theme = theme;
         if (typeof clock3d === 'boolean') next.clock3d = clock3d;
         if (UI_STYLES.has(uiStyle)) next.uiStyle = uiStyle;
+        if (FONT_SCALES.has(fontScale)) next.fontScale = fontScale;
 
         user.preferences = next;
         user.markModified('preferences');

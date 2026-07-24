@@ -6,6 +6,7 @@ import axios from 'axios';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import TradingChart from './TradingChart';
 import StockAiChat from './StockAiChat';
+import UltraStack from './UltraStack';
 import {
     Search, Activity, Zap, BarChart3, TrendingUp, TrendingDown,
     BrainCircuit, HelpCircle, RefreshCw, Globe, Database,
@@ -280,7 +281,7 @@ function Skeleton({ isDark, h = 'h-4', w = 'w-full', className = '' }) {
 // ─────────────────────────────────────────────────────────────
 // MAIN EXPORT: CryptoTab
 // ─────────────────────────────────────────────────────────────
-export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = null, onSymbolChange = null }) {
+export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = [], initialSymbol = null, onSymbolChange = null }) {
 
     // ── STATE: SEARCH & SYMBOL ──
     const bootSymbol = (initialSymbol || 'BTC').toUpperCase().replace(/USDT$/i, '');
@@ -316,6 +317,8 @@ export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = nul
     const [showOBInfo, setShowOBInfo]       = useState(false);
     const [showNewsPanel, setShowNewsPanel] = useState(true);
     const [mobileTab, setMobileTab]         = useState('chart');
+    const [ultraOpenId, setUltraOpenId]     = useState(null);
+    const isUltra = uiStyle === 'ultra';
     const [currUnit, setCurrUnit]           = useState('USD');
 
     // ── STATE: DEMO TRADING ──
@@ -551,6 +554,239 @@ export default function CryptoTab({ isDark, UI, addLog = [], initialSymbol = nul
     // ─────────────────────────────────────────────────────────────
     // RENDER
     // ─────────────────────────────────────────────────────────────
+    if (isUltra) {
+        const ultraSections = [
+            {
+                id: 'chart',
+                title: symbol ? `Biểu đồ · ${symbol}` : 'Biểu đồ',
+                icon: BarChart3,
+                summary: px ? fmtUSD(px) : (loadingChart ? 'Đang tải…' : 'Đóng'),
+                render: () => (
+                    <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="relative flex-1 min-w-[120px]">
+                                <Search size={14} className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${T.textMute(isDark)}`} />
+                                <input
+                                    type="text"
+                                    value={searchInput}
+                                    onChange={e => { setSearchInput(e.target.value.toUpperCase()); setShowSuggestions(true); }}
+                                    onKeyDown={e => { if (e.key === 'Enter') selectCoin(searchInput); }}
+                                    placeholder="BTC, ETH…"
+                                    className={`w-full h-9 pl-8 pr-2 rounded-lg border text-xs font-bold outline-none ${isDark ? 'bg-black/40 border-white/10 text-violet-300' : 'bg-white border-slate-300 text-violet-700'}`}
+                                />
+                            </div>
+                            <button type="button" onClick={() => selectCoin(searchInput)} className={`h-9 px-3 rounded-lg ${T.accentSolid} text-white text-xs font-bold`}>Tìm</button>
+                            <button type="button" onClick={() => fetchCoin(symbol, cryptoInterval)} className={`h-9 w-9 rounded-lg border flex items-center justify-center ${T.border(isDark)}`}>
+                                <RefreshCw size={13} className={loadingChart ? `animate-spin ${T.accent}` : T.textMute(isDark)} />
+                            </button>
+                        </div>
+                        <div className="flex gap-1 flex-wrap">
+                            {INTERVAL_OPTIONS.map(({ label }) => (
+                                <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => handleIntervalChange(label)}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-bold border ${cryptoInterval === label ? `${T.accentBg} ${T.accentBorder} ${T.accent}` : T.border(isDark)}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className={`h-[min(55vh,420px)] min-h-[280px] rounded-xl border overflow-hidden ${isDark ? 'bg-black/30 border-white/6' : 'bg-white border-slate-200'}`}>
+                            {chartData?.length ? (
+                                <TradingChart
+                                    data={chartData}
+                                    theme={isDark ? 'dark' : 'light'}
+                                    accent="violet"
+                                    onIntervalChange={handleIntervalChange}
+                                    currentInterval={cryptoInterval}
+                                />
+                            ) : loadError && !loadingChart ? (
+                                <div className="h-full flex flex-col items-center justify-center gap-2 px-4 text-center">
+                                    <AlertTriangle size={24} className="text-amber-400" />
+                                    <p className={`text-xs ${T.textMute(isDark)}`}>Không tải được {symbol}</p>
+                                    <button type="button" onClick={() => fetchCoin(symbol, cryptoInterval)} className={`h-8 px-3 rounded-lg ${T.accentSolid} text-white text-xs font-bold`}>Thử lại</button>
+                                </div>
+                            ) : (
+                                <div className="h-full flex items-center justify-center">
+                                    <Activity size={24} className={`animate-pulse ${T.accent}`} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ),
+            },
+            {
+                id: 'radar',
+                title: 'Radar thị trường',
+                icon: Globe,
+                summary: radarData?.fearGreed?.labelVi || 'Đóng',
+                render: () => (
+                    <div className="space-y-3">
+                        <Panel isDark={isDark} className="p-4">
+                            <SectionHeader icon={Activity} title="Sợ hãi & Tham lam" isDark={isDark} />
+                            <FearGreedGauge value={radarData?.fearGreed?.value ?? 50} labelVi={radarData?.fearGreed?.labelVi} isDark={isDark} />
+                        </Panel>
+                        <Panel isDark={isDark} className="p-4">
+                            <SectionHeader icon={BarChart3} title="Dominance" isDark={isDark} />
+                            <StatRow label="BTC" value={radarData?.dominance?.btc ? `${radarData.dominance.btc}%` : '-'} color="text-amber-400" isDark={isDark} />
+                            <StatRow label="ETH" value={radarData?.dominance?.eth ? `${radarData.dominance.eth}%` : '-'} color="text-blue-400" isDark={isDark} />
+                            {radarData?.globalMarket && (
+                                <StatRow label="Vốn hóa" value={radarData.globalMarket.totalMarketCap} isDark={isDark} />
+                            )}
+                        </Panel>
+                        {fundingData && (
+                            <Panel isDark={isDark} className="p-4">
+                                <SectionHeader icon={Zap} title="Funding Rate" isDark={isDark} />
+                                {fundingData.rates?.slice(0, 5).map(r => (
+                                    <StatRow key={r.symbol} label={r.symbol} value={`${r.fundingRate > 0 ? '+' : ''}${r.fundingRate}%`} isDark={isDark} />
+                                ))}
+                            </Panel>
+                        )}
+                        {topMovers && (
+                            <Panel isDark={isDark} className="p-4">
+                                <SectionHeader icon={TrendingUp} title="Top Movers 24h" isDark={isDark} />
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {[...(topMovers.gainers || []).slice(0, 3), ...(topMovers.losers || []).slice(0, 3)].map(coin => (
+                                        <button
+                                            key={coin.symbol}
+                                            type="button"
+                                            onClick={() => selectCoin(coin.symbol)}
+                                            className={`px-3 py-2 rounded-lg border text-left text-xs font-bold ${symbol === coin.symbol ? `${T.accentBg} ${T.accentBorder}` : T.border(isDark)}`}
+                                        >
+                                            {coin.symbol} <span className={coin.change >= 0 ? T.bull : T.bear}>{fmtPct(coin.change)}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </Panel>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => { fetchRadar(); fetchMovers(); fetchFunding(); }}
+                            className={`w-full h-9 rounded-lg border text-xs font-bold ${T.accentOutline(isDark)}`}
+                        >
+                            Làm mới radar
+                        </button>
+                    </div>
+                ),
+            },
+            {
+                id: 'info',
+                title: symbol ? `Giá · ${symbol}` : 'Thông tin coin',
+                icon: Database,
+                summary: px ? fmtPct(ch24) : 'Đóng',
+                render: () => (
+                    <div className="space-y-3">
+                        {priceData ? (
+                            <>
+                                <div className={`rounded-xl border p-4 ${T.border(isDark)} ${T.panelBg(isDark)}`}>
+                                    <p className={`text-2xl font-black ${T.textHero(isDark)}`}>{symbol}</p>
+                                    <p className={`text-xl font-mono font-black mt-2 ${T.textHero(isDark)}`}>{fmtUSD(px)}</p>
+                                    <p className={`text-sm font-bold mt-1 ${isPosChange ? T.bull : T.bear}`}>{fmtPct(ch24)}</p>
+                                </div>
+                                <Panel isDark={isDark} className="p-4">
+                                    <SectionHeader icon={Database} title="On-chain" isDark={isDark} />
+                                    <StatRow label="ATH" value={fmtUSD(priceData.ath)} isDark={isDark} />
+                                    <StatRow label="Vốn hóa" value={fmtLarge(priceData.marketCap)} isDark={isDark} />
+                                </Panel>
+                                {volProf?.bins && (
+                                    <Panel isDark={isDark} className="p-4">
+                                        <SectionHeader icon={BarChart3} title="Volume Profile" isDark={isDark} />
+                                        <CryptoVolumeProfile bins={volProf.bins} maxVol={volProf.maxVol} pocPrice={volProf.pocPrice} isDark={isDark} />
+                                    </Panel>
+                                )}
+                            </>
+                        ) : (
+                            <p className={`text-sm ${T.textMute(isDark)}`}>Chọn coin để xem thông tin.</p>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'ai',
+                title: 'Phân tích AI',
+                icon: BrainCircuit,
+                summary: aiSignal ? aiSignal.signal : (loadingAi ? 'Đang chạy…' : 'Đóng'),
+                render: () => (
+                    <div className="space-y-3">
+                        {tech && <SentimentBar score={tech.score} isDark={isDark} />}
+                        <button
+                            type="button"
+                            onClick={handleAiAnalysis}
+                            disabled={loadingAi}
+                            className="w-full h-11 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-sm disabled:opacity-40"
+                        >
+                            {loadingAi ? 'Đang phân tích…' : (aiSignal ? 'Cập nhật phân tích' : 'Phân tích tín hiệu')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsChatOpen(true)}
+                            className={`w-full h-10 rounded-xl border font-bold text-xs ${T.accentOutline(isDark)}`}
+                        >
+                            Hỏi AI về {symbol}
+                        </button>
+                        {aiSignal ? (
+                            <div className="space-y-2">
+                                <div className={`p-3 rounded-xl border text-xs leading-relaxed ${T.border(isDark)} ${T.panelBg(isDark)}`}>
+                                    <p className={T.textBody(isDark)}>{aiSignal.tech_analysis}</p>
+                                    <p className={`mt-2 ${T.textBody(isDark)}`}>{aiSignal.macro_analysis}</p>
+                                </div>
+                                <div className={`p-3 rounded-xl border text-xs ${T.accentBorder} ${T.accentBg}`}>
+                                    <p className="font-bold text-violet-400">{aiSignal.signal} ({aiSignal.confidence})</p>
+                                    <p className={`mt-1 ${T.textBody(isDark)}`}>{aiSignal.advice}</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className={`text-sm ${T.textMute(isDark)}`}>Chưa có báo cáo AI.</p>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'news',
+                title: 'Tin tức',
+                icon: Newspaper,
+                summary: cryptoNews.length ? `${cryptoNews.length} tin` : 'Đóng',
+                render: () => (
+                    <div className="space-y-2 max-h-[480px] overflow-y-auto custom-scrollbar">
+                        {cryptoNews.length > 0 ? (
+                            cryptoNews.map((n, i) => <NewsCard key={i} news={n} isDark={isDark} />)
+                        ) : (
+                            <p className={`text-sm py-6 text-center ${T.textMute(isDark)}`}>
+                                {loadingNews ? 'Đang tải tin…' : `Chưa có tin cho ${symbol}.`}
+                            </p>
+                        )}
+                    </div>
+                ),
+            },
+        ];
+
+        return (
+            <div className={`flex flex-col w-full h-full min-h-0 overflow-hidden ${T.pageBg(isDark)}`}>
+                <div className={`shrink-0 px-4 py-2.5 border-b ${isDark ? 'border-white/10 bg-[#0B0F14]' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-violet-400">Siêu tối giản · Crypto</p>
+                    <p className={`text-sm font-bold ${T.textHero(isDark)}`}>
+                        {symbol}{px ? ` · ${fmtUSD(px)}` : ''} · Chạm từng mục để mở
+                    </p>
+                </div>
+                <UltraStack
+                    sections={ultraSections}
+                    openId={ultraOpenId}
+                    onOpenChange={setUltraOpenId}
+                    isDark={isDark}
+                />
+                <StockAiChat
+                    isOpen={isChatOpen}
+                    onClose={() => setIsChatOpen(false)}
+                    ticker={symbol}
+                    companyName={allCryptos.find(c => c.symbol === symbol)?.name || symbol}
+                    aiReport={aiSignal ? `Phân tích kỹ thuật: ${aiSignal.tech_analysis}\n\nVĩ mô: ${aiSignal.macro_analysis}\n\nChiến lược: ${aiSignal.advice}` : null}
+                    isDark={isDark}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className={`flex flex-col w-full h-full overflow-hidden ${T.pageBg(isDark)}`}>
 

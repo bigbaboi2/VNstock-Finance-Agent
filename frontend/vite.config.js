@@ -13,6 +13,9 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, '../src'),
     },
   },
+  optimizeDeps: {
+    include: ['pdfjs-dist/build/pdf.mjs'],
+  },
   server: {
     proxy: {
       '/api': {

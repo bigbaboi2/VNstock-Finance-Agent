@@ -6,7 +6,8 @@ const userSchema = new mongoose.Schema({
     preferences: {
         theme: { type: String, enum: ['dark', 'light'], default: 'dark' },
         clock3d: { type: Boolean, default: true },
-        uiStyle: { type: String, enum: ['classic', 'minimal', 'book'], default: 'classic' },
+        uiStyle: { type: String, enum: ['classic', 'minimal', 'book', 'ultra'], default: 'classic' },
+        fontScale: { type: String, enum: ['sm', 'md', 'lg', 'xl'], default: 'md' },
     },
 }, { timestamps: true });
 

@@ -604,6 +604,8 @@ export default React.memo(function TradingChart({
   isMini = false,
   suppressResizeRef = null,
   accent = 'violet',
+  /** Ultra mode: cho phép cuộn trang khi hover chart (tắt zoom bánh xe) */
+  allowPageScroll = false,
 }) {
   const A = ACCENT[accent] || ACCENT.violet;
   const chartContainerRef   = useRef(null);
@@ -664,8 +666,8 @@ export default React.memo(function TradingChart({
     ...(height ? { height } : {}),
     minHeight: 80,
     dragEnabled: true,
-    axisOptions: { scrollZoomEnabled: true }
-  }), []);
+    axisOptions: { scrollZoomEnabled: !allowPageScroll }
+  }), [allowPageScroll]);
   const buildOverlayStyles = useCallback((color, size, style) => {
     const hex = String(color || '#EAB308').replace('#', '');
     let textColor = '#FFFFFF';
@@ -1154,11 +1156,11 @@ const rowBtn = React.useCallback((active) =>
       : `bg-white border-slate-300 text-slate-700 ${A.hoverSolid}`);
 
   return (
-    <div data-chart-root className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-[80]' : ''}`} onClick={closeAllMenus}>
+    <div data-chart-root className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-30' : ''}`} onClick={closeAllMenus}>
 
       {!isMini && (
         <div
-          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-[200] overflow-visible flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-40 overflow-visible flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
           onClick={e => e.stopPropagation()}
         >
         <div className="relative z-[210]">
@@ -1320,8 +1322,8 @@ const rowBtn = React.useCallback((active) =>
           </button>
         </div>
         )}
-        <div className="flex-1 relative w-full h-full overflow-hidden touch-none overscroll-contain">
-          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
+        <div className={`flex-1 relative w-full h-full overflow-hidden ${allowPageScroll ? 'touch-pan-y' : 'touch-none overscroll-contain'}`}>
+          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: allowPageScroll ? 'pan-y' : 'none', overscrollBehavior: allowPageScroll ? 'auto' : 'contain', willChange: 'transform'}}/>
 
           {activeOverlay && (
             <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[30] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
