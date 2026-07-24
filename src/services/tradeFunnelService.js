@@ -1,8 +1,10 @@
 import chalk from 'chalk';
 import { appendAuditEvent } from './auditLogService.js';
+import TradeFunnelCycle from '../../models/TradeFunnelCycle.js';
 
 const MAX_BUFFER = 40;
 const MAX_TOP_CANDIDATES = 8;
+const MAX_REJECTS = 40;
 
 let nextId = 1;
 const buffer = [];
@@ -27,7 +29,9 @@ export const createFunnelTracker = (asset) => {
     };
     const setupReasons = {};
     const liveGateReasons = {};
+    const aiVetoReasons = {};
     const topCandidates = [];
+    const rejects = [];
 
     const bump = (map, key) => {
         if (!key) return;
@@ -38,6 +42,18 @@ export const createFunnelTracker = (asset) => {
         topCandidates.push(row);
         topCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
         if (topCandidates.length > MAX_TOP_CANDIDATES) topCandidates.length = MAX_TOP_CANDIDATES;
+    };
+
+    const pushReject = (stage, detail = {}) => {
+        if (rejects.length >= MAX_REJECTS) return;
+        rejects.push({
+            stage,
+            symbol: detail.symbol || null,
+            score: detail.score ?? null,
+            setup: detail.setup || detail.type || null,
+            reason: detail.reason || null,
+            ts: new Date().toISOString(),
+        });
     };
 
     return {
@@ -52,10 +68,12 @@ export const createFunnelTracker = (asset) => {
                     break;
                 case 'vol':
                     counts.vol++;
+                    pushReject('vol', detail);
                     break;
                 case 'setup':
                     counts.setup++;
                     bump(setupReasons, detail.reason || detail.type || 'unknown');
+                    pushReject('setup', detail);
                     break;
                 case 'sim_ok':
                     counts.simOk++;
@@ -63,6 +81,7 @@ export const createFunnelTracker = (asset) => {
                 case 'live_gate':
                     counts.liveGate++;
                     bump(liveGateReasons, detail.reason || 'unknown');
+                    pushReject('live_gate', detail);
                     if (detail.symbol) {
                         recordCandidate({
                             symbol: detail.symbol,
@@ -74,6 +93,8 @@ export const createFunnelTracker = (asset) => {
                     break;
                 case 'ai_veto':
                     counts.aiVeto++;
+                    bump(aiVetoReasons, String(detail.reason || 'unknown').slice(0, 80));
+                    pushReject('ai_veto', detail);
                     if (detail.symbol) {
                         recordCandidate({
                             symbol: detail.symbol,
@@ -85,6 +106,7 @@ export const createFunnelTracker = (asset) => {
                     break;
                 case 'testnet':
                     counts.testnet++;
+                    pushReject('testnet', detail);
                     break;
                 case 'risk':
                     counts.risk++;
@@ -113,7 +135,9 @@ export const createFunnelTracker = (asset) => {
                 ...counts,
                 setupReasons: { ...setupReasons },
                 liveGateReasons: { ...liveGateReasons },
+                aiVetoReasons: { ...aiVetoReasons },
                 topCandidates: [...topCandidates],
+                rejects: [...rejects],
                 ...meta,
             };
             buffer.push(summary);
@@ -149,6 +173,59 @@ export const formatFunnelLogLines = (summary) => {
     return lines;
 };
 
+const persistFunnelCycle = async (summary) => {
+    if (!summary) return;
+    try {
+        const {
+            asset,
+            scanned,
+            weak,
+            vol,
+            setup,
+            simOk,
+            liveGate,
+            aiVeto,
+            testnet,
+            risk,
+            limit,
+            matchedSim,
+            matchedLive,
+            setupReasons,
+            liveGateReasons,
+            aiVetoReasons,
+            topCandidates,
+            rejects,
+            id,
+            ts,
+            ...meta
+        } = summary;
+        await TradeFunnelCycle.create({
+            asset,
+            ts: ts ? new Date(ts) : new Date(),
+            scanned,
+            weak,
+            vol,
+            setup,
+            simOk,
+            liveGate,
+            aiVeto,
+            testnet,
+            risk,
+            limit,
+            matchedSim,
+            matchedLive,
+            setupReasons,
+            liveGateReasons,
+            aiVetoReasons,
+            topCandidates,
+            rejects,
+            meta: { funnelId: id, ...meta },
+        });
+    } catch (err) {
+        console.log(chalk.yellow(`[FUNNEL] Persist Mongo lỗi: ${err.message}`));
+    }
+};
+
 export const pushFunnelSummary = (summary) => {
     const lines = formatFunnelLogLines(summary);
     for (const line of lines) {
@@ -158,6 +235,7 @@ export const pushFunnelSummary = (summary) => {
         event: 'funnel_cycle_summary',
         source: 'tradeFunnelService',
     }).catch(() => {});
+    persistFunnelCycle(summary).catch(() => {});
     return summary;
 };
 
@@ -176,4 +254,12 @@ export const getLatestFunnel = (asset = 'CRYPTO') => {
         if (buffer[i].asset === asset) return buffer[i];
     }
     return null;
+};
+
+/** Query recent persisted funnel cycles from Mongo. */
+export const getPersistedFunnelCycles = async ({ days = 3, asset = null, limit = 50 } = {}) => {
+    const since = new Date(Date.now() - days * 24 * 3600_000);
+    const q = { ts: { $gte: since } };
+    if (asset) q.asset = asset;
+    return TradeFunnelCycle.find(q).sort({ ts: -1 }).limit(limit).lean();
 };

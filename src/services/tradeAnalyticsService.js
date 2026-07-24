@@ -183,6 +183,75 @@ export const getTradeAnalytics = async ({ days = 30, assetType = null, execution
         };
     });
 
+    const groupBreakdown = (keyFn) => {
+        const map = new Map();
+        for (const t of trades) {
+            const key = keyFn(t) || 'UNKNOWN';
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(t);
+        }
+        return [...map.entries()]
+            .map(([key, list]) => {
+                const exp = computeExpectancyStats(list, { getPnl: (x) => Number(x.pnlPercent) || 0, unit: 'pct' });
+                const netPnl = list.reduce((s, t) => s + (Number(t.pnl) || 0), 0);
+                return {
+                    key,
+                    n: list.length,
+                    winRatePct: exp.winRate,
+                    expectancyPct: exp.expectancy,
+                    avgWinPct: exp.avgWin,
+                    avgLossPct: exp.avgLoss,
+                    totalPnlVnd: Math.round(netPnl),
+                };
+            })
+            .sort((a, b) => b.n - a.n);
+    };
+
+    const bySymbol = groupBreakdown((t) => t.symbol);
+    const bySetup = groupBreakdown((t) => t.signalBreakdown?.entrySetup || 'UNKNOWN');
+
+    const liveTrades = executionMode === 'LIVE'
+        ? trades
+        : trades.filter((t) => t.executionMode === 'LIVE');
+    const liveExp = computeExpectancyStats(liveTrades, {
+        getPnl: (x) => Number(x.pnlPercent) || 0,
+        unit: 'pct',
+    });
+
+    // Stop-rule: after ≥30 LIVE fills, if expectancy < -0.3%/trade → tighten symbol/size, NOT global floor
+    const STOP_MIN_N = 30;
+    const STOP_EXPECTANCY = -0.3;
+    let stopRule = {
+        triggered: false,
+        action: 'none',
+        message: `Chưa đủ mẫu LIVE (n=${liveExp.n}, cần ≥${STOP_MIN_N}).`,
+        liveExpectancyPct: liveExp.expectancy,
+        liveN: liveExp.n,
+    };
+    if (liveExp.n >= STOP_MIN_N && liveExp.expectancy < STOP_EXPECTANCY) {
+        const weakSymbols = bySymbol
+            .filter((r) => r.n >= 5 && r.expectancyPct < STOP_EXPECTANCY)
+            .slice(0, 10)
+            .map((r) => r.key);
+        stopRule = {
+            triggered: true,
+            action: 'tighten_symbol_adj_and_size',
+            message: `Expectancy LIVE ${liveExp.expectancy}%/lệnh < ${STOP_EXPECTANCY}% sau ${liveExp.n} lệnh → siết symbolAdj/size (không nâng floor toàn cục).`,
+            liveExpectancyPct: liveExp.expectancy,
+            liveN: liveExp.n,
+            weakSymbols,
+            suggestedSoftBlock: weakSymbols.slice(0, 5),
+        };
+    } else if (liveExp.n >= STOP_MIN_N) {
+        stopRule = {
+            triggered: false,
+            action: 'hold',
+            message: `Expectancy LIVE ${liveExp.expectancy}%/lệnh OK (n=${liveExp.n}). Giữ band adaptive, không siết floor toàn cục.`,
+            liveExpectancyPct: liveExp.expectancy,
+            liveN: liveExp.n,
+        };
+    }
+
     return {
         ...basic,
         period: `${days} ngày gần nhất`,
@@ -210,6 +279,10 @@ export const getTradeAnalytics = async ({ days = 30, assetType = null, execution
             losses: aiLosses.length,
         },
         byAsset,
+        bySymbol: bySymbol.slice(0, 40),
+        bySetup,
+        liveExpectancy: liveExp,
+        stopRule,
         generatedAt: new Date().toISOString(),
     };
 };

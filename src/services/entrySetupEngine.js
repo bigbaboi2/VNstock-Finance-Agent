@@ -45,6 +45,12 @@ export const SIM_CONFLUENCE_MIN = 2;
 export const LIVE_EDGE_MIN = 28;
 export const SIM_EDGE_MIN = 22;
 
+/** Code default floor when Setting/env override is unset (0). Tuned for ~5 LIVE fills/day. */
+export const VWAP_RECLAIM_LIVE_QUALITY_DEFAULT = 86;
+const VWAP_CLOSE_CONFIRM_MULT = 1.0;
+const VWAP_VOL_CONFIRM = 1.45;
+const VWAP_VOL_SCORE_STRONG = 1.6;
+
 const setupOverrideOr = (key, fallback) => {
     const v = getAutoDuckNumber(key);
     return Number.isFinite(v) && v > 0 ? v : fallback;
@@ -56,10 +62,13 @@ export const getLiveQualityMinForSetup = (setupType) => {
     const map = {
         EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_EMA_PULLBACK', globalMin),
         TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', globalMin),
-        // VWAP reclaim was the largest negative-expectancy LIVE bucket in the
-        // testnet history.  It needs a materially stronger bar than a generic
-        // signal because the raw "near VWAP + volume" condition is common.
-        VWAP_RECLAIM: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM', Math.max(globalMin, 90)),
+        // VWAP reclaim still needs a higher bar than generic setups (near-VWAP
+        // + volume is common), but 90 starved LIVE fills. Default 86 balances
+        // sample size (~5/day target) vs quality; Setting/env can override.
+        VWAP_RECLAIM: setupOverrideOr(
+            'AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM',
+            Math.max(globalMin, VWAP_RECLAIM_LIVE_QUALITY_DEFAULT)
+        ),
         BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', Math.max(globalMin, 86)),
         SHORT_CONTINUATION: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT_CONTINUATION', globalMin),
         SHORT: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT', globalMin + 2),
@@ -117,9 +126,13 @@ const scoreVwapReclaim = (signal, htfTrend) => {
     const volumeSurge = signal.volumeSurge || 0;
     let s = 45;
     if (htfTrend === 'UP') s += 15;
-    // A reclaim must hold above VWAP; merely hovering around it is not edge.
-    if (vwap && price >= vwap * 1.001 && price <= vwap * 1.008) s += 15;
-    if (volumeSurge >= 1.6) s += 12;
+    // Hold above VWAP still scores; stricter close (>=1.001) keeps the full bonus.
+    if (vwap && price >= vwap * VWAP_CLOSE_CONFIRM_MULT && price <= vwap * 1.008) {
+        s += price >= vwap * 1.001 ? 15 : 10;
+    }
+    // Confirm gate uses ~1.45; keep stronger bonus for classic 1.6x participation.
+    if (volumeSurge >= VWAP_VOL_SCORE_STRONG) s += 12;
+    else if (volumeSurge >= VWAP_VOL_CONFIRM) s += 8;
     else if (volumeSurge >= 1.4) s += 4;
     if (rsi >= 50 && rsi <= 64) s += 6;
     if (macdLong >= 70) s += 7;
@@ -207,6 +220,9 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
             };
         }
 
+        // Near-VWAP is a *candidate* only. Confirmed reclaim → VWAP_RECLAIM;
+        // unconfirmed → fall through to BREAKOUT / TREND_PULLBACK / EMA-class
+        // detectors. Hard BLOCK_VWAP_UNCONFIRMED starved LIVE fills (0–1/day).
         const vwapCandidate = htfTrend === 'UP' && vwap
             && price >= vwap * 0.998 && price <= vwap * 1.02
             && (signal.volumeSurge || 0) >= 1.4;
@@ -216,27 +232,19 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
             const lastClose = Number(last?.close);
             const lastOpen = Number(last?.open);
             const reclaimedFromBelow = recent.slice(0, -1).some((c) => Number(c?.close) <= vwap);
-            const closedAboveVwap = Number.isFinite(lastClose) && lastClose >= vwap * 1.001;
+            const closedAboveVwap = Number.isFinite(lastClose) && lastClose >= vwap * VWAP_CLOSE_CONFIRM_MULT;
             const bullishClose = !Number.isFinite(lastOpen) || lastClose >= lastOpen;
-            const strongVolume = (signal.volumeSurge || 0) >= 1.6;
+            const strongVolume = (signal.volumeSurge || 0) >= VWAP_VOL_CONFIRM;
 
-            // Do not turn a price merely sitting beside VWAP into a LIVE setup.
-            // We require an observable cross/retest, a close above VWAP and
-            // stronger-than-baseline participation before naming it a reclaim.
-            if (!reclaimedFromBelow || !closedAboveVwap || !bullishClose || !strongVolume) {
+            if (reclaimedFromBelow && closedAboveVwap && bullishClose && strongVolume) {
                 return {
-                    valid: false,
-                    type: 'BLOCK_VWAP_UNCONFIRMED',
-                    note: 'VWAP chưa có nến reclaim/retest + volume xác nhận',
-                    setupScore: 0,
+                    valid: true,
+                    type: 'VWAP_RECLAIM',
+                    note: 'Reclaim VWAP với volume xác nhận',
+                    setupScore: scoreVwapReclaim(signal, htfTrend),
                 };
             }
-            return {
-                valid: true,
-                type: 'VWAP_RECLAIM',
-                note: 'Reclaim VWAP với volume xác nhận',
-                setupScore: scoreVwapReclaim(signal, htfTrend),
-            };
+            // Unconfirmed near-VWAP: skip VWAP label, continue other detectors.
         }
 
         const boScore = scoreBreakoutRetest(signal, candles);
@@ -313,7 +321,14 @@ export const applyQualityToSignal = (signal, entrySetup, executionContext = {}) 
     };
 };
 
-export const passesLiveQuantGate = (entrySetup, signal) => {
+/**
+ * @param {object} entrySetup
+ * @param {object} signal
+ * @param {object} [opts]
+ * @param {number} [opts.effectiveQualityFloor] — adaptive band floor (overrides setup static min)
+ * @param {number} [opts.effectiveEdgeFloor] — adaptive edge floor
+ */
+export const passesLiveQuantGate = (entrySetup, signal, opts = {}) => {
     const type = entrySetup?.type;
     const liveWhitelist = getLiveSetupWhitelist();
     if (!liveWhitelist.has(type)) return { pass: false, reason: `setup ${type} không trong LIVE whitelist` };
@@ -325,13 +340,24 @@ export const passesLiveQuantGate = (entrySetup, signal) => {
     const conf = signal.breakdown?.confluenceCount ?? computeConfluenceScore(signal, signal.direction);
     const adx = signal.breakdown?.adx ?? signal.adx?.adx ?? 0;
     if (adx < 18 && edge < 30) return { pass: false, reason: `ADX ${adx} thấp + edge ${edge} yếu` };
-    const minQuality = getLiveQualityMinForSetup(type);
+    const staticMin = getLiveQualityMinForSetup(type);
+    const minQuality = Number.isFinite(opts.effectiveQualityFloor) && opts.effectiveQualityFloor > 0
+        ? opts.effectiveQualityFloor
+        : staticMin;
     const liveConfMin = getLiveConfluenceMin();
-    const liveEdgeMin = getLiveEdgeMin();
+    const liveEdgeMin = Number.isFinite(opts.effectiveEdgeFloor) && opts.effectiveEdgeFloor > 0
+        ? opts.effectiveEdgeFloor
+        : getLiveEdgeMin();
     if (q < minQuality) return { pass: false, reason: `qualityScore ${q} < ${minQuality}` };
     if (conf < liveConfMin) return { pass: false, reason: `confluence ${conf} < ${liveConfMin}` };
     if (edge < liveEdgeMin) return { pass: false, reason: `edge ${edge} < ${liveEdgeMin}` };
-    return { pass: true, reason: 'LIVE quant gate OK' };
+    return {
+        pass: true,
+        reason: 'LIVE quant gate OK',
+        minQuality,
+        liveEdgeMin,
+        staticMin,
+    };
 };
 
 export const passesSimQuantGate = (entrySetup, signal) => {

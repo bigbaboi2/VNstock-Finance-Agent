@@ -3,7 +3,7 @@ import UserOrder from '../../models/UserOrder.js';
 import AiBehavior from '../../models/AiBehavior.js';
 import Setting from '../../models/Setting.js';
 import { runAutoTradePipeline, verifyOrderFeasibility, getUsdVndRate } from '../services/autoTradeEngine.js';
-import { getUnifiedTradeAnalytics, computeExpectancyStats } from '../services/tradeAnalyticsService.js';
+import { getUnifiedTradeAnalytics, getTradeAnalytics, computeExpectancyStats } from '../services/tradeAnalyticsService.js';
 import { getPipelineLogs } from '../services/pipelineLogService.js';
 import { getFunnelLogs } from '../services/tradeFunnelService.js';
 import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
@@ -678,6 +678,16 @@ export const getAuditFileTailHandler = async (req, res) => {
 export const getTradeAnalyticsHandler = async (req, res) => {
     try {
         const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+        const executionMode = ['LIVE', 'SIMULATED'].includes(String(req.query.executionMode || '').toUpperCase())
+            ? String(req.query.executionMode).toUpperCase()
+            : null;
+        const assetType = ['CRYPTO', 'VN_STOCK', 'DERIVATIVES'].includes(String(req.query.assetType || '').toUpperCase())
+            ? String(req.query.assetType).toUpperCase()
+            : null;
+        if (executionMode || assetType) {
+            const data = await getTradeAnalytics({ days, executionMode, assetType });
+            return res.json({ success: true, data });
+        }
         const data = await getUnifiedTradeAnalytics({ days });
         return res.json({ success: true, data });
     } catch (error) {

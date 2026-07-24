@@ -113,6 +113,16 @@ import {
 import { appendHumanLog } from './humanLogService.js';
 import { getRateLimitStatus } from './multiProviderRouter.js';
 import { getTodayInsight, getCachedMarketInsight } from './marketInsightService.js';
+import {
+    refreshSymbolExpectancyCache,
+    getSymbolExpectancy,
+} from './symbolExpectancyService.js';
+import { computePriorityScore, sortCandidatesByPriority } from './priorityScoreService.js';
+import { computeBreakoutAffinity } from './breakoutAffinityService.js';
+import {
+    resolveAdaptiveEligibility,
+    convictionSizeBoostFromCeiling,
+} from './adaptiveEligibilityService.js';
 
 // ── CONSTANTS & HELPERS
 
@@ -206,18 +216,40 @@ const getIdleAiProbeEnabled = () => getAutoDuckBoolean('AUTODUCK_IDLE_AI_PROBE_E
 const getIdleAiProbeLive = () => getAutoDuckBoolean('AUTODUCK_IDLE_AI_PROBE_LIVE');
 const getIdleAiProbeMinScore = () => getAutoDuckNumber('AUTODUCK_IDLE_AI_PROBE_MIN_SCORE') || 78;
 const getIdleAiProbeSizeMult = () => getAutoDuckNumber('AUTODUCK_IDLE_AI_PROBE_SIZE_MULT') || 0.45;
+const getIdleLiveDailyTarget = () => getAutoDuckNumber('AUTODUCK_IDLE_LIVE_DAILY_TARGET') || 5;
+const getIdleLiveSizeMult = () => getAutoDuckNumber('AUTODUCK_IDLE_LIVE_SIZE_MULT') || 0.45;
+const getIdleLiveFloorRelax = () => Math.min(2, getAutoDuckNumber('AUTODUCK_IDLE_LIVE_FLOOR_RELAX') || 2);
 
 const idleScanState = {
     attempts: 0,
     lastOpenCount: 0,
+    liveHungerAttempts: 0,
 };
 
 const resetIdleScanState = (reason = '') => {
-    if (idleScanState.attempts > 0) {
+    if (idleScanState.attempts > 0 || idleScanState.liveHungerAttempts > 0) {
         console.log(chalk.gray(`[AUTODUCK IDLE] Reset idle scan${reason ? `: ${reason}` : ''}.`));
     }
     idleScanState.attempts = 0;
+    idleScanState.liveHungerAttempts = 0;
 };
+
+/** Start of today ICT (UTC+7) as Date. */
+const startOfIctDay = () => {
+    const now = new Date();
+    const ictMs = now.getTime() + 7 * 3600_000;
+    const ict = new Date(ictMs);
+    const y = ict.getUTCFullYear();
+    const m = ict.getUTCMonth();
+    const d = ict.getUTCDate();
+    return new Date(Date.UTC(y, m, d) - 7 * 3600_000);
+};
+
+const countLiveOpenedToday = () => AutoTrade.countDocuments({
+    executionMode: 'LIVE',
+    openedAt: { $gte: startOfIctDay() },
+    status: { $in: ['OPEN', 'PENDING', 'CLOSED'] },
+});
 
 const pickIdleTarget = (maxConcurrentTrades = 10) => {
     const cap = Number(maxConcurrentTrades) || 10;
@@ -1922,14 +1954,31 @@ const buildIdleProbeInstruction = (options = {}) => {
     return `\n[CHẾ ĐỘ IDLE PROBE]\nHệ thống đang không có đủ lệnh mở nên đang quét nhanh với ngưỡng kỹ thuật đã nới về ${threshold}. Đây KHÔNG phải lệnh all-in; nếu được duyệt, engine sẽ giảm size và vẫn giữ SL/TP theo ATR. Với tín hiệu đã qua lọc volume, setup đa khung và risk filter, hãy XÁC NHẬN nếu rủi ro chỉ là \"thị trường đi ngang\", \"thiếu xác nhận phụ\", hoặc \"score chưa tới 80\". Chỉ BÁC BỎ khi có veto cứng: ngược xu hướng khung lớn, fake breakout rõ, short squeeze/crowded positioning, phân phối/đảo chiều mạnh, tin tức tiêu cực mạnh, hoặc orderbook/funding chống lại hướng lệnh.`;
 };
 
-const shouldIdleProbeOverrideAI = ({ asset, signal, aiConfirm, schedulerMode, liveOnlyMode, hasLiveUserOrderWaiting, entrySetup }) => {
-    if (!getIdleAiProbeEnabled() || getIdleAiProbeLive() || schedulerMode !== 'IDLE_FAST' || liveOnlyMode || asset !== 'CRYPTO') return false;
-    if (hasLiveUserOrderWaiting) return false;
+const shouldIdleProbeOverrideAI = ({
+    asset,
+    signal,
+    aiConfirm,
+    schedulerMode,
+    liveOnlyMode,
+    hasLiveUserOrderWaiting,
+    entrySetup,
+    liveHungry = false,
+}) => {
+    if (!getIdleAiProbeEnabled()) return false;
     if (aiConfirm?.confirmed || aiConfirm?.hardVeto || isHardAIRejection(aiConfirm?.reason)) return false;
     if (!IDLE_PROBE_SETUP_WHITELIST.has(entrySetup?.type)) return false;
     if ((signal?.breakdown?.qualityScore ?? signal?.score ?? 0) < getIdleAiProbeMinScore()) return false;
     if ((signal?.breakdown?.edge || 0) < 25) return false;
-    return true;
+
+    // SIM idle probe (existing)
+    if (schedulerMode === 'IDLE_FAST' && !liveOnlyMode && asset === 'CRYPTO' && !hasLiveUserOrderWaiting && !getIdleAiProbeLive()) {
+        return true;
+    }
+    // LIVE hunger probe — only when explicitly enabled + hungry
+    if (liveHungry && getIdleAiProbeLive() && asset === 'CRYPTO' && (hasLiveUserOrderWaiting || liveOnlyMode)) {
+        return true;
+    }
+    return false;
 };
 
 const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDesc, executionContext = {}, config = getRiskConfig(2), options = {}) => {
@@ -2487,10 +2536,15 @@ export const resolveDynamicTargetAssets = async (forcedAssetType = null) => {
 
 export const runAutoTradePipeline = async (forcedAssetType = null, options = {}) => {
     await refreshAutoDuckConfigCache().catch(() => {});
+    await refreshSymbolExpectancyCache().catch(() => {});
     const thresholdRelax = Math.max(0, Number(options.thresholdRelax) || 0);
     const minOpenTarget = Math.max(0, Number(options.minOpenTarget) || 0);
     const schedulerMode = options.schedulerMode || 'STANDARD';
     const dryRun = options.dryRun === true;
+    const liveHungry = options.liveHungry === true;
+    const idleFloorRelax = liveHungry
+        ? Math.min(getIdleLiveFloorRelax(), Math.max(0, Number(options.idleFloorRelax) || 0))
+        : 0;
     // ── CHẾ ĐỘ HOẠT ĐỘNG ──
     // Engine BẬT  → quét full: mô phỏng (training AI nền) + live
     // Engine TẮT  → LIVE-ONLY: dừng triển khai mô phỏng, chỉ quét để phục vụ
@@ -2714,13 +2768,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 ? (guardLive.sizeMult || 1.0) * riskOffSizeMult
                 : (guardSim.sizeMult || 1.0);
             console.log(chalk.magenta(
-                `  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (guard LIVE floor=${guardLive.scoreFloor || 0}/×${guardLive.sizeMult || 1} n=${guardLive.sample}) · LIVE chờ=${liveOrdersWaiting}${riskOffSizeMult < 1 ? ` · RISK-OFF size×${riskOffSizeMult}` : ''}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}.`
+                `  [NGƯỠNG] ${asset}: SIM≥${simScoreThreshold} · LIVE≥${liveScoreThreshold} (guard LIVE floor=${guardLive.scoreFloor || 0}/×${guardLive.sizeMult || 1} n=${guardLive.sample}) · LIVE chờ=${liveOrdersWaiting}${riskOffSizeMult < 1 ? ` · RISK-OFF size×${riskOffSizeMult}` : ''}${thresholdRelax > 0 ? ` · idle SIM -${thresholdRelax}` : ''}${liveHungry ? ` · LIVE hunger floorRelax=${idleFloorRelax}` : ''}.`
             ));
 
             const funnel = createFunnelTracker(asset);
             const stats = { scanned: 0, skipScore: 0, skipLimit: 0, skipRisk: 0, skipLiveGate: 0, skipSimGate: 0, skipTestnetSymbol: 0, aiRejected: 0, aiSoftOverride: 0, matched: 0 };
             let symbolsToScan = [];
             let testnetGateContext = null;
+            const eligibleCandidates = [];
 
             if (asset === 'CRYPTO' && requiresLiveQuality) {
                 testnetGateContext = await buildTestnetGateContext(asset);
@@ -2859,7 +2914,17 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         techSignal = applyQualityToSignal(techSignal, entrySetup, executionContext);
                     }
 
-                    const liveGate = passesLiveQuantGate(entrySetup, techSignal);
+                    const adaptiveElig = resolveAdaptiveEligibility({
+                        assetType: asset,
+                        symbol,
+                        setupType: entrySetup.type,
+                        marketCondition: assetMacro.marketStatus,
+                        idleFloorRelax,
+                    });
+                    const liveGate = passesLiveQuantGate(entrySetup, techSignal, {
+                        effectiveQualityFloor: adaptiveElig.effectiveQualityFloor,
+                        effectiveEdgeFloor: adaptiveElig.effectiveEdgeFloor,
+                    });
                     const simGate = passesSimQuantGate(entrySetup, techSignal);
 
                     if (requiresLiveQuality) {
@@ -2880,13 +2945,14 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 stage: 'live_gate',
                                 reason: gateReason,
                                 liveScoreThreshold,
+                                adaptiveFloor: adaptiveElig.effectiveQualityFloor,
                                 requiresLiveQuality,
                                 biasLedger: techSignal.breakdown?.biasLedger || null,
                             }, {
                                 event: 'candidate_rejected',
                                 source: 'autoTradeEngine',
                             }).catch(() => {});
-                            console.log(chalk.gray(`  [LIVE GATE] ${symbol}: ${gateReason}`));
+                            console.log(chalk.gray(`  [LIVE GATE] ${symbol}: ${gateReason} (adaptiveQ≥${adaptiveElig.effectiveQualityFloor})`));
                             continue;
                         }
                         funnel.record('sim_ok');
@@ -2969,22 +3035,50 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         liveOnlyMode,
                         hasLiveUserOrderWaiting: liveOrdersWaiting > 0,
                         entrySetup,
+                        liveHungry,
                     });
                     if (idleProbeOverride) {
                         stats.aiSoftOverride++;
+                        const sizeMultLabel = liveHungry ? getIdleLiveSizeMult() : getIdleAiProbeSizeMult();
                         aiConfirm = {
                             ...aiConfirm,
                             confirmed: true,
-                            reason: `[IDLE PROBE OVERRIDE · size x${getIdleAiProbeSizeMult()}] AI bác bỏ mềm, nhưng tín hiệu đã qua filter định lượng và score ${techSignal.score} >= ${getIdleAiProbeMinScore()}. Lý do AI gốc: ${aiConfirm.reason}`,
+                            reason: `[IDLE PROBE OVERRIDE · size x${sizeMultLabel}] AI bác bỏ mềm, nhưng tín hiệu đã qua filter định lượng và score ${techSignal.score} >= ${getIdleAiProbeMinScore()}. Lý do AI gốc: ${aiConfirm.reason}`,
                         };
                     }
                     console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason}`));
+
+                    const breakoutAff = asset === 'CRYPTO'
+                        ? computeBreakoutAffinity(candles, { direction: techSignal.direction })
+                        : { affinity: 0.5, score: 50, n: 0, wins: 0, losses: 0, note: 'n/a' };
+                    const symbolExp = getSymbolExpectancy(asset, symbol);
+                    const { priorityScore, components: priorityComponents } = computePriorityScore({
+                        qualityScore: techSignal.breakdown?.qualityScore ?? techSignal.score,
+                        symbolExpectancy: symbolExp,
+                        breakoutAffinityScore: breakoutAff.score,
+                        biasLedger: techSignal.breakdown?.biasLedger,
+                        direction: techSignal.direction,
+                        idleHungry: liveHungry,
+                    });
+                    techSignal.breakdown = {
+                        ...techSignal.breakdown,
+                        priorityScore,
+                        priorityComponents,
+                        breakoutAffinity: breakoutAff,
+                        adaptiveEligibility: {
+                            effectiveQualityFloor: adaptiveElig.effectiveQualityFloor,
+                            effectiveEdgeFloor: adaptiveElig.effectiveEdgeFloor,
+                            adj: adaptiveElig.adj,
+                            sizeMult: adaptiveElig.sizeMult,
+                        },
+                    };
 
                     radarCandidates[asset].push({
                         symbol,
                         assetType: asset,
                         direction: tradePlan.directionLabel,
                         score: techSignal.score,
+                        priorityScore,
                         entryPrice: tradePlan.entryPrice,
                         takeProfitPrice: tradePlan.takeProfitPrice,
                         stopLossPrice: tradePlan.stopLossPrice,
@@ -3011,6 +3105,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             setup: entrySetup.type,
                             stage: 'ai_veto',
                             reason: aiConfirm.reason,
+                            priorityScore,
                             biasLedger: techSignal.breakdown?.biasLedger || null,
                         }, {
                             event: 'candidate_rejected',
@@ -3025,9 +3120,72 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             score: techSignal.score,
                             setup: entrySetup.type,
                             fail: 'dry_run_pass',
+                            priorityScore,
                         });
                         continue;
                     }
+
+                    // Ranked selection: defer allocate/match until all symbols scanned
+                    eligibleCandidates.push({
+                        symbol,
+                        techSignal,
+                        entrySetup,
+                        tradePlan,
+                        aiConfirm,
+                        idleProbeOverride,
+                        quote,
+                        executionContext,
+                        newsContext,
+                        liveGate,
+                        adaptiveElig,
+                        priorityScore,
+                        qualityScore: techSignal.breakdown?.qualityScore ?? techSignal.score,
+                    });
+                    console.log(chalk.cyan(
+                        `  [RANK QUEUE] ${symbol}: priority=${priorityScore} Q=${techSignal.score} setup=${entrySetup.type}`
+                    ));
+                } catch (symbolErr) {
+                    console.log(chalk.yellow(`  [ERROR] Lỗi xử lý ${symbol}: ${symbolErr.message}`));
+                    continue;
+                }
+            }
+
+            // ── Process eligible candidates by PriorityScore (best first) ──
+            const ranked = sortCandidatesByPriority(eligibleCandidates);
+            if (ranked.length > 1) {
+                console.log(chalk.magenta(
+                    `  [RANK] ${ranked.length} ứng viên → ${ranked.slice(0, 5).map((c) => `${c.symbol}@${c.priorityScore}`).join(', ')}`
+                ));
+            }
+
+            for (const cand of ranked) {
+                try {
+                    const {
+                        symbol,
+                        techSignal,
+                        entrySetup,
+                        tradePlan,
+                        aiConfirm,
+                        idleProbeOverride,
+                        quote,
+                        executionContext,
+                        newsContext,
+                        liveGate,
+                        adaptiveElig,
+                    } = cand;
+
+                    if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
+                        stats.skipLimit++;
+                        funnel.record('limit');
+                        break;
+                    }
+
+                    const existingOpen = await AutoTrade.findOne({
+                        symbol,
+                        assetType: asset,
+                        status: { $in: ['OPEN', 'PENDING'] },
+                    });
+                    if (existingOpen) continue;
 
                     const deferTradePersist = liveOnlyMode;
                     const {
@@ -3070,10 +3228,20 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const convictionMult = goldenSetup ? 1.25 : (techSignal.score >= 80 ? 1.1 : 1.0);
                     allocationPct = Math.min(0.40, allocationPct * convictionMult);
                     if (idleProbeOverride) {
-                        allocationPct = Math.max(0.02, allocationPct * getIdleAiProbeSizeMult());
+                        const probeMult = liveHungry ? getIdleLiveSizeMult() : getIdleAiProbeSizeMult();
+                        allocationPct = Math.max(0.02, allocationPct * probeMult);
+                    } else if (liveHungry && requiresLiveQuality) {
+                        // Size-first when LIVE hungry (before floor relax bites harder)
+                        allocationPct = Math.max(0.02, allocationPct * getIdleLiveSizeMult());
                     }
 
-                    let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * adaptiveSizeMult;
+                    const eligSizeMult = Number(adaptiveElig?.sizeMult) || 1;
+                    let combinedSizeMult = adaptiveSizeMult * eligSizeMult;
+                    combinedSizeMult = convictionSizeBoostFromCeiling(
+                        techSignal.breakdown?.qualityScore ?? techSignal.score,
+                        combinedSizeMult
+                    );
+                    let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * combinedSizeMult;
                     
                     let maxVolumeByRisk = Infinity;
                     const riskUnit = Math.abs(entryPrice - stopLossPrice);
@@ -3603,8 +3771,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         ));
                     }
 
-                } catch (symbolErr) {
-                    console.log(chalk.yellow(`  [ERROR] Lỗi xử lý ${symbol}: ${symbolErr.message}`));
+                } catch (candErr) {
+                    console.log(chalk.yellow(`  [ERROR] Lỗi khớp ranked ${cand?.symbol || '?'}: ${candErr.message}`));
                     continue;
                 }
             }
@@ -3612,12 +3780,15 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             if (stats.scanned > 0) {
                 const volSkip = stats.skipVolume || 0;
                 const setupSkip = stats.skipSetup || 0;
-                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Bỏ qua [Điểm yếu: ${stats.skipScore} | LIVE gate: ${stats.skipLiveGate || 0} | SIM gate: ${stats.skipSimGate || 0} | Testnet: ${stats.skipTestnetSymbol || 0} | Volume: ${volSkip} | Setup: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected} | Idle override: ${stats.aiSoftOverride}] | Vào: ${stats.matched} lệnh.`));
+                console.log(chalk.gray(`  └─ Tổng kết: Quét ${stats.scanned} mã | Ranked ${ranked.length} | Bỏ qua [Điểm yếu: ${stats.skipScore} | LIVE gate: ${stats.skipLiveGate || 0} | SIM gate: ${stats.skipSimGate || 0} | Testnet: ${stats.skipTestnetSymbol || 0} | Volume: ${volSkip} | Setup: ${setupSkip} | Rủi ro/Vốn: ${stats.skipRisk + stats.skipLimit} | AI hủy: ${stats.aiRejected} | Idle override: ${stats.aiSoftOverride}] | Vào: ${stats.matched} lệnh.`));
                 pushFunnelSummary(funnel.finalize({
                     liveOrdersWaiting,
                     liveScoreThreshold,
                     simScoreThreshold,
                     dryRun,
+                    liveHungry,
+                    idleFloorRelax,
+                    rankedCount: ranked.length,
                 }));
             }
             const assetMs = pipelineTimer.lap(`scan_${asset}`);
@@ -3641,6 +3812,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 if (Number(b.aiConfirmed) !== Number(a.aiConfirmed)) {
                     return Number(b.aiConfirmed) - Number(a.aiConfirmed);
                 }
+                const pd = (b.priorityScore || 0) - (a.priorityScore || 0);
+                if (pd !== 0) return pd;
                 return (b.score || 0) - (a.score || 0);
             });
         }
@@ -4314,10 +4487,34 @@ const bootAutoDuckSchedulerIntervals = () => {
         return { minGapMs, liveWaiting, liveOpen, idleFast };
     };
 
-    /** Idle relax trên vòng quét chính. */
+    /** Idle relax trên vòng quét chính + LIVE hunger khi dưới daily target. */
     const buildMarketScanOptions = async (liveWaiting) => {
         const options = { schedulerMode: 'STANDARD' };
+
+        // LIVE hunger: package waiting / live-only path with too few LIVE fills today
         if (liveWaiting > 0) {
+            try {
+                const liveOpenedToday = await countLiveOpenedToday();
+                const dailyTarget = getIdleLiveDailyTarget();
+                if (liveOpenedToday < dailyTarget) {
+                    idleScanState.liveHungerAttempts += 1;
+                    options.liveHungry = true;
+                    options.minOpenTarget = dailyTarget;
+                    // Size-first always; floor relax only after several hungry cycles
+                    const relaxAfter = Math.max(2, getIdleRelaxMaxAttempts() - 1);
+                    options.idleFloorRelax = idleScanState.liveHungerAttempts >= relaxAfter
+                        ? getIdleLiveFloorRelax()
+                        : 0;
+                    console.log(chalk.yellow(
+                        `[AUTODUCK IDLE LIVE] ${liveOpenedToday}/${dailyTarget} LIVE hôm nay → hunger `
+                        + `(attempt=${idleScanState.liveHungerAttempts}, floorRelax=${options.idleFloorRelax})`
+                    ));
+                    return { options, modeLabel: 'LIVE_HUNGER', openCount: liveOpenedToday, target: dailyTarget };
+                }
+                idleScanState.liveHungerAttempts = 0;
+            } catch (err) {
+                console.log(chalk.yellow(`[AUTODUCK IDLE LIVE] Lỗi hunger check: ${err.message}`));
+            }
             resetIdleScanState(`${liveWaiting} gói LIVE đang chờ — tạm dừng idle SIM relax`);
             return { options, modeLabel: 'LIVE-driven' };
         }
