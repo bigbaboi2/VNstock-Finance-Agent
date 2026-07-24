@@ -24,10 +24,18 @@ const checkRateLimit = (key, maxPerMinute = 10) => {
     return true;
 };
 
-/** GET /api/exchange-connections/:username — danh sách kết nối + equity ví (MTM) */
+/** GET /api/exchange-connections/:username — danh sách kết nối + equity ví (MTM)
+ *  ?lite=1 — bỏ equity Binance (hiện card nhanh), enrich chạy request full sau.
+ */
 export const getConnections = async (req, res) => {
     try {
+        const lite = String(req.query.lite || '') === '1';
         const docs = await ExchangeConnection.find({ username: req.params.username }).sort({ createdAt: -1 });
+
+        if (lite) {
+            const data = docs.map((doc) => (typeof doc.toSafeJSON === 'function' ? doc.toSafeJSON() : doc));
+            return res.json({ success: true, data, lite: true });
+        }
 
         // Backfill baseline cho connection cũ chưa có mốc (không chặn response nếu fail)
         for (const doc of docs) {
@@ -219,16 +227,47 @@ export const getLiveBalance = async (req, res) => {
     }
 };
 
-/** GET /api/exchange-connections/orders/:username — log lệnh thực + thống kê */
+/** GET /api/exchange-connections/orders/:username — log lệnh thực + thống kê
+ *  ?lite=1 — chỉ list + đếm nhanh (bỏ map PnL / sumLiveRealizedPnl).
+ */
 export const getExchangeOrders = async (req, res) => {
     try {
         const { username } = req.params;
+        const lite = String(req.query.lite || '') === '1';
         const orders = await ExchangeOrder.find({ username })
             .sort({ sentAt: -1 })
             .limit(200)
             .lean();
 
-        const autoTradeIds = [...new Set(orders.map(o => o.autoTradeId).filter(Boolean))];
+        const filled = orders.filter((o) => o.status === 'FILLED');
+        const basicStats = {
+            totalOrders: orders.length,
+            filledOrders: filled.length,
+            failedOrders: orders.filter((o) => o.status === 'FAILED').length,
+            pendingOrders: orders.filter((o) => ['PENDING', 'PARTIAL'].includes(o.status)).length,
+            totalNotionalUSDT: +filled.reduce((s, o) => s + (o.notionalUSDT || 0), 0).toFixed(2),
+        };
+
+        if (lite) {
+            return res.json({
+                success: true,
+                lite: true,
+                stats: {
+                    ...basicStats,
+                    liveRealizedPnlUSDT: null,
+                    liveRealizedPnlVND: null,
+                    liveEligibleTrades: null,
+                    liveCurrentPackagePnlUSDT: null,
+                    liveCurrentPackagePnlVND: null,
+                    liveCurrentPackageTrades: null,
+                    liveCurrentPackageCount: null,
+                    usdVndRate: null,
+                },
+                data: orders,
+            });
+        }
+
+        const autoTradeIds = [...new Set(orders.map((o) => o.autoTradeId).filter(Boolean))];
         const currentUsdVndRate = await getUsdVndRate();
         const pnlMap = await mapLivePnlByTradeIds(autoTradeIds, currentUsdVndRate);
         const AutoTrade = (await import('../../models/AutoTrade.js')).default;
@@ -237,7 +276,7 @@ export const getExchangeOrders = async (req, res) => {
             'markSimPnl markSimPnlPercent pnlSource'
         ).lean();
         const markMap = {};
-        markTrades.forEach(t => { markMap[String(t._id)] = t; });
+        markTrades.forEach((t) => { markMap[String(t._id)] = t; });
 
         for (const o of orders) {
             if (o.purpose !== 'EXIT' || !o.autoTradeId) continue;
@@ -245,13 +284,11 @@ export const getExchangeOrders = async (req, res) => {
             const fillPnl = pnlMap[tid];
             const mark = markMap[tid];
 
-            // Official PnL chỉ trên EXIT đã khớp
             if (['FILLED', 'PARTIAL'].includes(o.status) && fillPnl?.eligible) {
                 o.livePnl = o.exchangeName === 'DNSE' ? fillPnl.livePnlVND : fillPnl.livePnlUSDT;
                 o.livePnlPercent = fillPnl.livePnlPercent;
                 o.livePnlSource = fillPnl.source;
             } else if (o.status === 'FAILED' && mark?.markSimPnl != null) {
-                // Phụ: mark sim cho phân tích — UI hiển thị muted
                 o.markSimPnl = o.exchangeName === 'DNSE'
                     ? mark.markSimPnl
                     : (Number(mark.markSimPnl) / currentUsdVndRate);
@@ -264,23 +301,16 @@ export const getExchangeOrders = async (req, res) => {
             }
         }
 
-        const filled = orders.filter(o => o.status === 'FILLED');
         const livePnlSummary = await sumLiveRealizedPnl({ username }).catch(() => null);
         const currentPkg = await listCurrentPackageLiveTradeIds(username).catch(() => ({ tradeIds: [], packageCount: 0 }));
         const currentPnl = livePnlSummary
             ? filterLivePnlSummaryByTradeIds(livePnlSummary, currentPkg.tradeIds)
             : null;
         const stats = {
-            totalOrders: orders.length,
-            filledOrders: filled.length,
-            failedOrders: orders.filter(o => o.status === 'FAILED').length,
-            pendingOrders: orders.filter(o => ['PENDING', 'PARTIAL'].includes(o.status)).length,
-            totalNotionalUSDT: +filled.reduce((s, o) => s + (o.notionalUSDT || 0), 0).toFixed(2),
-            // PnL tổng từ lúc khởi tạo (mọi lệnh LIVE đã đóng của user, kể cả gói đã xóa)
+            ...basicStats,
             liveRealizedPnlUSDT: livePnlSummary?.totalPnlUSDT ?? 0,
             liveRealizedPnlVND: livePnlSummary?.totalPnlVND ?? 0,
             liveEligibleTrades: livePnlSummary?.eligibleCount ?? 0,
-            // PnL chỉ các gói UserOrder LIVE còn trong danh sách Tab 6
             liveCurrentPackagePnlUSDT: currentPnl?.totalPnlUSDT ?? 0,
             liveCurrentPackagePnlVND: currentPnl?.totalPnlVND ?? 0,
             liveCurrentPackageTrades: currentPnl?.eligibleCount ?? 0,

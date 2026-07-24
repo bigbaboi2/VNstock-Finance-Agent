@@ -1,6 +1,7 @@
 import express from 'express';
 import { 
-    getSystemTradeLogs, 
+    getSystemTradeLogs,
+    getOpenLiveTrades,
     createUserExpectationOrder, 
     getUserOrders, 
     getAiLessons,
@@ -24,6 +25,7 @@ import {
 const router = express.Router();
 
 router.get('/logs', getSystemTradeLogs);
+router.get('/open-live', getOpenLiveTrades);
 router.get('/analytics', getTradeAnalyticsHandler);
 router.post('/user-order', createUserExpectationOrder);
 router.get('/user-order/:username', getUserOrders);

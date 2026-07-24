@@ -45,6 +45,7 @@ export default function BrokerDashboard({
     isDark,
     UI,
     onChanged,
+    enriching = false,
 }) {
     const [resetBusy, setResetBusy] = useState(false);
 
@@ -74,10 +75,11 @@ export default function BrokerDashboard({
             if (g.entry > 0 && g.exit > 0) realizedPnlFallback += g.exit - g.entry;
         }
 
-        // Ưu tiên stats từ backend (fill − fee, direction-aware)
-        const realizedPnl = orderStats?.liveRealizedPnlUSDT != null
+        const hasOfficialPnl = orderStats?.liveRealizedPnlUSDT != null;
+        // Ưu tiên stats từ backend (fill − fee); khi đang enrich mà chưa có → hiện placeholder
+        const realizedPnl = hasOfficialPnl
             ? Number(orderStats.liveRealizedPnlUSDT)
-            : realizedPnlFallback;
+            : (enriching ? null : realizedPnlFallback);
         const realizedPnlVnd = orderStats?.liveRealizedPnlVND != null
             ? Number(orderStats.liveRealizedPnlVND)
             : null;
@@ -91,19 +93,22 @@ export default function BrokerDashboard({
         const currentPkgTrades = orderStats?.liveCurrentPackageTrades ?? null;
         const currentPkgCount = orderStats?.liveCurrentPackageCount ?? 0;
 
-        const equity = walletSummary?.equityUSDT ?? totalUSDT;
-        const stable = walletSummary?.stableUSDT ?? totalUSDT;
-        const alts = walletSummary?.altsUSDT ?? 0;
-        const walletPnl = walletSummary?.pnlVsBaselineUSDT;
-        const baseline = walletSummary?.baselineUSDT;
-        const unpriced = walletSummary?.unpricedCount || 0;
-        const usdVnd = walletSummary?.usdVndRate;
+        const hasWallet = walletSummary != null;
+        const equity = hasWallet ? walletSummary.equityUSDT : totalUSDT;
+        const stable = hasWallet ? (walletSummary.stableUSDT ?? totalUSDT) : totalUSDT;
+        const alts = hasWallet ? (walletSummary.altsUSDT ?? 0) : 0;
+        const walletPnl = hasWallet ? walletSummary.pnlVsBaselineUSDT : (enriching ? undefined : null);
+        const baseline = hasWallet ? walletSummary.baselineUSDT : null;
+        const unpriced = hasWallet ? (walletSummary.unpricedCount || 0) : 0;
+        const usdVnd = hasWallet ? walletSummary.usdVndRate : null;
+        const walletPending = enriching && !hasWallet;
 
         return {
             equity,
             stable,
             alts,
             walletPnl,
+            walletPending,
             baseline,
             unpriced,
             usdVnd,
@@ -118,8 +123,9 @@ export default function BrokerDashboard({
             currentPkgTrades,
             currentPkgCount,
             activeCount: activeConns.length,
+            enriching,
         };
-    }, [connections, orderStats, orders, walletSummary]);
+    }, [connections, orderStats, orders, walletSummary, enriching]);
 
     const handleResetAllBaselines = async () => {
         const active = connections.filter(c => c.isActive);
@@ -151,10 +157,12 @@ export default function BrokerDashboard({
         return new Date(Math.min(...dates));
     }, [connections]);
 
-    const walletPnlColor = metrics.walletPnl == null
+    const walletPnlColor = metrics.walletPending || metrics.walletPnl == null
         ? UI.textMuted
         : metrics.walletPnl >= 0 ? 'text-emerald-400' : 'text-red-400';
-    const botPnlColor = metrics.realizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400';
+    const botPnlColor = metrics.realizedPnl == null
+        ? UI.textMuted
+        : metrics.realizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400';
     const currentPkgPnlColor = metrics.currentPkgPnl == null
         ? UI.textMuted
         : metrics.currentPkgPnl >= 0 ? 'text-emerald-400' : 'text-red-400';
@@ -185,21 +193,27 @@ export default function BrokerDashboard({
                     UI={UI}
                     icon={Wallet}
                     label="Equity ví (ước tính)"
-                    value={`~${fmtUsd(metrics.equity)}`}
-                    sub={`Stable ${fmtUsd(metrics.stable)} · Coin khác ~${fmtUsd(metrics.alts)}${
-                        metrics.unpriced > 0 ? ` · ${metrics.unpriced} asset chưa quy giá` : ''
-                    }`}
+                    value={metrics.walletPending ? '…' : `~${fmtUsd(metrics.equity)}`}
+                    sub={metrics.walletPending
+                        ? 'Đang quy giá coin trên sàn…'
+                        : `Stable ${fmtUsd(metrics.stable)} · Coin khác ~${fmtUsd(metrics.alts)}${
+                            metrics.unpriced > 0 ? ` · ${metrics.unpriced} asset chưa quy giá` : ''
+                        }`}
                     color="text-cyan-400"
                 />
                 <MetricCard
                     UI={UI}
                     icon={Landmark}
                     label="PnL ví vs mốc"
-                    value={metrics.walletPnl == null ? '—' : fmtSignedUsd(metrics.walletPnl)}
+                    value={metrics.walletPending
+                        ? '…'
+                        : metrics.walletPnl == null ? '—' : fmtSignedUsd(metrics.walletPnl)}
                     sub={
-                        metrics.baseline == null
-                            ? 'Chưa có mốc — bấm Test/Balance để ghi lần đầu'
-                            : `Mốc ${fmtUsd(metrics.baseline)}${earliestBaseline ? ` · ${timeAgoShort(earliestBaseline)}` : ''} · gồm coin ngoài bot`
+                        metrics.walletPending
+                            ? 'Đang tải mốc equity…'
+                            : metrics.baseline == null
+                                ? 'Chưa có mốc — bấm Test/Balance để ghi lần đầu'
+                                : `Mốc ${fmtUsd(metrics.baseline)}${earliestBaseline ? ` · ${timeAgoShort(earliestBaseline)}` : ''} · gồm coin ngoài bot`
                     }
                     color={walletPnlColor}
                     footer={
@@ -222,11 +236,13 @@ export default function BrokerDashboard({
                     UI={UI}
                     icon={TrendingUp}
                     label="PnL Autoduck Tổng (từ đầu)"
-                    value={fmtSignedUsd(metrics.realizedPnl)}
+                    value={metrics.realizedPnl == null ? '…' : fmtSignedUsd(metrics.realizedPnl)}
                     sub={
-                        metrics.realizedPnlVnd != null
-                            ? `Mọi lệnh LIVE đã đóng · ${metrics.eligibleTrades ?? '—'} lệnh · ≈${Number(metrics.realizedPnlVnd).toLocaleString('vi-VN')}đ · kể cả gói đã xóa`
-                            : 'Fill − phí · mọi lệnh LIVE từ lúc khởi tạo'
+                        metrics.realizedPnl == null
+                            ? 'Đang tính fill − phí…'
+                            : metrics.realizedPnlVnd != null
+                                ? `Mọi lệnh LIVE đã đóng · ${metrics.eligibleTrades ?? '—'} lệnh · ≈${Number(metrics.realizedPnlVnd).toLocaleString('vi-VN')}đ · kể cả gói đã xóa`
+                                : 'Fill − phí · mọi lệnh LIVE từ lúc khởi tạo'
                     }
                     color={botPnlColor}
                 />
@@ -234,13 +250,17 @@ export default function BrokerDashboard({
                     UI={UI}
                     icon={Briefcase}
                     label="PnL gói hiện tại"
-                    value={metrics.currentPkgPnl == null ? '—' : fmtSignedUsd(metrics.currentPkgPnl)}
+                    value={metrics.currentPkgPnl == null
+                        ? (enriching ? '…' : '—')
+                        : fmtSignedUsd(metrics.currentPkgPnl)}
                     sub={
-                        metrics.currentPkgCount === 0
-                            ? 'Không còn gói LIVE trên Tab 6'
-                            : metrics.currentPkgPnlVnd != null
-                                ? `${metrics.currentPkgCount} gói · ${metrics.currentPkgTrades ?? 0} lệnh đóng · ≈${Number(metrics.currentPkgPnlVnd).toLocaleString('vi-VN')}đ`
-                                : `${metrics.currentPkgCount} gói LIVE còn trong danh sách`
+                        enriching && metrics.currentPkgPnl == null
+                            ? 'Đang lọc PnL theo gói Tab 6…'
+                            : metrics.currentPkgCount === 0
+                                ? 'Không còn gói LIVE trên Tab 6'
+                                : metrics.currentPkgPnlVnd != null
+                                    ? `${metrics.currentPkgCount} gói · ${metrics.currentPkgTrades ?? 0} lệnh đóng · ≈${Number(metrics.currentPkgPnlVnd).toLocaleString('vi-VN')}đ`
+                                    : `${metrics.currentPkgCount} gói LIVE còn trong danh sách`
                     }
                     color={currentPkgPnlColor}
                 />

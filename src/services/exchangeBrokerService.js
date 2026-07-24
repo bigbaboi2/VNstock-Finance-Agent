@@ -3,7 +3,7 @@ import AutoTrade from '../../models/AutoTrade.js';
 import ExchangeConnection from '../../models/ExchangeConnection.js';
 import ExchangeOrder from '../../models/ExchangeOrder.js';
 import Setting from '../../models/Setting.js';
-import { getAdapter } from './exchangeAdapters/index.js';
+import { getAdapter, FUTURES_SUPPORTED } from './exchangeAdapters/index.js';
 import { decrypt } from './encryptionService.js';
 import { sendTelegramMessage, escapeHtml } from './telegramService.js';
 import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
@@ -165,6 +165,37 @@ export const testConnection = async (connectionDoc) => {
     const creds = getCredentials(connectionDoc);
     const result = await adapter.testConnection(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment);
 
+    // Spot Test OK ≠ Futures OK: SHORT/đòn bẩy gọi endpoint Futures riêng
+    // (Binance Testnet Spot và Futures còn dùng key khác nhau).
+    let futuresProbe = null;
+    if (result.success && FUTURES_SUPPORTED.includes(String(connectionDoc.exchangeName).toUpperCase())) {
+        try {
+            const futAdapter = getAdapter(connectionDoc.exchangeName, 'FUTURES');
+            futuresProbe = await futAdapter.testConnection(
+                creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment
+            );
+            const perms = [...(result.permissions || [])];
+            if (futuresProbe.success) {
+                if (!perms.includes('FUTURES')) perms.push('FUTURES');
+                result.permissions = perms;
+                result.message = `${result.message || 'Spot OK'} · Futures OK`;
+                result.futuresOk = true;
+            } else {
+                result.permissions = perms.filter((p) => p !== 'FUTURES');
+                result.message = `${result.message || 'Spot OK'} · Futures FAIL: ${futuresProbe.message || 'không truy cập được'}`;
+                result.futuresOk = false;
+                result.futuresError = futuresProbe.message || '';
+            }
+            if (futuresProbe.latencyMs != null) {
+                result.latencyMs = Math.max(result.latencyMs || 0, futuresProbe.latencyMs);
+            }
+        } catch (err) {
+            result.futuresOk = false;
+            result.futuresError = err.message || 'Futures adapter lỗi';
+            result.message = `${result.message || 'Spot OK'} · Futures FAIL: ${result.futuresError}`;
+        }
+    }
+
     connectionDoc.lastTestedAt = new Date();
     connectionDoc.lastTestStatus = result.success ? 'OK' : 'FAILED';
     connectionDoc.lastTestMessage = result.message || '';
@@ -180,6 +211,11 @@ export const testConnection = async (connectionDoc) => {
     if (!result.success) {
         sendTelegramMessage(
             `⚠️ <b>[BROKER] Test connection FAILED</b>\nUser: ${escapeHtml(connectionDoc.username)}\nSàn: ${escapeHtml(connectionDoc.exchangeName)} (${escapeHtml(connectionDoc.environment)})\nLỗi: ${escapeHtml(result.message)}`,
+            { parseMode: 'HTML' }
+        ).catch(() => {});
+    } else if (result.futuresOk === false) {
+        sendTelegramMessage(
+            `⚠️ <b>[BROKER] Spot OK nhưng Futures FAIL</b>\nUser: ${escapeHtml(connectionDoc.username)}\nSàn: ${escapeHtml(connectionDoc.exchangeName)} (${escapeHtml(connectionDoc.environment)})\nLỗi Futures: ${escapeHtml(result.futuresError || result.message)}\n→ SHORT/đòn bẩy sẽ UNMATCHED. Binance Testnet: tạo key tại testnet.binancefuture.com (khác Spot).`,
             { parseMode: 'HTML' }
         ).catch(() => {});
     }

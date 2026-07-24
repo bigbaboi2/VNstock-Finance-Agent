@@ -15,7 +15,7 @@
 
 🇬🇧 [English version](README.md)
 
-[Bắt đầu nhanh](#-bắt-đầu-nhanh) · [Xem giao diện](#-xem-giao-diện) · [Các tab](#-hướng-dẫn-các-tab) · [Tính năng](#-tính-năng-chính) · [Hệ thống AI](#-hệ-thống-ai) · [Cấu hình](#%EF%B8%8F-cấu-hình-môi-trường)
+[Bắt đầu nhanh](#-bắt-đầu-nhanh) · [Xem giao diện](#-xem-giao-diện) · [Theme](#-cơ-chế-theme-ui) · [Các tab](#-hướng-dẫn-các-tab) · [Tính năng](#-tính-năng-chính) · [CLI](#-cli-tùy-chọn) · [Cấu hình](#%EF%B8%8F-cấu-hình-môi-trường)
 
 </div>
 
@@ -24,18 +24,19 @@
 ## 📋 Mục lục
 
 1. [Xem giao diện](#-xem-giao-diện)
-2. [Tổng quan](#-tổng-quan)
-3. [Bắt đầu nhanh](#-bắt-đầu-nhanh)
-4. [Hướng dẫn các tab](#-hướng-dẫn-các-tab)
-5. [Tính năng chính](#-tính-năng-chính)
-6. [Hệ thống AI](#-hệ-thống-ai)
-7. [Kiến trúc](#%EF%B8%8F-kiến-trúc-hệ-thống)
-8. [Cấu hình môi trường](#%EF%B8%8F-cấu-hình-môi-trường)
-9. [API Endpoints](#-api-endpoints)
-10. [Cấu trúc dự án](#-cấu-trúc-dự-án)
-11. [CLI tùy chọn](#-cli-tùy-chọn)
-12. [Lộ trình](#%EF%B8%8F-lộ-trình-phát-triển)
-13. [Miễn trừ trách nhiệm](#%EF%B8%8F-miễn-trừ-trách-nhiệm)
+2. [Cơ chế theme UI](#-cơ-chế-theme-ui)
+3. [Tổng quan](#-tổng-quan)
+4. [Bắt đầu nhanh](#-bắt-đầu-nhanh)
+5. [Hướng dẫn các tab](#-hướng-dẫn-các-tab)
+6. [Tính năng chính](#-tính-năng-chính)
+7. [Hệ thống AI](#-hệ-thống-ai)
+8. [Kiến trúc](#%EF%B8%8F-kiến-trúc-hệ-thống)
+9. [Cấu hình môi trường](#%EF%B8%8F-cấu-hình-môi-trường)
+10. [API Endpoints](#-api-endpoints)
+11. [Cấu trúc dự án](#-cấu-trúc-dự-án)
+12. [CLI tùy chọn](#-cli-tùy-chọn)
+13. [Lộ trình](#%EF%B8%8F-lộ-trình-phát-triển)
+14. [Miễn trừ trách nhiệm](#%EF%B8%8F-miễn-trừ-trách-nhiệm)
 
 ---
 
@@ -82,6 +83,53 @@
 </table>
 
 </details>
+
+</details>
+
+---
+
+## 🎨 Cơ chế theme UI
+
+Giao diện không chỉ sáng/tối. Hệ thống tách thành bốn trục độc lập, gắn qua `data-theme`, `data-ui-style`, `data-font-scale` trên `<html>` (kèm CSS variable như `--omni-font-scale`). Preference lưu theo tài khoản qua `/api/auth/preferences`, fallback `localStorage` khi offline.
+
+| Trục | Tùy chọn | Tác dụng |
+|------|----------|----------|
+| **Theme** | Sáng · Tối | Nền, bề mặt, viền, độ tương phản chữ |
+| **Phong cách Frontend** | Hiện tại · Tối giản · Siêu tối giản · Chế độ sách | Mật độ UI, hiệu ứng, typography, mount lazy panel |
+| **Cỡ chữ** | Nhỏ · Vừa · Lớn · Rất lớn | Scale rem toàn app (`0.875` → `1.25`) |
+| **Đồng hồ** | 2D · 3D | Kiểu render đồng hồ trên header |
+
+**Bốn phong cách Frontend**
+
+| Style (`uiStyle`) | Nhãn UI | Hành vi |
+|-------------------|---------|---------|
+| `classic` | Hiện tại | Đầy đủ hiệu ứng, layout nhiều panel |
+| `minimal` | Tối giản | Giảm motion/hiệu ứng — ưu tiên FPS |
+| `ultra` | Siêu tối giản | Ngăn xếp — chỉ render section khi mở |
+| `book` | Chế độ sách | Palette giấy/parchment + font sách (`font-book`) |
+
+Mở **Cài đặt phong cách** từ menu user (header) để đổi realtime.
+
+<details open>
+<summary><b>Showcase theme</b> — sáng · sách · cài đặt (bấm để thu gọn)</summary>
+
+<table>
+<tr>
+<td align="center" width="50%"><b>Light — tổng quan thị trường</b><br/><img src="docs/screenshots/theme-light-overview.png" width="100%" alt="Theme sáng — tổng quan"/></td>
+<td align="center" width="50%"><b>Chế độ sách — parchment</b><br/><img src="docs/screenshots/theme-book-overview.png" width="100%" alt="Chế độ sách — tổng quan"/></td>
+</tr>
+<tr>
+<td align="center"><b>Chế độ sách — chart & phân tích</b><br/><img src="docs/screenshots/theme-book-chart.png" width="100%" alt="Chế độ sách — chart"/></td>
+<td align="center"><b>Chế độ sách — AutoDuck</b><br/><img src="docs/screenshots/theme-book-autoduck.png" width="100%" alt="Chế độ sách — AutoDuck"/></td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td align="center" width="50%"><b>Panel cài đặt phong cách</b><br/><img src="docs/screenshots/theme-style-settings.png" width="320" alt="Cài đặt: theme, đồng hồ, cỡ chữ, phong cách"/></td>
+<td align="center" width="50%"><b>Menu phong cách (desktop)</b><br/><img src="docs/screenshots/theme-style-menu.png" width="320" alt="Menu desktop: cỡ chữ và preset Frontend"/></td>
+</tr>
+</table>
 
 </details>
 
@@ -387,14 +435,41 @@ ProjectFinance/
 
 ## 💻 CLI tùy chọn
 
-Giao diện terminal thay cho React — CK VN, phái sinh, crypto.
+TUI full-screen thay cho React dashboard — cùng API backend, điều khiển bằng bàn phím. Palette nằm ở `cli/theme.js` (amber brand, khung cyan, P&L xanh/đỏ); chart và bảng dày dùng ANSI + box-drawing.
 
 ```bash
-# Từ thư mục gốc dự án
+# Từ thư mục gốc (backend phải chạy ở :3001)
 node cli/omni-cli.js
 
 # Windows: double-click omni-manager.bat
 ```
+
+| Workspace | Nội dung |
+|-----------|----------|
+| **Equity** | Tra cứu mã → overview / nến / báo cáo AI / tin |
+| **Market Radar** | Trạng thái VN-INDEX, dòng tiền ngành, top movers |
+| **Crypto** | Quote, nến + volume, news feed |
+| **Phái sinh** | Futures / index (cùng stack) |
+
+<details open>
+<summary><b>Showcase CLI</b> — equity · crypto · market radar (bấm để thu gọn)</summary>
+
+<table>
+<tr>
+<td align="center" width="50%"><b>Equity workspace</b><br/><img src="docs/screenshots/cli-equity-workspace.png" width="100%" alt="CLI equity lookup"/></td>
+<td align="center" width="50%"><b>Equity detail</b><br/><img src="docs/screenshots/cli-equity-detail.png" width="100%" alt="CLI equity detail"/></td>
+</tr>
+<tr>
+<td align="center"><b>Equity chart</b><br/><img src="docs/screenshots/cli-equity-chart.png" width="100%" alt="CLI chart nến MBB"/></td>
+<td align="center"><b>Crypto chart</b><br/><img src="docs/screenshots/cli-crypto-chart.png" width="100%" alt="CLI chart BTC"/></td>
+</tr>
+<tr>
+<td align="center"><b>Crypto news</b><br/><img src="docs/screenshots/cli-crypto-news.png" width="100%" alt="CLI crypto news"/></td>
+<td align="center"><b>Market Radar</b><br/><img src="docs/screenshots/cli-market-radar.png" width="100%" alt="CLI market radar VN-INDEX"/></td>
+</tr>
+</table>
+
+</details>
 
 ---
 

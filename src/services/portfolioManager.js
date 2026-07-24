@@ -45,8 +45,10 @@ export const countOpenTradesOfOrder = async (userOrder) => {
 };
 
 /**
- * Đóng allocation treo: UNMATCHED, hoặc (tuỳ chọn) AutoTrade đã CLOSED/mất document
+ * Đóng allocation treo: UNMATCHED (khi SIM liên kết đã đóng/mất), hoặc AutoTrade đã CLOSED
  * nhưng allocation còn !closedAt — tránh UI/backend lệch nhau khi xóa gói.
+ * Không đóng sớm UNMATCHED khi AutoTrade SIM vẫn OPEN/PENDING (để UI hiện OPENING,
+ * rồi khi SIM chốt sẽ ghi PnL cuối qua releaseAllocation).
  * @param {{ includeClosedTrades?: boolean }} opts
  * @returns {number} số allocation đã heal
  */
@@ -55,26 +57,37 @@ export const healStaleAllocations = async (userOrder, opts = {}) => {
     const allocs = userOrder?.tradeAllocations || [];
     if (allocs.length === 0) return 0;
 
-    let statusById = null;
-    if (includeClosedTrades) {
-        const openish = allocs.filter(a => !a.closedAt && a.trade);
-        const trades = openish.length
-            ? await AutoTrade.find({ _id: { $in: openish.map(a => a.trade) } }).select('status').lean()
-            : [];
-        statusById = new Map(trades.map(t => [String(t._id), t.status]));
-    }
+    const needStatus = allocs.filter((a) => !a.closedAt && a.trade);
+    const trades = needStatus.length
+        ? await AutoTrade.find({ _id: { $in: needStatus.map((a) => a.trade) } })
+            .select('status pnlPercent')
+            .lean()
+        : [];
+    const statusById = new Map(trades.map((t) => [String(t._id), t]));
 
     let healed = 0;
     for (const a of allocs) {
         if (a.closedAt) continue;
+
+        const tradeInfo = a.trade ? statusById.get(String(a.trade)) : null;
+        const st = tradeInfo?.status || null;
+
         if (a.matchStatus === 'UNMATCHED') {
+            // SIM còn chạy → giữ mở để UI = OPENING; đợi releaseAllocation khi chốt
+            if (st && ['OPEN', 'PENDING'].includes(st)) continue;
             a.closedAt = new Date();
             if (a.pnl == null) a.pnl = 0;
+            if (a.pnlPercent == null && tradeInfo?.pnlPercent != null) {
+                a.pnlPercent = Number(tradeInfo.pnlPercent) || 0;
+                a.pnl = Math.round((Number(a.amount) || 0) * a.pnlPercent / 100);
+            } else if (a.pnl == null) {
+                a.pnl = 0;
+            }
             healed += 1;
             continue;
         }
-        if (!includeClosedTrades || !statusById) continue;
-        const st = a.trade ? statusById.get(String(a.trade)) : null;
+
+        if (!includeClosedTrades) continue;
         if (!st || !['OPEN', 'PENDING'].includes(st)) {
             a.closedAt = new Date();
             if (a.pnl == null) a.pnl = 0;
@@ -214,9 +227,19 @@ export const recordUnmatchedAllocation = (userOrder, trade, amount, reason = '')
  * @returns {{ amount: Number, pnl: Number }|null}
  */
 export const releaseAllocation = (userOrder, tradeId, pnlPercent) => {
-    const alloc = (userOrder.tradeAllocations || []).find(
+    let alloc = (userOrder.tradeAllocations || []).find(
         a => String(a.trade) === String(tradeId) && !a.closedAt
     );
+    // UNMATCHED từng bị heal đóng sớm (pnl=0) trong khi SIM còn chạy → cập nhật lại PnL cuối
+    if (!alloc) {
+        alloc = (userOrder.tradeAllocations || []).find(
+            a => String(a.trade) === String(tradeId)
+                && a.matchStatus === 'UNMATCHED'
+                && a.closedAt
+                && Number(a.pnlPercent || 0) === 0
+                && Number(a.pnl || 0) === 0
+        );
+    }
     if (!alloc) return null;
 
     const pnl = Math.round(alloc.amount * (Number(pnlPercent) || 0) / 100);

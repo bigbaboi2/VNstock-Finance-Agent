@@ -20,71 +20,76 @@ import {
 export const getSystemTradeLogs = async (req, res) => {
     try {
         // Open: mọi mode. Closed: ưu tiên SIM (training UI) — tránh 100 LIVE gần đây che hết lệnh mô phỏng.
-        const [openLogs, closedSimLogs, closedLiveLogs] = await Promise.all([
-            AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 }),
+        const [openLogs, closedSimLogs, closedLiveLogs, stats, statsLive, liveOfficial, streakAgg] = await Promise.all([
+            AutoTrade.find({ status: { $in: ['OPEN', 'PENDING'] } }).sort({ openedAt: -1 }).lean(),
             AutoTrade.find({
                 status: { $nin: ['OPEN', 'PENDING'] },
                 executionMode: { $ne: 'LIVE' },
-            }).sort({ openedAt: -1 }).limit(100),
+            }).sort({ openedAt: -1 }).limit(100).lean(),
             AutoTrade.find({
                 status: { $nin: ['OPEN', 'PENDING'] },
                 executionMode: 'LIVE',
-            }).sort({ openedAt: -1 }).limit(50),
+            }).sort({ openedAt: -1 }).limit(50).lean(),
+            AutoTrade.aggregate([
+                { $match: { status: 'CLOSED' } },
+                {
+                    $group: {
+                        _id: null,
+                        totalTrades: { $sum: 1 },
+                        winningTrades: { $sum: { $cond: [{ $gt: ['$pnlPercent', 0] }, 1, 0] } },
+                        losingTrades: { $sum: { $cond: [{ $lt: ['$pnlPercent', 0] }, 1, 0] } },
+                        totalPnlAmount: { $sum: '$pnl' },
+                        totalPnlPct: { $sum: '$pnlPercent' },
+                    },
+                },
+            ]),
+            AutoTrade.aggregate([
+                {
+                    $match: {
+                        status: 'CLOSED',
+                        executionMode: 'LIVE',
+                        pnlSource: { $in: ['LIVE_FILLS', 'LIVE_FILLS_NET_FEE'] },
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalTrades: { $sum: 1 },
+                        winningTrades: { $sum: { $cond: [{ $gt: ['$pnlPercent', 0] }, 1, 0] } },
+                        losingTrades: { $sum: { $cond: [{ $lt: ['$pnlPercent', 0] }, 1, 0] } },
+                        totalPnlAmount: { $sum: '$pnl' },
+                        totalPnlPct: { $sum: '$pnlPercent' },
+                        avgWinPct: { $avg: { $cond: [{ $gt: ['$pnlPercent', 0] }, '$pnlPercent', null] } },
+                        avgLossPct: { $avg: { $cond: [{ $lt: ['$pnlPercent', 0] }, '$pnlPercent', null] } },
+                    },
+                },
+            ]),
+            // Nguồn chuẩn: recomputed từ fills (bỏ MARK_SIM / sim fallback cũ)
+            sumLiveRealizedPnl({}).catch(() => null),
+            // Max win streak — aggregation thay vì load toàn bộ CLOSED vào RAM
+            AutoTrade.aggregate([
+                { $match: { status: 'CLOSED' } },
+                { $sort: { closedAt: 1 } },
+                {
+                    $group: {
+                        _id: null,
+                        outcomes: {
+                            $push: { $cond: [{ $gt: ['$pnlPercent', 0] }, 1, 0] },
+                        },
+                    },
+                },
+            ]),
         ]);
 
         const logs = [...openLogs, ...closedSimLogs, ...closedLiveLogs];
-
-        // Calculate performance statistics using MongoDB Aggregation for all CLOSED trades
-        const stats = await AutoTrade.aggregate([
-            { $match: { status: 'CLOSED' } },
-            { 
-                $group: { 
-                    _id: null, 
-                    totalTrades: { $sum: 1 },
-                    winningTrades: { 
-                        $sum: { $cond: [{ $gt: ["$pnlPercent", 0] }, 1, 0] } 
-                    },
-                    losingTrades: { 
-                        $sum: { $cond: [{ $lt: ["$pnlPercent", 0] }, 1, 0] } 
-                    },
-                    totalPnlAmount: { $sum: "$pnl" },
-                    totalPnlPct: { $sum: "$pnlPercent" }
-                } 
-            }
-        ]);
-
-        const statsLive = await AutoTrade.aggregate([
-            {
-                $match: {
-                    status: 'CLOSED',
-                    executionMode: 'LIVE',
-                    pnlSource: { $in: ['LIVE_FILLS', 'LIVE_FILLS_NET_FEE'] },
-                },
-            },
-            {
-                $group: {
-                    _id: null,
-                    totalTrades: { $sum: 1 },
-                    winningTrades: { $sum: { $cond: [{ $gt: ['$pnlPercent', 0] }, 1, 0] } },
-                    losingTrades: { $sum: { $cond: [{ $lt: ['$pnlPercent', 0] }, 1, 0] } },
-                    totalPnlAmount: { $sum: '$pnl' },
-                    totalPnlPct: { $sum: '$pnlPercent' },
-                    avgWinPct: { $avg: { $cond: [{ $gt: ['$pnlPercent', 0] }, '$pnlPercent', null] } },
-                    avgLossPct: { $avg: { $cond: [{ $lt: ['$pnlPercent', 0] }, '$pnlPercent', null] } },
-                },
-            },
-        ]);
-
-        // Nguồn chuẩn: recomputed từ fills (bỏ MARK_SIM / sim fallback cũ)
-        const liveOfficial = await sumLiveRealizedPnl({}).catch(() => null);
 
         let totalTrades = 0, winningTrades = 0, losingTrades = 0, totalPnlAmount = 0, totalPnlPct = 0;
         if (stats.length > 0) {
             ({ totalTrades, winningTrades, losingTrades, totalPnlAmount, totalPnlPct } = stats[0]);
         }
-        
+
         const winRate = totalTrades > 0 ? Math.round((winningTrades / totalTrades) * 100) : 0;
-        const avgPnl = totalTrades > 0 ? (totalPnlPct / totalTrades).toFixed(2) : "0.00";
+        const avgPnl = totalTrades > 0 ? (totalPnlPct / totalTrades).toFixed(2) : '0.00';
 
         let metricsLive = {
             winRate: 0, avgPnl: '0.00', totalTrades: 0,
@@ -96,9 +101,9 @@ export const getSystemTradeLogs = async (req, res) => {
             const liveTotal = liveOfficial.eligibleCount;
             const wins = liveOfficial.winCount || 0;
             const losses = liveTotal - wins;
-            const pcts = (liveOfficial.byTrade || []).map(t => Number(t.pnlPercent) || 0);
-            const winPcts = pcts.filter(p => p > 0);
-            const lossPcts = pcts.filter(p => p < 0);
+            const pcts = (liveOfficial.byTrade || []).map((t) => Number(t.pnlPercent) || 0);
+            const winPcts = pcts.filter((p) => p > 0);
+            const lossPcts = pcts.filter((p) => p < 0);
             const liveAvgWin = winPcts.length ? winPcts.reduce((a, b) => a + b, 0) / winPcts.length : 0;
             const liveAvgLoss = lossPcts.length ? lossPcts.reduce((a, b) => a + b, 0) / lossPcts.length : 0;
             const liveExpectancy = liveTotal > 0
@@ -143,34 +148,44 @@ export const getSystemTradeLogs = async (req, res) => {
             };
         }
 
-        const unified30d = await getUnifiedTradeAnalytics({ days: 30 }).catch(() => null);
-        
-        const allClosedTrades = await AutoTrade.find({ status: 'CLOSED' }).sort({ closedAt: 1 }).select('pnlPercent').lean();
-        let currentStreak = 0;
         let maxWinStreak = 0;
-
-        allClosedTrades.forEach(trade => {
-            if (trade.pnlPercent > 0) {
-                currentStreak++;
+        let currentStreak = 0;
+        const outcomes = streakAgg?.[0]?.outcomes || [];
+        for (const win of outcomes) {
+            if (win) {
+                currentStreak += 1;
             } else {
-                if (currentStreak > maxWinStreak) {
-                    maxWinStreak = currentStreak;
-                }
+                if (currentStreak > maxWinStreak) maxWinStreak = currentStreak;
                 currentStreak = 0;
             }
-        });
+        }
         if (currentStreak > maxWinStreak) maxWinStreak = currentStreak;
 
         return res.json({
             success: true,
-            metrics: { 
+            metrics: {
                 winRate, avgPnl, totalTrades, maxWinStreak,
                 totalPnlAmount, winningTrades, losingTrades,
             },
             metricsLive,
-            analytics30d: unified30d,
-            data: logs
+            data: logs,
         });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/** GET /api/auto-trade/open-live — chỉ lệnh LIVE đang OPEN/PENDING (nhẹ cho tab Broker) */
+export const getOpenLiveTrades = async (req, res) => {
+    try {
+        const data = await AutoTrade.find({
+            executionMode: 'LIVE',
+            status: { $in: ['OPEN', 'PENDING'] },
+        })
+            .sort({ openedAt: -1 })
+            .select('symbol direction status executionMode entryPrice investedAmount openedAt assetType aiScore marketType leverage')
+            .lean();
+        return res.json({ success: true, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -579,8 +594,27 @@ export const deleteUserOrder = async (req, res) => {
 //Get a list of commands according to a specific individual's expectations
 export const getUserOrders = async (req, res) => {
     try {
+        const lite = String(req.query.lite || '') === '1';
+
+        // lite=1: đọc nhanh cho UI (không heal, lean) — hiện gói + tổng ví sớm
+        if (lite) {
+            const data = await UserOrder.find({ username: req.params.username })
+                .populate({
+                    path: 'tradeAllocations.trade',
+                    select: 'status executionMode',
+                })
+                .populate({ path: 'assignedTrade', select: 'status executionMode' })
+                .sort({ createdAt: -1 })
+                .lean();
+            return res.json({ success: true, data, lite: true });
+        }
+
         const data = await UserOrder.find({ username: req.params.username })
                                     .populate('assignedTrade')
+                                    .populate({
+                                        path: 'tradeAllocations.trade',
+                                        select: 'status executionMode symbol direction entryPrice openedAt closedAt',
+                                    })
                                     .sort({ createdAt: -1 });
         // Heal allocation treo + làm mới thông báo STOPPED (không làm fail cả list nếu 1 gói lỗi)
         for (const order of data) {

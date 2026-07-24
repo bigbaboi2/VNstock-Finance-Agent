@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Check, ChevronDown, Download, RotateCcw, Save, Settings, X } from 'lucide-react';
+import { Check, ChevronDown, Download, RotateCcw, Save, Search, Settings, X } from 'lucide-react';
 import {
     DEFAULT_EXPORT_FILE_NAME_PATTERN,
     LIVE_EXPORT_NAME_TAGS,
@@ -37,6 +37,101 @@ const LIVE_EXPORT_FILE_CATALOG = [
         ],
     },
 ];
+
+const stripDiacritics = (s) => String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+
+const prepareSearchText = (s, { ignoreCase = true, ignoreDiacritics = true } = {}) => {
+    let out = String(s ?? '');
+    if (ignoreDiacritics) out = stripDiacritics(out);
+    if (ignoreCase) out = out.toLowerCase();
+    return out;
+};
+
+const isWordChar = (ch) => /[0-9A-Za-zÀ-ỹ_]/.test(ch || '');
+
+/** Tìm mọi khoảng khớp trong text gốc theo tùy chọn kiểu Ctrl+F Word. */
+const findMatchRanges = (text, query, options = {}) => {
+    const original = String(text ?? '');
+    const rawNeedle = String(query ?? '').trim();
+    if (!rawNeedle || !original) return [];
+
+    const { ignoreCase = true, ignoreDiacritics = true, wholeWord = false } = options;
+    const chars = [...original];
+    let prepared = '';
+    const map = []; // prepared index → original char index
+    for (let origIdx = 0; origIdx < chars.length; origIdx += 1) {
+        const chunk = prepareSearchText(chars[origIdx], { ignoreCase, ignoreDiacritics });
+        for (let i = 0; i < chunk.length; i += 1) {
+            map.push(origIdx);
+            prepared += chunk[i];
+        }
+    }
+
+    const needle = prepareSearchText(rawNeedle, { ignoreCase, ignoreDiacritics });
+    if (!needle) return [];
+
+    const ranges = [];
+    let searchFrom = 0;
+    while (searchFrom < prepared.length) {
+        const idx = prepared.indexOf(needle, searchFrom);
+        if (idx === -1) break;
+        const startOrig = map[idx];
+        const endOrig = map[idx + needle.length - 1] + 1;
+
+        if (wholeWord) {
+            const before = startOrig > 0 ? chars[startOrig - 1] : '';
+            const after = endOrig < chars.length ? chars[endOrig] : '';
+            const beforeOk = !before || !isWordChar(before);
+            const afterOk = !after || !isWordChar(after);
+            if (!beforeOk || !afterOk) {
+                searchFrom = idx + 1;
+                continue;
+            }
+        }
+
+        ranges.push({ start: startOrig, end: endOrig });
+        searchFrom = idx + Math.max(1, needle.length);
+    }
+    return ranges;
+};
+
+const textMatchesSearch = (text, query, options = {}) => findMatchRanges(text, query, options).length > 0;
+
+const splitHighlightParts = (text, query, options = {}) => {
+    const original = String(text ?? '');
+    const ranges = findMatchRanges(original, query, options);
+    if (!ranges.length) return [{ text: original, hit: false }];
+
+    const parts = [];
+    let cursor = 0;
+    for (const { start, end } of ranges) {
+        if (start > cursor) parts.push({ text: original.slice(cursor, start), hit: false });
+        parts.push({ text: original.slice(start, end), hit: true });
+        cursor = end;
+    }
+    if (cursor < original.length) parts.push({ text: original.slice(cursor), hit: false });
+    return parts;
+};
+
+function HighlightText({ text, query, options, isDark, markClassName }) {
+    const needle = String(query || '').trim();
+    const parts = splitHighlightParts(text, needle, options);
+    if (!needle || parts.every((p) => !p.hit)) return text;
+    const markCls = markClassName || (
+        isDark
+            ? 'bg-amber-400/45 text-amber-50 rounded-[3px] px-0.5 shadow-[0_0_0_1px_rgba(251,191,36,0.35)]'
+            : 'bg-amber-200 text-amber-950 rounded-[3px] px-0.5 shadow-[0_0_0_1px_rgba(217,119,6,0.35)]'
+    );
+    return parts.map((part, i) => (
+        part.hit
+            ? <mark key={i} className={`${markCls} font-semibold not-italic`}>{part.text}</mark>
+            : <span key={i}>{part.text}</span>
+    ));
+}
 
 const valuesEqual = (a, b) => {
     if (a === b) return true;
@@ -167,6 +262,10 @@ export default function AutoDuckEnvSettingsPanel({
     const [resettingGroup, setResettingGroup] = useState(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
     const [openGroups, setOpenGroups] = useState(() => new Set());
+    const [configSearch, setConfigSearch] = useState('');
+    const [searchIgnoreCase, setSearchIgnoreCase] = useState(true);
+    const [searchIgnoreDiacritics, setSearchIgnoreDiacritics] = useState(true);
+    const [searchWholeWord, setSearchWholeWord] = useState(false);
     const [exportDir, setExportDir] = useState('exports');
     const [exportFileNamePattern, setExportFileNamePattern] = useState(DEFAULT_EXPORT_FILE_NAME_PATTERN);
     const [exportDateFrom, setExportDateFrom] = useState('');
@@ -284,6 +383,47 @@ export default function AutoDuckEnvSettingsPanel({
     const isDirty = (key) => !valuesEqual(draft[key], values[key]);
 
     const groupHasDirty = (group) => (group.keys || []).some((field) => isDirty(field.key));
+
+    const searchQuery = configSearch.trim();
+    const searchOptions = useMemo(() => ({
+        ignoreCase: searchIgnoreCase,
+        ignoreDiacritics: searchIgnoreDiacritics,
+        wholeWord: searchWholeWord,
+    }), [searchIgnoreCase, searchIgnoreDiacritics, searchWholeWord]);
+
+    const fieldMatchesSearch = (field) => {
+        if (!searchQuery) return true;
+        const blobs = [
+            field.key,
+            field.label,
+            field.help,
+            field.example,
+            field.note,
+            field.badge,
+        ].filter(Boolean);
+        return blobs.some((blob) => textMatchesSearch(blob, searchQuery, searchOptions));
+    };
+
+    const filteredGroups = useMemo(() => {
+        if (!searchQuery) return groups;
+        return groups
+            .map((group) => {
+                const groupHit = textMatchesSearch(`${group.id} ${group.label}`, searchQuery, searchOptions);
+                const matchedKeys = (group.keys || []).filter(fieldMatchesSearch);
+                if (!groupHit && matchedKeys.length === 0) return null;
+                return {
+                    ...group,
+                    keys: groupHit && matchedKeys.length === 0 ? (group.keys || []) : matchedKeys,
+                };
+            })
+            .filter(Boolean);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [groups, searchQuery, searchOptions]);
+
+    useEffect(() => {
+        if (!searchQuery) return;
+        setOpenGroups(new Set(filteredGroups.map((g) => g.id)));
+    }, [searchQuery, filteredGroups]);
 
     const toggleGroup = (id) => {
         setOpenGroups((prev) => {
@@ -631,7 +771,89 @@ export default function AutoDuckEnvSettingsPanel({
                         <p className={`text-[13px] font-medium ${UI.textMuted}`}>Đang tải cấu hình…</p>
                     ) : (
                         <div className="space-y-4">
-                            {groups.map((group) => {
+                            <div className="space-y-2">
+                                <div className="relative">
+                                    <Search
+                                        size={15}
+                                        className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+                                    />
+                                    <input
+                                        type="search"
+                                        value={configSearch}
+                                        onChange={(e) => setConfigSearch(e.target.value)}
+                                        placeholder="Tìm setting… (vd: futures, short, đòn bẩy, quality)"
+                                        className={`w-full h-10 pl-9 pr-9 rounded-xl text-[13px] font-medium outline-none border-2 transition-colors ${
+                                            isDark
+                                                ? 'bg-[#0a0f18] text-slate-100 border-white/35 focus:border-cyan-400 placeholder:text-slate-500'
+                                                : 'bg-white text-slate-800 border-slate-300 focus:border-cyan-500 placeholder:text-slate-400'
+                                        }`}
+                                    />
+                                    {configSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfigSearch('')}
+                                            title="Xóa tìm kiếm"
+                                            className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors ${
+                                                isDark ? 'text-slate-400 hover:bg-white/10 hover:text-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {[
+                                        {
+                                            id: 'ignoreCase',
+                                            label: 'Không phân biệt hoa/thường',
+                                            title: 'Giống Word: tắt Match case — Live = live',
+                                            checked: searchIgnoreCase,
+                                            onChange: setSearchIgnoreCase,
+                                        },
+                                        {
+                                            id: 'ignoreDiacritics',
+                                            label: 'Khớp không dấu',
+                                            title: 'Bỏ dấu tiếng Việt — “don bay” khớp “đòn bẩy”',
+                                            checked: searchIgnoreDiacritics,
+                                            onChange: setSearchIgnoreDiacritics,
+                                        },
+                                        {
+                                            id: 'wholeWord',
+                                            label: 'Khớp hoàn toàn (cả từ)',
+                                            title: 'Giống Word: Find whole words only — chỉ khớp từ đứng riêng',
+                                            checked: searchWholeWord,
+                                            onChange: setSearchWholeWord,
+                                        },
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            title={opt.title}
+                                            aria-pressed={opt.checked}
+                                            onClick={() => opt.onChange(!opt.checked)}
+                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors active:scale-[0.97] ${
+                                                opt.checked
+                                                    ? (isDark
+                                                        ? 'bg-cyan-500/25 text-cyan-100 border-cyan-400/60'
+                                                        : 'bg-cyan-100 text-cyan-900 border-cyan-400')
+                                                    : (isDark
+                                                        ? 'bg-white/5 text-slate-400 border-white/25 hover:bg-white/10'
+                                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100')
+                                            }`}
+                                        >
+                                            {opt.checked ? '✓ ' : ''}{opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {searchQuery && (
+                                <p className={`text-[12px] font-medium ${UI.textMuted}`}>
+                                    {filteredGroups.length === 0
+                                        ? `Không tìm thấy setting khớp “${searchQuery}”.`
+                                        : `Tìm thấy ${filteredGroups.reduce((n, g) => n + (g.keys || []).length, 0)} setting trong ${filteredGroups.length} nhóm.`}
+                                </p>
+                            )}
+                            {filteredGroups.map((group) => {
                                 const isOpen = openGroups.has(group.id);
                                 const isResetting = resettingGroup === group.id;
                                 const dirtyGroup = groupHasDirty(group);
@@ -663,7 +885,9 @@ export default function AutoDuckEnvSettingsPanel({
                                                     size={18}
                                                     className={`shrink-0 transition-transform duration-300 ${isDark ? 'text-cyan-300' : 'text-cyan-600'} ${isOpen ? '' : '-rotate-90'}`}
                                                 />
-                                                <span className="truncate">{group.label}</span>
+                                                <span className="truncate">
+                                                    <HighlightText text={group.label} query={searchQuery} options={searchOptions} isDark={isDark} />
+                                                </span>
                                                 {dirtyGroup && (
                                                     <span className={`normal-case tracking-normal text-[10px] font-semibold px-1.5 py-0.5 rounded-md border shrink-0 ${
                                                         isDark
@@ -1021,7 +1245,9 @@ export default function AutoDuckEnvSettingsPanel({
                                                         >
                                                             <div className="flex items-start justify-between gap-2 mb-1.5">
                                                                 <label className={`text-[13px] font-semibold leading-snug flex flex-wrap items-center gap-1.5 ${UI.textBold}`}>
-                                                                    <span>{field.label}</span>
+                                                                    <span>
+                                                                        <HighlightText text={field.label} query={searchQuery} options={searchOptions} isDark={isDark} />
+                                                                    </span>
                                                                     {field.badge === 'live' || field.badge === 'sim' ? (
                                                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md border text-[10px] font-bold tracking-wide ${modeBadgeClass(field.badge, isDark)}`}>
                                                                             {field.badge === 'live' ? 'LIVE' : 'SIM'}
@@ -1033,14 +1259,14 @@ export default function AutoDuckEnvSettingsPanel({
                                                                 </span>
                                                             </div>
                                                             <p className={`text-[12px] leading-relaxed mb-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                                                {field.help}
+                                                                <HighlightText text={field.help} query={searchQuery} options={searchOptions} isDark={isDark} />
                                                             </p>
                                                             <p className={`text-[12px] italic leading-relaxed mb-1.5 ${isDark ? 'text-cyan-100/95' : 'text-cyan-800'}`}>
-                                                                {field.example}
+                                                                <HighlightText text={field.example} query={searchQuery} options={searchOptions} isDark={isDark} />
                                                             </p>
                                                             {field.note ? (
                                                                 <p className={`text-[12px] italic leading-relaxed mb-3 pl-2 border-l-2 ${isDark ? 'border-sky-400/50 text-sky-100/90' : 'border-sky-400 text-sky-900/80'}`}>
-                                                                    {field.note}
+                                                                    <HighlightText text={field.note} query={searchQuery} options={searchOptions} isDark={isDark} />
                                                                 </p>
                                                             ) : (
                                                                 <div className="mb-3" />
@@ -1071,7 +1297,9 @@ export default function AutoDuckEnvSettingsPanel({
                                                                     className={`${inputClass} ${!enabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                                                                 />
                                                             )}
-                                                            <p className={`block mt-2 text-[11px] font-mono italic leading-relaxed opacity-70 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{field.key}</p>
+                                                            <p className={`block mt-2 text-[11px] font-mono italic leading-relaxed opacity-70 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                <HighlightText text={field.key} query={searchQuery} options={searchOptions} isDark={isDark} />
+                                                            </p>
                                                         </div>
                                                         );
                                                     })}

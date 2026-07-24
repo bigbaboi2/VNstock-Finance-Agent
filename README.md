@@ -15,7 +15,7 @@
 
 🇻🇳 [Đọc bản tiếng Việt](README.vi.md)
 
-[Quick Start](#-quick-start) · [Visual Tour](#-visual-tour) · [Tabs](#-tabs-guide) · [Features](#-core-features) · [AI System](#-ai-system) · [Configuration](#%EF%B8%8F-environment-configuration)
+[Quick Start](#-quick-start) · [Visual Tour](#-visual-tour) · [Themes](#-ui-theme-mechanism) · [Tabs](#-tabs-guide) · [Features](#-core-features) · [CLI](#-optional-cli) · [Configuration](#%EF%B8%8F-environment-configuration)
 
 </div>
 
@@ -24,18 +24,19 @@
 ## 📋 Table of Contents
 
 1. [Visual Tour](#-visual-tour)
-2. [Overview](#-overview)
-3. [Quick Start](#-quick-start)
-4. [Tabs Guide](#-tabs-guide)
-5. [Core Features](#-core-features)
-6. [AI System](#-ai-system)
-7. [Architecture](#%EF%B8%8F-system-architecture)
-8. [Environment Configuration](#%EF%B8%8F-environment-configuration)
-9. [API Endpoints](#-api-endpoints)
-10. [Project Structure](#-project-structure)
-11. [Optional CLI](#-optional-cli)
-12. [Roadmap](#%EF%B8%8F-roadmap)
-13. [Disclaimer](#%EF%B8%8F-disclaimer)
+2. [UI Theme Mechanism](#-ui-theme-mechanism)
+3. [Overview](#-overview)
+4. [Quick Start](#-quick-start)
+5. [Tabs Guide](#-tabs-guide)
+6. [Core Features](#-core-features)
+7. [AI System](#-ai-system)
+8. [Architecture](#%EF%B8%8F-system-architecture)
+9. [Environment Configuration](#%EF%B8%8F-environment-configuration)
+10. [API Endpoints](#-api-endpoints)
+11. [Project Structure](#-project-structure)
+12. [Optional CLI](#-optional-cli)
+13. [Roadmap](#%EF%B8%8F-roadmap)
+14. [Disclaimer](#%EF%B8%8F-disclaimer)
 
 ---
 
@@ -82,6 +83,53 @@
 </table>
 
 </details>
+
+</details>
+
+---
+
+## 🎨 UI Theme Mechanism
+
+The terminal is not locked to a single dark/light skin. Appearance is controlled by four independent axes, applied via `data-theme`, `data-ui-style`, and `data-font-scale` on `<html>` (plus CSS variables such as `--omni-font-scale`). Preferences are saved per account through `/api/auth/preferences`, with `localStorage` as an offline fallback.
+
+| Axis | Options | What it changes |
+|------|---------|-----------------|
+| **Theme** | Light · Dark | Background, surfaces, borders, semantic text contrast |
+| **Frontend style** | Classic · Minimal · Ultra · Book | Density, motion, typography, and whether panels mount lazily |
+| **Font scale** | Small · Medium · Large · XL | App-wide rem scaling (`0.875` → `1.25`) |
+| **Clock** | 2D · 3D | Header clock rendering mode |
+
+**Frontend styles at a glance**
+
+| Style (`uiStyle`) | Label (UI) | Behavior |
+|-------------------|------------|----------|
+| `classic` | Hiện tại | Full effects and dense multi-panel layout |
+| `minimal` | Tối giản | Reduced motion / effects — prioritizes FPS |
+| `ultra` | Siêu tối giản | Stack navigation — sections mount only when opened |
+| `book` | Chế độ sách | Paper/parchment palette + book typography (`font-book`) |
+
+Open **Cài đặt phong cách** from the user menu (header) to switch any of the above live.
+
+<details open>
+<summary><b>Theme showcase</b> — light · book · settings (click to collapse)</summary>
+
+<table>
+<tr>
+<td align="center" width="50%"><b>Light — market overview</b><br/><img src="docs/screenshots/theme-light-overview.png" width="100%" alt="Light theme market overview"/></td>
+<td align="center" width="50%"><b>Book mode — parchment overview</b><br/><img src="docs/screenshots/theme-book-overview.png" width="100%" alt="Book mode market overview"/></td>
+</tr>
+<tr>
+<td align="center"><b>Book mode — chart & analysis</b><br/><img src="docs/screenshots/theme-book-chart.png" width="100%" alt="Book mode chart and analysis"/></td>
+<td align="center"><b>Book mode — AutoDuck</b><br/><img src="docs/screenshots/theme-book-autoduck.png" width="100%" alt="Book mode AutoDuck"/></td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td align="center" width="50%"><b>Style settings panel</b><br/><img src="docs/screenshots/theme-style-settings.png" width="320" alt="Style settings: theme, clock, font, frontend style"/></td>
+<td align="center" width="50%"><b>Style menu (desktop)</b><br/><img src="docs/screenshots/theme-style-menu.png" width="320" alt="Desktop style menu with font scale and frontend presets"/></td>
+</tr>
+</table>
 
 </details>
 
@@ -402,14 +450,41 @@ ProjectFinance/
 
 ## 💻 Optional CLI
 
-Terminal UI alternative to the React dashboard — VN stocks, derivatives, and crypto.
+Full-screen TUI alternative to the React dashboard — same backend APIs, keyboard-first workflow. Palette lives in `cli/theme.js` (amber brand, cyan frames, green/red P&L); charts and dense tables render with ANSI + box-drawing characters.
 
 ```bash
-# From project root
+# From project root (backend must be running on :3001)
 node cli/omni-cli.js
 
 # Or on Windows: double-click omni-manager.bat
 ```
+
+| Workspace | What you get |
+|-----------|----------------|
+| **Equity** | Lookup → overview / candles / AI report / news |
+| **Market Radar** | VN-INDEX status, sector flow, top movers |
+| **Crypto** | Quote, candlestick + volume, news feed |
+| **Derivatives** | Futures / index views (same stack) |
+
+<details open>
+<summary><b>CLI showcase</b> — equity · crypto · market radar (click to collapse)</summary>
+
+<table>
+<tr>
+<td align="center" width="50%"><b>Equity workspace</b><br/><img src="docs/screenshots/cli-equity-workspace.png" width="100%" alt="CLI equity lookup workspace"/></td>
+<td align="center" width="50%"><b>Equity detail</b><br/><img src="docs/screenshots/cli-equity-detail.png" width="100%" alt="CLI equity detail with tech &amp; valuation"/></td>
+</tr>
+<tr>
+<td align="center"><b>Equity chart</b><br/><img src="docs/screenshots/cli-equity-chart.png" width="100%" alt="CLI candlestick chart for MBB"/></td>
+<td align="center"><b>Crypto chart</b><br/><img src="docs/screenshots/cli-crypto-chart.png" width="100%" alt="CLI BTC quote and candlestick chart"/></td>
+</tr>
+<tr>
+<td align="center"><b>Crypto news</b><br/><img src="docs/screenshots/cli-crypto-news.png" width="100%" alt="CLI crypto news feed"/></td>
+<td align="center"><b>Market Radar</b><br/><img src="docs/screenshots/cli-market-radar.png" width="100%" alt="CLI VN-INDEX market radar"/></td>
+</tr>
+</table>
+
+</details>
 
 ---
 

@@ -341,7 +341,8 @@ html[data-ui-style="book"][data-theme="light"] {
   --book-panel: #faf6ef;
   --book-card: #fffdf8;
   --book-muted-bg: #efe8dc;
-  --book-rule: #d4c8b0;
+  --book-rule: #8f7858;
+  --book-rule-strong: #7a6548;
   --book-ink: #2c2419;
   --book-accent: #8a6b3d;
   background-color: var(--book-paper);
@@ -374,13 +375,30 @@ html[data-ui-style="book"][data-theme="light"] .bg-\[\#F8F9FA\] {
   background-color: var(--book-muted-bg) !important;
 }
 
-/* Border lạnh → viền sách */
+/* Border lạnh → viền sách (đậm hơn để tách khối) */
 html[data-ui-style="book"][data-theme="light"] .border-slate-100,
 html[data-ui-style="book"][data-theme="light"] .border-slate-200,
 html[data-ui-style="book"][data-theme="light"] .border-slate-300,
 html[data-ui-style="book"][data-theme="light"] .border-gray-200,
-html[data-ui-style="book"][data-theme="light"] .border-gray-300 {
+html[data-ui-style="book"][data-theme="light"] .border-gray-300,
+html[data-ui-style="book"][data-theme="light"] .\!border-slate-300,
+html[data-ui-style="book"][data-theme="light"] .border-\[\#d4c8b0\],
+html[data-ui-style="book"][data-theme="light"] .border-\[\#cfc0a8\],
+html[data-ui-style="book"][data-theme="light"] .border-\[\#c4b59a\] {
   border-color: var(--book-rule) !important;
+}
+
+/* Khối form / field trong chế độ sách: viền 2px rõ */
+html[data-ui-style="book"] [data-book-outline],
+html[data-ui-style="book"] .book-field {
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-color: var(--book-rule-strong, var(--book-rule)) !important;
+}
+
+html[data-ui-style="book"][data-theme="dark"] [data-book-outline],
+html[data-ui-style="book"][data-theme="dark"] .book-field {
+  border-color: #6a5a48 !important;
 }
 
 /* Gradient có to-white / from-white */
@@ -425,7 +443,8 @@ html[data-ui-style="book"][data-theme="dark"] {
   --book-panel: #221c16;
   --book-card: #241e18;
   --book-muted-bg: #2a221a;
-  --book-rule: #3d3428;
+  --book-rule: #6a5a48;
+  --book-rule-strong: #7a6a55;
   --book-ink: #e8e0d4;
   --book-accent: #c4a574;
 }

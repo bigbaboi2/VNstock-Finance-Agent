@@ -99,6 +99,7 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
     });
     const [loading, setLoading] = useState(false);
     const [logsLoading, setLogsLoading] = useState(true);
+    const [packagesLoading, setPackagesLoading] = useState(true);
     const [isSubmittingPackage, setIsSubmittingPackage] = useState(false);
     const [actionMessage, setActionMessage] = useState({ text: '', isError: false });
     const fetchSeqRef = useRef(0);
@@ -164,36 +165,179 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
     const userOrderStats = useMemo(() => {
         const totalOpenRunning = userOrders.reduce((sum, order) => sum + countOpenOrdersInPackage(order), 0);
         const activePackages = userOrders.filter((o) => ['ACTIVE', 'PENDING', 'MATCHED'].includes(o.status)).length;
+
+        let fundLive = 0;
+        let realizedPnl = 0;
+        let closedN = 0;
+        let wins = 0;
+        for (const order of userOrders) {
+            if (order.executionMode === 'LIVE' && order.allocationMode === 'PORTFOLIO') {
+                fundLive += Number(order.totalCapital) || 0;
+            }
+            const allocs = order.allocationMode === 'PORTFOLIO'
+                ? (order.tradeAllocations || []).filter((a) => isMatchedAllocation(order, a) && a.closedAt)
+                : [];
+            for (const a of allocs) {
+                closedN += 1;
+                const pnl = Number(a.pnl) || 0;
+                realizedPnl += pnl;
+                if (pnl > 0) wins += 1;
+            }
+            if (order.allocationMode !== 'PORTFOLIO' && order.status === 'COMPLETED') {
+                realizedPnl += Number(order.result?.finalPnl) || 0;
+            }
+        }
+        const packageWinRate = closedN > 0 ? Math.round((wins / closedN) * 100) : null;
+
         return {
             packageCount: userOrders.length,
             totalOpenRunning,
             activePackages,
+            fundLive,
+            realizedPnl,
+            packageWinRate,
+            closedN,
         };
     }, [userOrders]);
+
+    const applySettingsPayload = (data) => {
+        if (!data) return;
+        if (data.autoTradeTotalCapital) {
+            setTotalCapital(data.autoTradeTotalCapital);
+            if (!isEditingCapital) {
+                setCapitalInput(Number(data.autoTradeTotalCapital).toLocaleString('vi-VN'));
+            }
+        }
+        if (data.autoTradeRiskLevel) {
+            setRiskLevel(Number(data.autoTradeRiskLevel));
+        }
+        if (data.autoTradeEnabled !== undefined) {
+            const raw = data.autoTradeEnabled;
+            setIsEngineEnabled(raw === true || raw === 'true' || raw === 1);
+        }
+    };
+
+    /** Tầng 1 — settings (nhanh nhất): bật/tắt engine, khẩu vị rủi ro. */
+    const fetchSettingsFast = async (seq) => {
+        const res = await axios.get('/api/auto-trade/settings').catch(() => ({ data: { success: false } }));
+        if (seq !== fetchSeqRef.current) return;
+        if (res.data.success) applySettingsPayload(res.data.data);
+    };
+
+    /** Tầng 2 — gói lệnh: hiện list + tổng ví/PnL sớm, không chờ broker equity. */
+    const fetchPackagesFast = async (seq) => {
+        const res = await axios.get(`/api/auto-trade/user-order/${username}`, {
+            params: { lite: 1 },
+        }).catch(() => ({ data: { success: false } }));
+        if (seq !== fetchSeqRef.current) return;
+        if (res.data.success) setUserOrders(res.data.data || []);
+        setPackagesLoading(false);
+    };
+
+    /** Tầng 3 — kết nối sàn + lessons (có thể chậm vì equity Binance). */
+    const fetchBrokerSide = async (seq) => {
+        const [resLessons, resConns] = await Promise.all([
+            axios.get('/api/auto-trade/ai-lessons').catch(() => ({ data: { success: false } })),
+            axios.get(`/api/exchange-connections/${username}`).catch(() => ({ data: { success: false } })),
+        ]);
+        if (seq !== fetchSeqRef.current) return;
+        if (resConns.data.success) {
+            setLiveConnections(
+                (resConns.data.data || []).filter((c) => c.isActive && (c.permissions || []).includes('TRADE'))
+            );
+        }
+        if (resLessons.data.success) setAiLessons(resLessons.data.data);
+        axios.get('/api/auto-trade/usd-rate')
+            .then((r) => { if (r.data?.success && r.data.rate > 0) setUsdVndRate(r.data.rate); })
+            .catch(() => {});
+    };
+
+    /** Tầng 4 — nhật ký / metrics LIVE (chậm nhất). */
+    const fetchLogsData = async (seq, { isInitial } = {}) => {
+        if (isInitial) setLogsLoading(true);
+        try {
+            const resLogs = await axios.get('/api/auto-trade/logs').catch(() => ({ data: { success: false } }));
+            if (seq !== fetchSeqRef.current) return;
+            if (resLogs.data.success) {
+                setSystemLogs(resLogs.data.data || []);
+                setMetrics(resLogs.data.metrics);
+                if (resLogs.data.metricsLive) setMetricsLive(resLogs.data.metricsLive);
+            }
+        } finally {
+            if (seq === fetchSeqRef.current && isInitial) {
+                logsReadyRef.current = true;
+                setLogsLoading(false);
+            }
+        }
+    };
+
+    /** Heal đầy đủ gói (sau lite) — không chặn UI. */
+    const fetchPackagesFull = async (seq) => {
+        const res = await axios.get(`/api/auto-trade/user-order/${username}`).catch(() => ({ data: { success: false } }));
+        if (seq !== fetchSeqRef.current) return;
+        if (res.data.success) setUserOrders(res.data.data || []);
+    };
+
+    const fetchAllData = async () => {
+        if (!username) return;
+        const seq = ++fetchSeqRef.current;
+        const isInitialLogsLoad = !logsReadyRef.current;
+        try {
+            // Cascade hiển thị: settings → gói lite (UI sớm) → broker/heal/logs nền
+            await fetchSettingsFast(seq);
+            if (seq !== fetchSeqRef.current) return;
+
+            // Bắt đầu logs sớm (chậm) nhưng không chặn hiện gói
+            const logsPromise = fetchLogsData(seq, { isInitial: isInitialLogsLoad });
+
+            await fetchPackagesFast(seq);
+            if (seq !== fetchSeqRef.current) return;
+
+            await Promise.all([
+                fetchBrokerSide(seq),
+                fetchPackagesFull(seq),
+                logsPromise,
+            ]);
+        } catch (err) {
+            if (seq !== fetchSeqRef.current) return;
+            setActionMessage({ text: 'Không tải được dữ liệu AutoTrade. Kiểm tra backend/API.', isError: true });
+            setPackagesLoading(false);
+            if (isInitialLogsLoad) {
+                logsReadyRef.current = true;
+                setLogsLoading(false);
+            }
+        }
+    };
+
+    useEffect(() => {
+        logsReadyRef.current = false;
+        setLogsLoading(true);
+        setPackagesLoading(true);
+        fetchAllData();
+        const interval = setInterval(fetchAllData, 20000);
+        return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username]);
 
     const filteredAndSortedLogs = useMemo(() => {
         let result = [...systemLogs];
 
-        // Lọc SIM / LIVE
         if (filterExecMode === 'LIVE') {
             result = result.filter((log) => log.executionMode === 'LIVE');
         } else if (filterExecMode === 'SIMULATED') {
             result = result.filter((log) => log.executionMode !== 'LIVE');
         }
 
-        // Lọc theo trạng thái
         if (filterStatus === 'OPEN') {
-            result = result.filter(log => ['OPEN', 'PENDING'].includes(log.status));
+            result = result.filter((log) => ['OPEN', 'PENDING'].includes(log.status));
         } else if (filterStatus === 'CLOSED') {
-            result = result.filter(log => ['CLOSED', 'REJECTED', 'SKIP'].includes(log.status));
+            result = result.filter((log) => ['CLOSED', 'REJECTED', 'SKIP'].includes(log.status));
         }
 
-        // Lọc theo thị trường
         if (filterAsset !== 'ALL') {
-            result = result.filter(log => log.assetType === filterAsset);
+            result = result.filter((log) => log.assetType === filterAsset);
         }
 
-        // Sắp xếp theo thời gian
         result.sort((a, b) => {
             const timeA = new Date(a.openedAt || a.createdAt).getTime();
             const timeB = new Date(b.openedAt || b.createdAt).getTime();
@@ -213,79 +357,8 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
         return { all: systemLogs.length, sim, live };
     }, [systemLogs]);
 
-    // Tính toán phân bổ vốn
     const allocatedCapital = performance.openExposure;
     const allocationPercent = totalCapital > 0 ? Math.min(100, (allocatedCapital / totalCapital) * 100) : 0;
-
-    const fetchAllData = async () => {
-        if (!username) return;
-        const seq = ++fetchSeqRef.current;
-        const isInitialLogsLoad = !logsReadyRef.current;
-        if (isInitialLogsLoad) setLogsLoading(true);
-        try {
-            const [resLogs, resUser, resLessons, resSettings, resConns] = await Promise.all([
-                axios.get('/api/auto-trade/logs').catch(() => ({ data: { success: false } })),
-                axios.get(`/api/auto-trade/user-order/${username}`).catch(() => ({ data: { success: false } })),
-                axios.get('/api/auto-trade/ai-lessons').catch(() => ({ data: { success: false } })),
-                axios.get('/api/auto-trade/settings').catch(() => ({ data: { success: false } })),
-                axios.get(`/api/exchange-connections/${username}`).catch(() => ({ data: { success: false } })),
-            ]);
-            // Bỏ qua response cũ — tránh poll 20s ghi đè list sau khi vừa xóa gói.
-            if (seq !== fetchSeqRef.current) return;
-
-            if (resConns.data.success) {
-                setLiveConnections(
-                    (resConns.data.data || []).filter(c => c.isActive && (c.permissions || []).includes('TRADE'))
-                );
-            }
-
-            // Tỷ giá USD→VND realtime (Vietcombank, cache backend 1h)
-            axios.get('/api/auto-trade/usd-rate')
-                .then(r => { if (r.data?.success && r.data.rate > 0) setUsdVndRate(r.data.rate); })
-                .catch(() => {});
-
-            if (resLogs.data.success) {
-                setSystemLogs(resLogs.data.data);
-                setMetrics(resLogs.data.metrics);
-                if (resLogs.data.metricsLive) setMetricsLive(resLogs.data.metricsLive);
-            }
-            if (resUser.data.success) setUserOrders(resUser.data.data);
-            if (resLessons.data.success) setAiLessons(resLessons.data.data);
-            if (resSettings.data.success && resSettings.data.data) {
-                if (resSettings.data.data.autoTradeTotalCapital) {
-                    setTotalCapital(resSettings.data.data.autoTradeTotalCapital);
-                    if (!isEditingCapital) {
-                        setCapitalInput(Number(resSettings.data.data.autoTradeTotalCapital).toLocaleString('vi-VN'));
-                    }
-                }
-                if (resSettings.data.data.autoTradeRiskLevel) {
-                    setRiskLevel(Number(resSettings.data.data.autoTradeRiskLevel));
-                }
-                if (resSettings.data.data.autoTradeEnabled !== undefined) {
-                    // Ép Boolean: bắt cả string "false" / number 0 từ MongoDB
-                    const raw = resSettings.data.data.autoTradeEnabled;
-                    setIsEngineEnabled(raw === true || raw === 'true' || raw === 1);
-                }
-            }
-        } catch (err) {
-            if (seq !== fetchSeqRef.current) return;
-            setActionMessage({ text: 'Không tải được dữ liệu AutoTrade. Kiểm tra backend/API.', isError: true });
-        } finally {
-            if (seq === fetchSeqRef.current && isInitialLogsLoad) {
-                logsReadyRef.current = true;
-                setLogsLoading(false);
-            }
-        }
-    };
-
-    useEffect(() => {
-        logsReadyRef.current = false;
-        setLogsLoading(true);
-        fetchAllData();
-        const interval = setInterval(fetchAllData, 20000);
-        return () => clearInterval(interval);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [username]);
 
     const handleSaveCapital = async () => {
         const numericValue = Number(String(capitalInput).replace(/\D/g, ''));
@@ -595,7 +668,12 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                                 <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Gói của bạn ({userOrderStats.packageCount})</span>
                             </div>
                             <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-3 flex flex-col gap-3">
-                                {userOrders.length === 0 ? (
+                                {packagesLoading ? (
+                                    <div className={`flex items-center justify-center gap-2 py-8 ${UI.textMuted}`}>
+                                        <Loader2 size={14} className="animate-spin text-emerald-500" />
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Đang tải gói…</span>
+                                    </div>
+                                ) : userOrders.length === 0 ? (
                                     <p className={`text-sm font-bold text-center py-6 ${UI.textMuted}`}>Chưa có gói lệnh.</p>
                                 ) : (
                                     userOrders.map((order, idx) => (
@@ -756,15 +834,15 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                 <span className={`text-[10px] font-bold ${UI.textMuted}`}>· Tạo lệnh để bot khớp & vào lệnh tự động (mô phỏng hoặc LIVE trên sàn)</span>
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
-                <section className={`xl:col-span-5 rounded-xl border-2 p-5 ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
-                    <div className={`flex items-center gap-2 mb-4 pb-3 border-b ${UI.border}`}>
+                <section data-book-outline className={`xl:col-span-5 rounded-xl border-2 p-5 ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}`}>
+                    <div className={`flex items-center gap-2 mb-4 pb-3 border-b-2 ${UI.border}`}>
                         <Briefcase size={16} className="text-emerald-500" />
                         <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>Tạo gói lệnh ủy thác</span>
                     </div>
 
                     <form onSubmit={handleFormSubmit} className={`flex flex-col gap-3 ${isSubmittingPackage ? 'pointer-events-none opacity-80' : ''}`}>
                         {/* ── CHẾ ĐỘ ỦY THÁC VỐN ── */}
-                        <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col gap-2 ${UI.searchBg}`}>
+                        <div className={`book-field p-3 rounded-lg border-2 flex flex-col gap-2 ${UI.searchBg}`}>
                             <label className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>
                                 Chế độ ủy thác vốn
                                 <button type="button" onClick={() => setShowGuide(true)} className="text-cyan-400 hover:text-cyan-300">
@@ -893,7 +971,7 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                         </FieldShell>
 
                         {/* CHẾ ĐỘ THỰC THI */}
-                        <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col gap-2 ${UI.searchBg}`}>
+                        <div className={`book-field p-3 rounded-lg border-2 flex flex-col gap-2 ${UI.searchBg}`}>
                             <label className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>
                                 Chế độ thực thi
                                 <button type="button" onClick={() => setShowGuide(true)} className="text-cyan-400 hover:text-cyan-300">
@@ -982,7 +1060,7 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                     </form>
                 </section>
 
-                <section className={`xl:col-span-7 rounded-xl border-2 flex flex-col h-full overflow-hidden relative ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : '!border-slate-300'}`}>
+                <section data-book-outline className={`xl:col-span-7 rounded-xl border-2 flex flex-col h-full overflow-hidden relative ${UI.card} ${isDark ? '!border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}`}>
                     {isSubmittingPackage && (
                         <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-[2px] ${isDark ? 'bg-black/40' : 'bg-white/50'}`}>
                             <Loader2 size={28} className="animate-spin text-emerald-400" />
@@ -991,7 +1069,7 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                             </p>
                         </div>
                     )}
-                    <div className={`px-5 py-4 flex flex-col gap-1 border-b ${UI.border} shrink-0`}>
+                    <div className={`px-5 py-4 flex flex-col gap-3 border-b ${UI.border} shrink-0`}>
                         <div className="flex items-center gap-2">
                             <Target size={16} className="text-yellow-500 shrink-0" />
                             <span className={`text-[11px] font-black uppercase tracking-widest ${UI.textBold}`}>
@@ -1001,12 +1079,44 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                                 <Loader2 size={12} className="animate-spin text-emerald-400" />
                             )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 pl-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className={`rounded-lg border px-2.5 py-2 ${isDark ? 'bg-black/25 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                                <p className={`text-[8px] font-black uppercase tracking-widest ${UI.textMuted}`}>Quỹ LIVE</p>
+                                <p className={`text-sm font-mono font-black ${packagesLoading ? UI.textMuted : 'text-cyan-500'}`}>
+                                    {packagesLoading ? '…' : `${(userOrderStats.fundLive / 1e6).toFixed(2)}Tr`}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg border px-2.5 py-2 ${isDark ? 'bg-black/25 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                                <p className={`text-[8px] font-black uppercase tracking-widest ${UI.textMuted}`}>PnL gói</p>
+                                <p className={`text-sm font-mono font-black ${packagesLoading ? UI.textMuted : (userOrderStats.realizedPnl >= 0 ? 'text-emerald-500' : 'text-red-500')}`}>
+                                    {packagesLoading
+                                        ? '…'
+                                        : `${userOrderStats.realizedPnl >= 0 ? '+' : ''}${Math.round(userOrderStats.realizedPnl / 1e3)}k`}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg border px-2.5 py-2 ${isDark ? 'bg-black/25 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                                <p className={`text-[8px] font-black uppercase tracking-widest ${UI.textMuted}`}>Winrate gói</p>
+                                <p className={`text-sm font-mono font-black ${packagesLoading ? UI.textMuted : 'text-amber-500'}`}>
+                                    {packagesLoading
+                                        ? '…'
+                                        : (userOrderStats.packageWinRate != null ? `${userOrderStats.packageWinRate}%` : '—')}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg border px-2.5 py-2 ${isDark ? 'bg-black/25 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                                <p className={`text-[8px] font-black uppercase tracking-widest ${UI.textMuted}`}>
+                                    {logsLoading ? 'LIVE WR …' : 'LIVE WR'}
+                                </p>
+                                <p className={`text-sm font-mono font-black ${logsLoading ? UI.textMuted : 'text-violet-400'}`}>
+                                    {logsLoading ? '…' : `${metricsLive.winRate || metrics.winRate || 0}%`}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
                             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
-                                {userOrderStats.packageCount} gói
+                                {packagesLoading ? '…' : userOrderStats.packageCount} gói
                             </span>
                             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${userOrderStats.totalOpenRunning > 0 ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : (isDark ? 'bg-white/5 border-white/10 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500')}`}>
-                                {userOrderStats.totalOpenRunning} lệnh đang chạy
+                                {packagesLoading ? '…' : userOrderStats.totalOpenRunning} lệnh đang chạy
                             </span>
                             {userOrderStats.activePackages > 0 && (
                                 <span className={`text-[10px] font-bold ${UI.textMuted}`}>
@@ -1016,7 +1126,12 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
-                        {userOrders.length === 0 ? (
+                        {packagesLoading ? (
+                            <div className={`flex items-center justify-center gap-2 py-10 ${UI.textMuted}`}>
+                                <Loader2 size={16} className="animate-spin text-emerald-500" />
+                                <span className="text-[11px] font-bold uppercase tracking-widest">Đang tải gói lệnh…</span>
+                            </div>
+                        ) : userOrders.length === 0 ? (
                             <p className={`text-sm font-bold text-center py-8 ${UI.textMuted}`}>
                                 Chưa có gói lệnh nào. Tạo gói lệnh để AutoDuck tự khớp tín hiệu tối ưu cho bạn.
                             </p>
@@ -1387,7 +1502,7 @@ function ResultCard({ UI, isDark, label, value, tone, detail }) {
 
 function FieldShell({ UI, label, children, action }) {
     return (
-        <div className={`p-3 rounded-lg border dark:!border-white/80 !border-slate-300 flex flex-col justify-center ${UI.searchBg}`}>
+        <div className={`book-field p-3 rounded-lg border-2 flex flex-col justify-center ${UI.searchBg}`}>
             <div className="flex items-center justify-between mb-2">
                 <label className={`block text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>{label}</label>
                 {action}
@@ -1465,16 +1580,28 @@ function TradeCard({ log, isDark, UI }) {
                         log.status === 'PENDING' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' : 
                         'bg-slate-500/10 text-slate-400 border-slate-500/30'
                     }`}>
-                        {log.status}
+                        {log.status === 'PENDING' ? 'PENDING' : log.status}
                     </span>
+                    {log.status === 'PENDING' && (
+                        <span
+                            title="Đang đợi giá khớp / xác nhận fill trên sàn"
+                            className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                        >
+                            CHỜ KHỚP
+                        </span>
+                    )}
                     {!isOpen && log.status !== 'PENDING' && (
                         <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${log.pnlPercent >= 0 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
                             PnL {log.pnlPercent >= 0 ? '+' : ''}{formatNumber(log.pnlPercent, 2)}%
                         </span>
                     )}
                     {isOpen && (
-                        <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-blue-500/10 text-blue-400 border-blue-500/30`}>
-                            LIVE PNL ĐANG CHẠY
+                        <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${
+                            log.executionMode === 'LIVE'
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                        }`}>
+                            {log.executionMode === 'LIVE' ? 'PNL LIVE ĐANG CHẠY' : 'PNL SIM ĐANG CHẠY'}
                         </span>
                     )}
                     <ChevronDown size={18} className={`ml-2 shrink-0 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
@@ -1695,9 +1822,23 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                         {[...allAllocations].reverse().map((a, i) => {
                             const isClosed = !!a.closedAt;
                             const isUnmatched = !isMatchedAllocation(order, a);
+                            const tradeDoc = a.trade && typeof a.trade === 'object' ? a.trade : null;
+                            const tradeStatus = tradeDoc?.status || null;
+                            // PENDING = live đã gửi sàn, đang chờ fill (khác UNMATCHED/FAILED)
+                            const isPendingFill = !isClosed && !isUnmatched && tradeStatus === 'PENDING';
+                            // UNMATCHED + SIM còn OPEN → chưa chốt, không hiện % giả
+                            const simStillRunning = isUnmatched && (
+                                (tradeStatus && ['OPEN', 'PENDING'].includes(tradeStatus))
+                                || (!tradeDoc && !isClosed)
+                            );
+                            const pnlPct = Number(a.pnlPercent || 0);
+                            const reason = a.matchMessage || 'Khớp broker thất bại';
+                            const modeTag = isUnmatched
+                                ? 'SIM'
+                                : (a.executionMode === 'LIVE' ? 'LIVE' : 'SIM');
                             return (
                                 <div key={i} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[10px] ${isDark ? 'bg-black/20' : 'bg-slate-50'}`}>
-                                    <div className="flex items-center gap-1.5 min-w-0">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                                         <span className={`font-black font-mono ${UI.textBold}`}>{a.symbol || '—'}</span>
                                         {a.direction && (
                                             <span className={`px-1 py-0.5 rounded text-[8px] font-black ${
@@ -1708,11 +1849,26 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                                                 {a.direction}
                                             </span>
                                         )}
-                                        {isUnmatched
-                                            ? <span title={a.matchMessage || 'Khớp broker thất bại'} className="px-1 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-500">UNMATCHED</span>
-                                            : a.executionMode === 'LIVE'
-                                            ? <span className="px-1 py-0.5 rounded text-[8px] font-black bg-emerald-500/15 text-emerald-500">LIVE</span>
-                                            : <span className="px-1 py-0.5 rounded text-[8px] font-black bg-amber-500/15 text-amber-500">SIM</span>}
+                                        {isUnmatched && (
+                                            <span title={reason} className="px-1 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-500">UNMATCHED</span>
+                                        )}
+                                        <span className={`px-1 py-0.5 rounded text-[8px] font-black ${
+                                            modeTag === 'LIVE'
+                                                ? 'bg-emerald-500/15 text-emerald-500'
+                                                : 'bg-amber-500/15 text-amber-500'
+                                        }`}>
+                                            {modeTag}
+                                        </span>
+                                        {isPendingFill && (
+                                            <span title="Live đã gửi sàn — đang chờ khớp/fill" className="px-1 py-0.5 rounded text-[8px] font-black bg-yellow-500/15 text-yellow-400">
+                                                PENDING
+                                            </span>
+                                        )}
+                                        {simStillRunning && (
+                                            <span title="Live fail; SIM nền đang chạy, chưa chốt TP/SL" className="px-1 py-0.5 rounded text-[8px] font-black bg-sky-500/15 text-sky-400">
+                                                OPENING
+                                            </span>
+                                        )}
                                         <span className={`font-mono ${UI.textMuted}`}>
                                             @{Number(a.entryPrice).toLocaleString('en-US', { maximumFractionDigits: 4 })}
                                             {a.openedAt && <span className="ml-1.5 opacity-50 text-[8px] font-normal">({new Date(a.openedAt).toLocaleString('vi-VN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })})</span>}
@@ -1720,24 +1876,37 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                         <span className={`font-mono font-bold ${UI.textNormal}`}>{(a.amount / 1e6).toFixed(2)}Tr</span>
-                                        {isClosed ? (
-                                            <span className={`font-mono font-black ${a.pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                {a.pnlPercent >= 0 ? '+' : ''}{Number(a.pnlPercent || 0).toFixed(2)}%
+                                        {simStillRunning ? (
+                                            <span
+                                                title="SIM chưa chốt — không hiện PnL %"
+                                                className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wide bg-sky-500/15 text-sky-400"
+                                            >
+                                                OPENING
                                             </span>
-                                        ) : isUnmatched ? (
-                                            <div className="group flex items-center justify-end w-[100px] cursor-pointer">
+                                        ) : isClosed ? (
+                                            <span
+                                                title={isUnmatched ? 'PnL cuối SIM tham chiếu — không cộng quỹ LIVE' : undefined}
+                                                className={`font-mono font-black ${pnlPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}
+                                            >
+                                                {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                                            </span>
+                                        ) : null}
+                                        {isUnmatched ? (
+                                            <div className="group flex items-center justify-end w-[110px] cursor-default" title={reason}>
                                                 <span className="text-[11px] font-black text-red-500 group-hover:hidden">
                                                     UNMATCHED
                                                 </span>
                                                 <div className="hidden group-hover:flex relative overflow-hidden w-full mask-fade-edges items-center">
-                                                    <span className="text-[10px] font-bold text-yellow-400 animate-marquee-left" title={a.matchMessage || 'Lỗi'}>
-                                                        {a.matchMessage || 'Lỗi'}
+                                                    <span className="text-[10px] font-bold text-yellow-400 animate-marquee-left whitespace-nowrap">
+                                                        {reason}
                                                     </span>
                                                 </div>
                                             </div>
-                                        ) : (
+                                        ) : isPendingFill ? (
+                                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-yellow-500/15 text-yellow-400">CHỜ FILL</span>
+                                        ) : !isClosed ? (
                                             <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-cyan-500/15 text-cyan-500">ĐANG MỞ</span>
-                                        )}
+                                        ) : null}
                                     </div>
                                 </div>
                             );

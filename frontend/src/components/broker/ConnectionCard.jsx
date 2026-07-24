@@ -35,7 +35,9 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
         setBusy('test');
         try {
             const res = await axios.post(`/api/exchange-connections/${conn._id}/test`, { username });
-            showFlash(res.data.success ? `Kết nối OK (${res.data.latencyMs}ms)` : res.data.message, !res.data.success);
+            const msg = res.data.message || (res.data.success ? `Kết nối OK (${res.data.latencyMs}ms)` : 'Test thất bại');
+            const futuresFail = String(msg).includes('Futures FAIL');
+            showFlash(msg, !res.data.success || futuresFail);
             onChanged?.();
         } catch (err) {
             showFlash(err.response?.data?.message || 'Lỗi test kết nối.', true);
@@ -196,18 +198,34 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
             </div>
 
             {/* QUYỀN & TEST */}
-            <div className="flex items-center justify-between text-[11px] font-bold">
-                <span className={UI.textMuted}>
+            <div className="flex items-center justify-between text-[11px] font-bold gap-2">
+                <span className={`${UI.textMuted} min-w-0`}>
                     Quyền: {(conn.permissions || []).map(p => (
-                        <span key={p} className={p === 'WITHDRAW' ? 'text-red-400' : 'text-emerald-400'}> {p}✓</span>
+                        <span key={p} className={
+                            p === 'WITHDRAW' ? 'text-red-400'
+                                : p === 'FUTURES' ? 'text-cyan-400'
+                                    : 'text-emerald-400'
+                        }> {p}✓</span>
                     ))}
+                    {String(conn.exchangeName).toUpperCase() === 'BINANCE' && !(conn.permissions || []).includes('FUTURES') && (
+                        <span className="text-amber-400"> FUTURES✗</span>
+                    )}
                 </span>
-                <span className={conn.lastTestStatus === 'OK' ? 'text-emerald-400' : conn.lastTestStatus === 'FAILED' ? 'text-red-400' : UI.textMuted}>
+                <span className={`shrink-0 ${conn.lastTestStatus === 'OK' ? 'text-emerald-400' : conn.lastTestStatus === 'FAILED' ? 'text-red-400' : UI.textMuted}`}>
                     {conn.lastTestStatus === 'OK' && <Check size={11} className="inline" />}
                     {conn.lastTestStatus === 'FAILED' && <AlertTriangle size={11} className="inline" />}
                     {' '}Test: {conn.lastTestStatus}{conn.lastTestLatencyMs != null ? ` (${conn.lastTestLatencyMs}ms)` : ''}
                 </span>
             </div>
+
+            {conn.lastTestMessage && String(conn.lastTestMessage).includes('Futures FAIL') && (
+                <p className="text-[10px] font-black text-amber-400 leading-snug">
+                    ⚠️ Spot OK nhưng Futures FAIL — SHORT/đòn bẩy sẽ UNMATCHED.
+                    {String(conn.environment).toUpperCase() === 'TESTNET'
+                        ? ' Binance Testnet: tạo API key tại testnet.binancefuture.com (khác Spot testnet.binance.vision).'
+                        : ' Kiểm tra API key có bật quyền Futures / IP whitelist.'}
+                </p>
+            )}
 
             {conn.permissions?.includes('WITHDRAW') && (
                 <p className="text-[10px] font-black text-red-400">⚠️ Key này có quyền RÚT TIỀN — hãy tạo lại key và tắt quyền Withdraw!</p>

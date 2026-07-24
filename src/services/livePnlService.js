@@ -196,9 +196,28 @@ export const sumLiveRealizedPnl = async ({ username = null, tradeIds: tradeIdsFi
     let missingFeeCount = 0;
     const byTrade = [];
 
+    // Batch 1 query thay vì N+1 ExchangeOrder.find theo từng trade
+    const tradeObjectIds = trades.map((t) => t._id).filter(Boolean);
+    const allOrders = tradeObjectIds.length
+        ? await ExchangeOrder.find({
+            autoTradeId: { $in: tradeObjectIds },
+            status: { $in: ['FILLED', 'PARTIAL'] },
+        }).lean()
+        : [];
+    const ordersByTradeId = new Map();
+    for (const o of allOrders) {
+        const key = String(o.autoTradeId);
+        if (!ordersByTradeId.has(key)) ordersByTradeId.set(key, []);
+        ordersByTradeId.get(key).push(o);
+    }
+
     for (const t of trades) {
-        // Ưu tiên đã persist pnlSource fill; vẫn recomputed để thống nhất
-        const result = await computeLivePnlFromExchangeOrders(t, usdVndRate, { quietFeeWarn: true });
+        const result = computeLivePnlFromOrderList(
+            t,
+            ordersByTradeId.get(String(t._id)) || [],
+            usdVndRate,
+            { quietFeeWarn: true },
+        );
         if (!result.eligible) continue;
         eligibleCount += 1;
         if (!(Number(result.feeUSDT) > 0)) missingFeeCount += 1;
