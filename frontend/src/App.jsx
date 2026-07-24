@@ -76,7 +76,10 @@ function App() {
   const [authForm, setAuthForm] = useState({ username: '', password: '', isRegister: false });
 
 //CONFIG: THEME ENGINE + USER UI PREFERENCES (MongoDB)
-const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true };
+const UI_STYLES = new Set(['classic', 'minimal', 'book']);
+const DEFAULT_UI_PREFS = { theme: 'dark', clock3d: true, uiStyle: 'classic' };
+
+const normalizeUiStyle = (value) => (UI_STYLES.has(value) ? value : DEFAULT_UI_PREFS.uiStyle);
 
 const readLocalThemeFallback = (user) => {
   if (user) {
@@ -98,26 +101,41 @@ const readLocalClock3dFallback = (user) => {
   return DEFAULT_UI_PREFS.clock3d;
 };
 
+const readLocalUiStyleFallback = (user) => {
+  if (user) {
+    const perUser = localStorage.getItem(`omni_ui_style_${user}`);
+    if (UI_STYLES.has(perUser)) return perUser;
+  }
+  const global = localStorage.getItem('omni_ui_style');
+  return normalizeUiStyle(global);
+};
+
 const cacheUiPreferencesLocally = (prefs, user) => {
   const theme = prefs?.theme === 'light' ? 'light' : 'dark';
   const clock3d = prefs?.clock3d !== false;
+  const uiStyle = normalizeUiStyle(prefs?.uiStyle);
   localStorage.setItem('omni_theme', theme);
   localStorage.setItem('omni_clock_3d', String(clock3d));
+  localStorage.setItem('omni_ui_style', uiStyle);
   if (user) {
     localStorage.setItem(`omni_theme_${user}`, theme);
     localStorage.setItem(`omni_clock_3d_${user}`, String(clock3d));
+    localStorage.setItem(`omni_ui_style_${user}`, uiStyle);
   }
-  return { theme, clock3d };
+  return { theme, clock3d, uiStyle };
 };
 
 const [theme, setTheme] = useState(() => readLocalThemeFallback(currentUser));
 const [is3DClock, setIs3DClock] = useState(() => readLocalClock3dFallback(currentUser));
+const [uiStyle, setUiStyle] = useState(() => readLocalUiStyleFallback(currentUser));
 const isDark = theme === 'dark';
+const reduceMotion = uiStyle === 'minimal';
 
 const applyUiPreferences = useCallback((prefs, user = currentUser) => {
   const next = cacheUiPreferencesLocally(prefs || DEFAULT_UI_PREFS, user);
   setTheme(next.theme);
   setIs3DClock(next.clock3d);
+  setUiStyle(next.uiStyle);
   return next;
 }, [currentUser]);
 
@@ -128,25 +146,34 @@ const persistUiPreferences = useCallback(async (partial, user = currentUser) => 
   const nextClock3d = typeof partial.clock3d === 'boolean'
     ? partial.clock3d
     : is3DClock;
-  const next = applyUiPreferences({ theme: nextTheme, clock3d: nextClock3d }, user);
+  const nextUiStyle = UI_STYLES.has(partial.uiStyle)
+    ? partial.uiStyle
+    : uiStyle;
+  const next = applyUiPreferences({
+    theme: nextTheme,
+    clock3d: nextClock3d,
+    uiStyle: nextUiStyle,
+  }, user);
   if (!user) return next;
   try {
     await axios.post('/api/auth/preferences', {
       username: user,
       theme: next.theme,
       clock3d: next.clock3d,
+      uiStyle: next.uiStyle,
     });
   } catch (err) {
     console.warn('[UI prefs] Không lưu được preference lên server:', err?.response?.data?.message || err.message);
   }
   return next;
-}, [applyUiPreferences, currentUser, is3DClock, theme]);
+}, [applyUiPreferences, currentUser, is3DClock, theme, uiStyle]);
 
 useEffect(() => {
   if (!currentUser) {
     applyUiPreferences({
       theme: readLocalThemeFallback(null),
       clock3d: readLocalClock3dFallback(null),
+      uiStyle: readLocalUiStyleFallback(null),
     }, null);
     return undefined;
   }
@@ -164,6 +191,13 @@ useEffect(() => {
   return () => { cancelled = true; };
 }, [currentUser, applyUiPreferences]);
 
+useEffect(() => {
+  const root = document.documentElement;
+  root.setAttribute('data-ui-style', uiStyle);
+  root.setAttribute('data-theme', theme);
+  root.classList.toggle('ui-reduce-motion', reduceMotion);
+}, [uiStyle, theme, reduceMotion]);
+
 const handleToggleTheme = () => {
   const newTheme = isDark ? 'light' : 'dark';
   void persistUiPreferences({ theme: newTheme });
@@ -171,6 +205,11 @@ const handleToggleTheme = () => {
 
 const handleToggleClockMode = () => {
   void persistUiPreferences({ clock3d: !is3DClock });
+};
+
+const handleSetUiStyle = (nextStyle) => {
+  if (!UI_STYLES.has(nextStyle)) return;
+  void persistUiPreferences({ uiStyle: nextStyle });
 };
   //LOGIC: AUTHENTICATION HANDLERS
   const [authError, setAuthError] = useState('');
@@ -1101,21 +1140,81 @@ const derivAnalysis = React.useMemo(() => {
     }
   }, [activeMode, derivInterval, marketOpen]);
 
-    const UI = React.useMemo(() => ({
-    main: isDark ? 'bg-[#06080B] text-white' : 'bg-[#F8FAFC] text-black',
-    header: isDark ? 'bg-[#0B0F14]/90 border-white/5' : 'bg-white border-slate-300 shadow-sm',
-    searchBg: isDark ? 'bg-[#121821] border-white/10' : 'bg-white border-slate-400 shadow-inner', 
-    searchInput: isDark ? 'text-white placeholder:text-slate-500' : 'text-black placeholder:text-slate-600 font-black', 
-    leftCol: isDark ? 'bg-[#080C11] border-white/5' : 'bg-[#F1F5F9] border-slate-300', 
-    rightCol: isDark ? 'bg-[#05080C]' : 'bg-white',
-    card: isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-300 shadow-md',
-    cardHover: isDark ? 'hover:bg-white/5 border-white/5' : 'hover:bg-slate-100 border-slate-400',
-    textBold: isDark ? 'text-white' : 'text-black',
-    textNormal: isDark ? 'text-slate-200' : 'text-slate-800',
-    textMuted: isDark ? 'text-slate-400' : 'text-slate-600',
-    border: isDark ? 'border-white/5' : 'border-slate-300',
-    btnLog: isDark ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white' : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100 shadow-sm'
-  }), [isDark]);
+    const UI = React.useMemo(() => {
+    if (uiStyle === 'book') {
+      return isDark
+        ? {
+            main: 'bg-[#1a1612] text-[#e8e0d4] font-book',
+            header: 'bg-[#221c16]/95 border-[#3d3428]',
+            searchBg: 'bg-[#2a221a] border-[#4a3f32]',
+            searchInput: 'text-[#e8e0d4] placeholder:text-[#8a7d6c]',
+            leftCol: 'bg-[#1e1914] border-[#3d3428]',
+            rightCol: 'bg-[#16120e]',
+            card: 'bg-[#241e18] border-[#3d3428]',
+            cardHover: 'hover:bg-[#2e261e] border-[#4a3f32]',
+            textBold: 'text-[#f2ebe0]',
+            textNormal: 'text-[#d4c8b8]',
+            textMuted: 'text-[#9a8b78]',
+            border: 'border-[#3d3428]',
+            btnLog: 'bg-[#2a221a] text-[#c4b5a0] border-[#4a3f32] hover:text-[#f2ebe0] hover:bg-[#322a20]',
+            radius: 'rounded-md',
+            reduceMotion: false,
+            uiStyle: 'book',
+          }
+        : {
+            main: 'bg-[#f4efe6] text-[#2c2419] font-book',
+            header: 'bg-[#faf6ef] border-[#d4c8b0] shadow-sm',
+            searchBg: 'bg-[#fffdf8] border-[#cfc0a8]',
+            searchInput: 'text-[#2c2419] placeholder:text-[#8a7d6c] font-semibold',
+            leftCol: 'bg-[#efe8dc] border-[#d4c8b0]',
+            rightCol: 'bg-[#faf6ef]',
+            card: 'bg-[#fffdf8] border-[#d4c8b0] shadow-sm',
+            cardHover: 'hover:bg-[#f0e9dc] border-[#c4b59a]',
+            textBold: 'text-[#1f1912]',
+            textNormal: 'text-[#3d3428]',
+            textMuted: 'text-[#6e6254]',
+            border: 'border-[#d4c8b0]',
+            btnLog: 'bg-[#fffdf8] text-[#4a3f32] border-[#cfc0a8] hover:text-[#1f1912] hover:bg-[#efe8dc]',
+            radius: 'rounded-md',
+            reduceMotion: false,
+            uiStyle: 'book',
+          };
+    }
+
+    const classic = {
+      main: isDark ? 'bg-[#06080B] text-white' : 'bg-[#F8FAFC] text-black',
+      header: isDark ? 'bg-[#0B0F14]/90 border-white/5' : 'bg-white border-slate-300 shadow-sm',
+      searchBg: isDark ? 'bg-[#121821] border-white/10' : 'bg-white border-slate-400 shadow-inner',
+      searchInput: isDark ? 'text-white placeholder:text-slate-500' : 'text-black placeholder:text-slate-600 font-black',
+      leftCol: isDark ? 'bg-[#080C11] border-white/5' : 'bg-[#F1F5F9] border-slate-300',
+      rightCol: isDark ? 'bg-[#05080C]' : 'bg-white',
+      card: isDark ? 'bg-[#10151C] border-white/5' : 'bg-white border-slate-300 shadow-md',
+      cardHover: isDark ? 'hover:bg-white/5 border-white/5' : 'hover:bg-slate-100 border-slate-400',
+      textBold: isDark ? 'text-white' : 'text-black',
+      textNormal: isDark ? 'text-slate-200' : 'text-slate-800',
+      textMuted: isDark ? 'text-slate-400' : 'text-slate-600',
+      border: isDark ? 'border-white/5' : 'border-slate-300',
+      btnLog: isDark
+        ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white'
+        : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100 shadow-sm',
+      radius: 'rounded-xl',
+      reduceMotion: uiStyle === 'minimal',
+      uiStyle,
+    };
+
+    if (uiStyle === 'minimal') {
+      return {
+        ...classic,
+        header: isDark ? 'bg-[#0B0F14] border-white/10' : 'bg-white border-slate-300',
+        card: isDark ? 'bg-[#10151C] border-white/10' : 'bg-white border-slate-300',
+        btnLog: isDark
+          ? 'bg-[#121821] text-slate-400 border-white/10 hover:text-white'
+          : 'bg-white text-slate-700 border-slate-300 hover:text-black hover:bg-slate-100',
+      };
+    }
+
+    return classic;
+  }, [isDark, uiStyle]);
 
     const addLog = useCallback((msg) => {
         setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 30))
@@ -1994,7 +2093,11 @@ const handleAiAnalysis = async (forceRefresh = false) => {
   }, [marketData?.stockInfo?.symbol, activeInterval, marketOpen, activeMode]);
   
   return (
-    <div className={`w-full h-screen flex flex-col overflow-hidden font-sans antialiased transition-colors duration-300 ${UI.main}`}>
+    <div
+      data-ui-style={uiStyle}
+      data-theme={theme}
+      className={`w-full h-screen flex flex-col overflow-hidden antialiased transition-colors duration-300 ${uiStyle === 'book' ? 'font-book' : 'font-sans'} ${UI.main}`}
+    >
       
       {/*AUTH SCREEN CONTAINER */}
         {!currentUser && (
@@ -2005,9 +2108,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         )}
 
       {/*TERMINAL MAIN CONTAINER */}
-      <div className={`w-full h-full flex flex-col transition-opacity duration-500 ${!currentUser ? 'opacity-0 pointer-events-none blur-md' : 'opacity-100'}`}>
+      <div className={`w-full h-full flex flex-col transition-opacity duration-500 ${!currentUser ? `opacity-0 pointer-events-none${reduceMotion ? '' : ' blur-md'}` : 'opacity-100'}`}>
         <AppHeader
-        isDark={isDark} UI={UI} theme={isDark ? 'dark' : 'light'}
+        isDark={isDark} UI={UI}
+        uiStyle={uiStyle}
         activeMode={activeMode} 
         marketOpen={activeMode === 'CRYPTO' ? true : marketOpen}
         input={input} setInput={setInput}
@@ -2020,8 +2124,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
         currentUser={currentUser}
         is3DClock={is3DClock}
         setActiveMode={setActiveMode} handleLogout={handleLogout}
-        handleGoHome={handleGoHome} handleToggleTheme={handleToggleTheme}
+        handleGoHome={handleGoHome}
+        handleToggleTheme={handleToggleTheme}
         handleToggleClockMode={handleToggleClockMode}
+        handleSetUiStyle={handleSetUiStyle}
         fetchMarketData={fetchMarketData} executePaperSearch={executePaperSearch}
         />
 

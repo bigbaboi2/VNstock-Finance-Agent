@@ -2538,7 +2538,10 @@ export default function VnStocksTab({
 
       <div className="flex-1 flex flex-row w-full min-h-0 relative">
 
-      {/* ── BOOKMARK TOGGLE COL 1 (desktop only) ── */}
+      {/* ── BOOKMARK TOGGLE COL 1 (desktop only) ──
+           Khi MỞ ("Đóng"): trong suốt, hover sáng, neon mờ ~29s/lần
+           Khi ĐÓNG ("Dữ liệu"): vàng nổi bật như cũ
+      ── */}
       <button
         onClick={() => setIsLeftColOpen(v => !v)}
         title={isLeftColOpen ? 'Thu gọn bảng Dữ liệu' : 'Mở bảng Dữ liệu'}
@@ -2554,42 +2557,27 @@ export default function VnStocksTab({
         }}
       >
         <div
-          className="flex flex-col items-center justify-center gap-1.5 px-2 py-5 rounded-r-2xl active:scale-95"
+          className={[
+            'flex flex-col items-center justify-center gap-1.5 px-2 py-5 rounded-r-2xl active:scale-95',
+            isLeftColOpen ? `col-bookmark-ghost${!isDark ? ' col-bookmark-ghost--light' : ''}` : '',
+          ].filter(Boolean).join(' ')}
           style={{
-            transition: 'background 200ms, box-shadow 200ms, transform 100ms',
             borderTopWidth: '1px',
             borderBottomWidth: '1px',
             borderRightWidth: '1px',
             borderLeftWidth: '0px',
             borderStyle: 'solid',
-            ...(isDark
-              ? isLeftColOpen
-                ? {
-                    background: '#0d1219',
-                    borderColor: 'rgba(250,204,21,0.22)',
-                    color: '#facc15',
-                    boxShadow: '4px 0 18px rgba(250,204,21,0.10)',
-                  }
-                : {
-                    background: '#facc15',
-                    borderColor: '#fde047',
-                    color: '#000',
-                    boxShadow: '4px 0 28px rgba(250,204,21,0.55)',
-                  }
-              : isLeftColOpen
-                ? {
-                    background: '#fff',
-                    borderColor: '#cbd5e1',
-                    color: '#475569',
-                    boxShadow: '4px 0 12px rgba(0,0,0,0.10)',
-                  }
-                : {
-                    background: '#facc15',
-                    borderColor: '#fde047',
-                    color: '#000',
-                    boxShadow: '4px 0 20px rgba(250,204,21,0.45)',
-                  }
-            ),
+            ...(!isLeftColOpen
+              ? {
+                  transition: 'background 200ms, box-shadow 200ms, transform 100ms',
+                  background: '#facc15',
+                  borderColor: '#fde047',
+                  color: '#000',
+                  boxShadow: isDark
+                    ? '4px 0 28px rgba(250,204,21,0.55)'
+                    : '4px 0 20px rgba(250,204,21,0.45)',
+                }
+              : null),
           }}
         >
           <Database size={13} />
@@ -2610,7 +2598,7 @@ export default function VnStocksTab({
       </button>
 
       {/* ── BOOKMARK TOGGLE COL 3 (desktop only) ──
-           Khi col3 MỞ  → nút nằm ở cạnh TRÁI col3 (giữa col2 & col3), rounded-l
+           Khi col3 MỞ  → nút nằm ở cạnh TRÁI col3 (giữa col2 & col3), rounded-l; ghost + neon
            Khi col3 ĐÓNG → nút trượt sang RIGHT edge màn hình, rounded-l, vàng nổi bật
            Transition: right + opacity đồng thời → hiệu ứng trượt + fade
       ── */}
@@ -2630,42 +2618,27 @@ export default function VnStocksTab({
         }}
       >
         <div
-          className="flex flex-col items-center justify-center gap-1.5 px-2 py-5 rounded-l-2xl active:scale-95"
+          className={[
+            'flex flex-col items-center justify-center gap-1.5 px-2 py-5 rounded-l-2xl active:scale-95',
+            isRightColOpen ? `col-bookmark-ghost col-bookmark-ghost--right${!isDark ? ' col-bookmark-ghost--light' : ''}` : '',
+          ].filter(Boolean).join(' ')}
           style={{
-            transition: 'background 200ms, box-shadow 200ms, transform 100ms',
             borderTopWidth: '1px',
             borderBottomWidth: '1px',
             borderLeftWidth: '1px',
             borderRightWidth: '0px',
             borderStyle: 'solid',
-            ...(isDark
-              ? isRightColOpen
-                ? {
-                    background: '#0d1219',
-                    borderColor: 'rgba(250,204,21,0.22)',
-                    color: '#facc15',
-                    boxShadow: '-4px 0 18px rgba(250,204,21,0.10)',
-                  }
-                : {
-                    background: '#facc15',
-                    borderColor: '#fde047',
-                    color: '#000',
-                    boxShadow: '-4px 0 28px rgba(250,204,21,0.55)',
-                  }
-              : isRightColOpen
-                ? {
-                    background: '#fff',
-                    borderColor: '#cbd5e1',
-                    color: '#475569',
-                    boxShadow: '-4px 0 12px rgba(0,0,0,0.10)',
-                  }
-                : {
-                    background: '#facc15',
-                    borderColor: '#fde047',
-                    color: '#000',
-                    boxShadow: '-4px 0 20px rgba(250,204,21,0.45)',
-                  }
-            ),
+            ...(!isRightColOpen
+              ? {
+                  transition: 'background 200ms, box-shadow 200ms, transform 100ms',
+                  background: '#facc15',
+                  borderColor: '#fde047',
+                  color: '#000',
+                  boxShadow: isDark
+                    ? '-4px 0 28px rgba(250,204,21,0.55)'
+                    : '-4px 0 20px rgba(250,204,21,0.45)',
+                }
+              : null),
           }}
         >
           <Activity size={13} />

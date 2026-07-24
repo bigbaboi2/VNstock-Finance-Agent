@@ -11,6 +11,77 @@
   animation: shimmer 2s infinite linear;
 }
 
+/* VNStock col bookmark "Đóng": ghost idle → hover reveal → soft neon ~29s */
+@keyframes col-bookmark-neon-hint {
+  0%, 93%, 100% {
+    background: transparent;
+    border-color: var(--bm-border-idle);
+    color: var(--bm-color-idle);
+    box-shadow: none;
+    text-shadow: none;
+    filter: none;
+  }
+  95.5%, 97% {
+    background: var(--bm-bg-glow);
+    border-color: var(--bm-border-glow);
+    color: var(--bm-color-glow);
+    box-shadow:
+      var(--bm-glow-x) 0 14px rgba(250, 204, 21, 0.28),
+      0 0 22px rgba(250, 204, 21, 0.18);
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.45);
+  }
+}
+
+.col-bookmark-ghost {
+  --bm-glow-x: 4px;
+  --bm-border-idle: rgba(250, 204, 21, 0.14);
+  --bm-color-idle: rgba(250, 204, 21, 0.32);
+  --bm-bg-glow: rgba(13, 18, 25, 0.28);
+  --bm-border-glow: rgba(250, 204, 21, 0.5);
+  --bm-color-glow: rgba(250, 204, 21, 0.88);
+  --bm-bg-hover: rgba(13, 18, 25, 0.88);
+  --bm-border-hover: rgba(250, 204, 21, 0.55);
+  --bm-color-hover: #facc15;
+  background: transparent;
+  border-color: var(--bm-border-idle);
+  color: var(--bm-color-idle);
+  box-shadow: none;
+  animation: col-bookmark-neon-hint 29s ease-in-out infinite;
+  transition: background 200ms ease, box-shadow 200ms ease, color 200ms ease, border-color 200ms ease, transform 100ms ease, text-shadow 200ms ease;
+}
+
+.col-bookmark-ghost--right {
+  --bm-glow-x: -4px;
+}
+
+.col-bookmark-ghost--light {
+  --bm-border-idle: rgba(100, 116, 139, 0.28);
+  --bm-color-idle: rgba(71, 85, 105, 0.4);
+  --bm-bg-glow: rgba(255, 255, 255, 0.45);
+  --bm-border-glow: rgba(250, 204, 21, 0.55);
+  --bm-color-glow: #a16207;
+  --bm-bg-hover: rgba(255, 255, 255, 0.95);
+  --bm-border-hover: #cbd5e1;
+  --bm-color-hover: #475569;
+}
+
+.col-bookmark-ghost:hover {
+  animation: none;
+  background: var(--bm-bg-hover);
+  border-color: var(--bm-border-hover);
+  color: var(--bm-color-hover);
+  box-shadow:
+    var(--bm-glow-x) 0 18px rgba(250, 204, 21, 0.28),
+    0 0 16px rgba(250, 204, 21, 0.16);
+  text-shadow: 0 0 8px rgba(250, 204, 21, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .col-bookmark-ghost {
+    animation: none;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -46,4 +117,166 @@ html, body {
   margin: 0 !important;       /*Delete automatically centered margin */
   padding: 0 !important;      /*Remove excess padding */
   text-align: left;
+}
+
+/* ========== UI STYLE: MINIMAL (FPS) — toàn app, mọi tab ========== */
+html[data-ui-style="minimal"] .animate-shimmer,
+html[data-ui-style="minimal"] .animate-ping,
+html[data-ui-style="minimal"] .animate-pulse,
+html[data-ui-style="minimal"] .animate-spin:not([data-keep-spin]),
+html.ui-reduce-motion .animate-shimmer,
+html.ui-reduce-motion .animate-ping,
+html.ui-reduce-motion .animate-pulse {
+  animation: none !important;
+}
+
+html[data-ui-style="minimal"] .col-bookmark-ghost {
+  animation: none !important;
+}
+
+html[data-ui-style="minimal"] .animate-in,
+html[data-ui-style="minimal"] .fade-in,
+html[data-ui-style="minimal"] .slide-in-from-top-2,
+html[data-ui-style="minimal"] .slide-in-from-top-3,
+html[data-ui-style="minimal"] .slide-in-from-bottom-2 {
+  animation: none !important;
+  transition: none !important;
+}
+
+html[data-ui-style="minimal"] [class*="shadow-[0_0"],
+html[data-ui-style="minimal"] [class*="drop-shadow-[0_0"] {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+html[data-ui-style="minimal"] .backdrop-blur,
+html[data-ui-style="minimal"] [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-ui-style="minimal"] .transition-all {
+  transition-duration: 80ms !important;
+}
+
+/* Keep chart internals untouched */
+html[data-ui-style="minimal"] [data-chart-root],
+html[data-ui-style="minimal"] .tv-lightweight-charts,
+html[data-ui-style="book"] [data-chart-root],
+html[data-ui-style="book"] .tv-lightweight-charts {
+  font-family: inherit;
+  filter: none !important;
+}
+
+/* ========== UI STYLE: BOOK — toàn app, mọi tab (chart giữ nguyên) ========== */
+html[data-ui-style="book"] {
+  --book-ink: #2c2419;
+  --book-paper: #f4efe6;
+  --book-muted: #6e6254;
+  --book-rule: #d4c8b0;
+  --book-accent: #8a6b3d;
+}
+
+html[data-ui-style="book"][data-theme="dark"] {
+  --book-ink: #e8e0d4;
+  --book-paper: #1a1612;
+  --book-muted: #9a8b78;
+  --book-rule: #3d3428;
+  --book-accent: #c4a574;
+}
+
+html[data-ui-style="book"] body,
+html[data-ui-style="book"] #root,
+html[data-ui-style="book"] .font-book {
+  font-family: "Source Serif 4", Literata, Georgia, Cambria, "Times New Roman", serif;
+}
+
+html[data-ui-style="book"] h1,
+html[data-ui-style="book"] h2,
+html[data-ui-style="book"] h3,
+html[data-ui-style="book"] .font-black {
+  font-family: "Source Serif 4", Literata, Georgia, serif;
+  letter-spacing: 0.01em;
+}
+
+html[data-ui-style="book"] .animate-shimmer,
+html[data-ui-style="book"] .animate-ping,
+html[data-ui-style="book"] .col-bookmark-ghost {
+  animation: none !important;
+}
+
+html[data-ui-style="book"] .col-bookmark-ghost {
+  --bm-border-idle: color-mix(in srgb, var(--book-accent) 35%, transparent);
+  --bm-color-idle: color-mix(in srgb, var(--book-accent) 55%, transparent);
+  --bm-bg-glow: transparent;
+  --bm-border-glow: var(--book-accent);
+  --bm-color-glow: var(--book-accent);
+  --bm-bg-hover: color-mix(in srgb, var(--book-paper) 88%, var(--book-ink));
+  --bm-border-hover: var(--book-rule);
+  --bm-color-hover: var(--book-ink);
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html[data-ui-style="book"] [class*="shadow-[0_0"],
+html[data-ui-style="book"] [class*="shadow-lg"],
+html[data-ui-style="book"] [class*="shadow-emerald"],
+html[data-ui-style="book"] [class*="shadow-orange"],
+html[data-ui-style="book"] [class*="shadow-purple"],
+html[data-ui-style="book"] [class*="shadow-cyan"] {
+  box-shadow: none !important;
+}
+
+html[data-ui-style="book"] button,
+html[data-ui-style="book"] [role="button"] {
+  min-height: 2.5rem;
+}
+
+html[data-ui-style="book"] .rounded-2xl,
+html[data-ui-style="book"] .rounded-xl {
+  border-radius: 0.375rem;
+}
+
+html[data-ui-style="book"] .rounded-full:not(.w-2):not(.h-2):not(.w-1\\.5):not(.h-1\\.5):not([class*="w-1.5"]):not([class*="h-1.5"]) {
+  border-radius: 0.375rem;
+}
+
+/* Soften neon accents toward book palette (shell/panels — not chart canvas) */
+html[data-ui-style="book"] .text-yellow-400,
+html[data-ui-style="book"] .text-yellow-500 {
+  color: var(--book-accent) !important;
+}
+
+html[data-ui-style="book"] .bg-yellow-400 {
+  background-color: var(--book-accent) !important;
+  color: #1f1912 !important;
+}
+
+/* Chart root: giữ màu accent gốc của chart chrome */
+html[data-ui-style="book"] [data-chart-root] .text-yellow-400,
+html[data-ui-style="book"] [data-chart-root] .text-yellow-500 {
+  color: #facc15 !important;
+}
+
+html[data-ui-style="book"] [data-chart-root] .bg-yellow-400 {
+  background-color: #facc15 !important;
+  color: #000 !important;
+}
+
+html[data-ui-style="book"] [data-chart-root] .rounded-2xl,
+html[data-ui-style="book"] [data-chart-root] .rounded-xl,
+html[data-ui-style="book"] [data-chart-root] .rounded-full {
+  border-radius: revert-layer;
+}
+
+html[data-ui-style="book"] [data-chart-root] button,
+html[data-ui-style="book"] [data-chart-root] [role="button"] {
+  min-height: unset;
+}
+
+@media (max-width: 640px) {
+  html[data-ui-style="book"] button,
+  html[data-ui-style="book"] [role="button"] {
+    min-height: 2.75rem;
+  }
 }

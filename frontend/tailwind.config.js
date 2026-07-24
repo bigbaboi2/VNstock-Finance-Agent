@@ -5,7 +5,11 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        book: ['"Source Serif 4"', 'Literata', 'Georgia', 'Cambria', 'Times New Roman', 'serif'],
+      },
+    },
   },
   plugins: [
   require('@tailwindcss/typography'),

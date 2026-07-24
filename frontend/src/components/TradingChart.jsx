@@ -1154,7 +1154,7 @@ const rowBtn = React.useCallback((active) =>
       : `bg-white border-slate-300 text-slate-700 ${A.hoverSolid}`);
 
   return (
-    <div className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-[80]' : ''}`} onClick={closeAllMenus}>
+    <div data-chart-root className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-[80]' : ''}`} onClick={closeAllMenus}>
 
       {!isMini && (
         <div

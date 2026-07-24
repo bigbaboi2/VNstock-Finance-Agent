@@ -1,4 +1,8 @@
-import { Activity, Globe, Database, Zap, X, User, Bot, Plug } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Activity, Globe, Database, Zap, X, User, Bot, Plug,
+  Settings, ArrowLeft, Sun, Moon, BookOpen, Sparkles, Minus,
+} from 'lucide-react';
 import { APP_MODES, buildAppPath } from '../routes/appRoutes';
 
 const MODE_ITEMS = [
@@ -25,90 +29,234 @@ const MODE_ITEMS = [
   },
 ];
 
+const STYLE_OPTIONS = [
+  {
+    id: 'classic',
+    label: 'Hiện tại',
+    desc: 'Giao diện đầy đủ hiệu ứng',
+    icon: Sparkles,
+  },
+  {
+    id: 'minimal',
+    label: 'Tối giản',
+    desc: 'Giảm hiệu ứng, ưu tiên FPS',
+    icon: Minus,
+  },
+  {
+    id: 'book',
+    label: 'Chế độ sách',
+    desc: 'Font & màu kiểu trang sách',
+    icon: BookOpen,
+  },
+];
+
 export default function UserMenu({
   isDark, UI, currentUser, activeMode,
-  setActiveMode, setShowUserMenu, handleLogout
+  setActiveMode, setShowUserMenu, handleLogout,
+  is3DClock = true,
+  uiStyle = 'classic',
+  handleToggleTheme,
+  handleToggleClockMode,
+  handleSetUiStyle,
 }) {
+  const [menuView, setMenuView] = useState('main');
   const go = (mode, extras) => {
     setActiveMode(mode, extras);
     setShowUserMenu(false);
   };
 
-  return (
-    <div className={`absolute top-full right-0 mt-3 w-64 rounded-2xl border shadow-2xl overflow-hidden z-[9999] animate-in slide-in-from-top-2 fade-in duration-200 ${isDark ? 'bg-[#10151C] border-white/10' : 'bg-white border-slate-300'}`}>
-        {/* THÔNG TIN USER */}
-        <div className={`p-4 border-b ${isDark ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50'}`}>
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-emerald-400 flex items-center justify-center text-black">
-                    <User size={20} />
-                </div>
-                <div>
-                    <p className={`text-[10px] uppercase tracking-widest font-black ${UI.textMuted}`}>Hệ thống Omni Duck</p>
-                    <p className={`font-black text-sm truncate ${UI.textBold}`}>{currentUser}</p>
-                </div>
-            </div>
-        </div>
+  const touchBtn = 'min-h-[44px]';
+  const panelClass = `absolute top-full right-0 mt-3 w-[min(18rem,calc(100vw-1.5rem))] sm:w-72 rounded-2xl border shadow-2xl overflow-hidden z-[9999] ${
+    UI.reduceMotion ? '' : 'animate-in slide-in-from-top-2 fade-in duration-200'
+  } ${isDark ? 'bg-[#10151C] border-white/10' : 'bg-white border-slate-300'} ${
+    uiStyle === 'book' ? (isDark ? '!bg-[#241e18] !border-[#3d3428] !rounded-md' : '!bg-[#fffdf8] !border-[#d4c8b0] !rounded-md') : ''
+  }`;
 
-        {/* BỘ CHỌN THỊ TRƯỜNG */}
-        <div className="p-2 flex flex-col gap-1">
+  return (
+    <div className={panelClass}>
+      {menuView === 'main' ? (
+        <>
+          <div className={`p-4 border-b ${isDark ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50'} ${uiStyle === 'book' ? (isDark ? '!border-[#3d3428] !bg-[#2a221a]/40' : '!border-[#d4c8b0] !bg-[#efe8dc]/50') : ''}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-black shrink-0 ${
+                uiStyle === 'book'
+                  ? 'bg-[#c4a574]'
+                  : 'bg-gradient-to-tr from-yellow-400 to-emerald-400'
+              }`}>
+                <User size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={`text-[10px] uppercase tracking-widest font-black ${UI.textMuted}`}>Hệ thống Omni Duck</p>
+                <p className={`font-black text-sm truncate ${UI.textBold}`}>{currentUser}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuView('settings')}
+                className={`${touchBtn} w-11 shrink-0 flex items-center justify-center rounded-xl border transition-colors ${UI.btnLog}`}
+                title="Cài đặt phong cách"
+                aria-label="Cài đặt phong cách"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="p-2 flex flex-col gap-1 max-h-[min(60dvh,28rem)] overflow-y-auto">
             {MODE_ITEMS.map(({ mode, label, pathHint, icon: Icon, activeClass }) => (
               <button
                 key={mode}
+                type="button"
                 title={pathHint}
                 onClick={() => go(mode)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${activeMode === mode ? activeClass : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}
+                className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all ${activeMode === mode ? activeClass : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}
               >
                 <Icon size={16} /> {label}
               </button>
             ))}
 
-            <button disabled className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm opacity-40 grayscale cursor-not-allowed text-left">
-                <Database size={16} /> 4. Quốc tế (Update sau)
-            </button>
-            
-            <button
-                title={buildAppPath({ mode: APP_MODES.PAPER_TRADING })}
-                onClick={() => go(APP_MODES.PAPER_TRADING, { paperMarket: 'VN_STOCKS' })}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
-                    activeMode === APP_MODES.PAPER_TRADING
-                    ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
-                    : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
-                }`}
-            >
-                <Activity size={16} /> 5. Giao dịch giả lập
+            <button type="button" disabled className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm opacity-40 grayscale cursor-not-allowed text-left`}>
+              <Database size={16} /> 4. Quốc tế (Update sau)
             </button>
 
             <button
-                title="/auto-duck"
-                onClick={() => go(APP_MODES.AUTO_TRADE)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
-                    activeMode === APP_MODES.AUTO_TRADE
-                    ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20' 
-                    : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
-                }`}
+              type="button"
+              title={buildAppPath({ mode: APP_MODES.PAPER_TRADING })}
+              onClick={() => go(APP_MODES.PAPER_TRADING, { paperMarket: 'VN_STOCKS' })}
+              className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
+                activeMode === APP_MODES.PAPER_TRADING
+                  ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20'
+                  : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+              }`}
             >
-                <Bot size={16} /> 6. Tự động vào lệnh AI
+              <Activity size={16} /> 5. Giao dịch giả lập
             </button>
 
             <button
-                title="/broker"
-                onClick={() => go(APP_MODES.BROKER_CONNECTION)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
-                    activeMode === APP_MODES.BROKER_CONNECTION
-                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                    : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
-                }`}
+              type="button"
+              title="/auto-duck"
+              onClick={() => go(APP_MODES.AUTO_TRADE)}
+              className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
+                activeMode === APP_MODES.AUTO_TRADE
+                  ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20'
+                  : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+              }`}
             >
-                <Plug size={16} /> 7. Kết nối sàn / Broker
+              <Bot size={16} /> 6. Tự động vào lệnh AI
             </button>
-        </div>
 
-        {/* ĐĂNG XUẤT */}
-        <div className="p-2 border-t border-white/5">
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 font-bold text-sm transition-colors text-left">
-                <X size={16} /> Đăng xuất hệ thống
+            <button
+              type="button"
+              title="/broker"
+              onClick={() => go(APP_MODES.BROKER_CONNECTION)}
+              className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all text-left ${
+                activeMode === APP_MODES.BROKER_CONNECTION
+                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                  : (isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+              }`}
+            >
+              <Plug size={16} /> 7. Kết nối sàn / Broker
             </button>
-        </div>
+          </div>
+
+          <div className={`p-2 border-t ${isDark ? 'border-white/5' : 'border-slate-100'}`}>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={`${touchBtn} w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 font-bold text-sm transition-colors text-left`}
+            >
+              <X size={16} /> Đăng xuất hệ thống
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className={`p-3 border-b flex items-center gap-2 ${isDark ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50'} ${uiStyle === 'book' ? (isDark ? '!border-[#3d3428] !bg-[#2a221a]/40' : '!border-[#d4c8b0] !bg-[#efe8dc]/50') : ''}`}>
+            <button
+              type="button"
+              onClick={() => setMenuView('main')}
+              className={`${touchBtn} w-11 shrink-0 flex items-center justify-center rounded-xl border ${UI.btnLog}`}
+              title="Trở lại"
+              aria-label="Trở lại menu"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="min-w-0">
+              <p className={`text-[10px] uppercase tracking-widest font-black ${UI.textMuted}`}>Cài đặt</p>
+              <p className={`font-black text-sm truncate ${UI.textBold}`}>Cài đặt phong cách</p>
+            </div>
+          </div>
+
+          <div className="p-3 flex flex-col gap-4 max-h-[min(70dvh,32rem)] overflow-y-auto">
+            <div>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>Giao diện sáng / tối</p>
+              <button
+                type="button"
+                onClick={handleToggleTheme}
+                className={`${touchBtn} w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border font-bold text-sm ${UI.btnLog}`}
+              >
+                <span className="flex items-center gap-2">
+                  {isDark ? <Sun size={16} className="text-yellow-400" /> : <Moon size={16} />}
+                  {isDark ? 'Chế độ tối' : 'Chế độ sáng'}
+                </span>
+                <span className={`text-[10px] uppercase ${UI.textMuted}`}>{isDark ? 'Dark' : 'Light'}</span>
+              </button>
+            </div>
+
+            <div>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>Đồng hồ</p>
+              <button
+                type="button"
+                onClick={handleToggleClockMode}
+                className={`${touchBtn} w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border font-bold text-sm ${UI.btnLog}`}
+              >
+                <span>Clock {is3DClock ? '3D' : '2D'}</span>
+                <span
+                  className={`relative flex items-center w-11 h-6 rounded-full p-[2px] border ${
+                    isDark ? 'border-white/10' : 'border-slate-300'
+                  } ${is3DClock ? 'bg-emerald-500/20' : 'bg-slate-500/10'}`}
+                >
+                  <span
+                    className={`h-full aspect-square rounded-full flex items-center justify-center shadow-md text-[8px] font-black text-white ${
+                      is3DClock ? 'translate-x-5 bg-emerald-500' : 'translate-x-0 bg-slate-400'
+                    }`}
+                  >
+                    {is3DClock ? '3D' : '2D'}
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <div>
+              <p className={`text-[10px] uppercase tracking-widest font-black mb-2 ${UI.textMuted}`}>Phong cách frontend</p>
+              <div className="flex flex-col gap-1.5">
+                {STYLE_OPTIONS.map(({ id, label, desc, icon: Icon }) => {
+                  const active = uiStyle === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => handleSetUiStyle?.(id)}
+                      className={`${touchBtn} w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                        active
+                          ? (uiStyle === 'book' || id === 'book'
+                            ? (isDark ? 'bg-[#3d3428] border-[#c4a574] text-[#f2ebe0]' : 'bg-[#efe8dc] border-[#8a6b3d] text-[#1f1912]')
+                            : 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300')
+                          : `${UI.btnLog}`
+                      }`}
+                    >
+                      <Icon size={16} className="mt-0.5 shrink-0" />
+                      <span className="min-w-0">
+                        <span className={`block font-black text-sm ${active ? '' : UI.textBold}`}>{label}</span>
+                        <span className={`block text-[11px] mt-0.5 ${active ? 'opacity-80' : UI.textMuted}`}>{desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

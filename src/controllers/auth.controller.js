@@ -1,14 +1,18 @@
 import User from '../../models/User.js';
 
+const UI_STYLES = new Set(['classic', 'minimal', 'book']);
+
 const DEFAULT_PREFERENCES = Object.freeze({
     theme: 'dark',
     clock3d: true,
+    uiStyle: 'classic',
 });
 
 const normalizePreferences = (prefs) => {
     const theme = prefs?.theme === 'light' ? 'light' : 'dark';
     const clock3d = prefs?.clock3d !== false;
-    return { theme, clock3d };
+    const uiStyle = UI_STYLES.has(prefs?.uiStyle) ? prefs.uiStyle : 'classic';
+    return { theme, clock3d, uiStyle };
 };
 
 const findUserByUsername = async (username) => {
@@ -77,10 +81,10 @@ export const getPreferences = async (req, res) => {
     }
 };
 
-/** POST /api/auth/preferences — cập nhật theme / clock3d theo username. */
+/** POST /api/auth/preferences — cập nhật theme / clock3d / uiStyle theo username. */
 export const updatePreferences = async (req, res) => {
     try {
-        const { username, theme, clock3d } = req.body || {};
+        const { username, theme, clock3d, uiStyle } = req.body || {};
         const user = await findUserByUsername(username);
         if (!user) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản.' });
@@ -89,6 +93,7 @@ export const updatePreferences = async (req, res) => {
         const next = normalizePreferences(user.preferences);
         if (theme === 'dark' || theme === 'light') next.theme = theme;
         if (typeof clock3d === 'boolean') next.clock3d = clock3d;
+        if (UI_STYLES.has(uiStyle)) next.uiStyle = uiStyle;
 
         user.preferences = next;
         user.markModified('preferences');

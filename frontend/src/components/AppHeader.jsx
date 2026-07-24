@@ -1,11 +1,12 @@
 //====  AppHeader.jsx ====
 import React, { useRef, useEffect } from 'react';
-import { Search, TrendingUp, Globe, Zap, TerminalSquare, Home, Sun, Moon, Menu } from 'lucide-react';
+import { Search, Globe, Zap, TerminalSquare, Home, Menu } from 'lucide-react';
 import CyberpunkClock from './CyberpunkClock';
 import UserMenu from './UserMenu';
 
 const AppHeader = ({
-  isDark, UI, theme,
+  isDark, UI,
+  uiStyle = 'classic',
   activeMode, marketOpen,
   input, setInput,
   showSuggestions, setShowSuggestions,
@@ -17,11 +18,14 @@ const AppHeader = ({
   currentUser,
   is3DClock = true,
   setActiveMode, handleLogout,
-  handleGoHome, handleToggleTheme,
+  handleGoHome,
+  handleToggleTheme,
   handleToggleClockMode,
+  handleSetUiStyle,
   fetchMarketData, executePaperSearch,
 }) => {
    const searchWrapperRef = useRef(null);
+   const clockIs3D = uiStyle === 'minimal' ? false : is3DClock;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -45,8 +49,8 @@ const AppHeader = ({
             <img src="/favicon.svg" alt="Omni Duck Logo" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
           </div>
           <div className="hidden lg:block">
-            <h1 className={`text-xl font-black tracking-tight leading-none ${UI.textBold}`}>
-              OMNI <span className="text-yellow-400 italic">DUCK</span>
+            <h1 className={`text-xl font-black tracking-tight leading-none ${UI.textBold} ${uiStyle === 'book' ? 'font-book tracking-normal' : ''}`}>
+              OMNI <span className={uiStyle === 'book' ? (isDark ? 'text-[#c4a574] italic' : 'text-[#8a6b3d] italic') : 'text-yellow-400 italic'}>DUCK</span>
             </h1>
             <p className={`text-[9px] uppercase tracking-widest font-bold mt-1 ${UI.textMuted}`}>
               Quantitative Terminal
@@ -182,16 +186,16 @@ const AppHeader = ({
         </div>
 
           <div className="hidden xl:flex items-center gap-4 shrink-0 select-none ml-20">
-            <CyberpunkClock marketOpen={marketOpen} theme={isDark ? 'dark' : 'light'} is3D={is3DClock} />
+            <CyberpunkClock marketOpen={marketOpen} theme={isDark ? 'dark' : 'light'} is3D={clockIs3D} />
             <div
               className={`w-[9.75rem] shrink-0 px-3 py-2 rounded-2xl border font-black uppercase tracking-widest text-[11px] text-center
               ${marketOpen
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40 shadow-[0_0_18px_rgba(16,185,129,0.25)]'
                 : 'bg-red-500/10 text-red-400 border-red-500/40 shadow-[0_0_18px_rgba(239,68,68,0.25)]'
-              }`}
+              } ${uiStyle === 'minimal' ? '!shadow-none' : ''} ${uiStyle === 'book' ? '!rounded-md !shadow-none' : ''}`}
             >
               <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${marketOpen ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                <div className={`w-2 h-2 rounded-full shrink-0 ${marketOpen ? 'bg-emerald-400' : 'bg-red-400'} ${uiStyle === 'minimal' ? '' : 'animate-pulse'}`} />
                 {marketOpen ? 'Market OPEN' : 'Market CLOSED'}
               </div>
             </div>
@@ -200,33 +204,29 @@ const AppHeader = ({
 
         {/*CONTAINER UTILITIES & ACCOUNT DROPDOWN */}
         <div className="flex items-center justify-end gap-1.5 sm:gap-3 sm:w-[300px] xl:w-[350px] shrink-0 relative">
-          <button 
-            onClick={handleToggleClockMode}
-            className={`relative flex items-center w-11 h-6 rounded-full p-[2px] transition-colors duration-300 border ${isDark ? 'border-white/10' : 'border-slate-300'} ${is3DClock ? 'bg-emerald-500/20' : 'bg-slate-500/10'}`}
-            title="Toggle 3D/2D Clock"
-          >
-            <div className={`h-full aspect-square rounded-full flex items-center justify-center shadow-md transition-transform duration-300 ${is3DClock ? 'translate-x-5 bg-emerald-500 text-white' : 'translate-x-0 bg-slate-400 text-white'}`}>
-              <span className="text-[8px] font-black leading-none">{is3DClock ? '3D' : '2D'}</span>
-            </div>
-          </button>
-          <button onClick={handleToggleTheme} className={`p-2 sm:p-2.5 rounded-xl border transition-all ${UI.btnLog}`}>
-            {isDark ? <Sun size={16} className="text-yellow-400 sm:w-[18px] sm:h-[18px]" /> : <Moon size={16} className="sm:w-[18px] sm:h-[18px]" />}
-          </button>
-          
           <button onClick={() => setShowLogs(!showLogs)} className={`hidden md:flex items-center gap-2 px-4 h-10 rounded-xl text-[10px] font-black uppercase border transition-all ${showLogs ? 'bg-yellow-400 text-black border-yellow-400' : UI.btnLog}`}>
             <TerminalSquare size={16} />
             <span className="hidden xl:inline">{showLogs ? 'CLOSE' : 'LOGS'}</span>
           </button>
 
           <div className="relative">
-            <button onClick={() => setShowUserMenu(!showUserMenu)} className={`p-2 sm:p-2.5 rounded-xl border transition-all ${showUserMenu ? 'bg-emerald-500 border-emerald-500 text-black' : UI.btnLog}`}>
+            <button onClick={() => setShowUserMenu(!showUserMenu)} className={`p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-xl border transition-all ${showUserMenu ? 'bg-emerald-500 border-emerald-500 text-black' : UI.btnLog}`}>
               <Menu size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
             {showUserMenu && (
-              <UserMenu 
-                isDark={isDark} UI={UI} currentUser={currentUser}
-                activeMode={activeMode} setActiveMode={setActiveMode}
-                setShowUserMenu={setShowUserMenu} handleLogout={handleLogout}
+              <UserMenu
+                isDark={isDark}
+                UI={UI}
+                currentUser={currentUser}
+                activeMode={activeMode}
+                setActiveMode={setActiveMode}
+                setShowUserMenu={setShowUserMenu}
+                handleLogout={handleLogout}
+                is3DClock={is3DClock}
+                uiStyle={uiStyle}
+                handleToggleTheme={handleToggleTheme}
+                handleToggleClockMode={handleToggleClockMode}
+                handleSetUiStyle={handleSetUiStyle}
               />
             )}
           </div>

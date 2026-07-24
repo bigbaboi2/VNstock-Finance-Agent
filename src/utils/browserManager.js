@@ -1,3 +1,4 @@
+import fs from 'fs';
 import puppeteer from 'puppeteer';
 import chalk from 'chalk';
 
@@ -10,6 +11,17 @@ const IDLE_TIMEOUT = 3 * 60 * 1000;
 
 let _crashCount = 0;
 const MAX_CRASH_RETRIES = 3;
+
+/** Chỉ dùng PUPPETEER_EXECUTABLE_PATH khi file thật sự tồn tại (Termux OK, Windows tự fallback Chrome mặc định). */
+const resolveExecutablePath = () => {
+    const configured = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+    if (!configured) return null;
+    if (fs.existsSync(configured)) return configured;
+    console.log(chalk.gray(
+        `[BrowserManager] Bỏ qua PUPPETEER_EXECUTABLE_PATH (không tồn tại trên máy này): ${configured}`
+    ));
+    return null;
+};
 
 export const closeBrowser = async () => {
     if (_browser) {
@@ -66,8 +78,9 @@ export const getBrowser = async () => {
         ],
     };
 
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    const executablePath = resolveExecutablePath();
+    if (executablePath) {
+        launchOptions.executablePath = executablePath;
     }
 
     _launchingPromise = puppeteer.launch(launchOptions).then(browser => {
