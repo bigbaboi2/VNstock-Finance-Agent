@@ -179,7 +179,7 @@ Screenshot album — cover grid below; open a folder for more views. Collapse th
 | 🌍 International | ✅ Working | Tab 4 — country watchlists (US/JP/KR/CN–HK/EU), Yahoo OHLC, TA score, news sentiment (Google/Reddit/X); proposal Tech 70% + News 30% (**no AI**) |
 | 🎮 Paper Trading | ✅ Working | Virtual 10B VND, LO/ATO/ATC orders, P&L |
 | 🔌 Broker / Live Trading | ✅ Working | Binance, OKX, Bybit (crypto) + DNSE (VN stocks) — testnet & live |
-| 📊 Charts | ⚠️ Developing | KlineCharts + Lightweight Charts, UX ongoing |
+| 📄 PDF Docling System | ✅ Working | Hugging Face Spaces (Gradio + `@spaces.GPU`), Docling PDF-to-Markdown parser (`Convertpdf/`) |
 | 🔄 AutoTrading | ⚠️ Improving | Win-rate tuning, AI lessons, simulation + LIVE modes |
 | 🎨 UI Themes + i18n | ✅ Working | Light/Dark × Classic/Minimal/Ultra/Book, font scale, clock 2D/3D, **vi/en** — synced via `/api/auth/preferences` |
 

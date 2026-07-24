@@ -179,7 +179,7 @@ Album ảnh — lưới bìa bên dưới; mở thư mục con để xem thêm. 
 | 🌍 Quốc tế | ✅ Hoạt động | Tab 4 — watchlist theo nước (Mỹ/Nhật/Hàn/TQ–HK/Âu), Yahoo OHLC, điểm TA, tin sentiment (Google/Reddit/X); đề xuất Tech 70% + Tin 30% (**không AI**) |
 | 🎮 Giao dịch giả lập | ✅ Hoạt động | 10 tỷ VND ảo, lệnh LO/ATO/ATC, P&L |
 | 🔌 Broker / LIVE | ✅ Hoạt động | Binance, OKX, Bybit (crypto) + DNSE (CK VN) — testnet & live |
-| 📊 Biểu đồ | ⚠️ Đang phát triển | KlineCharts + Lightweight Charts |
+| 📄 Hệ thống PDF Docling | ✅ Hoạt động | Hugging Face Spaces (Gradio + `@spaces.GPU`), chuyển đổi PDF báo cáo TCBS sang Markdown (`Convertpdf/`) |
 | 🔄 AutoTrading | ⚠️ Đang cải thiện | Tỷ lệ thắng, AI lessons, mô phỏng + LIVE |
 | 🎨 Theme UI + i18n | ✅ Hoạt động | Sáng/Tối × Hiện tại/Tối giản/Siêu tối giản/Sách, cỡ chữ, đồng hồ, **vi/en** — đồng bộ `/api/auth/preferences` |
 
