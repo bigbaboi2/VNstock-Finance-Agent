@@ -46,6 +46,8 @@ export const corsOptions = {
         'ngrok-skip-browser-warning',
         'x-signal-secret',
         'Accept',
+        'x-omni-language',
+        'X-Omni-Language',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 };
