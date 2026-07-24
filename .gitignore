@@ -2,7 +2,8 @@ node_modules/
 .cursor/
 src/.env
 **/.env
-src/data
+src/data/*
+!src/data/*.js
 src/database
 __pycache__/
 *.pyc
