@@ -94,9 +94,10 @@ export const getPreferences = async (req, res) => {
         const username = req.query?.username || req.body?.username;
         const user = await findUserByUsername(username);
         if (!user) {
-            return res.status(404).json({
+            return res.json({
                 success: false,
                 message: tMsg(lang, 'auth', 'userNotFound'),
+                preferences: null,
             });
         }
         return res.json({
@@ -119,9 +120,10 @@ export const updatePreferences = async (req, res) => {
         const { username, theme, clock3d, uiStyle, fontScale, language } = req.body || {};
         const user = await findUserByUsername(username);
         if (!user) {
-            return res.status(404).json({
+            return res.json({
                 success: false,
                 message: tMsg(lang, 'auth', 'userNotFound'),
+                preferences: normalizePreferences({ theme, clock3d, uiStyle, fontScale, language }),
             });
         }
 
