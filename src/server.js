@@ -58,7 +58,10 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 await connectDB();
 setupMiddlewares(app);
-app.use(express.json());
+// Health / Status check root
+app.get('/', (req, res) => {
+    res.json({ success: true, message: 'OMNI DUCK API Backend is running', timestamp: new Date().toISOString() });
+});
 
 // ─── Prefixed routes (chuẩn) ────────────────────────────────────────────────
 app.use('/api/crypto',       cryptoRoutes);

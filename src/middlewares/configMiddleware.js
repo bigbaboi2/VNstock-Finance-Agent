@@ -23,12 +23,14 @@ export const corsOptions = {
          const ngrokOriginPattern = /^https?:\/\/[A-Za-z0-9-]+\.ngrok(-free)?\.(io|app|dev)(?::\d+)?$/;
          // Cloudflare Quick Tunnel / named tunnel hostnames when testing from Termux/PC
          const cloudflareOriginPattern = /^https?:\/\/[A-Za-z0-9.-]+\.(trycloudflare\.com|cfargotunnel\.com)(?::\d+)?$/;
+         const vercelOriginPattern = /^https?:\/\/[A-Za-z0-9.-]+\.vercel\.app(?::\d+)?$/;
 
          if (
              allowedOrigins.includes(origin) ||
              localOriginPattern.test(origin) ||
              ngrokOriginPattern.test(origin) ||
-             cloudflareOriginPattern.test(origin)
+             cloudflareOriginPattern.test(origin) ||
+             vercelOriginPattern.test(origin)
          ) {
              callback(null, true);
          } else {
