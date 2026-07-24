@@ -226,9 +226,14 @@ const persistUiPreferences = useCallback(async (partial, user = currentUser) => 
   return next;
 }, [applyUiPreferences, currentUser, fontScale, is3DClock, language, theme, uiStyle]);
 
+const applyUiPreferencesRef = useRef(applyUiPreferences);
+useEffect(() => {
+  applyUiPreferencesRef.current = applyUiPreferences;
+}, [applyUiPreferences]);
+
 useEffect(() => {
   if (!currentUser) {
-    applyUiPreferences({
+    applyUiPreferencesRef.current({
       theme: readLocalThemeFallback(null),
       clock3d: readLocalClock3dFallback(null),
       uiStyle: readLocalUiStyleFallback(null),
@@ -242,14 +247,14 @@ useEffect(() => {
     try {
       const res = await axios.get('/api/auth/preferences', { params: { username: currentUser } });
       if (!cancelled && res.data?.success && res.data.preferences) {
-        applyUiPreferences(res.data.preferences, currentUser);
+        applyUiPreferencesRef.current(res.data.preferences, currentUser);
       }
     } catch {
       // Giữ fallback localStorage nếu API lỗi / user cũ chưa có field preferences
     }
   })();
   return () => { cancelled = true; };
-}, [currentUser, applyUiPreferences]);
+}, [currentUser]);
 
 useEffect(() => {
   const root = document.documentElement;
