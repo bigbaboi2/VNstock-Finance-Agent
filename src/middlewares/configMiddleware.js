@@ -1,3 +1,4 @@
+import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
@@ -65,7 +66,12 @@ export const limiter = rateLimit({
 });
 
 export const setupMiddlewares = (app) => {
+    // Body parsers — PHẢI đặt trước routes để req.body được parse
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
     // CORS trước rate-limit để preflight/OPTIONS luôn có Access-Control-* headers
     app.use(cors(corsOptions));
     app.use(limiter);
 };
+
