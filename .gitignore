@@ -15,3 +15,6 @@ src/controllers/deriv_full_export.json
 scripts/
 proxy-cert.pem
 exports/
+
+# Antigravity agent config (local-only)
+.agents/

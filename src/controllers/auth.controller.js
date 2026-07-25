@@ -32,7 +32,13 @@ const findUserByUsername = async (username) => {
 export const register = async (req, res) => {
     const lang = resolveLanguage(req);
     try {
-        const { username, password } = req.body;
+        const { username, password } = req.body || {};
+        if (!username || !password || typeof username !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: tMsg(lang, 'auth', 'usernameTaken'),
+            });
+        }
         const cleanUsername = username.trim();
         const existingUser = await findUserByUsername(cleanUsername);
         if (existingUser) {
@@ -53,6 +59,7 @@ export const register = async (req, res) => {
             message: tMsg(lang, 'auth', 'registerSuccess'),
         });
     } catch (error) {
+        console.error('[AUTH REGISTER ERROR]:', error);
         return res.status(500).json({
             success: false,
             message: tMsg(lang, 'auth', 'registerServerError'),
@@ -63,7 +70,13 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
     const lang = resolveLanguage(req);
     try {
-        const { username, password } = req.body;
+        const { username, password } = req.body || {};
+        if (!username || !password || typeof username !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: tMsg(lang, 'auth', 'loginInvalid'),
+            });
+        }
         const cleanUsername = username.trim();
 
         const user = await findUserByUsername(cleanUsername);
@@ -80,6 +93,7 @@ export const login = async (req, res) => {
             preferences: normalizePreferences(user.preferences),
         });
     } catch (error) {
+        console.error('[AUTH LOGIN ERROR]:', error);
         return res.status(500).json({
             success: false,
             message: tMsg(lang, 'auth', 'loginServerError'),
