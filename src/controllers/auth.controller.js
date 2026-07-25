@@ -1,5 +1,6 @@
 import User from '../../models/User.js';
 import { resolveLanguage, tMsg } from '../utils/i18nMessages.js';
+import chalk from 'chalk';
 
 const UI_STYLES = new Set(['classic', 'minimal', 'book', 'ultra']);
 const FONT_SCALES = new Set(['sm', 'md', 'lg', 'xl']);
@@ -81,7 +82,14 @@ export const login = async (req, res) => {
 
         const user = await findUserByUsername(cleanUsername);
         if (!user || user.password !== password) {
-            console.log(chalk.yellow(`[AUTH LOGIN FAIL] Username: '${cleanUsername}' | User found in DB: ${!!user} | Password match: ${user ? user.password === password : false}`));
+            console.log(
+                `[AUTH LOGIN FAIL]`,
+                `\n  Username sent  : '${cleanUsername}'`,
+                `\n  User in DB     : ${!!user}`,
+                `\n  Password in DB : '${user?.password ?? 'N/A'}'`,
+                `\n  Password sent  : '${password}'`,
+                `\n  Match          : ${user ? user.password === password : false}`
+            );
             return res.status(400).json({
                 success: false,
                 message: tMsg(lang, 'auth', 'loginInvalid'),
