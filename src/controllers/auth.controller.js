@@ -82,14 +82,6 @@ export const login = async (req, res) => {
 
         const user = await findUserByUsername(cleanUsername);
         if (!user || user.password !== password) {
-            console.log(
-                `[AUTH LOGIN FAIL]`,
-                `\n  Username sent  : '${cleanUsername}'`,
-                `\n  User in DB     : ${!!user}`,
-                `\n  Password in DB : '${user?.password ?? 'N/A'}'`,
-                `\n  Password sent  : '${password}'`,
-                `\n  Match          : ${user ? user.password === password : false}`
-            );
             return res.status(400).json({
                 success: false,
                 message: tMsg(lang, 'auth', 'loginInvalid'),

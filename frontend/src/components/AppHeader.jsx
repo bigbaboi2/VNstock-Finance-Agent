@@ -1,7 +1,7 @@
 //====  AppHeader.jsx ====
 import React, { useRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Globe, Zap, TerminalSquare, Home, Menu } from 'lucide-react';
+import { Search, Globe, Zap, TerminalSquare, Menu } from 'lucide-react';
 import CyberpunkClock from './CyberpunkClock';
 import UserMenu from './UserMenu';
 import { formatCompanyName } from '../lib/formatCompanyName';
@@ -72,14 +72,15 @@ const AppHeader = ({
   return (
     <header
       data-app-header
-      className={`relative z-[99999] border-b px-2 sm:px-6 py-2 sm:py-1 flex items-center justify-between gap-1.5 sm:gap-3 shrink-0 w-full transition-colors duration-300 ${UI.header}`}
+      className={`relative z-[99999] border-b px-2 sm:px-6 py-1.5 flex items-center gap-2 sm:gap-3 shrink-0 w-full transition-colors duration-300 ${UI.header}`}
     >
+        {/* ── LEFT: Logo / Brand ── */}
         <div
-          className="flex items-center gap-2 sm:gap-4 sm:w-[300px] xl:w-[350px] shrink-0 cursor-pointer"
+          className="flex items-center gap-2 shrink-0 cursor-pointer"
           onClick={handleGoHome}
           title={t('header.homeTitle')}
         >
-          <div className="w-9 h-9 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 drop-shadow-md">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center shrink-0 drop-shadow-md">
             <img src="/favicon.svg" alt={t('brand.logoAlt')} className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
           </div>
           <div className="hidden lg:block">
@@ -92,40 +93,31 @@ const AppHeader = ({
           </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center gap-1.5 sm:gap-8 relative px-1 sm:px-4 min-w-0">
-              <button
-                  type="button"
-                  onClick={handleGoHome}
-                  title={t('header.homeBackTitle')}
-                  className={`flex-shrink-0 h-9 w-9 sm:h-12 sm:w-12 flex items-center justify-center rounded-xl sm:rounded-2xl border transition-all active:scale-95 hover:bg-yellow-400 hover:text-black hover:border-yellow-400 ${UI.btnLog}`}
-              >
-                  <Home size={16} className="sm:w-5 sm:h-5" />
-              </button>
-
-        <div className="flex-1 max-w-xl relative z-40 min-w-0" ref={searchWrapperRef}>
-            <div className={`absolute top-full mt-3 left-1/2 transform -translate-x-1/2 z-[60] px-4 py-2 bg-red-500/95 backdrop-blur-md text-white font-black text-xs tracking-widest rounded-full shadow-2xl transition-all duration-500 pointer-events-none max-w-[90vw] truncate
+        {/* ── CENTER: Search bar ── */}
+        <div className="flex-1 relative min-w-0" ref={searchWrapperRef}>
+            <div className={`absolute top-full mt-2 left-1/2 transform -translate-x-1/2 z-[60] px-4 py-2 bg-red-500/95 backdrop-blur-md text-white font-black text-xs tracking-widest rounded-full shadow-2xl transition-all duration-500 pointer-events-none max-w-[90vw] truncate
               ${errorAlert ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-4 invisible'}`}
             >
               {errorAlert}
             </div>
 
             {activeMode === 'CRYPTO' ? (
-              <div className={`flex items-center justify-center h-9 sm:h-12 border rounded-xl sm:rounded-2xl px-2 sm:px-4 border-purple-500/30 bg-purple-500/5`}>
-                    <Globe size={16} className="text-purple-500 mr-2 sm:mr-3 animate-pulse sm:w-[18px] sm:h-[18px] shrink-0" />
-                    <span className="text-purple-500 font-black uppercase tracking-widest text-[10px] sm:text-sm truncate">{t('header.cryptoTerminal')}</span>
+              <div className={`flex items-center justify-center h-9 sm:h-10 border rounded-xl px-3 border-purple-500/30 bg-purple-500/5`}>
+                    <Globe size={14} className="text-purple-500 mr-2 animate-pulse shrink-0" />
+                    <span className="text-purple-500 font-black uppercase tracking-widest text-[10px] sm:text-xs truncate">{t('header.cryptoTerminal')}</span>
                 </div>
             ) : activeMode === 'INTERNATIONAL' ? (
-              <div className={`flex items-center justify-center h-9 sm:h-12 border rounded-xl sm:rounded-2xl px-2 sm:px-4 border-teal-500/30 bg-teal-500/5`}>
-                    <Globe size={16} className="text-teal-400 mr-2 sm:mr-3 sm:w-[18px] sm:h-[18px] shrink-0" />
-                    <span className="text-teal-400 font-black uppercase tracking-widest text-[10px] sm:text-sm truncate">{t('header.internationalTerminal')}</span>
+              <div className={`flex items-center justify-center h-9 sm:h-10 border rounded-xl px-3 border-teal-500/30 bg-teal-500/5`}>
+                    <Globe size={14} className="text-teal-400 mr-2 shrink-0" />
+                    <span className="text-teal-400 font-black uppercase tracking-widest text-[10px] sm:text-xs truncate">{t('header.internationalTerminal')}</span>
                 </div>
             ) : (activeMode === 'AUTO_TRADE' || activeMode === 'BROKER_CONNECTION') ? (
                 <div
-                  className={`flex items-center h-9 sm:h-12 border rounded-xl sm:rounded-2xl px-2 sm:px-4 opacity-45 grayscale pointer-events-none select-none ${UI.searchBg}`}
+                  className={`flex items-center h-9 sm:h-10 border rounded-xl px-3 opacity-45 grayscale pointer-events-none select-none ${UI.searchBg}`}
                   title={t('search.disabledTitle')}
                   aria-disabled="true"
                 >
-                    <Search size={16} className="text-slate-400 mr-1.5 sm:mr-3 sm:w-[18px] sm:h-[18px] shrink-0" />
+                    <Search size={14} className="text-slate-400 mr-2 shrink-0" />
                     <input
                         type="text"
                         tabIndex={-1}
@@ -133,24 +125,16 @@ const AppHeader = ({
                         disabled
                         placeholder={t('search.placeholderUnavailable')}
                         value=""
-                        className={`flex-1 min-w-0 bg-transparent outline-none text-sm sm:text-base font-bold uppercase cursor-not-allowed ${UI.searchInput}`}
+                        className={`flex-1 min-w-0 bg-transparent outline-none text-xs sm:text-sm font-bold uppercase cursor-not-allowed ${UI.searchInput}`}
                     />
-                    <button
-                      type="button"
-                      disabled
-                      tabIndex={-1}
-                      className="hidden md:block h-8 px-6 rounded-lg bg-slate-300 text-slate-500 font-black text-xs opacity-70 ml-2 cursor-not-allowed"
-                    >
-                      {t('search.button')}
-                    </button>
                 </div>
             ) : (
-                <div className={`flex items-center h-9 sm:h-12 border rounded-xl sm:rounded-2xl px-2 sm:px-4 focus-within:border-yellow-400/50 transition-all ${UI.searchBg}`}>
-                    <Search size={16} className="text-yellow-400 mr-1.5 sm:mr-3 sm:w-[18px] sm:h-[18px] shrink-0" />
+                <div className={`flex items-center h-9 sm:h-10 border rounded-xl px-2.5 sm:px-3 focus-within:border-yellow-400/50 transition-all ${UI.searchBg}`}>
+                    <Search size={14} className="text-yellow-400 mr-2 shrink-0" />
                     <input
                         type="text"
                         placeholder={activeMode === 'VN_DERIVATIVES' ? t('search.placeholderDeriv') : t('search.placeholderSymbol')}
-                        className={`flex-1 min-w-0 bg-transparent outline-none text-sm sm:text-base font-bold uppercase ${UI.searchInput}`}
+                        className={`flex-1 min-w-0 bg-transparent outline-none text-xs sm:text-sm font-bold uppercase ${UI.searchInput}`}
                         value={activeMode === 'VN_DERIVATIVES' ? "VN30F1M" : input}
                         onChange={(e) => { setInput(e.target.value.toUpperCase()); setShowSuggestions(true); }}
                         onKeyDown={(e) => {
@@ -163,16 +147,16 @@ const AppHeader = ({
                     <button
                       type="button"
                       onClick={runSearch}
-                      className="md:hidden h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-yellow-400 text-black disabled:opacity-50 ml-1"
+                      className="h-7 w-7 shrink-0 flex items-center justify-center rounded-lg bg-yellow-400 text-black disabled:opacity-50 ml-1.5 md:hidden"
                       disabled={loadingMarket || !input || activeMode === 'VN_DERIVATIVES'}
                       aria-label={t('search.ariaLabel')}
                     >
-                      <Search size={14} />
+                      <Search size={12} />
                     </button>
                     <button
                       type="button"
                       onClick={runSearch}
-                      className="hidden md:block h-8 px-6 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-black font-black text-xs transition-all active:scale-95 disabled:opacity-50 ml-2"
+                      className="hidden md:block h-7 px-4 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-black font-black text-xs transition-all active:scale-95 disabled:opacity-50 ml-2"
                       disabled={loadingMarket || !input}
                     >
                       {t('search.button')}
@@ -198,8 +182,8 @@ const AppHeader = ({
                     className={`w-full flex items-center justify-between px-3 sm:px-5 py-3 transition-all border-b last:border-0 text-left group ${UI.cardHover}`}
                   >
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 pr-2 sm:pr-4">
-                      <Zap size={14} className="text-yellow-400 shrink-0 group-hover:animate-pulse" />
-                      <span className={`font-black text-sm sm:text-base tracking-wider transition-colors ${isDark ? 'text-emerald-400 group-hover:text-yellow-400' : 'text-emerald-600 group-hover:text-yellow-500'}`}>
+                      <Zap size={13} className="text-yellow-400 shrink-0 group-hover:animate-pulse" />
+                      <span className={`font-black text-sm tracking-wider transition-colors ${isDark ? 'text-emerald-400 group-hover:text-yellow-400' : 'text-emerald-600 group-hover:text-yellow-500'}`}>
                         {stock.symbol}
                       </span>
                       <span className={`text-[11px] font-medium truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -224,7 +208,13 @@ const AppHeader = ({
             )}
         </div>
 
-          <div className="hidden xl:flex items-center gap-4 shrink-0 select-none ml-8">
+        {/* ── RIGHT: Clock + Actions ── */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile clock - chỉ hiện dưới xl */}
+          <MobileHeaderClock marketOpen={marketOpen} isDark={isDark} />
+
+          {/* Desktop clock + market badge - chỉ hiện xl+ */}
+          <div className="hidden xl:flex items-center gap-3 shrink-0 select-none">
             <CyberpunkClock marketOpen={marketOpen} theme={isDark ? 'dark' : 'light'} is3D={clockIs3D} />
             <div
               className={`w-[9.75rem] shrink-0 px-3 py-2 rounded-2xl border font-black uppercase tracking-widest text-[11px] text-center
@@ -239,19 +229,17 @@ const AppHeader = ({
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-end gap-1 sm:gap-3 shrink-0 relative">
-          <MobileHeaderClock marketOpen={marketOpen} isDark={isDark} />
-
-          <button type="button" onClick={() => setShowLogs(!showLogs)} className={`hidden md:flex items-center gap-2 px-4 h-10 rounded-xl text-[10px] font-black uppercase border transition-all ${showLogs ? 'bg-yellow-400 text-black border-yellow-400' : UI.btnLog}`}>
-            <TerminalSquare size={16} />
+          {/* Terminal log button - ẩn trên mobile */}
+          <button type="button" onClick={() => setShowLogs(!showLogs)} className={`hidden md:flex items-center gap-2 px-3 h-9 rounded-xl text-[10px] font-black uppercase border transition-all ${showLogs ? 'bg-yellow-400 text-black border-yellow-400' : UI.btnLog}`}>
+            <TerminalSquare size={15} />
             <span className="hidden xl:inline">{showLogs ? t('header.logsClose') : t('header.logsOpen')}</span>
           </button>
 
+          {/* User menu */}
           <div className="relative shrink-0 z-[999999]">
-            <button type="button" onClick={() => setShowUserMenu(!showUserMenu)} className={`p-2 sm:p-2.5 h-9 w-9 sm:h-auto sm:w-auto sm:min-h-[40px] sm:min-w-[40px] flex items-center justify-center rounded-xl border transition-all ${showUserMenu ? 'bg-emerald-500 border-emerald-500 text-black' : UI.btnLog}`}>
-              <Menu size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <button type="button" onClick={() => setShowUserMenu(!showUserMenu)} className={`h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl border transition-all ${showUserMenu ? 'bg-emerald-500 border-emerald-500 text-black' : UI.btnLog}`}>
+              <Menu size={16} />
             </button>
             {showUserMenu && (
               <UserMenu
