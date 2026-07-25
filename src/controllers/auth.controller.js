@@ -81,6 +81,7 @@ export const login = async (req, res) => {
 
         const user = await findUserByUsername(cleanUsername);
         if (!user || user.password !== password) {
+            console.log(chalk.yellow(`[AUTH LOGIN FAIL] Username: '${cleanUsername}' | User found in DB: ${!!user} | Password match: ${user ? user.password === password : false}`));
             return res.status(400).json({
                 success: false,
                 message: tMsg(lang, 'auth', 'loginInvalid'),
