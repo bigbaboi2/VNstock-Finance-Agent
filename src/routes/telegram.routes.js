@@ -103,6 +103,10 @@ router.get('/set-webhook', async (req, res) => {
 // ─── GET /api/telegram/set-commands ──────────────────────────────────────────
 // Đăng ký menu lệnh hiển thị khi user gõ "/" trong Telegram.
 // Gọi một lần sau khi set-webhook. Không cần gọi lại trừ khi thêm/đổi lệnh.
+//
+// Lý do xoá scope trước khi set: Telegram ưu tiên scope cụ thể hơn default.
+// Nếu all_private_chats scope từng được set riêng (vd chỉ có /help), nó sẽ
+// override default scope → chat chỉ hiện 1 lệnh. Fix: delete rồi re-set.
 router.get('/set-commands', async (req, res) => {
     try {
         const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN;
@@ -131,14 +135,40 @@ router.get('/set-commands', async (req, res) => {
             { command: 'help',      description: 'Xem tat ca lenh va huong dan' },
         ];
 
-        const apiUrl = `https://api.telegram.org/bot${botToken}/setMyCommands`;
-        const result = await axios.post(apiUrl, { commands });
+        const base = `https://api.telegram.org/bot${botToken}`;
 
-        console.log(chalk.green(`[TELEGRAM] ✅ Đã đăng ký ${commands.length} lệnh vào bot menu`));
+        // Bước 1: Xoá sạch tất cả scope cụ thể có thể đang override default
+        const scopesToClear = [
+            { type: 'all_private_chats' },
+            { type: 'all_group_chats' },
+            { type: 'all_chat_administrators' },
+        ];
+        const clearResults = [];
+        for (const scope of scopesToClear) {
+            try {
+                const r = await axios.post(`${base}/deleteMyCommands`, { scope });
+                clearResults.push({ scope: scope.type, ok: r.data.ok });
+            } catch (e) {
+                clearResults.push({ scope: scope.type, ok: false, err: e.message });
+            }
+        }
+
+        // Bước 2: Set commands cho default scope (áp dụng cho mọi nơi)
+        const defaultResult = await axios.post(`${base}/setMyCommands`, { commands });
+
+        // Bước 3: Set lại explicitly cho all_private_chats (private chat với bot)
+        const privateResult = await axios.post(`${base}/setMyCommands`, {
+            commands,
+            scope: { type: 'all_private_chats' },
+        });
+
+        console.log(chalk.green(`[TELEGRAM] ✅ Đã đăng ký ${commands.length} lệnh vào bot menu (default + private)`));
         return res.json({
             ok: true,
             commandCount: commands.length,
-            telegramResponse: result.data,
+            clearResults,
+            defaultScope: defaultResult.data,
+            privateScope: privateResult.data,
         });
 
     } catch (err) {
