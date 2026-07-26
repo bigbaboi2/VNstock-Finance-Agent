@@ -3820,6 +3820,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
         // ── RADAR THROTTLE: chỉ gửi khi có tín hiệu MẠNH (AI duyệt + score >= 80) ──
         // Trước đây gửi gần như mỗi chu kỳ → spam. Giờ chỉ báo cơ hội đáng giá.
+        // Lưu ý: chỉ gửi radar khi chu kỳ này có ít nhất 1 lệnh LIVE khớp thực sự.
+        // Các chu kỳ SIM thuần túy (training AI nền) → im lặng hoàn toàn trên Telegram.
         const RADAR_MIN_SCORE = 80;
         const isStrong = (c) => c.aiConfirmed === true && (c.score || 0) >= RADAR_MIN_SCORE;
         const strongRadar = {};
@@ -3829,7 +3831,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
             strongRadar[asset] = strong;
             if (strong.length) hasStrongSignal = true;
         }
-        if (!liveOnlyMode && hasStrongSignal) {
+        // Chỉ gửi radar khi: có tín hiệu mạnh AND có lệnh LIVE khớp trong chu kỳ này
+        const liveMatchedTrades = cycleMatchedTrades.filter((t) => t.mode === 'LIVE');
+        const hasLiveActivity = liveMatchedTrades.length > 0;
+        if (!liveOnlyMode && hasStrongSignal && hasLiveActivity) {
             let fundSnapshot = null;
             try {
                 const [livePortfolios, openLiveByAsset] = await Promise.all([
@@ -3864,9 +3869,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 cryptoMarketStatus: cryptoMacro?.marketStatus || null,
                 cryptoFearGreed: cryptoMacro?.fearGreed ?? null,
                 cryptoBtcChangePct: cryptoMacro?.btcChangePct ?? null,
-                matchedTrades: cycleMatchedTrades,
+                matchedTrades: liveMatchedTrades,  // chỉ hiện lệnh LIVE, bỏ qua SIM
                 fundSnapshot,
             })).catch(() => {});
+        } else if (!liveOnlyMode && hasStrongSignal && !hasLiveActivity) {
+            console.log(chalk.gray(`[RADAR] Có tín hiệu mạnh nhưng không có lệnh LIVE khớp → bỏ qua thông báo Telegram.`));
         }
 
         if (!isOutOfStandardHours) {
