@@ -100,6 +100,53 @@ router.get('/set-webhook', async (req, res) => {
     }
 });
 
+// ─── GET /api/telegram/set-commands ──────────────────────────────────────────
+// Đăng ký menu lệnh hiển thị khi user gõ "/" trong Telegram.
+// Gọi một lần sau khi set-webhook. Không cần gọi lại trừ khi thêm/đổi lệnh.
+router.get('/set-commands', async (req, res) => {
+    try {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN;
+        if (!botToken) {
+            return res.status(500).json({ ok: false, error: 'TELEGRAM_BOT_TOKEN chưa được set trong .env' });
+        }
+
+        const commands = [
+            { command: 'start',     description: '▶️ Bật auto-trade pipeline' },
+            { command: 'stop',      description: '⏸ Tắt auto-trade pipeline' },
+            { command: 'status',    description: '📊 Dashboard tổng quan hệ thống' },
+            { command: 'live',      description: '🔴 Xem lệnh LIVE đang mở + thống kê 30d' },
+            { command: 'sim',       description: '🧪 Xem lệnh SIM đang chạy + thống kê 30d' },
+            { command: 'pnl',       description: '💰 PnL hôm nay (LIVE + SIM + Manual)' },
+            { command: 'portfolio', description: '💼 Danh sách gói portfolio đang chạy' },
+            { command: 'market',    description: '🌐 Tổng quan thị trường VN + Crypto' },
+            { command: 'stats',     description: '📈 Thống kê giao dịch (mặc định 30 ngày)' },
+            { command: 'info',      description: '🔍 Giá + kỹ thuật một mã: /info MBB' },
+            { command: 'insight',   description: '🧠 Báo cáo AI thị trường hôm nay' },
+            { command: 'funnel',    description: '🔬 Funnel scan cuối: /funnel crypto|vn|deriv' },
+            { command: 'health',    description: '⚙️ Trạng thái hệ thống & tài nguyên' },
+            { command: 'broker',    description: '🏦 Kết nối sàn giao dịch' },
+            { command: 'manual',    description: '🙋 Danh sách lệnh manual đang mở' },
+            { command: 'ai',        description: '🤖 Bài học AI + thống kê hành vi gần đây' },
+            { command: 'settings',  description: '🔧 Xem cấu hình auto-trade hiện tại' },
+            { command: 'help',      description: '❓ Xem tất cả lệnh và hướng dẫn' },
+        ];
+
+        const apiUrl = `https://api.telegram.org/bot${botToken}/setMyCommands`;
+        const result = await axios.post(apiUrl, { commands });
+
+        console.log(chalk.green(`[TELEGRAM] ✅ Đã đăng ký ${commands.length} lệnh vào bot menu`));
+        return res.json({
+            ok: true,
+            commandCount: commands.length,
+            telegramResponse: result.data,
+        });
+
+    } catch (err) {
+        console.log(chalk.red(`[TELEGRAM] ❌ Set commands thất bại: ${err.message}`));
+        return res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
 // ─── DELETE /api/telegram/webhook ────────────────────────────────────────────
 // option for local testing
 router.delete('/webhook', async (req, res) => {
