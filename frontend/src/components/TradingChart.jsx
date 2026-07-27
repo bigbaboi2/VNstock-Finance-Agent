@@ -6,7 +6,8 @@ import {
   Pencil, MoveHorizontal, Baseline, Trash2,
   Settings2, ChevronDown, Check, BarChart2, Clock, RefreshCw,
   ChevronLeft, ChevronRight, Minus, Plus,
-  SlidersHorizontal, TrendingUp, MousePointer
+  SlidersHorizontal, TrendingUp, MousePointer,
+  Maximize2, Maximize, Minimize2
 } from 'lucide-react';
 
 
@@ -108,12 +109,49 @@ function patchKlineDragCapture(chart) {
     }
   };
 
+  const performMainPaneVerticalPan = (evInstance, downWidget, pageY) => {
+    try {
+      const pane = downWidget.getPane?.();
+      const yAxis = pane?.getAxisComponent?.();
+      if (!yAxis) return;
+
+      if (evInstance.__omniYLastPanePageY == null) {
+        evInstance.__omniYLastPanePageY = pageY;
+        return;
+      }
+
+      const dy = pageY - evInstance.__omniYLastPanePageY;
+      evInstance.__omniYLastPanePageY = pageY;
+
+      const cur = yAxis.getRange?.();
+      const paneHeight = pane?.getBounding?.()?.height || 300;
+      if (cur && dy !== 0 && paneHeight > 0) {
+        const deltaPrice = (dy / paneHeight) * cur.range;
+        const newFrom = cur.from + deltaPrice;
+        const newTo = cur.to + deltaPrice;
+        const newRealFrom = yAxis.convertToRealValue(newFrom);
+        const newRealTo = yAxis.convertToRealValue(newTo);
+        yAxis.setAutoCalcTickFlag?.(false);
+        yAxis.setRange({
+          from: newFrom,
+          to: newTo,
+          range: cur.range,
+          realFrom: newRealFrom,
+          realTo: newRealTo,
+          realRange: newRealTo - newRealFrom,
+        });
+        chart.adjustPaneViewport(false, true, true, true);
+      }
+    } catch {}
+  };
+
   const origPressedMove = ev.pressedMouseMoveEvent?.bind(ev);
   const origMouseUp = ev.mouseUpEvent?.bind(ev);
   if (origMouseUp) {
     ev.mouseUpEvent = function (e) {
       this.__omniXLastPageX = null;
       this.__omniYLastPageY = null;
+      this.__omniYLastPanePageY = null;
       return origMouseUp(e);
     };
   }
@@ -141,11 +179,17 @@ function patchKlineDragCapture(chart) {
         }
         return true;
       }
+      if (down) {
+        const event = this._makeWidgetEvent(e, down);
+        if (event?.pageY != null) {
+          performMainPaneVerticalPan(this, down, event.pageY);
+        }
+      }
       return origPressedMove(e);
     };
   }
 
-  const handleTouchMoveAxis = function (e) {
+  const handleTouchMovePane = function (e) {
     const down = this._mouseDownWidget;
     const name = down?.getName?.();
     if (name === 'xAxis' || name === 'yAxis') {
@@ -157,19 +201,25 @@ function patchKlineDragCapture(chart) {
         if (name === 'yAxis') performYAxisDrag(this, down, pageY);
         return true;
       }
+    } else if (down) {
+      const touch = e.touches?.[0] || e.targetTouches?.[0] || e;
+      const pageY = touch.pageY ?? touch.clientY;
+      if (pageY != null) {
+        performMainPaneVerticalPan(this, down, pageY);
+      }
     }
     return false;
   };
 
   const origPressedTouchMove = ev.pressedTouchMoveEvent?.bind(ev);
   ev.pressedTouchMoveEvent = function (e) {
-    if (handleTouchMoveAxis.call(this, e)) return true;
+    if (handleTouchMovePane.call(this, e)) return true;
     return origPressedTouchMove ? origPressedTouchMove(e) : false;
   };
 
   const origTouchMove = ev.touchMoveEvent?.bind(ev);
   ev.touchMoveEvent = function (e) {
-    if (handleTouchMoveAxis.call(this, e)) return true;
+    if (handleTouchMovePane.call(this, e)) return true;
     return origTouchMove ? origTouchMove(e) : false;
   };
 
@@ -181,6 +231,7 @@ function patchKlineDragCapture(chart) {
     if (touch) {
       this.__omniXLastPageX = touch.pageX ?? touch.clientX;
       this.__omniYLastPageY = touch.pageY ?? touch.clientY;
+      this.__omniYLastPanePageY = touch.pageY ?? touch.clientY;
     }
     return origTouchStart ? origTouchStart(e) : false;
   };
@@ -189,6 +240,7 @@ function patchKlineDragCapture(chart) {
   ev.touchEndEvent = function (e) {
     this.__omniXLastPageX = null;
     this.__omniYLastPageY = null;
+    this.__omniYLastPanePageY = null;
     const result = origTouchEnd ? origTouchEnd(e) : false;
     this._mouseDownWidget = null;
     return result;
@@ -684,6 +736,69 @@ export default React.memo(function TradingChart({
   const strokeSizeRef       = useRef(2);
   const strokeStyleRef      = useRef('solid');
   const overlayColorRef     = useRef(A.defaultOverlay);
+
+  const outerWrapperRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!outerWrapperRef.current) return;
+    if (!document.fullscreenElement && !isFullscreen) {
+      try {
+        if (outerWrapperRef.current.requestFullscreen) {
+          await outerWrapperRef.current.requestFullscreen();
+        }
+      } catch {}
+      setIsFullscreen(true);
+      setIsLandscape(false);
+    } else {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        }
+      } catch {}
+      setIsFullscreen(false);
+      setIsLandscape(false);
+      try { window.screen.orientation?.unlock?.(); } catch {}
+    }
+  }, [isFullscreen]);
+
+  const toggleLandscapeFullscreen = useCallback(async () => {
+    if (!outerWrapperRef.current) return;
+    if (!document.fullscreenElement && !isLandscape) {
+      try {
+        if (outerWrapperRef.current.requestFullscreen) {
+          await outerWrapperRef.current.requestFullscreen();
+        }
+      } catch {}
+      try {
+        await window.screen.orientation?.lock?.('landscape');
+      } catch {}
+      setIsFullscreen(true);
+      setIsLandscape(true);
+    } else {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        }
+      } catch {}
+      setIsFullscreen(false);
+      setIsLandscape(false);
+      try { window.screen.orientation?.unlock?.(); } catch {}
+    }
+  }, [isLandscape]);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+        setIsLandscape(false);
+        try { window.screen.orientation?.unlock?.(); } catch {}
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   const [interval,          setInterval]          = useState(currentInterval || '1 ngày');
   const [showIntervalMenu,  setShowIntervalMenu]   = useState(false);
@@ -1232,7 +1347,16 @@ const rowBtn = React.useCallback((active) =>
       : `bg-white border-slate-300 text-slate-700 ${A.hoverSolid}`);
 
   return (
-    <div data-chart-root className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-30' : ''}`} onClick={closeAllMenus}>
+    <div
+      ref={outerWrapperRef}
+      data-chart-root
+      className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-30' : ''} ${
+        isFullscreen
+          ? 'fixed inset-0 z-[99999] w-screen h-screen p-2 sm:p-4 bg-[#080C11]'
+          : ''
+      }`}
+      onClick={closeAllMenus}
+    >
 
       {!isMini && (
         <div
@@ -1311,6 +1435,34 @@ const rowBtn = React.useCallback((active) =>
             </div>
           )}
         </div>
+
+        {/* Fullscreen Button 1: Maximize2 (Mũi tên chéo 2 đầu - Fullscreen Current Orientation) */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          title={isFullscreen && !isLandscape ? "Thoát toàn màn hình" : "Toàn màn hình (Mũi tên chéo)"}
+          className={`p-2 rounded-xl border transition-all ${
+            isFullscreen && !isLandscape
+              ? `${A.solid} ${A.solidText}`
+              : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
+          }`}
+        >
+          {isFullscreen && !isLandscape ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
+
+        {/* Fullscreen Button 2: Maximize (Nút 4 góc ô vuông - Landscape Fullscreen Auto-Rotate) */}
+        <button
+          type="button"
+          onClick={toggleLandscapeFullscreen}
+          title={isLandscape ? "Thoát toàn màn hình xoay ngang" : "Toàn màn hình Xoay ngang (4 góc ô vuông)"}
+          className={`p-2 rounded-xl border transition-all ${
+            isLandscape
+              ? `${A.solid} ${A.solidText}`
+              : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
+          }`}
+        >
+          <Maximize size={15} />
+        </button>
 
         <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
           <span className={`text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>{t('color')}</span>

@@ -4655,18 +4655,30 @@ export default function VnStocksTab({
               </button>
             )}
           </div>
-          <div className={`flex-1 relative ${isDark ? 'bg-[#242424]' : 'bg-slate-100'}`}>
+          <div className={`flex-1 relative flex flex-col items-center justify-center p-6 text-center ${isDark ? 'bg-[#121824]' : 'bg-slate-100'}`}>
             {marketData?.reportPdf ? (
-              <iframe
-                key={marketData.stockInfo?.symbol || 'tcbs-pdf'}
-                src={tcbsPdfEmbedUrl(marketData.reportPdf, marketData.stockInfo?.symbol)}
-                className="absolute inset-0 w-full h-full border-none bg-white"
-                title="TCBS Report Preview"
-                referrerPolicy="no-referrer"
-              />
+              <div className="flex flex-col items-center gap-3">
+                <div className="p-4 rounded-2xl bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 shadow-lg">
+                  <FileText size={36} />
+                </div>
+                <div>
+                  <h4 className={`text-sm font-black uppercase tracking-wider ${UI.textBold}`}>
+                    BÁO CÁO TCBS: {marketData.stockInfo?.symbol}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    Bản quyền dữ liệu phân tích TCBS
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPdfModal(true)}
+                  className="mt-2 px-6 py-2.5 bg-yellow-400 text-black font-black text-xs uppercase tracking-widest rounded-xl hover:bg-yellow-300 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <FileText size={16} /> Mở Xem PDF Trực Tiếp
+                </button>
+              </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center opacity-20">
-                <FileText size={32} className="mb-2" />
+              <div className="h-full flex flex-col items-center justify-center opacity-40">
+                <FileText size={32} className="mb-2 text-yellow-400" />
                 <p className="text-[9px] font-black uppercase">{t('waitingForData')}</p>
               </div>
             )}

@@ -17,8 +17,8 @@ import AuthScreen from './components/AuthScreen';
 import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
 import AutoDuckTab from './components/AutoDuckTab';
-import BrokerConnectionTab from './components/BrokerConnectionTab';
-import { tcbsPdfEmbedUrl } from './lib/apiBase';
+import PdfViewerModal from './components/PdfViewerModal';
+import { tcbsPdfEmbedUrl, tcbsPdfViewerUrl } from './lib/apiBase';
 import { AI_REPORT_COOLDOWN_MS } from './constants/aiReportCooldown';
 import {
   APP_MODES,
@@ -2482,43 +2482,15 @@ const handleAiAnalysis = async (forceRefresh = false) => {
           onClose={() => setShowLogs(false)} 
         />
       )}
-     {/*COMPONENT: FULL PDF MODAL VIEWER */}
-      {showPdfModal && (
-        <div 
-            className="fixed inset-0 flex items-center justify-center p-6 lg:p-12 pt-24" 
-            style={{ zIndex: 999999 }}
-        >
-            <div 
-                className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
-                onClick={() => setShowPdfModal(false)}
-            />
-            <div className={`relative w-full max-w-6xl h-full flex flex-col rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border ${isDark ? 'bg-[#1e1e1e] border-white/10' : 'bg-gray-100 border-gray-300'} animate-in zoom-in-95 duration-200`}>
-                <div className={`h-14 flex items-center justify-between px-6 border-b shrink-0 ${isDark ? 'bg-[#121212] border-white/10' : 'bg-white border-gray-300'}`}>
-                    <div className="flex items-center gap-3">
-                        <FileText size={18} className="text-yellow-400" />
-                        <h3 className={`font-black tracking-widest uppercase text-sm ${UI.textBold}`}>
-                            Báo cáo phân tích chuyên sâu: {marketData.stockInfo.symbol}
-                        </h3>
-                    </div>
-                    <button 
-                        onClick={() => setShowPdfModal(false)} 
-                        className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'}`}
-                    >
-                        <X size={20} strokeWidth={3} />
-                    </button>
-                </div>
-                <div className="flex-1 w-full relative bg-white">
-                    <iframe 
-                        src={tcbsPdfEmbedUrl(marketData.reportPdf, marketData.stockInfo?.symbol)} 
-                        className="absolute inset-0 w-full h-full border-none" 
-                        title="PDF Full Viewer"
-                        referrerPolicy="no-referrer"
-                   />
-                </div>
-            </div>
-        </div>
-      )}
-      
+      {/* FULL PDF VIEWER MODAL (PDF.JS CANVAS BASED) */}
+      <PdfViewerModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        pdfUrl={marketData?.stockInfo?.symbol ? tcbsPdfViewerUrl(marketData.stockInfo.symbol) : (marketData?.reportPdf || null)}
+        symbol={marketData?.stockInfo?.symbol}
+        isDark={isDark}
+        UI={UI}
+      />
     </div>
   );
 }
