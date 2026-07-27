@@ -1724,36 +1724,57 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
         .filter(a => !a.closedAt)
         .reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
     const displayRealizedPnl = closedAllocs.reduce((sum, a) => sum + (Number(a.pnl) || 0), 0);
+
     const displayTotalCapital = isPortfolio
         ? Math.max(0, (Number(order.totalCapital) || 0) - (Number(order.realizedPnl) || 0) + displayRealizedPnl)
         : Number(order.capital) || 0;
-    const usedPct = isPortfolio && displayTotalCapital > 0
-        ? Math.min(100, Math.round(displayUsedCapital / displayTotalCapital * 100))
+
+    const initialCapital = isPortfolio
+        ? Math.max(0, displayTotalCapital - displayRealizedPnl)
+        : Number(order.capital) || 0;
+
+    const currentCapital = isPortfolio
+        ? displayTotalCapital
+        : (initialCapital + displayRealizedPnl);
+
+    const pnlPercent = initialCapital > 0
+        ? ((displayRealizedPnl / initialCapital) * 100)
+        : 0;
+
+    const usedPct = isPortfolio && currentCapital > 0
+        ? Math.min(100, Math.round(displayUsedCapital / currentCapital * 100))
         : 0;
 
     const packageOutline = openCount > 0
-        ? (isDark ? 'ring-2 ring-cyan-500/35 border-2 border-cyan-500/25 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]' : 'ring-2 ring-cyan-400/50 border-2 border-cyan-300 shadow-sm')
+        ? (isDark ? 'ring-2 ring-cyan-500/35 border-2 border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]' : 'ring-2 ring-cyan-400/50 border-2 border-cyan-300 shadow-md')
         : isPortfolio
-            ? (isDark ? 'ring-1 ring-violet-500/30 border-2 border-violet-500/20' : 'ring-1 ring-violet-300/60 border-2 border-violet-200')
-            : (isDark ? 'ring-1 ring-white/80 border-2 border-white/80' : 'ring-1 ring-slate-200 border-2 border-slate-200');
+            ? (isDark ? 'border-2 border-violet-500/30 shadow-md' : 'border-2 border-violet-200 shadow-sm')
+            : (isDark ? 'border-2 border-slate-700 shadow-md' : 'border-2 border-slate-200 shadow-sm');
 
     const packageBg = isPortfolio
-        ? (isDark ? 'bg-violet-500/[0.04]' : 'bg-violet-50/40')
-        : (isDark ? 'bg-[#10151c]' : 'bg-slate-50');
+        ? (isDark ? 'bg-slate-900/90' : 'bg-slate-50/80')
+        : (isDark ? 'bg-[#10151c]' : 'bg-white');
 
     return (
-        <div className={`rounded-xl p-4 ${packageBg} ${packageOutline}`}>
-            {/* ── Header gói: số thứ tự + trạng thái lệnh đang chạy ── */}
-            <div className={`flex items-center justify-between gap-2 mb-3 pb-2.5 border-b ${isDark ? 'border-white/80' : 'border-slate-200'}`}>
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className={`flex shrink-0 items-center justify-center w-8 h-8 rounded-lg text-xs font-black border ${isDark ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' : 'bg-yellow-50 border-yellow-300 text-yellow-700'}`}>
+        <div className={`rounded-2xl p-4.5 transition-all duration-200 ${packageBg} ${packageOutline}`}>
+            {/* ── 1. HEADER GÓI LỆNH ── */}
+            <div className={`flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                    <span className={`flex shrink-0 items-center justify-center w-9 h-9 rounded-xl text-xs font-black border shadow-inner ${
+                        isPortfolio
+                            ? (isDark ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' : 'bg-violet-100 border-violet-300 text-violet-700')
+                            : (isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700')
+                    }`}>
                         #{index}
                     </span>
                     <div className="flex flex-col min-w-0">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold}`}>
-                            {isPortfolio ? t('packageNumPortfolio', { index }) : t('packageNumFixed', { index })}
-                        </span>
-                        <span className={`text-[9px] font-bold ${openCount > 0 ? 'text-cyan-400' : UI.textMuted}`}>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-xs font-black uppercase tracking-wider ${UI.textBold}`}>
+                                {isPortfolio ? t('packageNumPortfolio', { index }) : t('packageNumFixed', { index })}
+                            </span>
+                        </div>
+                        <span className={`text-[10px] font-bold flex items-center gap-1.5 ${openCount > 0 ? 'text-cyan-400' : UI.textMuted}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${openCount > 0 ? 'bg-cyan-400 animate-ping' : 'bg-slate-400'}`} />
                             {openCount > 0
                                 ? t('ordersRunningInPackage', { count: openCount })
                                 : ['ACTIVE', 'PENDING'].includes(order.status)
@@ -1762,175 +1783,314 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                     {openCount > 0 && (
-                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
-                            {t('runningShort', { count: openCount })}
+                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-cyan-500/15 text-cyan-400 border-cyan-500/30 shadow-sm">
+                            ⚡ {t('runningShort', { count: openCount })}
                         </span>
                     )}
                     {isPortfolio && (
-                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-violet-500/10 text-violet-400 border-violet-500/30">PORTFOLIO</span>
+                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-violet-500/15 text-violet-400 border-violet-500/30 shadow-sm">
+                            💼 PORTFOLIO
+                        </span>
                     )}
                     {order.executionMode === 'LIVE' && (
-                        <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-500 border-emerald-500/30">● LIVE</span>
+                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shadow-sm animate-pulse">
+                            ● LIVE
+                        </span>
                     )}
-                    <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${statusClass}`}>{order.status}</span>
+                    <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm ${statusClass}`}>
+                        {order.status}
+                    </span>
                 </div>
             </div>
 
-            <div className="flex justify-between items-center gap-3 mb-2">
-                <span className={`text-sm font-black font-mono ${UI.textBold}`}>
-                    {isPortfolio ? `💼 ${formatNumber(displayTotalCapital)} đ` : `${formatNumber(order.capital)} đ`}
-                </span>
+            {/* ── 2. PHÂN VÙNG VỐN BAN ĐẦU, VỐN HIỆN TẠI & PNL TÍCH LŨY ── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                {/* Vốn Ban Đầu */}
+                <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                    isDark ? 'bg-black/30 border-white/10' : 'bg-slate-100/80 border-slate-200'
+                }`}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${UI.textMuted} flex items-center gap-1`}>
+                            💼 {t('initialCapital', 'Vốn ban đầu')}
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20">Gốc</span>
+                    </div>
+                    <div className={`text-base font-mono font-black ${UI.textBold}`}>
+                        {formatNumber(initialCapital)} đ
+                    </div>
+                </div>
+
+                {/* Vốn Hiện Tại */}
+                <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                    displayRealizedPnl >= 0
+                        ? (isDark ? 'bg-emerald-950/25 border-emerald-500/30' : 'bg-emerald-50/80 border-emerald-200')
+                        : (isDark ? 'bg-red-950/25 border-red-500/30' : 'bg-red-50/80 border-red-200')
+                }`}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${UI.textMuted} flex items-center gap-1`}>
+                            💰 {t('currentCapital', 'Vốn hiện tại')}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                            displayRealizedPnl >= 0
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : 'bg-red-500/10 text-red-400 border-red-500/30'
+                        }`}>
+                            Quỹ hiện tại
+                        </span>
+                    </div>
+                    <div className={`text-base font-mono font-black ${displayRealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {formatNumber(currentCapital)} đ
+                    </div>
+                </div>
+
+                {/* PnL Tích Lũy */}
+                <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                    displayRealizedPnl >= 0
+                        ? (isDark ? 'bg-emerald-950/25 border-emerald-500/30' : 'bg-emerald-50/80 border-emerald-200')
+                        : (isDark ? 'bg-red-950/25 border-red-500/30' : 'bg-red-50/80 border-red-200')
+                }`}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${UI.textMuted} flex items-center gap-1`}>
+                            📈 {t('accumulatedPnl', 'PnL tích lũy')}
+                        </span>
+                        <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+                            displayRealizedPnl >= 0
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : 'bg-red-500/10 text-red-400 border-red-500/30'
+                        }`}>
+                            {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
+                        </span>
+                    </div>
+                    <div className={`text-base font-mono font-black ${displayRealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {displayRealizedPnl >= 0 ? '+' : ''}{formatNumber(displayRealizedPnl)} đ
+                    </div>
+                </div>
             </div>
 
-            {/* ── PORTFOLIO: thanh sử dụng quỹ + thống kê ── */}
-            {isPortfolio && (
-                <div className="mb-2 flex flex-col gap-1.5">
-                    <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/5' : 'bg-slate-200'}`}>
-                        <div className="h-full bg-violet-500 transition-all" style={{ width: `${usedPct}%` }} />
-                    </div>
-                    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5">
-                        <span className={`text-[10px] font-mono font-bold ${UI.textMuted}`}>
-                            {t('fundInUse', {
+            {/* ── 3. THANH SỬ DỤNG VỐN & THÔNG SỐ CẤU HÌNH GÓI ── */}
+            {isPortfolio ? (
+                <div className={`mb-4 p-3.5 rounded-xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-100/60 border-slate-200'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span className={`text-[10px] font-mono font-bold ${UI.textMuted} flex items-center gap-1`}>
+                            ⚡ {t('fundInUse', {
                                 amount: formatNumber(displayUsedCapital),
                                 pct: usedPct,
                                 openCount,
                             })}
                         </span>
-                        <span className={`text-[10px] font-mono font-black ${displayRealizedPnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                            PnL: {displayRealizedPnl >= 0 ? '+' : ''}{formatNumber(displayRealizedPnl)}đ
+                        <span className={`text-[10px] font-mono font-black ${displayUsedCapital > 0 ? 'text-cyan-400' : UI.textMuted}`}>
+                            Khả dụng: {formatNumber(Math.max(0, currentCapital - displayUsedCapital))} đ
                         </span>
                     </div>
-                    {closedAllocs.length > 0 && (
-                        <span className={`text-[9px] font-bold ${UI.textMuted}`}>
-                            {t('closedOrdersStats', {
-                                closed: closedAllocs.length,
-                                wins,
-                                pct: Math.round(wins / closedAllocs.length * 100),
-                                allocPct: order.allocationPercent,
-                                maxConcurrent: order.maxConcurrentOrders,
-                                dynamic: order.dynamicSizing ? t('dynamicOn') : t('dynamicOff'),
-                            })}
-                            {order.executionMode === 'LIVE' && (
-                                <> · Avg +{formatNumber(avgWinVnd)}đ / {formatNumber(avgLossVnd)}đ · Exp {expectancyVnd >= 0 ? '+' : ''}{formatNumber(expectancyVnd)}đ</>
-                            )}
+
+                    <div className={`w-full h-2 rounded-full overflow-hidden mb-3 ${isDark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                        <div
+                            className="h-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all duration-500 rounded-full"
+                            style={{ width: `${usedPct}%` }}
+                        />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-dashed border-white/10">
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                            isDark ? 'bg-violet-500/10 text-violet-300 border-violet-500/20' : 'bg-violet-50 text-violet-700 border-violet-200'
+                        }`}>
+                            📊 %/Lệnh: {order.allocationPercent}%
                         </span>
-                    )}
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                            isDark ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}>
+                            🔢 Max đồng thời: {order.maxConcurrentOrders}
+                        </span>
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                            order.dynamicSizing
+                                ? (isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200')
+                                : (isDark ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' : 'bg-slate-100 text-slate-600 border-slate-200')
+                        }`}>
+                            ⚡ Dynamic: {order.dynamicSizing ? t('dynamicOn') : t('dynamicOff')}
+                        </span>
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                            isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                            🎯 Target: +{order.targetPct}%
+                        </span>
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                            isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                            🛡️ SL: -{order.stopLossPct}%
+                        </span>
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                            isDark ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                            🌐 {order.assetType}
+                        </span>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-2 mb-4">
+                    <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                        isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                        🎯 Target +{order.targetPct}%
+                    </span>
+                    <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                        isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-700 border-red-200'
+                    }`}>
+                        🛡️ SL -{order.stopLossPct}%
+                    </span>
+                    <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                        isDark ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                        🌐 {order.assetType}
+                    </span>
                 </div>
             )}
 
-            {!isPortfolio && (
-                <p className={`text-[10px] font-mono font-bold mb-2 ${openCount > 0 ? 'text-cyan-400' : UI.textMuted}`}>
-                    {openCount > 0 ? t('fixedPackageRunning', { count: openCount }) : t('fixedPackageWaiting')}
-                </p>
+            {/* ── 4. PHÂN VÙNG THỐNG KÊ LỆNH ĐÃ ĐÓNG (NẾU CÓ) ── */}
+            {isPortfolio && closedAllocs.length > 0 && (
+                <div className={`mb-4 p-3.5 rounded-xl border ${isDark ? 'bg-slate-950/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold} flex items-center gap-1.5`}>
+                            📊 Thống kê lệnh đã đóng ({closedAllocs.length} lệnh)
+                        </span>
+                        <span className="text-[10px] font-mono font-black text-cyan-400">
+                            Winrate {Math.round(wins / closedAllocs.length * 100)}% ({wins}/{closedAllocs.length})
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
+                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                            <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Thắng / Thua</p>
+                            <p className="font-black text-emerald-400">{wins} <span className={UI.textMuted}>/</span> <span className="text-red-400">{closedAllocs.length - wins}</span></p>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                            <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Avg Lãi</p>
+                            <p className="font-black text-emerald-400">+{formatNumber(avgWinVnd)}đ</p>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                            <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Avg Lỗ</p>
+                            <p className="font-black text-red-400">{formatNumber(avgLossVnd)}đ</p>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                            <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Kỳ vọng (Exp)</p>
+                            <p className={`font-black ${expectancyVnd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {expectancyVnd >= 0 ? '+' : ''}{formatNumber(expectancyVnd)}đ
+                            </p>
+                        </div>
+                    </div>
+                </div>
             )}
 
-            <div className="flex flex-wrap gap-2 mb-2">
-                <span className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>Target +{order.targetPct}%</span>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>SL -{order.stopLossPct}%</span>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${UI.textMuted}`}>{order.assetType}</span>
-            </div>
-            <p className={`text-[10px] font-medium leading-relaxed ${UI.textMuted}`}>
-                {order.status === 'STOPPED' && openCount === 0
-                    ? t('packageStoppedMsg')
-                    : (order.result?.message || '')}
-            </p>
-
-            {/* ── Danh sách lệnh đã vào của gói portfolio ── */}
-            {isPortfolio && allAllocations.length > 0 && (
-                <div className={`mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-                    <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${UI.textMuted}`}>
-                        {t('enteredOrdersTitle', { matched: matchedAllocs.length, total: allAllocations.length })}
+            {/* ── 5. NHẬT KÝ TÍN HIỆU GẦN NHẤT ── */}
+            {(order.result?.message || (isPortfolio && allAllocations.length > 0)) && (
+                <div className={`mb-4 p-3 rounded-xl border flex items-start gap-2.5 ${
+                    isDark ? 'bg-cyan-950/20 border-cyan-500/20 text-cyan-200' : 'bg-cyan-50 border-cyan-200 text-cyan-900'
+                }`}>
+                    <Activity size={15} className="text-cyan-400 mt-0.5 shrink-0" />
+                    <p className="text-[11px] font-mono leading-relaxed break-words">
+                        {order.status === 'STOPPED' && openCount === 0
+                            ? t('packageStoppedMsg')
+                            : (order.result?.message || '')}
                     </p>
-                    <div className="flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                </div>
+            )}
+
+            {/* ── 6. DANH SÁCH LỆNH ĐÃ VÀO ── */}
+            {isPortfolio && allAllocations.length > 0 && (
+                <div className={`mt-3 pt-3 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold} flex items-center gap-1.5`}>
+                            📋 {t('enteredOrdersTitle', { matched: matchedAllocs.length, total: allAllocations.length })}
+                        </span>
+                        <span className={`text-[9px] font-bold ${UI.textMuted}`}>
+                            Cuộn để xem toàn bộ
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
                         {[...allAllocations].reverse().map((a, i) => {
                             const isClosed = !!a.closedAt;
                             const isUnmatched = !isMatchedAllocation(order, a);
                             const tradeDoc = a.trade && typeof a.trade === 'object' ? a.trade : null;
                             const tradeStatus = tradeDoc?.status || null;
-                            // PENDING = live đã gửi sàn, đang chờ fill (khác UNMATCHED/FAILED)
                             const isPendingFill = !isClosed && !isUnmatched && tradeStatus === 'PENDING';
-                            // UNMATCHED + SIM còn OPEN → chưa chốt, không hiện % giả
                             const simStillRunning = isUnmatched && (
                                 (tradeStatus && ['OPEN', 'PENDING'].includes(tradeStatus))
                                 || (!tradeDoc && !isClosed)
                             );
-                            const pnlPct = Number(a.pnlPercent || 0);
+                            const allocPnlPct = Number(a.pnlPercent || 0);
                             const reason = a.matchMessage || t('brokerMatchFailed');
                             const modeTag = isUnmatched
                                 ? 'SIM'
                                 : (a.executionMode === 'LIVE' ? 'LIVE' : 'SIM');
+
                             return (
-                                <div key={i} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[10px] ${isDark ? 'bg-black/20' : 'bg-slate-50'}`}>
-                                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                        <span className={`font-black font-mono ${UI.textBold}`}>{a.symbol || '—'}</span>
+                                <div key={i} className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl text-[10px] border transition-colors ${
+                                    isDark ? 'bg-black/30 border-white/5 hover:border-white/20' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+                                }`}>
+                                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                        <span className={`font-black font-mono text-xs ${UI.textBold}`}>{a.symbol || '—'}</span>
                                         {a.direction && (
-                                            <span className={`px-1 py-0.5 rounded text-[8px] font-black ${
-                                                a.direction.includes('LONG') || a.direction.includes('MUA') ? 'bg-emerald-500/15 text-emerald-500' : 
-                                                a.direction.includes('SHORT') || a.direction.includes('BÁN') ? 'bg-red-500/15 text-red-500' : 
-                                                'bg-slate-500/15 text-slate-400'
+                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider ${
+                                                a.direction.includes('LONG') || a.direction.includes('MUA') ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' : 
+                                                a.direction.includes('SHORT') || a.direction.includes('BÁN') ? 'bg-red-500/15 text-red-400 border border-red-500/25' : 
+                                                'bg-slate-500/15 text-slate-400 border border-slate-500/25'
                                             }`}>
                                                 {a.direction}
                                             </span>
                                         )}
-                                        {isUnmatched && (
-                                            <span title={reason} className="px-1 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-500">UNMATCHED</span>
-                                        )}
-                                        <span className={`px-1 py-0.5 rounded text-[8px] font-black ${
+                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black border ${
                                             modeTag === 'LIVE'
-                                                ? 'bg-emerald-500/15 text-emerald-500'
-                                                : 'bg-amber-500/15 text-amber-500'
+                                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                                         }`}>
                                             {modeTag}
                                         </span>
+                                        {isUnmatched && (
+                                            <span title={reason} className="px-1.5 py-0.5 rounded text-[8px] font-black bg-red-500/15 text-red-400 border border-red-500/30">
+                                                UNMATCHED
+                                            </span>
+                                        )}
                                         {isPendingFill && (
-                                            <span title={t('liveAwaitingFillTitle')} className="px-1 py-0.5 rounded text-[8px] font-black bg-yellow-500/15 text-yellow-400">
+                                            <span title={t('liveAwaitingFillTitle')} className="px-1.5 py-0.5 rounded text-[8px] font-black bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
                                                 PENDING
                                             </span>
                                         )}
                                         {simStillRunning && (
-                                            <span title={t('simOpeningTitle')} className="px-1 py-0.5 rounded text-[8px] font-black bg-sky-500/15 text-sky-400">
+                                            <span title={t('simOpeningTitle')} className="px-1.5 py-0.5 rounded text-[8px] font-black bg-sky-500/15 text-sky-400 border border-sky-500/30">
                                                 OPENING
                                             </span>
                                         )}
-                                        <span className={`font-mono ${UI.textMuted}`}>
+                                        <span className={`font-mono text-[9px] ${UI.textMuted}`}>
                                             @{Number(a.entryPrice).toLocaleString('en-US', { maximumFractionDigits: 4 })}
-                                            {a.openedAt && <span className="ml-1.5 opacity-50 text-[8px] font-normal">({new Date(a.openedAt).toLocaleString('vi-VN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })})</span>}
+                                            {a.openedAt && <span className="ml-1 opacity-60 text-[8px]">({new Date(a.openedAt).toLocaleString('vi-VN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })})</span>}
                                         </span>
                                     </div>
+
                                     <div className="flex items-center gap-2 shrink-0">
-                                        <span className={`font-mono font-bold ${UI.textNormal}`}>{(a.amount / 1e6).toFixed(2)}Tr</span>
+                                        <span className={`font-mono font-bold text-[11px] ${UI.textNormal}`}>{(a.amount / 1e6).toFixed(2)}Tr</span>
                                         {simStillRunning ? (
-                                            <span
-                                                title={t('simPnlHiddenTitle')}
-                                                className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wide bg-sky-500/15 text-sky-400"
-                                            >
+                                            <span title={t('simPnlHiddenTitle')} className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wide bg-sky-500/15 text-sky-400 border border-sky-500/30">
                                                 OPENING
                                             </span>
                                         ) : isClosed ? (
-                                            <span
-                                                title={isUnmatched ? t('simPnlNotAddedLiveTitle') : undefined}
-                                                className={`font-mono font-black ${pnlPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}
-                                            >
-                                                {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                                            <span title={isUnmatched ? t('simPnlNotAddedLiveTitle') : undefined} className={`font-mono font-black text-xs ${allocPnlPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {allocPnlPct >= 0 ? '+' : ''}{allocPnlPct.toFixed(2)}%
+                                                {a.pnl != null && <span className="text-[9px] font-normal ml-1">({a.pnl >= 0 ? '+' : ''}{Math.round(a.pnl / 1e3)}k)</span>}
                                             </span>
                                         ) : null}
                                         {isUnmatched ? (
                                             <div className="group flex items-center justify-end w-[110px] cursor-default" title={reason}>
-                                                <span className="text-[11px] font-black text-red-500 group-hover:hidden">
-                                                    UNMATCHED
-                                                </span>
+                                                <span className="text-[10px] font-black text-red-400 group-hover:hidden">UNMATCHED</span>
                                                 <div className="hidden group-hover:flex relative overflow-hidden w-full mask-fade-edges items-center">
-                                                    <span className="text-[10px] font-bold text-yellow-400 animate-marquee-left whitespace-nowrap">
-                                                        {reason}
-                                                    </span>
+                                                    <span className="text-[9px] font-bold text-yellow-400 animate-marquee-left whitespace-nowrap">{reason}</span>
                                                 </div>
                                             </div>
                                         ) : isPendingFill ? (
-                                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-yellow-500/15 text-yellow-400">{t('awaitingFillBadge')}</span>
+                                            <span className="px-2 py-0.5 rounded text-[8px] font-black bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">{t('awaitingFillBadge')}</span>
                                         ) : !isClosed ? (
-                                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-cyan-500/15 text-cyan-500">{t('openBadge')}</span>
+                                            <span className="px-2 py-0.5 rounded text-[8px] font-black bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">{t('openBadge')}</span>
                                         ) : null}
                                     </div>
                                 </div>
@@ -1940,21 +2100,21 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                 </div>
             )}
 
-            {/* ── Nút dừng gói portfolio đang chạy ── */}
+            {/* ── 7. NÚT DỪNG GÓI PORTFOLIO ĐANG CHẠY ── */}
             {isPortfolio && ['ACTIVE', 'PENDING'].includes(order.status) && onStop && (
                 <button
                     onClick={() => onStop(order)}
-                    className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-orange-500/40 text-orange-500 hover:bg-orange-500/10 transition-colors">
-                    {t('stopPackageBtn')}
+                    className="mt-3 w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                    <span>⏹</span> {t('stopPackageBtn')}
                 </button>
             )}
 
-            {/* ── Nút xóa gói đã kết thúc (COMPLETED / STOPPED / REJECTED) ── */}
+            {/* ── 8. NÚT XÓA GÓI ĐÃ KẾT THÚC ── */}
             {!['ACTIVE', 'PENDING'].includes(order.status) && openCount === 0 && onDelete && (
                 <button
                     onClick={() => onDelete(order)}
-                    className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-500/40 text-red-500 hover:bg-red-500/10 transition-colors">
-                    {t('deletePackageBtn')}
+                    className="mt-3 w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                    <span>🗑</span> {t('deletePackageBtn')}
                 </button>
             )}
         </div>

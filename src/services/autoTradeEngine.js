@@ -2866,7 +2866,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         continue;
                     }
 
-                    const minVolSurge = currentRiskConfig.volSurge[asset] || 1.2;
+                    // ── SESSION-AWARE VOLUME FILTER ──
+                    // Asian quiet hours (UTC 00:00–06:00): natural volume 20–30% lower —
+                    // hard 1.5x threshold over-rejects valid setups. Use 1.3x instead.
+                    const utcHour = new Date().getUTCHours();
+                    const isAsianQuietHours = asset === 'CRYPTO' && utcHour >= 0 && utcHour < 6;
+                    const rawMinVolSurge = currentRiskConfig.volSurge[asset] || 1.2;
+                    const minVolSurge = isAsianQuietHours ? Math.max(1.2, rawMinVolSurge - 0.2) : rawMinVolSurge;
                     if (techSignal.volumeSurge < minVolSurge) {
                         stats.skipVolume = (stats.skipVolume || 0) + 1;
                         funnel.record('vol');
@@ -2876,12 +2882,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             score: techSignal.score,
                             setup: techSignal.direction,
                             stage: 'vol',
-                            reason: `volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x`,
+                            reason: `volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x${isAsianQuietHours ? ' (asian_quiet)' : ''}`,
                         }, {
                             event: 'candidate_rejected',
                             source: 'autoTradeEngine',
                         }).catch(() => {});
-                        console.log(chalk.gray(`  [VOL FILTER] ${symbol}: volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x (score=${techSignal.score})`));
+                        console.log(chalk.gray(`  [VOL FILTER] ${symbol}: volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x${isAsianQuietHours ? ' [asian_quiet]' : ''} (score=${techSignal.score})`));
                         continue;
                     }
 
@@ -2993,6 +2999,31 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         status: { $in: ['OPEN', 'PENDING'] } 
                     });
                     if (existingOpen) {
+                        continue;
+                    }
+
+                    // ── SL COOLDOWN: tránh re-entry sau khi vừa bị stop loss ──
+                    // Nếu cùng mã vừa CLOSED với SL HIT trong 2 giờ qua → skip.
+                    // Ngăn pattern ENAUSDT 23/7: vào 3 lần liên tiếp, cả 3 SL.
+                    const slCooldownMs = 2 * 60 * 60 * 1000; // 2 giờ
+                    const recentSl = await AutoTrade.findOne({
+                        symbol,
+                        assetType: asset,
+                        status: 'CLOSED',
+                        closedAt: { $gte: new Date(Date.now() - slCooldownMs) },
+                        exitReason: /SL HIT/i,
+                    });
+                    if (recentSl) {
+                        const minsAgo = Math.round((Date.now() - new Date(recentSl.closedAt).getTime()) / 60000);
+                        console.log(chalk.gray(`  [SL COOLDOWN] ${symbol}: SL hit ${minsAgo}m ago — skip re-entry for 2h`));
+                        appendAuditEvent('candidate', {
+                            asset, symbol,
+                            score: techSignal.score,
+                            setup: entrySetup.type,
+                            stage: 'sl_cooldown',
+                            reason: `SL HIT ${minsAgo}m ago, cooldown 2h`,
+                        }, { event: 'candidate_rejected', source: 'autoTradeEngine' }).catch(() => {});
+                        funnel.record('risk', { symbol, reason: 'sl_cooldown' });
                         continue;
                     }
 

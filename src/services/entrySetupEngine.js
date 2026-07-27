@@ -45,8 +45,10 @@ export const SIM_CONFLUENCE_MIN = 2;
 export const LIVE_EDGE_MIN = 28;
 export const SIM_EDGE_MIN = 22;
 
-/** Code default floor when Setting/env override is unset (0). Tuned for ~5 LIVE fills/day. */
-export const VWAP_RECLAIM_LIVE_QUALITY_DEFAULT = 86;
+/** Code default floor when Setting/env override is unset (0). Tuned for ~5 LIVE fills/day.
+ * 2026-07-27: lowered 86→84 to increase sample size for monitoring. Override via Setting.
+ */
+export const VWAP_RECLAIM_LIVE_QUALITY_DEFAULT = 84;
 const VWAP_CLOSE_CONFIRM_MULT = 1.0;
 const VWAP_VOL_CONFIRM = 1.45;
 const VWAP_VOL_SCORE_STRONG = 1.6;
@@ -61,15 +63,17 @@ export const getLiveQualityMinForSetup = (setupType) => {
     const globalMin = getLiveQualityMin();
     const map = {
         EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_EMA_PULLBACK', globalMin),
-        TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', globalMin),
         // VWAP reclaim still needs a higher bar than generic setups (near-VWAP
-        // + volume is common), but 90 starved LIVE fills. Default 86 balances
+        // + volume is common), but 90 starved LIVE fills. Default 84 balances
         // sample size (~5/day target) vs quality; Setting/env can override.
         VWAP_RECLAIM: setupOverrideOr(
             'AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM',
             Math.max(globalMin, VWAP_RECLAIM_LIVE_QUALITY_DEFAULT)
         ),
-        BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', Math.max(globalMin, 86)),
+        // BREAKOUT_RETEST: WR=60% (7-day data) → lower bar from 86→82 to increase throughput.
+        BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', Math.max(globalMin, 82)),
+        // TREND_PULLBACK: lower bar to 80 to generate more samples (was equal to globalMin=82).
+        TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', Math.max(globalMin - 2, 80)),
         SHORT_CONTINUATION: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT_CONTINUATION', globalMin),
         SHORT: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT', globalMin + 2),
     };
@@ -202,8 +206,10 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
         }
 
         const extendedAboveVwap = vwap ? price > vwap * 1.04 : false;
-        if (rsi > 72 || k > 88 || extendedAboveVwap) {
-            return { valid: false, type: 'BLOCK_EXTENDED', note: `Quá căng (RSI ${rsi}, K ${k})`, setupScore: 0 };
+        // 2026-07-27: raised RSI 72→76 and StochK 88→90.
+        // In crypto bull phases RSI 72-75 is normal momentum — old threshold caused 363 false BLOCK_EXTENDED/week.
+        if (rsi > 76 || k > 90 || extendedAboveVwap) {
+            return { valid: false, type: 'BLOCK_EXTENDED', note: `Quá căng (RSI ${rsi.toFixed(1)}, K ${k})`, setupScore: 0 };
         }
 
         const ema21 = signal.ema21;
