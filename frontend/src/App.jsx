@@ -351,6 +351,51 @@ const handleSetLanguage = (nextLang) => {
     setTimeout(() => setIsManualTwitch(false), 500);
   };
 
+  const [resetMobileTabKey, setResetMobileTabKey] = useState(0);
+
+  const saveLocalRecentSymbol = useCallback((symbolData) => {
+    try {
+      const raw = localStorage.getItem('omni_recent_symbols');
+      let list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) list = [];
+      
+      const symbolUpper = String(symbolData.symbol || '').toUpperCase();
+      if (!symbolUpper) return list;
+
+      list = list.filter(item => String(item.symbol).toUpperCase() !== symbolUpper);
+      
+      list.unshift({
+        symbol: symbolUpper,
+        companyName: symbolData.companyName || '',
+        companyNameEn: symbolData.companyNameEn || '',
+        exchange: symbolData.exchange || 'VNX',
+        timestamp: symbolData.timestamp || new Date().toISOString(),
+        price: symbolData.price || '---',
+        changePercent: symbolData.changePercent || 0,
+        lastAction: symbolData.lastAction || 'QUAN SÁT',
+        currentPrice: symbolData.currentPrice || null,
+        currentChangePercent: symbolData.currentChangePercent || null,
+      });
+
+      if (list.length > 20) list = list.slice(0, 20);
+      localStorage.setItem('omni_recent_symbols', JSON.stringify(list));
+      return list;
+    } catch (e) {
+      console.error('Lỗi lưu mã gần đây:', e);
+      return [];
+    }
+  }, []);
+
+  const getLocalRecentSymbols = useCallback(() => {
+    try {
+      const raw = localStorage.getItem('omni_recent_symbols');
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const handleGoHome = () => {
     //[FIX] Close chat before going home
     vnStocksCloseChatRef.current?.();
@@ -358,8 +403,9 @@ const handleSetLanguage = (nextLang) => {
     setChartData(null);
     setAiReport(null);
     setInput('');
+    setResetMobileTabKey(prev => prev + 1);
     navigate(buildAppPath({ mode: APP_MODES.VN_STOCKS }));
-    if (currentUser) fetchUserHistory();
+    fetchUserHistory();
   };
   const [derivChartData, setDerivChartData] = useState(null);
   const [derivInterval, setDerivInterval] = useState('5 phút');
@@ -1046,18 +1092,33 @@ const derivAnalysis = React.useMemo(() => {
 }, [derivChartData, derivRadar]);
 
   useEffect(() => {
-    if (currentUser) fetchUserHistory();
+    fetchUserHistory();
   }, [currentUser]);
 
   const fetchUserHistory = async () => {
-    if (!currentUser) return;
+    const localItems = getLocalRecentSymbols();
+    if (!currentUser) {
+      setUserHistory(localItems);
+      return;
+    }
     try {
         const res = await axios.get(`/api/user-history/${currentUser}`);
-        if (res.data.success) {
-            setUserHistory(res.data.data); 
+        if (res.data.success && Array.isArray(res.data.data)) {
+            const serverItems = res.data.data;
+            const combinedMap = new Map();
+            localItems.forEach(item => {
+              if (item?.symbol) combinedMap.set(String(item.symbol).toUpperCase(), item);
+            });
+            serverItems.forEach(item => {
+              if (item?.symbol) combinedMap.set(String(item.symbol).toUpperCase(), item);
+            });
+            setUserHistory(Array.from(combinedMap.values())); 
+        } else {
+            setUserHistory(localItems);
         }
     } catch (error) {
         console.error("Lỗi lấy lịch sử:", error);
+        setUserHistory(localItems);
     }
   };
 
@@ -1379,6 +1440,17 @@ useEffect(() => {
       }
 
       const localStock = allStocks.find(s => s.symbol === symbol);
+      saveLocalRecentSymbol({
+        symbol,
+        companyName: localStock ? (localStock.name || localStock.companyName) : symbol,
+        companyNameEn: localStock ? localStock.companyNameEn : '',
+        exchange: localStock ? localStock.exchange : 'VNX',
+        timestamp: new Date().toISOString(),
+        price: '---',
+        changePercent: 0,
+        lastAction: 'QUAN SÁT'
+      });
+      fetchUserHistory();
 
       setSuggestions([]);
       setShowSuggestions(false);
@@ -2279,6 +2351,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             debateResult={debateResult}
             liveDebate={liveDebate}
             uiStyle={uiStyle}
+            resetMobileTabKey={resetMobileTabKey}
         />
         )}
         {/*========================================================= */}

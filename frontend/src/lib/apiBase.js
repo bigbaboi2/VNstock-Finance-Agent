@@ -7,7 +7,7 @@ export const API_FETCH_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
 
 /** Proxy backend — same-origin, tránh CORS khi embed PDF TCBS. */
 export const tcbsPdfViewerUrl = (symbol) =>
-    `${API_BASE_URL}/api/tcbs-pdf/${String(symbol || '').toUpperCase()}`;
+    `${API_BASE_URL}/api/tcbs-pdf/${String(symbol || '').toUpperCase()}?ngrok-skip-browser-warning=true`;
 
 /**
  * URL embed PDF trong iframe.
@@ -29,5 +29,6 @@ export const tcbsPdfEmbedUrl = (reportPdf, symbolHint) => {
 
     // Fallback: embed trực tiếp URL TCBS (Chrome PDF viewer)
     const base = String(reportPdf).split('#')[0];
-    return `${base}#toolbar=0&navpanes=0&view=FitH`;
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}ngrok-skip-browser-warning=true#toolbar=0&navpanes=0&view=FitH`;
 };

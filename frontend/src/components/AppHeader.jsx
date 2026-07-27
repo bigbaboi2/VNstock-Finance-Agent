@@ -74,13 +74,15 @@ const AppHeader = ({
       data-app-header
       className={`relative z-[99999] border-b px-2 sm:px-6 py-1.5 flex items-center gap-2 sm:gap-3 shrink-0 w-full transition-colors duration-300 ${UI.header}`}
     >
-        {/* ── LEFT: Logo / Brand ── */}
-        <div
-          className="flex items-center gap-2 shrink-0 cursor-pointer"
+        {/* ── LEFT: Logo / Brand (Home Button) ── */}
+        <button
+          type="button"
+          className="flex items-center gap-2 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-150 outline-none text-left bg-transparent border-0 p-0"
           onClick={handleGoHome}
-          title={t('header.homeTitle')}
+          title={t('header.homeTitle') || 'Trang chủ VNStock (Home)'}
+          aria-label="Trang chủ VNStock"
         >
-          <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center shrink-0 drop-shadow-md">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center shrink-0 drop-shadow-md p-1 rounded-full hover:bg-yellow-400/10 transition-colors">
             <img src="/favicon.svg" alt={t('brand.logoAlt')} className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
           </div>
           <div className="hidden lg:block">
@@ -91,7 +93,7 @@ const AppHeader = ({
               {t('brand.tagline')}
             </p>
           </div>
-        </div>
+        </button>
 
         {/* ── CENTER: Search bar ── */}
         <div className="flex-1 relative min-w-0" ref={searchWrapperRef}>

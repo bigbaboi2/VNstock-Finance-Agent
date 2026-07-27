@@ -1579,10 +1579,24 @@ export default function VnStocksTab({
   debateResult,
   liveDebate = {},
   cancelAnalysis,
+  resetMobileTabKey,
 }) {
     const { t, i18n } = useTranslation('vnStocks');
     const lang = normalizeLanguage(i18n.resolvedLanguage || i18n.language);
-  const [mobileTab, setMobileTab] = useState('ai');
+  const [mobileTab, setMobileTab] = useState('market');
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (resetMobileTabKey) {
+      setMobileTab('market');
+    }
+  }, [resetMobileTabKey]);
   // STATES & REFS
   const [isNewsOpen, setIsNewsOpen] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(3);
@@ -3169,9 +3183,9 @@ export default function VnStocksTab({
           transition: isDraggingLeftCol
             ? 'opacity 280ms ease, transform 280ms cubic-bezier(0.4,0,0.2,1)'
             : 'opacity 280ms ease, transform 280ms cubic-bezier(0.4,0,0.2,1), width 300ms cubic-bezier(0.4,0,0.2,1)',
-          opacity: isLeftColOpen ? 1 : 0,
-          transform: isLeftColOpen ? 'translateX(0)' : 'translateX(-24px)',
-          pointerEvents: isLeftColOpen ? 'auto' : 'none',
+          opacity: (isMobile || isLeftColOpen) ? 1 : 0,
+          transform: (isMobile || isLeftColOpen) ? 'translateX(0)' : 'translateX(-24px)',
+          pointerEvents: (isMobile || isLeftColOpen) ? 'auto' : 'none',
           overflow: 'hidden',
         }}
       >
@@ -3837,7 +3851,8 @@ export default function VnStocksTab({
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                {sortedHistory.map((item, idx) => {
+                {sortedHistory.length > 0 ? (
+                  sortedHistory.map((item, idx) => {
                     const reportChange = parseFloat(item.changePercent) || 0;
                     const liveChange = item.currentChangePercent != null ? parseFloat(item.currentChangePercent) : null;
                     const hasLive = item.currentPrice != null && !Number.isNaN(Number(item.currentPrice));
@@ -3935,7 +3950,13 @@ export default function VnStocksTab({
                       </div>
                     );
                   })
-                }
+                ) : (
+                  <div className={`p-8 text-center rounded-2xl border flex flex-col items-center justify-center ${isDark ? 'bg-[#131922] border-white/6 text-slate-400' : 'bg-white border-slate-300 text-slate-500'}`}>
+                    <Clock className="w-8 h-8 mb-2 text-yellow-400 opacity-60" />
+                    <p className="text-xs font-bold uppercase tracking-wider">Chưa có mã nào được xem gần đây</p>
+                    <p className="text-[10px] mt-1 opacity-70">Hãy nhập mã cổ phiếu ở thanh tìm kiếm phía trên để bắt đầu tra cứu.</p>
+                  </div>
+                )}
               </div>
 
               {userHistory.length > historyLimit && (
@@ -4592,9 +4613,9 @@ export default function VnStocksTab({
       `}
         style={{
           transition: 'opacity 280ms ease, transform 280ms cubic-bezier(0.4,0,0.2,1)',
-          opacity: isRightColOpen ? 1 : 0,
-          transform: isRightColOpen ? 'translateX(0)' : 'translateX(24px)',
-          pointerEvents: isRightColOpen ? 'auto' : 'none',
+          opacity: (isMobile || isRightColOpen) ? 1 : 0,
+          transform: (isMobile || isRightColOpen) ? 'translateX(0)' : 'translateX(24px)',
+          pointerEvents: (isMobile || isRightColOpen) ? 'auto' : 'none',
         }}
       >
         <div className={`h-auto lg:h-1/2 flex flex-col border-b shrink-0 ${isDark ? 'border-white/8' : 'border-slate-400'}`}>
