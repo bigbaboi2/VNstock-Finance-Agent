@@ -61,6 +61,53 @@ function patchKlineDragCapture(chart) {
   // Axis drag: X = barSpace (anchor right), Y = price range only
   const AXIS_DRAG_X_PX = 55;
   const AXIS_DRAG_Y_PX = 90;
+
+  const performXAxisDrag = (evInstance, downWidget, pageX) => {
+    const pane = downWidget.getPane?.();
+    const xAxis = pane?.getAxisComponent?.();
+    if (xAxis?.getScrollZoomEnabled?.() !== false) {
+      if (evInstance.__omniXLastPageX == null) evInstance.__omniXLastPageX = pageX;
+      const dx = pageX - evInstance.__omniXLastPageX;
+      evInstance.__omniXLastPageX = pageX;
+      const zoomScale = -dx / AXIS_DRAG_X_PX;
+      if (zoomScale !== 0) {
+        const ts = chart.getChartStore().getTimeScaleStore();
+        const rightX = ts._totalBarSpace || downWidget.getBounding?.()?.width || 0;
+        ts.zoom(zoomScale, { x: rightX });
+      }
+    }
+  };
+
+  const performYAxisDrag = (evInstance, downWidget, pageY) => {
+    const pane = downWidget.getPane?.();
+    const yAxis = pane?.getAxisComponent?.();
+    if (yAxis?.getScrollZoomEnabled?.() !== false) {
+      if (evInstance.__omniYLastPageY == null) evInstance.__omniYLastPageY = pageY;
+      const dy = pageY - evInstance.__omniYLastPageY;
+      evInstance.__omniYLastPageY = pageY;
+      const cur = yAxis.getRange?.();
+      if (cur && dy !== 0) {
+        const scale = 1 + dy / AXIS_DRAG_Y_PX;
+        const newRange = cur.range * Math.max(scale, 0.05);
+        const difRange = (newRange - cur.range) / 2;
+        const newFrom = cur.from - difRange;
+        const newTo = cur.to + difRange;
+        const newRealFrom = yAxis.convertToRealValue(newFrom);
+        const newRealTo = yAxis.convertToRealValue(newTo);
+        yAxis.setAutoCalcTickFlag?.(false);
+        yAxis.setRange({
+          from: newFrom,
+          to: newTo,
+          range: newRange,
+          realFrom: newRealFrom,
+          realTo: newRealTo,
+          realRange: newRealTo - newRealFrom,
+        });
+        chart.adjustPaneViewport(false, true, true, true);
+      }
+    }
+  };
+
   const origPressedMove = ev.pressedMouseMoveEvent?.bind(ev);
   const origMouseUp = ev.mouseUpEvent?.bind(ev);
   if (origMouseUp) {
@@ -77,20 +124,8 @@ function patchKlineDragCapture(chart) {
       if (name === 'xAxis') {
         const consumed = down.dispatchEvent('pressedMouseMoveEvent', this._makeWidgetEvent(e, down));
         if (!consumed) {
-          const pane = down.getPane?.();
-          const xAxis = pane?.getAxisComponent?.();
-          if (xAxis?.getScrollZoomEnabled?.() !== false) {
-            const event = this._makeWidgetEvent(e, down);
-            if (this.__omniXLastPageX == null) this.__omniXLastPageX = event.pageX;
-            const dx = event.pageX - this.__omniXLastPageX;
-            this.__omniXLastPageX = event.pageX;
-            const zoomScale = -dx / AXIS_DRAG_X_PX;
-            if (zoomScale !== 0) {
-              const ts = this._chart.getChartStore().getTimeScaleStore();
-              const rightX = ts._totalBarSpace || down.getBounding?.()?.width || 0;
-              ts.zoom(zoomScale, { x: rightX });
-            }
-          }
+          const event = this._makeWidgetEvent(e, down);
+          performXAxisDrag(this, down, event.pageX);
         } else {
           this._chart.updatePane(1);
         }
@@ -100,33 +135,7 @@ function patchKlineDragCapture(chart) {
         const event = this._makeWidgetEvent(e, down);
         const consumed = down.dispatchEvent('pressedMouseMoveEvent', event);
         if (!consumed) {
-          const pane = down.getPane?.();
-          const yAxis = pane?.getAxisComponent?.();
-          if (yAxis?.getScrollZoomEnabled?.()) {
-            if (this.__omniYLastPageY == null) this.__omniYLastPageY = event.pageY;
-            const dy = event.pageY - this.__omniYLastPageY;
-            this.__omniYLastPageY = event.pageY;
-            const cur = yAxis.getRange?.();
-            if (cur && dy !== 0) {
-              const scale = 1 + dy / AXIS_DRAG_Y_PX;
-              const newRange = cur.range * Math.max(scale, 0.05);
-              const difRange = (newRange - cur.range) / 2;
-              const newFrom = cur.from - difRange;
-              const newTo = cur.to + difRange;
-              const newRealFrom = yAxis.convertToRealValue(newFrom);
-              const newRealTo = yAxis.convertToRealValue(newTo);
-              yAxis.setAutoCalcTickFlag?.(false);
-              yAxis.setRange({
-                from: newFrom,
-                to: newTo,
-                range: newRange,
-                realFrom: newRealFrom,
-                realTo: newRealTo,
-                realRange: newRealTo - newRealFrom,
-              });
-              this._chart.adjustPaneViewport(false, true, true, true);
-            }
-          }
+          performYAxisDrag(this, down, event.pageY);
         } else {
           this._chart.updatePane(1);
         }
@@ -136,22 +145,54 @@ function patchKlineDragCapture(chart) {
     };
   }
 
+  const handleTouchMoveAxis = function (e) {
+    const down = this._mouseDownWidget;
+    const name = down?.getName?.();
+    if (name === 'xAxis' || name === 'yAxis') {
+      const touch = e.touches?.[0] || e.targetTouches?.[0] || e;
+      const pageX = touch.pageX ?? touch.clientX;
+      const pageY = touch.pageY ?? touch.clientY;
+      if (pageX != null && pageY != null) {
+        if (name === 'xAxis') performXAxisDrag(this, down, pageX);
+        if (name === 'yAxis') performYAxisDrag(this, down, pageY);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const origPressedTouchMove = ev.pressedTouchMoveEvent?.bind(ev);
+  ev.pressedTouchMoveEvent = function (e) {
+    if (handleTouchMoveAxis.call(this, e)) return true;
+    return origPressedTouchMove ? origPressedTouchMove(e) : false;
+  };
+
+  const origTouchMove = ev.touchMoveEvent?.bind(ev);
+  ev.touchMoveEvent = function (e) {
+    if (handleTouchMoveAxis.call(this, e)) return true;
+    return origTouchMove ? origTouchMove(e) : false;
+  };
+
   const origTouchStart = ev.touchStartEvent?.bind(ev);
-  if (origTouchStart) {
-    ev.touchStartEvent = function (e) {
-      const hit = origFind(e);
-      this._mouseDownWidget = hit?.widget ?? null;
-      return origTouchStart(e);
-    };
-  }
+  ev.touchStartEvent = function (e) {
+    const hit = origFind(e);
+    this._mouseDownWidget = hit?.widget ?? null;
+    const touch = e.touches?.[0] || e.targetTouches?.[0] || e;
+    if (touch) {
+      this.__omniXLastPageX = touch.pageX ?? touch.clientX;
+      this.__omniYLastPageY = touch.pageY ?? touch.clientY;
+    }
+    return origTouchStart ? origTouchStart(e) : false;
+  };
+
   const origTouchEnd = ev.touchEndEvent?.bind(ev);
-  if (origTouchEnd) {
-    ev.touchEndEvent = function (e) {
-      const result = origTouchEnd(e);
-      this._mouseDownWidget = null;
-      return result;
-    };
-  }
+  ev.touchEndEvent = function (e) {
+    this.__omniXLastPageX = null;
+    this.__omniYLastPageY = null;
+    const result = origTouchEnd ? origTouchEnd(e) : false;
+    this._mouseDownWidget = null;
+    return result;
+  };
 
   // Document mousemove while drawing so preview continues outside the chart
   const syn = ev._event;
@@ -689,8 +730,8 @@ export default React.memo(function TradingChart({
     ...(height ? { height } : {}),
     minHeight: 80,
     dragEnabled: true,
-    axisOptions: { scrollZoomEnabled: !allowPageScroll }
-  }), [allowPageScroll]);
+    axisOptions: { scrollZoomEnabled: true }
+  }), []);
   const buildOverlayStyles = useCallback((color, size, style) => {
     const hex = String(color || '#EAB308').replace('#', '');
     let textColor = '#FFFFFF';
@@ -1357,8 +1398,8 @@ const rowBtn = React.useCallback((active) =>
           </button>
         </div>
         )}
-        <div className={`flex-1 relative w-full h-full overflow-hidden ${allowPageScroll ? 'touch-pan-y' : 'touch-none overscroll-contain'}`}>
-          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: allowPageScroll ? 'pan-y' : 'none', overscrollBehavior: allowPageScroll ? 'auto' : 'contain', willChange: 'transform'}}/>
+        <div className="flex-1 relative w-full h-full overflow-hidden touch-none overscroll-contain">
+          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
 
           {activeOverlay && (
             <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[30] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
