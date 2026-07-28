@@ -739,6 +739,7 @@ export default React.memo(function TradingChart({
 
   const outerWrapperRef = useRef(null);
   const nativeFullscreenRef = useRef(false);
+  const landscapeFullscreenRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
 
@@ -748,6 +749,7 @@ export default React.memo(function TradingChart({
       try { await document.exitFullscreen(); } catch {}
     }
     nativeFullscreenRef.current = false;
+    landscapeFullscreenRef.current = false;
     setIsFullscreen(false);
     setIsLandscape(false);
     try { window.screen.orientation?.unlock?.(); } catch {}
@@ -776,6 +778,7 @@ export default React.memo(function TradingChart({
       }
       setIsFullscreen(true);
       setIsLandscape(false);
+      landscapeFullscreenRef.current = false;
       await requestNativeFullscreen();
     }
   }, [exitFullscreen, isFullscreen, isLandscape, requestNativeFullscreen]);
@@ -787,6 +790,7 @@ export default React.memo(function TradingChart({
     }
     setIsFullscreen(true);
     setIsLandscape(true);
+    landscapeFullscreenRef.current = true;
     const isNativeFullscreen = await requestNativeFullscreen();
     // Orientation lock requires native fullscreen in Chromium. iOS safely
     // remains in the expanded CSS layout when this API is unavailable.
@@ -800,9 +804,14 @@ export default React.memo(function TradingChart({
       const isNativeFullscreen = document.fullscreenElement === outerWrapperRef.current;
       if (nativeFullscreenRef.current && !isNativeFullscreen) {
         nativeFullscreenRef.current = false;
-        setIsFullscreen(false);
-        setIsLandscape(false);
-        try { window.screen.orientation?.unlock?.(); } catch {}
+        // Some Android browsers release native fullscreen while applying the
+        // orientation lock. Keep the chart-only CSS fullscreen in that case
+        // instead of falling back to the rotated full application.
+        if (!landscapeFullscreenRef.current) {
+          setIsFullscreen(false);
+          setIsLandscape(false);
+          try { window.screen.orientation?.unlock?.(); } catch {}
+        }
       } else {
         nativeFullscreenRef.current = isNativeFullscreen;
       }
