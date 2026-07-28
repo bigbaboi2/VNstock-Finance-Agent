@@ -1421,6 +1421,25 @@ const rowBtn = React.useCallback((active) =>
       }`}
       onClick={closeAllMenus}
     >
+      {isFullscreen && (
+        <button
+          type="button"
+          onClick={async (e) => {
+            e.stopPropagation();
+            await exitFullscreen();
+          }}
+          className={`absolute top-3 right-3 z-[100] flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-black uppercase shadow-lg transition-colors ${
+            isDark
+              ? 'bg-[#0B0F14]/95 text-white border-white/20 hover:bg-white/10'
+              : 'bg-white/95 text-slate-800 border-slate-300 hover:bg-slate-100'
+          }`}
+          title="Thoát toàn màn hình"
+          aria-label="Thoát toàn màn hình"
+        >
+          <X size={16} />
+          <span>Thoát</span>
+        </button>
+      )}
 
       {!isMini && (
         <div
