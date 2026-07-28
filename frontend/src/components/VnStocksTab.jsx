@@ -25,6 +25,7 @@ import { formatCompanyName, displayCompanyName } from '../lib/formatCompanyName'
 import { normalizeLanguage } from '../i18n/formatLocale';
 import { AI_REPORT_COOLDOWN_MS } from '../constants/aiReportCooldown';
 import UltraStack, { UltraPdfPages } from './UltraStack';
+import PdfInlineViewer from './PdfInlineViewer';
 import { fetchHomeNewsCached, peekHomeNews } from '../lib/homeNewsCache';
 
 // =====================================================================
@@ -4577,19 +4578,23 @@ export default function VnStocksTab({
         {/* ── END SCROLL CONTENT ── */}
 
         {/* ── FLOATING: SCROLL TO TOP ── */}
-        {aiReport && (
+        {(aiReport || isMobile) && (
           <button
             type="button"
             onClick={() => {
-              if (isReportReadingMode) handleReportScrollToTop();
-              else scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-              mobileScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              try {
+                if (isReportReadingMode) handleReportScrollToTop();
+                scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                mobileScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                document.documentElement?.scrollTo({ top: 0, behavior: 'smooth' });
+              } catch {}
             }}
             aria-label={t('scrollToReportTop')}
-            className={`absolute bottom-5 right-5 z-[120] w-12 h-12 rounded-2xl flex items-center justify-center border-2 shadow-lg transition-all duration-200 hover:scale-105 hover:-translate-y-0.5 active:scale-95 ${
+            className={`fixed sm:absolute bottom-20 sm:bottom-6 right-8 sm:right-14 lg:right-16 z-[99999] w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 ${
               isDark
-                ? 'bg-[#0a0f18]/95 text-yellow-400 border-yellow-400/50 shadow-yellow-400/15 hover:bg-yellow-400/10 backdrop-blur-sm'
-                : 'bg-white/95 text-yellow-700 border-yellow-400/60 shadow-yellow-400/20 hover:bg-yellow-50 backdrop-blur-sm'
+                ? 'bg-[#0a0f18]/95 text-yellow-400 border-yellow-400/50 shadow-yellow-400/20 hover:bg-yellow-400/10 backdrop-blur-md'
+                : 'bg-white/95 text-yellow-700 border-yellow-400/60 shadow-yellow-400/30 hover:bg-yellow-50 backdrop-blur-md'
             }`}
             title={t('scrollToReportTop')}
           >
@@ -4655,27 +4660,13 @@ export default function VnStocksTab({
               </button>
             )}
           </div>
-          <div className={`flex-1 relative flex flex-col items-center justify-center p-6 text-center ${isDark ? 'bg-[#121824]' : 'bg-slate-100'}`}>
+          <div className="flex-1 relative overflow-hidden">
             {marketData?.reportPdf ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="p-4 rounded-2xl bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 shadow-lg">
-                  <FileText size={36} />
-                </div>
-                <div>
-                  <h4 className={`text-sm font-black uppercase tracking-wider ${UI.textBold}`}>
-                    BÁO CÁO TCBS: {marketData.stockInfo?.symbol}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    Bản quyền dữ liệu phân tích TCBS
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowPdfModal(true)}
-                  className="mt-2 px-6 py-2.5 bg-yellow-400 text-black font-black text-xs uppercase tracking-widest rounded-xl hover:bg-yellow-300 shadow-xl transition-all active:scale-95 flex items-center gap-2"
-                >
-                  <FileText size={16} /> Mở Xem PDF Trực Tiếp
-                </button>
-              </div>
+              <PdfInlineViewer
+                pdfUrl={tcbsPdfViewerUrl(marketData.stockInfo?.symbol)}
+                symbol={marketData.stockInfo?.symbol}
+                isDark={isDark}
+              />
             ) : (
               <div className="h-full flex flex-col items-center justify-center opacity-40">
                 <FileText size={32} className="mb-2 text-yellow-400" />

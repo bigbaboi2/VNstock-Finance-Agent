@@ -1756,9 +1756,9 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
         : (isDark ? 'bg-[#10151c]' : 'bg-white');
 
     return (
-        <div className={`rounded-2xl p-4.5 transition-all duration-200 ${packageBg} ${packageOutline}`}>
+        <div className={`rounded-2xl p-5 sm:p-7 lg:p-8 transition-all duration-200 ${packageBg} ${packageOutline}`}>
             {/* ── 1. HEADER GÓI LỆNH ── */}
-            <div className={`flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+            <div className={`flex flex-wrap items-center justify-between gap-2 mb-5 pb-4 px-1 border-b ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
                 <div className="flex items-center gap-3 min-w-0">
                     <span className={`flex shrink-0 items-center justify-center w-9 h-9 rounded-xl text-xs font-black border shadow-inner ${
                         isPortfolio
@@ -1806,9 +1806,9 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
             </div>
 
             {/* ── 2. PHÂN VÙNG VỐN BAN ĐẦU, VỐN HIỆN TẠI & PNL TÍCH LŨY ── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
                 {/* Vốn Ban Đầu */}
-                <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                <div className={`p-4 rounded-2xl border flex flex-col justify-between ${
                     isDark ? 'bg-black/30 border-white/10' : 'bg-slate-100/80 border-slate-200'
                 }`}>
                     <div className="flex items-center justify-between mb-1">
@@ -1823,7 +1823,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                 </div>
 
                 {/* Vốn Hiện Tại */}
-                <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                <div className={`p-4 rounded-2xl border flex flex-col justify-between ${
                     displayRealizedPnl >= 0
                         ? (isDark ? 'bg-emerald-950/25 border-emerald-500/30' : 'bg-emerald-50/80 border-emerald-200')
                         : (isDark ? 'bg-red-950/25 border-red-500/30' : 'bg-red-50/80 border-red-200')
@@ -1846,7 +1846,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                 </div>
 
                 {/* PnL Tích Lũy */}
-                <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                <div className={`p-4 rounded-2xl border flex flex-col justify-between ${
                     displayRealizedPnl >= 0
                         ? (isDark ? 'bg-emerald-950/25 border-emerald-500/30' : 'bg-emerald-50/80 border-emerald-200')
                         : (isDark ? 'bg-red-950/25 border-red-500/30' : 'bg-red-50/80 border-red-200')
@@ -1871,7 +1871,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
 
             {/* ── 3. THANH SỬ DỤNG VỐN & THÔNG SỐ CẤU HÌNH GÓI ── */}
             {isPortfolio ? (
-                <div className={`mb-4 p-3.5 rounded-xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-100/60 border-slate-200'}`}>
+                <div className={`mb-5 p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-slate-100/60 border-slate-200'}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <span className={`text-[10px] font-mono font-bold ${UI.textMuted} flex items-center gap-1`}>
                             ⚡ {t('fundInUse', {
@@ -1928,7 +1928,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-wrap gap-2 mb-4">
+                <div className="flex flex-wrap gap-2 mb-5">
                     <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${
                         isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     }`}>
@@ -1949,7 +1949,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
 
             {/* ── 4. PHÂN VÙNG THỐNG KÊ LỆNH ĐÃ ĐÓNG (NẾU CÓ) ── */}
             {isPortfolio && closedAllocs.length > 0 && (
-                <div className={`mb-4 p-3.5 rounded-xl border ${isDark ? 'bg-slate-950/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className={`mb-5 p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
                     <div className="flex items-center justify-between mb-2">
                         <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold} flex items-center gap-1.5`}>
                             📊 Thống kê lệnh đã đóng ({closedAllocs.length} lệnh)
@@ -1960,19 +1960,19 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
-                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                             <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Thắng / Thua</p>
                             <p className="font-black text-emerald-400">{wins} <span className={UI.textMuted}>/</span> <span className="text-red-400">{closedAllocs.length - wins}</span></p>
                         </div>
-                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                             <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Avg Lãi</p>
                             <p className="font-black text-emerald-400">+{formatNumber(avgWinVnd)}đ</p>
                         </div>
-                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                             <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Avg Lỗ</p>
                             <p className="font-black text-red-400">{formatNumber(avgLossVnd)}đ</p>
                         </div>
-                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className={`p-2.5 rounded-xl border ${isDark ? 'bg-black/30 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
                             <p className={`text-[8px] uppercase font-bold mb-0.5 ${UI.textMuted}`}>Kỳ vọng (Exp)</p>
                             <p className={`font-black ${expectancyVnd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {expectancyVnd >= 0 ? '+' : ''}{formatNumber(expectancyVnd)}đ
@@ -1984,7 +1984,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
 
             {/* ── 5. NHẬT KÝ TÍN HIỆU GẦN NHẤT ── */}
             {(order.result?.message || (isPortfolio && allAllocations.length > 0)) && (
-                <div className={`mb-4 p-3 rounded-xl border flex items-start gap-2.5 ${
+                <div className={`mb-5 p-4 rounded-2xl border flex items-start gap-2.5 ${
                     isDark ? 'bg-cyan-950/20 border-cyan-500/20 text-cyan-200' : 'bg-cyan-50 border-cyan-200 text-cyan-900'
                 }`}>
                     <Activity size={15} className="text-cyan-400 mt-0.5 shrink-0" />
@@ -1998,8 +1998,8 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
 
             {/* ── 6. DANH SÁCH LỆNH ĐÃ VÀO ── */}
             {isPortfolio && allAllocations.length > 0 && (
-                <div className={`mt-3 pt-3 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-                    <div className="flex items-center justify-between mb-2">
+                <div className={`mt-5 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                    <div className="flex items-center justify-between mb-2 px-1">
                         <span className={`text-[10px] font-black uppercase tracking-widest ${UI.textBold} flex items-center gap-1.5`}>
                             📋 {t('enteredOrdersTitle', { matched: matchedAllocs.length, total: allAllocations.length })}
                         </span>
@@ -2008,7 +2008,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                         </span>
                     </div>
 
-                    <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                    <div className="flex flex-col gap-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                         {[...allAllocations].reverse().map((a, i) => {
                             const isClosed = !!a.closedAt;
                             const isUnmatched = !isMatchedAllocation(order, a);
@@ -2026,7 +2026,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                                 : (a.executionMode === 'LIVE' ? 'LIVE' : 'SIM');
 
                             return (
-                                <div key={i} className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl text-[10px] border transition-colors ${
+                                <div key={i} className={`flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-[10px] border transition-colors ${
                                     isDark ? 'bg-black/30 border-white/5 hover:border-white/20' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                                 }`}>
                                     <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -2104,7 +2104,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
             {isPortfolio && ['ACTIVE', 'PENDING'].includes(order.status) && onStop && (
                 <button
                     onClick={() => onStop(order)}
-                    className="mt-3 w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                    className="mt-5 w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-all flex items-center justify-center gap-1.5 shadow-sm">
                     <span>⏹</span> {t('stopPackageBtn')}
                 </button>
             )}
@@ -2113,7 +2113,7 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
             {!['ACTIVE', 'PENDING'].includes(order.status) && openCount === 0 && onDelete && (
                 <button
                     onClick={() => onDelete(order)}
-                    className="mt-3 w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                    className="mt-5 w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center gap-1.5 shadow-sm">
                     <span>🗑</span> {t('deletePackageBtn')}
                 </button>
             )}
