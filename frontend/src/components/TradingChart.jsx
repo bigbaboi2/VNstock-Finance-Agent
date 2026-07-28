@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { localizeIntervalLabel } from '../i18n/vnMarketLabels';
 import { init, dispose, registerIndicator, registerOverlay } from 'klinecharts';
@@ -776,8 +777,10 @@ export default React.memo(function TradingChart({
       if (isLandscape) {
         try { window.screen.orientation?.unlock?.(); } catch {}
       }
-      setIsFullscreen(true);
-      setIsLandscape(false);
+      flushSync(() => {
+        setIsFullscreen(true);
+        setIsLandscape(false);
+      });
       landscapeFullscreenRef.current = false;
       await requestNativeFullscreen();
     }
@@ -788,8 +791,12 @@ export default React.memo(function TradingChart({
       await exitFullscreen();
       return;
     }
-    setIsFullscreen(true);
-    setIsLandscape(true);
+    // Commit the chart-only overlay before requesting fullscreen/orientation.
+    // This prevents Android from showing the underlying app during rotation.
+    flushSync(() => {
+      setIsFullscreen(true);
+      setIsLandscape(true);
+    });
     landscapeFullscreenRef.current = true;
     const isNativeFullscreen = await requestNativeFullscreen();
     // Orientation lock requires native fullscreen in Chromium. iOS safely
@@ -1377,6 +1384,19 @@ export default React.memo(function TradingChart({
   const menuBase = React.useMemo(() =>
   `absolute top-[calc(100%+8px)] left-0 rounded-2xl border shadow-2xl py-2 overflow-y-auto max-h-[280px] z-[9999] ${isDark?'bg-[#0D1117] border-white/10':'bg-white border-slate-200'}`,
   [isDark]);
+
+  const fullscreenStyle = isFullscreen ? {
+    position: 'fixed',
+    inset: 0,
+    width: '100vw',
+    minWidth: '100vw',
+    maxWidth: 'none',
+    height: '100dvh',
+    minHeight: '100dvh',
+    maxHeight: 'none',
+    zIndex: 2147483647,
+    isolation: 'isolate',
+  } : undefined;
   
 const rowBtn = React.useCallback((active) =>
   `w-full flex items-center justify-between px-4 py-2 text-xs font-bold transition-all ${active?`${A.solid} ${A.solidText}`:(isDark?`text-slate-300 ${A.rowHover}`:`text-slate-700 ${A.rowHover}`)}`,
@@ -1392,6 +1412,7 @@ const rowBtn = React.useCallback((active) =>
     <div
       ref={outerWrapperRef}
       data-chart-root
+      style={fullscreenStyle}
       className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-30' : ''} ${
         isFullscreen
           ? `fixed inset-0 z-[99999] w-screen h-[100dvh] p-2 sm:p-4 ${isDark ? 'bg-[#080C11]' : 'bg-slate-50'}`
