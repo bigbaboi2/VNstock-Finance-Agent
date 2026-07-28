@@ -741,74 +741,37 @@ export default React.memo(function TradingChart({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
 
-  const toggleFullscreen = useCallback(async () => {
-    if (!outerWrapperRef.current) return;
-    const isCurrentlyFull = isFullscreen;
-    if (!isCurrentlyFull) {
-      try {
-        if (outerWrapperRef.current.requestFullscreen) {
-          await outerWrapperRef.current.requestFullscreen();
-        }
-      } catch {}
-      setIsFullscreen(true);
-      setIsLandscape(false);
-      document.body.style.overflow = 'hidden';
-    } else {
-      try {
-        if (document.fullscreenElement && document.exitFullscreen) {
-          await document.exitFullscreen();
-        }
-      } catch {}
-      setIsFullscreen(false);
-      setIsLandscape(false);
-      document.body.style.overflow = '';
-      try { window.screen.orientation?.unlock?.(); } catch {}
-    }
-  }, [isFullscreen]);
+  const exitFullscreen = useCallback(() => {
+    setIsFullscreen(false);
+    setIsLandscape(false);
+    try { window.screen.orientation?.unlock?.(); } catch {}
+  }, []);
 
-  const toggleLandscapeFullscreen = useCallback(async () => {
-    if (!outerWrapperRef.current) return;
-    const isCurrentlyFull = isFullscreen && isLandscape;
-    if (!isCurrentlyFull) {
-      try {
-        if (outerWrapperRef.current.requestFullscreen) {
-          await outerWrapperRef.current.requestFullscreen();
-        }
-      } catch {}
-      try {
-        await window.screen.orientation?.lock?.('landscape');
-      } catch {}
-      setIsFullscreen(true);
-      setIsLandscape(true);
-      document.body.style.overflow = 'hidden';
-    } else {
-      try {
-        if (document.fullscreenElement && document.exitFullscreen) {
-          await document.exitFullscreen();
-        }
-      } catch {}
-      setIsFullscreen(false);
-      setIsLandscape(false);
-      document.body.style.overflow = '';
-      try { window.screen.orientation?.unlock?.(); } catch {}
-    }
-  }, [isFullscreen, isLandscape]);
-
-  useEffect(() => {
-    const handleFsChange = () => {
-      if (!document.fullscreenElement) {
-        setIsFullscreen(false);
-        setIsLandscape(false);
-        document.body.style.overflow = '';
+  // Native fullscreen has inconsistent support on mobile WebViews/Safari and can
+  // briefly report a zero-sized canvas to KLineChart. Keep fullscreen in React's
+  // layout instead so Android and iOS use the same, stable viewport.
+  const toggleFullscreen = useCallback(() => {
+    if (isFullscreen && !isLandscape) exitFullscreen();
+    else {
+      if (isLandscape) {
         try { window.screen.orientation?.unlock?.(); } catch {}
       }
-    };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFsChange);
-      document.body.style.overflow = '';
-    };
-  }, []);
+      setIsFullscreen(true);
+      setIsLandscape(false);
+    }
+  }, [exitFullscreen, isFullscreen, isLandscape]);
+
+  const toggleLandscapeFullscreen = useCallback(async () => {
+    if (isFullscreen && isLandscape) {
+      exitFullscreen();
+      return;
+    }
+    setIsFullscreen(true);
+    setIsLandscape(true);
+    // This is supported on some Android browsers; iOS safely remains in the
+    // expanded layout when orientation locking is unavailable.
+    try { await window.screen.orientation?.lock?.('landscape'); } catch {}
+  }, [exitFullscreen, isFullscreen, isLandscape]);
 
   const [interval,          setInterval]          = useState(currentInterval || '1 ngày');
   const [showIntervalMenu,  setShowIntervalMenu]   = useState(false);
@@ -840,6 +803,27 @@ export default React.memo(function TradingChart({
   useEffect(() => {
     if (currentInterval && currentInterval !== interval) setInterval(currentInterval);
   }, [currentInterval]);
+
+  useEffect(() => {
+    document.body.style.overflow = isFullscreen ? 'hidden' : '';
+    const resizeChart = () => {
+      requestAnimationFrame(() => chartInstance.current?.resize?.());
+    };
+
+    // A second frame lets mobile browsers finish updating the visual viewport
+    // before KLineChart measures its canvas.
+    resizeChart();
+    const timer = window.setTimeout(resizeChart, 180);
+    window.addEventListener('orientationchange', resizeChart);
+    window.visualViewport?.addEventListener('resize', resizeChart);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('orientationchange', resizeChart);
+      window.visualViewport?.removeEventListener('resize', resizeChart);
+      document.body.style.overflow = '';
+    };
+  }, [isFullscreen, isLandscape]);
 
   const closeAllMenus = useCallback(() => {
     setShowIntervalMenu(false); setShowTypeMenu(false);
@@ -1362,7 +1346,7 @@ const rowBtn = React.useCallback((active) =>
       data-chart-root
       className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-30' : ''} ${
         isFullscreen
-          ? 'fixed inset-0 z-[99999] w-screen h-screen p-2 sm:p-4 bg-[#080C11]'
+          ? 'fixed inset-0 z-[99999] w-screen h-[100dvh] p-2 sm:p-4 bg-[#080C11]'
           : ''
       }`}
       onClick={closeAllMenus}

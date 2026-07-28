@@ -228,6 +228,12 @@ Open **http://localhost:5173** → register a user → explore tabs from the men
 
 > Frontend install must use `--legacy-peer-deps` (recharts peer range vs React 19). Paid API tiers are optional but improve rate limits for heavy use.
 
+### Vercel frontend + ngrok backend
+
+Vercel hosts only the Vite frontend; it cannot reach `localhost:3001` on your PC. In the Vercel project set **Root Directory** to `frontend`, then configure Build Command `npm run build`, Output Directory `dist`, and the production environment variable `VITE_API_BASE_URL=https://<active-ngrok-domain>`. Redeploy after changing it, because Vite embeds `VITE_*` values at build time.
+
+For a local full-app tunnel, expose `5173`. For a Vercel frontend or Telegram webhook, expose `3001`. Keep `NGROK_DOMAIN`, `WEBHOOK_BASE_URL`, and Vercel's `VITE_API_BASE_URL` on the same active ngrok domain. If the HTTP API becomes slow during diagnosis, set `BACKGROUND_JOBS_ENABLED=false` and restart the backend; this pauses AutoDuck and all scheduled background work, but leaves API routes available.
+
 ---
 
 ## 🗂️ Tabs Guide

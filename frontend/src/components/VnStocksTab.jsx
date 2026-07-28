@@ -1669,6 +1669,7 @@ export default function VnStocksTab({
   const chartWrapperRef = useRef(null);
   const chartWrapperEmbeddedRef = useRef(null);
   const [isAutoScroll, setIsAutoScroll] = useState(true);
+  const [showReportScrollTop, setShowReportScrollTop] = useState(false);
   const [isDebateOpen, setIsDebateOpen] = useState(false);
   const tooltipRef = useRef(null);
   const newsScrollRef = useRef(null);
@@ -2444,6 +2445,7 @@ export default function VnStocksTab({
 
   const handleReportScroll = useCallback((e) => {
     handleScroll(e);
+    setShowReportScrollTop(e.currentTarget.scrollTop > 260);
     if (!isScrollDrivenLayout) return;
 
     if (scrollRafRef.current !== null) return;
@@ -4578,7 +4580,7 @@ export default function VnStocksTab({
         {/* ── END SCROLL CONTENT ── */}
 
         {/* ── FLOATING: SCROLL TO TOP ── */}
-        {(aiReport || isMobile) && (
+        {aiReport && showReportScrollTop && (
           <button
             type="button"
             onClick={() => {

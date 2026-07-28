@@ -49,6 +49,10 @@ import { flushHumanLogQueue } from './services/humanLogService.js';
 
 const app = express();
 const PORT = 3001;
+// Background workers can make many external requests and must never be needed
+// for the HTTP API itself to come up.  Keep this switch available for safe
+// diagnostics / a frontend-only demo: BACKGROUND_JOBS_ENABLED=false.
+const backgroundJobsEnabled = process.env.BACKGROUND_JOBS_ENABLED !== 'false';
 
 app.set('trust proxy', 1);
 
@@ -107,8 +111,12 @@ app.use('/api/deriv-news',   (req, res, next) => {
 // Crypto aliases
 app.use('/api/crypto-symbols', (req, res, next) => { req.url = '/symbols'; cryptoRoutes(req, res, next); });
 
-startPortfolioMatcher();
-startDerivUpdater();
+if (backgroundJobsEnabled) {
+    startPortfolioMatcher();
+    startDerivUpdater();
+} else {
+    console.log(chalk.yellow('[SYSTEM] Background jobs disabled (BACKGROUND_JOBS_ENABLED=false).'));
+}
 
 const httpServer = app.listen(PORT, async () => {
     console.log(chalk.bgGreen.black.italic(`\n OMNI DUCK SERVER MONGODB READY (local test: http://localhost:${PORT}) `));
@@ -130,6 +138,8 @@ const httpServer = app.listen(PORT, async () => {
     } catch (auditErr) {
         console.error(chalk.red('[AUDIT] Không ghi được log ngày hiện tại:'), auditErr.message);
     }
+
+    if (!backgroundJobsEnabled) return;
 
     startAutoDuckScheduler();
     scheduleMarketInsight();
