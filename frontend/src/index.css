@@ -18,6 +18,31 @@ html, body, #root {
   background-color: #06080B; 
 }
 
+/* Chrome Android keeps the pre-fullscreen dimensions unless they are
+   explicitly overridden in the :fullscreen top layer. Without these rules
+   only the old, narrow chart column is shown over a dimmed application. */
+[data-chart-root]:fullscreen,
+[data-chart-root]:-webkit-full-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 8px !important;
+  overflow: hidden !important;
+  background: var(--chart-fullscreen-bg, #080C11) !important;
+}
+
+[data-chart-root]:fullscreen::backdrop,
+[data-chart-root]:-webkit-full-screen::backdrop {
+  background: var(--chart-fullscreen-bg, #080C11) !important;
+}
+
 /* ==========================================
    KLINECHART TOOLTIP THEME
    ========================================== */

@@ -1396,6 +1396,7 @@ export default React.memo(function TradingChart({
     maxHeight: 'none',
     zIndex: 2147483647,
     isolation: 'isolate',
+    '--chart-fullscreen-bg': isDark ? '#080C11' : '#F8FAFC',
   } : undefined;
   
 const rowBtn = React.useCallback((active) =>
