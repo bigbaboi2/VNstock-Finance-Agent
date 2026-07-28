@@ -7,7 +7,7 @@ import {
   Settings2, ChevronDown, Check, BarChart2, Clock, RefreshCw,
   ChevronLeft, ChevronRight, Minus, Plus,
   SlidersHorizontal, TrendingUp, MousePointer,
-  Maximize2, Maximize, Minimize2
+  Maximize2, Maximize, Minimize2, X
 } from 'lucide-react';
 
 
@@ -743,7 +743,8 @@ export default React.memo(function TradingChart({
 
   const toggleFullscreen = useCallback(async () => {
     if (!outerWrapperRef.current) return;
-    if (!document.fullscreenElement && !isFullscreen) {
+    const isCurrentlyFull = isFullscreen;
+    if (!isCurrentlyFull) {
       try {
         if (outerWrapperRef.current.requestFullscreen) {
           await outerWrapperRef.current.requestFullscreen();
@@ -751,21 +752,24 @@ export default React.memo(function TradingChart({
       } catch {}
       setIsFullscreen(true);
       setIsLandscape(false);
+      document.body.style.overflow = 'hidden';
     } else {
       try {
-        if (document.fullscreenElement) {
+        if (document.fullscreenElement && document.exitFullscreen) {
           await document.exitFullscreen();
         }
       } catch {}
       setIsFullscreen(false);
       setIsLandscape(false);
+      document.body.style.overflow = '';
       try { window.screen.orientation?.unlock?.(); } catch {}
     }
   }, [isFullscreen]);
 
   const toggleLandscapeFullscreen = useCallback(async () => {
     if (!outerWrapperRef.current) return;
-    if (!document.fullscreenElement && !isLandscape) {
+    const isCurrentlyFull = isFullscreen && isLandscape;
+    if (!isCurrentlyFull) {
       try {
         if (outerWrapperRef.current.requestFullscreen) {
           await outerWrapperRef.current.requestFullscreen();
@@ -776,28 +780,34 @@ export default React.memo(function TradingChart({
       } catch {}
       setIsFullscreen(true);
       setIsLandscape(true);
+      document.body.style.overflow = 'hidden';
     } else {
       try {
-        if (document.fullscreenElement) {
+        if (document.fullscreenElement && document.exitFullscreen) {
           await document.exitFullscreen();
         }
       } catch {}
       setIsFullscreen(false);
       setIsLandscape(false);
+      document.body.style.overflow = '';
       try { window.screen.orientation?.unlock?.(); } catch {}
     }
-  }, [isLandscape]);
+  }, [isFullscreen, isLandscape]);
 
   useEffect(() => {
     const handleFsChange = () => {
       if (!document.fullscreenElement) {
         setIsFullscreen(false);
         setIsLandscape(false);
+        document.body.style.overflow = '';
         try { window.screen.orientation?.unlock?.(); } catch {}
       }
     };
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.body.style.overflow = '';
+    };
   }, []);
 
   const [interval,          setInterval]          = useState(currentInterval || '1 ngày');
@@ -1360,198 +1370,228 @@ const rowBtn = React.useCallback((active) =>
 
       {!isMini && (
         <div
-          className={`flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 pt-2.5 pb-3 mb-2 border-b shrink-0 relative z-40 overflow-visible flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          className={`flex flex-col gap-1.5 p-2 sm:p-3 mb-2 border-b shrink-0 relative z-40 overflow-visible ${
+            isDark ? 'border-white/10' : 'border-slate-200'
+          }`}
           onClick={e => e.stopPropagation()}
         >
-        <div className="relative z-[210]">
-          <button
-            onClick={() => { setShowIntervalMenu(v=>!v); setShowTypeMenu(false); setShowIndicatorMenu(false); setShowStrokePanel(false); }}
-            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIntervalMenu)}`}
-          >
-            <Clock size={13}/> {localizeIntervalLabel(interval, lang)} <ChevronDown size={12} className={showIntervalMenu?'rotate-180':''}/>
-          </button>
-          {showIntervalMenu && (
-            <div className={`${menuBase} w-40`}>
-              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('minutes')}</p>
-              {INTERVALS_MINUTE.map(iv=>(
-                <button key={iv} onClick={()=>{setInterval(iv);setShowIntervalMenu(false);onIntervalChange?.(iv);}} className={rowBtn(interval===iv)}>
-                  {localizeIntervalLabel(iv, lang)}{interval===iv&&<Check size={12}/>}
-                </button>
-              ))}
-              <div className="h-px bg-white/10 my-1"/>
-              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('hoursAndDays')}</p>
-              {INTERVALS_DAY.map(iv=>(
-                <button key={iv} onClick={()=>{setInterval(iv);setShowIntervalMenu(false);onIntervalChange?.(iv);}} className={rowBtn(interval===iv)}>
-                  {localizeIntervalLabel(iv, lang)}{interval===iv&&<Check size={12}/>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="relative z-[210]">
-          <button
-            onClick={()=>{setShowTypeMenu(v=>!v);setShowIndicatorMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
-            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showTypeMenu)}`}
-          >
-            <BarChart2 size={13}/>
-            {{candle_solid:t('typeSolidShort'),candle_up_stroke:t('typeHollowShort'),candle_stroke:t('typeStrokeShort'),ohlc:t('typeBarShort'),area:t('typeAreaShort'),heikin_ashi:t('heikinAshi')}[chartType]||t('typeCandleFallback')}
-            <ChevronDown size={12} className={showTypeMenu?'rotate-180':''}/>
-          </button>
-          {showTypeMenu && (
-            <div className={`${menuBase} w-48`}>
-              {CHART_TYPES.map(tp=>(
-                <button key={tp.id} onClick={()=>{setChartType(tp.id);setShowTypeMenu(false);}}
-                  className={rowBtn(chartType===tp.id)}>
-                  {t(tp.labelKey)}{chartType===tp.id&&<Check size={12}/>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="relative z-[210]">
-          <button
-            onClick={()=>{setShowIndicatorMenu(v=>!v);setShowTypeMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
-            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIndicatorMenu)}`}
-          >
-            <Settings2 size={13}/> {t('indicators')} <ChevronDown size={12} className={showIndicatorMenu?'rotate-180':''}/>
-          </button>
-          {showIndicatorMenu && (
-            <div className={`${menuBase} w-64`}>
-              <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('overlayIndicators')}</p>
-              {MAIN_INDICATORS.map(ind=>(
-                <button key={ind.key} onClick={()=>toggleIndicator(ind.key,true)} className={rowBtn(activeMain.includes(ind.key))}>
-                  {t(ind.labelKey)}{activeMain.includes(ind.key)&&<Check size={12}/>}
-                </button>
-              ))}
-              <div className="h-px bg-white/10 my-2"/>
-              <p className="px-4 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('subIndicators')}</p>
-              {SUB_INDICATORS.map(ind=>(
-                <button key={ind.key} onClick={()=>toggleIndicator(ind.key,false)} className={rowBtn(activeSub.includes(ind.key))}>
-                  {t(ind.labelKey)}{activeSub.includes(ind.key)&&<Check size={12}/>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Fullscreen Buttons (MOBILE ONLY: lg:hidden) */}
-        <div className="flex lg:hidden items-center gap-1.5">
-          {/* Button 1: Diagonal 2-headed arrow (Maximize2) */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            title={isFullscreen && !isLandscape ? "Thoát toàn màn hình" : "Toàn màn hình (Mũi tên chéo)"}
-            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-black uppercase transition-all ${
-              isFullscreen && !isLandscape
-                ? `${A.solid} ${A.solidText}`
-                : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
-            }`}
-          >
-            {isFullscreen && !isLandscape ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
-
-          {/* Button 2: 4 corners square (Maximize) - Landscape Auto Rotate */}
-          <button
-            type="button"
-            onClick={toggleLandscapeFullscreen}
-            title={isLandscape ? "Thoát toàn màn hình xoay ngang" : "Toàn màn hình Xoay ngang (4 góc ô vuông)"}
-            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-black uppercase transition-all ${
-              isLandscape
-                ? `${A.solid} ${A.solidText}`
-                : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
-            }`}
-          >
-            <Maximize size={14} />
-          </button>
-        </div>
-
-        <div className={`ml-auto flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
-          <span className={`hidden sm:inline text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>{t('color')}</span>
-          {A.overlayColors.map(hex=>(
-            <button key={hex} onClick={()=>handleOverlayColorChange(hex)}
-              className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 transition-all hover:scale-110 ${overlayColor===hex?'ring-1 ring-offset-1':''}`}
-              style={{ backgroundColor:hex, borderColor:overlayColor===hex?(isDark?'#fff':'#1f2937'):'transparent' }}
-            />
-          ))}
-          <div className="relative ml-1 z-[210]">
-            <button
-              onClick={e=>{e.stopPropagation();setShowStrokePanel(v=>!v);}}
-              title={t('customizeStroke')}
-              className={`p-1 rounded-lg transition-all ${showStrokePanel?`${A.solid} ${A.solidText}`:(isDark?A.strokeIdleDark:A.strokeIdleLight)}`}
-            >
-              <SlidersHorizontal size={14}/>
-            </button>
-            {showStrokePanel && (
-              <div
-                className={`absolute top-[calc(100%+8px)] right-0 w-52 p-3 rounded-2xl border z-[9999] ${isDark?'bg-[#0D1117] border-white/15':'bg-white border-slate-200'}`}
-                style={{ boxShadow: isDark?'0 8px 32px rgba(0,0,0,0.8)':'0 8px 32px rgba(0,0,0,0.15)' }}
-                onClick={e=>e.stopPropagation()}
+          {/* HÀNG 1: 5 NÚT CÔNG CỤ DÀN ĐỀU 100% CHIỀU RỘNG */}
+          <div className="w-full flex items-center justify-between gap-1 sm:gap-2">
+            {/* 1. KHUNG THỜI GIAN */}
+            <div className="relative z-[210] flex-1">
+              <button
+                onClick={() => { setShowIntervalMenu(v=>!v); setShowTypeMenu(false); setShowIndicatorMenu(false); setShowStrokePanel(false); }}
+                className={`w-full flex items-center justify-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIntervalMenu)}`}
               >
-                <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>{t('strokeWidth')}</p>
-                <div className="flex gap-2 mb-3">
-                  {STROKE_SIZES.map(s=>(
-                    <button key={s} onClick={()=>handleStrokeSizeChange(s)}
-                      className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize===s?`${A.solid} ${A.solidText}`:(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
-                      <div style={{height:`${s+1}px`,width:'24px',background:'currentColor',borderRadius:1}}/>
-                      {s}px
+                <Clock size={12} className="shrink-0" />
+                <span className="truncate">{localizeIntervalLabel(interval, lang)}</span>
+                <ChevronDown size={11} className={`shrink-0 ${showIntervalMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showIntervalMenu && (
+                <div className={`${menuBase} w-40`}>
+                  <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('minutes')}</p>
+                  {INTERVALS_MINUTE.map(iv => (
+                    <button key={iv} onClick={() => { setInterval(iv); setShowIntervalMenu(false); onIntervalChange?.(iv); }} className={rowBtn(interval === iv)}>
+                      {localizeIntervalLabel(iv, lang)}{interval === iv && <Check size={12} />}
+                    </button>
+                  ))}
+                  <div className="h-px bg-white/10 my-1" />
+                  <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('hoursAndDays')}</p>
+                  {INTERVALS_DAY.map(iv => (
+                    <button key={iv} onClick={() => { setInterval(iv); setShowIntervalMenu(false); onIntervalChange?.(iv); }} className={rowBtn(interval === iv)}>
+                      {localizeIntervalLabel(iv, lang)}{interval === iv && <Check size={12} />}
                     </button>
                   ))}
                 </div>
-                <p className={`text-[9px] font-black uppercase mb-2 ${isDark?'text-slate-400':'text-slate-500'}`}>{t('strokeStyle')}</p>
-                {STROKE_STYLES.map(s=>(
-                  <button key={s.val} onClick={()=>handleStrokeStyleChange(s.val)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle===s.val?`${A.solid} ${A.solidText}`:(isDark?'bg-white/5 text-slate-400 hover:bg-white/10':'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
-                    <svg width="32" height="8" viewBox="0 0 32 8">
-                      {s.val==='solid'  && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2"/>}
-                      {s.val==='dashed' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="6 3"/>}
-                      {s.val==='dotted' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="2 3"/>}
-                    </svg>
-                    {t(s.labelKey)}
-                    {strokeStyle===s.val&&<Check size={12} className="ml-auto"/>}
-                  </button>
+              )}
+            </div>
+
+            {/* 2. CHẾ ĐỘ NẾN */}
+            <div className="relative z-[210] flex-1">
+              <button
+                onClick={() => { setShowTypeMenu(v=>!v); setShowIndicatorMenu(false); setShowIntervalMenu(false); setShowStrokePanel(false); }}
+                className={`w-full flex items-center justify-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showTypeMenu)}`}
+              >
+                <BarChart2 size={12} className="shrink-0" />
+                <span className="truncate">
+                  {{ candle_solid: t('typeSolidShort'), candle_up_stroke: t('typeHollowShort'), candle_stroke: t('typeStrokeShort'), ohlc: t('typeBarShort'), area: t('typeAreaShort'), heikin_ashi: t('heikinAshi') }[chartType] || t('typeCandleFallback')}
+                </span>
+                <ChevronDown size={11} className={`shrink-0 ${showTypeMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showTypeMenu && (
+                <div className={`${menuBase} w-48`}>
+                  {CHART_TYPES.map(tp => (
+                    <button key={tp.id} onClick={() => { setChartType(tp.id); setShowTypeMenu(false); }} className={rowBtn(chartType === tp.id)}>
+                      {t(tp.labelKey)}{chartType === tp.id && <Check size={12} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. CHỈ BÁO */}
+            <div className="relative z-[210] flex-1">
+              <button
+                onClick={() => { setShowIndicatorMenu(v=>!v); setShowTypeMenu(false); setShowIntervalMenu(false); setShowStrokePanel(false); }}
+                className={`w-full flex items-center justify-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIndicatorMenu)}`}
+              >
+                <Settings2 size={12} className="shrink-0" />
+                <span className="truncate">{t('indicators')}</span>
+                <ChevronDown size={11} className={`shrink-0 ${showIndicatorMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showIndicatorMenu && (
+                <div className={`${menuBase} w-64`}>
+                  <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('overlayIndicators')}</p>
+                  {MAIN_INDICATORS.map(ind => (
+                    <button key={ind.key} onClick={() => toggleIndicator(ind.key, true)} className={rowBtn(activeMain.includes(ind.key))}>
+                      {t(ind.labelKey)}{activeMain.includes(ind.key) && <Check size={12} />}
+                    </button>
+                  ))}
+                  <div className="h-px bg-white/10 my-2" />
+                  <p className="px-4 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('subIndicators')}</p>
+                  {SUB_INDICATORS.map(ind => (
+                    <button key={ind.key} onClick={() => toggleIndicator(ind.key, false)} className={rowBtn(activeSub.includes(ind.key))}>
+                      {t(ind.labelKey)}{activeSub.includes(ind.key) && <Check size={12} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 4 & 5. NÚT PHÓNG TO TOÀN MÀN HÌNH (MOBILE ONLY: lg:hidden) */}
+            <div className="flex lg:hidden items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title={isFullscreen && !isLandscape ? "Thoát toàn màn hình" : "Toàn màn hình (Mũi tên chéo)"}
+                className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-black uppercase transition-all ${
+                  isFullscreen && !isLandscape
+                    ? `${A.solid} ${A.solidText}`
+                    : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
+                }`}
+              >
+                {isFullscreen && !isLandscape ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleLandscapeFullscreen}
+                title={isLandscape ? "Thoát toàn màn hình xoay ngang" : "Toàn màn hình Xoay ngang (4 góc ô vuông)"}
+                className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-black uppercase transition-all ${
+                  isLandscape
+                    ? `${A.solid} ${A.solidText}`
+                    : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
+                }`}
+              >
+                <Maximize size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* HÀNG 2: DẢI MÀU & SẢN PHẨM NÉT VẼ DÀN TRẢI 100% CHIỀU RỘNG CHART */}
+          <div className={`w-full flex items-center justify-between px-2.5 py-1 rounded-xl border shadow-sm ${
+            isDark ? 'bg-[#10151C]/90 border-white/10' : 'bg-white border-slate-200'
+          }`}>
+            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar flex-1 py-0.5">
+              <span className={`text-[9px] font-black uppercase tracking-wider shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {t('color')}:
+              </span>
+              <div className="flex items-center gap-1.5">
+                {A.overlayColors.map(hex => (
+                  <button
+                    key={hex}
+                    onClick={() => handleOverlayColorChange(hex)}
+                    className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 transition-all hover:scale-110 shrink-0 ${
+                      overlayColor === hex ? 'ring-1 ring-offset-1' : ''
+                    }`}
+                    style={{ backgroundColor: hex, borderColor: overlayColor === hex ? (isDark ? '#fff' : '#1f2937') : 'transparent' }}
+                  />
                 ))}
               </div>
-            )}
+            </div>
+
+            <div className="relative ml-2 z-[210] shrink-0">
+              <button
+                onClick={e => { e.stopPropagation(); setShowStrokePanel(v => !v); }}
+                title={t('customizeStroke')}
+                className={`p-1 rounded-lg transition-all ${showStrokePanel ? `${A.solid} ${A.solidText}` : (isDark ? A.strokeIdleDark : A.strokeIdleLight)}`}
+              >
+                <SlidersHorizontal size={14} />
+              </button>
+              {showStrokePanel && (
+                <div
+                  className={`absolute top-[calc(100%+8px)] right-0 w-52 p-3 rounded-2xl border z-[9999] ${isDark ? 'bg-[#0D1117] border-white/15' : 'bg-white border-slate-200'}`}
+                  style={{ boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.8)' : '0 8px 32px rgba(0,0,0,0.15)' }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <p className={`text-[9px] font-black uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('strokeWidth')}</p>
+                  <div className="flex gap-2 mb-3">
+                    {STROKE_SIZES.map(s => (
+                      <button key={s} onClick={() => handleStrokeSizeChange(s)}
+                        className={`flex-1 flex flex-col items-center gap-1.5 py-2 rounded-lg text-[10px] font-black transition-all ${strokeSize === s ? `${A.solid} ${A.solidText}` : (isDark ? 'bg-white/5 text-slate-400 hover:bg-white/10' : 'bg-slate-100 text-slate-500 hover:bg-slate-200')}`}>
+                        <div style={{ height: `${s + 1}px`, width: '24px', background: 'currentColor', borderRadius: 1 }} />
+                        {s}px
+                      </button>
+                    ))}
+                  </div>
+                  <p className={`text-[9px] font-black uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('strokeStyle')}</p>
+                  {STROKE_STYLES.map(s => (
+                    <button key={s.val} onClick={() => handleStrokeStyleChange(s.val)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold text-left mb-1 transition-all ${strokeStyle === s.val ? `${A.solid} ${A.solidText}` : (isDark ? 'bg-white/5 text-slate-400 hover:bg-white/10' : 'bg-slate-50 text-slate-600 hover:bg-slate-100')}`}>
+                      <svg width="32" height="8" viewBox="0 0 32 8">
+                        {s.val === 'solid' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" />}
+                        {s.val === 'dashed' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="6 3" />}
+                        {s.val === 'dotted' && <line x1="0" y1="4" x2="32" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="2 3" />}
+                      </svg>
+                      {t(s.labelKey)}
+                      {strokeStyle === s.val && <Check size={12} className="ml-auto" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
 
       <div className="flex-1 flex flex-row relative min-h-0 rounded-2xl overflow-hidden border border-white/5 z-0">
 
         {!isMini && (
-          <div className={`w-12 shrink-0 border-r flex flex-col items-center py-3 gap-1 z-[20] relative ${isDark?'bg-[#0B0F14] border-white/5':'bg-slate-50 border-slate-200'}`}>
+          <div className={`${isFullscreen ? 'w-8 py-1' : 'w-9 sm:w-12 py-3'} shrink-0 border-r flex flex-col items-center gap-1 z-[20] relative ${isDark ? 'bg-[#0B0F14] border-white/5' : 'bg-slate-50 border-slate-200'}`}>
             {DRAW_TOOLS.map(({ name, Icon, titleKey }) => {
-            const isActive = activeTool===name;
-            return (
-              <button key={name} title={t(titleKey)}
-                onClick={e=>{e.stopPropagation();handleActivateTool(name);}}
-                className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all
-                  ${isActive?`${A.solid} ${A.solidText} ${A.toolShadow}`
-                    :(isDark?A.toolIdleDark:A.toolIdleLight)}`}
-              >
-                <Icon size={15}/>
-              </button>
-            );
-          })}
-          <div className={`w-7 h-px my-1 ${isDark?'bg-white/8':'bg-slate-200'}`}/>
-          <button
-            title={activeOverlay?.id ? 'Xóa nét đang chọn' : 'Xóa tất cả nét vẽ'}
-            onClick={()=>{
-              if (activeOverlay?.id) {
-                chartInstance.current?.removeOverlay(activeOverlay.id);
-                setActiveOverlay(null);
-                return;
-              }
-              try { chartInstance.current?.removeOverlay(); } catch { /* ignore */ }
-              setActiveOverlay(null);
-            }}
-            className="w-9 h-9 flex items-center justify-center rounded-xl transition-all text-red-500 hover:bg-red-500 hover:text-white">
-            <Trash2 size={15}/>
-          </button>
-        </div>
+              const isActive = activeTool === name;
+              return (
+                <button key={name} title={t(titleKey)}
+                  onClick={e => { e.stopPropagation(); handleActivateTool(name); }}
+                  className={`${isFullscreen ? 'w-6 h-6 rounded-lg' : 'w-7 h-7 sm:w-9 sm:h-9 rounded-xl'} flex items-center justify-center transition-all
+                  ${isActive ? `${A.solid} ${A.solidText} ${A.toolShadow}`
+                      : (isDark ? A.toolIdleDark : A.toolIdleLight)}`}
+                >
+                  <Icon size={isFullscreen ? 12 : 14} />
+                </button>
+              );
+            })}
+            <div className={`w-5 h-px my-1 ${isDark ? 'bg-white/8' : 'bg-slate-200'}`} />
+            <button
+              title={activeOverlay?.id ? 'Xóa nét đang chọn' : 'Xóa tất cả nét vẽ'}
+              onClick={() => {
+                if (activeOverlay?.id) {
+                  chartInstance.current?.removeOverlay(activeOverlay.id);
+                  setActiveOverlay(null);
+                } else {
+                  chartInstance.current?.removeAllOverlay();
+                  setActiveOverlay(null);
+                }
+              }}
+              className={`${isFullscreen ? 'w-6 h-6 rounded-lg' : 'w-7 h-7 sm:w-9 sm:h-9 rounded-xl'} flex items-center justify-center transition-all ${
+                activeOverlay?.id
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  : (isDark ? A.toolIdleDark : A.toolIdleLight)
+              }`}
+            >
+              <Trash2 size={isFullscreen ? 12 : 14} />
+            </button>
+          </div>
         )}
         <div className="flex-1 relative w-full h-full overflow-hidden touch-none overscroll-contain">
           <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
