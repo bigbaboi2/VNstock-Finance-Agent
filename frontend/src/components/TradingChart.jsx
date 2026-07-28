@@ -738,40 +738,79 @@ export default React.memo(function TradingChart({
   const overlayColorRef     = useRef(A.defaultOverlay);
 
   const outerWrapperRef = useRef(null);
+  const nativeFullscreenRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
 
-  const exitFullscreen = useCallback(() => {
+  const exitFullscreen = useCallback(async () => {
+    const wrapper = outerWrapperRef.current;
+    if (document.fullscreenElement === wrapper && document.exitFullscreen) {
+      try { await document.exitFullscreen(); } catch {}
+    }
+    nativeFullscreenRef.current = false;
     setIsFullscreen(false);
     setIsLandscape(false);
     try { window.screen.orientation?.unlock?.(); } catch {}
   }, []);
 
-  // Native fullscreen has inconsistent support on mobile WebViews/Safari and can
-  // briefly report a zero-sized canvas to KLineChart. Keep fullscreen in React's
-  // layout instead so Android and iOS use the same, stable viewport.
-  const toggleFullscreen = useCallback(() => {
-    if (isFullscreen && !isLandscape) exitFullscreen();
-    else {
+  const requestNativeFullscreen = useCallback(async () => {
+    const wrapper = outerWrapperRef.current;
+    if (!wrapper?.requestFullscreen) return false;
+    try {
+      await wrapper.requestFullscreen();
+      nativeFullscreenRef.current = document.fullscreenElement === wrapper;
+      return nativeFullscreenRef.current;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Android can use native fullscreen (needed for orientation lock). iOS and
+  // embedded WebViews fall back to the same CSS fullscreen layout instead.
+  const toggleFullscreen = useCallback(async () => {
+    if (isFullscreen && !isLandscape) {
+      await exitFullscreen();
+    } else {
       if (isLandscape) {
         try { window.screen.orientation?.unlock?.(); } catch {}
       }
       setIsFullscreen(true);
       setIsLandscape(false);
+      await requestNativeFullscreen();
     }
-  }, [exitFullscreen, isFullscreen, isLandscape]);
+  }, [exitFullscreen, isFullscreen, isLandscape, requestNativeFullscreen]);
 
   const toggleLandscapeFullscreen = useCallback(async () => {
     if (isFullscreen && isLandscape) {
-      exitFullscreen();
+      await exitFullscreen();
       return;
     }
     setIsFullscreen(true);
     setIsLandscape(true);
-    // This is supported on some Android browsers; iOS safely remains in the
-    // expanded layout when orientation locking is unavailable.
-    try { await window.screen.orientation?.lock?.('landscape'); } catch {}
-  }, [exitFullscreen, isFullscreen, isLandscape]);
+    const isNativeFullscreen = await requestNativeFullscreen();
+    // Orientation lock requires native fullscreen in Chromium. iOS safely
+    // remains in the expanded CSS layout when this API is unavailable.
+    if (isNativeFullscreen) {
+      try { await window.screen.orientation?.lock?.('landscape'); } catch {}
+    }
+  }, [exitFullscreen, isFullscreen, isLandscape, requestNativeFullscreen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNativeFullscreen = document.fullscreenElement === outerWrapperRef.current;
+      if (nativeFullscreenRef.current && !isNativeFullscreen) {
+        nativeFullscreenRef.current = false;
+        setIsFullscreen(false);
+        setIsLandscape(false);
+        try { window.screen.orientation?.unlock?.(); } catch {}
+      } else {
+        nativeFullscreenRef.current = isNativeFullscreen;
+      }
+      requestAnimationFrame(() => chartInstance.current?.resize?.());
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const [interval,          setInterval]          = useState(currentInterval || '1 ngày');
   const [showIntervalMenu,  setShowIntervalMenu]   = useState(false);
@@ -1346,7 +1385,7 @@ const rowBtn = React.useCallback((active) =>
       data-chart-root
       className={`w-full h-full relative flex flex-col ${anyMenuOpen ? 'z-30' : ''} ${
         isFullscreen
-          ? 'fixed inset-0 z-[99999] w-screen h-[100dvh] p-2 sm:p-4 bg-[#080C11]'
+          ? `fixed inset-0 z-[99999] w-screen h-[100dvh] p-2 sm:p-4 ${isDark ? 'bg-[#080C11]' : 'bg-slate-50'}`
           : ''
       }`}
       onClick={closeAllMenus}
@@ -1578,7 +1617,7 @@ const rowBtn = React.useCallback((active) =>
           </div>
         )}
         <div className="flex-1 relative w-full h-full overflow-hidden touch-none overscroll-contain">
-          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
+          <div ref={chartContainerRef} style={{position:'absolute',top:0,left:0,right:0,bottom:0, backgroundColor: isDark ? '#080C11' : '#FFFFFF', userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none', overscrollBehavior: 'contain', willChange: 'transform'}}/>
 
           {activeOverlay && (
             <div className={`absolute top-3 left-1/2 -translate-x-1/2 z-[30] flex items-center gap-3 backdrop-blur-md px-4 py-1.5 rounded-xl shadow-2xl border ${isDark ? 'bg-[#0D1117]/90 border-white/10' : 'bg-white border-slate-300'}`}>
