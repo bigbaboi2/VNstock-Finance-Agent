@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import axios from 'axios';
 import Stock from '../../models/Stock.js';
+import Setting from '../../models/Setting.js';
 
 const FALLBACK_STOCKS = [
     { symbol: 'MBB', companyName: 'Ngân hàng TMCP Quân đội', exchange: 'HOSE' },
@@ -11,6 +12,50 @@ const FALLBACK_STOCKS = [
 ];
 
 const VCI_SYMBOLS_URL = 'https://trading.vietcap.com.vn/api/price/symbols/getAll';
+const STOCK_CATALOG_SYNC_KEY = 'stockCatalogSync';
+const MIN_STOCKS_FOR_CACHE = 100;
+const DEFAULT_STOCK_CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
+
+const getTtlMs = () => {
+    const configured = Number(process.env.STOCK_CATALOG_CACHE_TTL_MS);
+    return Number.isFinite(configured) && configured >= 0
+        ? configured
+        : DEFAULT_STOCK_CATALOG_TTL_MS;
+};
+
+const getFreshCatalogCache = async () => {
+    const [syncState, stockCount] = await Promise.all([
+        Setting.findOne({ key: STOCK_CATALOG_SYNC_KEY }).lean(),
+        Stock.countDocuments({}),
+    ]);
+    const syncedAt = new Date(syncState?.value?.syncedAt || 0).getTime();
+    const ageMs = Date.now() - syncedAt;
+    const ttlMs = getTtlMs();
+
+    return {
+        isFresh: stockCount >= MIN_STOCKS_FOR_CACHE && syncedAt > 0 && ageMs >= 0 && ageMs < ttlMs,
+        stockCount,
+        ageMs,
+        ttlMs,
+    };
+};
+
+const saveCatalogSyncState = async ({ stockCount, vietcapCount = 0 }) => {
+    await Setting.updateOne(
+        { key: STOCK_CATALOG_SYNC_KEY },
+        {
+            $set: {
+                value: {
+                    syncedAt: new Date(),
+                    stockCount,
+                    vietcapCount,
+                    source: 'cafef+vietcap',
+                },
+            },
+        },
+        { upsert: true }
+    );
+};
 
 /**
  * Sync official English company names from Vietcap public listing API.
@@ -71,10 +116,19 @@ export async function syncEnglishCompanyNamesFromVci() {
     }
 }
 
-export async function updateSymbolsDatabase() {
+export async function updateSymbolsDatabase({ force = false } = {}) {
     console.log(chalk.whiteBright('\n[HỆ THỐNG] Đang đồng bộ danh sách mã chứng khoán lên Cloud MongoDB...'));
 
     try {
+        const cache = await getFreshCatalogCache();
+        if (!force && cache.isFresh) {
+            const remainingMinutes = Math.max(0, Math.ceil((cache.ttlMs - cache.ageMs) / 60_000));
+            console.log(chalk.cyan(
+                `[HỆ THỐNG] Danh mục chứng khoán đang dùng cache MongoDB (${cache.stockCount} mã, refresh sau ~${remainingMinutes} phút).`
+            ));
+            return Stock.find({}, { symbol: 1, companyName: 1, companyNameEn: 1, exchange: 1, _id: 0 }).lean();
+        }
+
         console.log(chalk.yellow('[HỆ THỐNG] Đang kết nối vệ tinh CafeF...'));
         const cafefRes = await axios.get('https://cafefnew.mediacdn.vn/Search/company.json', { timeout: 8000 });
         
@@ -101,7 +155,7 @@ export async function updateSymbolsDatabase() {
                 })
                 .filter(s => s.symbol && s.symbol.length === 3 && /^[A-Z0-9]{3}$/.test(s.symbol)); 
             
-            if (allStocks.length > 100) {
+            if (allStocks.length > MIN_STOCKS_FOR_CACHE) {
                 const finalBulkOps = allStocks.map(stock => {
                     let updateDoc = {
                         $set: { exchange: stock.exchange }
@@ -126,7 +180,8 @@ export async function updateSymbolsDatabase() {
                 console.log(chalk.green(`[HỆ THỐNG] Truy xuất CAFEF: Đã nạp & đồng bộ thành công ${allStocks.length} mã lên MongoDB.`));
 
                 // Overlay official EN (+ cleaner VI) names from Vietcap
-                await syncEnglishCompanyNamesFromVci();
+                const vietcapCount = await syncEnglishCompanyNamesFromVci();
+                await saveCatalogSyncState({ stockCount: allStocks.length, vietcapCount });
 
                 return allStocks;
             }
