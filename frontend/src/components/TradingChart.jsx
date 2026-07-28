@@ -1360,13 +1360,13 @@ const rowBtn = React.useCallback((active) =>
 
       {!isMini && (
         <div
-          className={`flex items-center gap-3 px-4 pt-3 pb-4 mb-2 border-b shrink-0 relative z-40 overflow-visible flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
+          className={`flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 pt-2.5 pb-3 mb-2 border-b shrink-0 relative z-40 overflow-visible flex-wrap ${isDark?'border-white/10':'border-slate-200'}`}
           onClick={e => e.stopPropagation()}
         >
         <div className="relative z-[210]">
           <button
             onClick={() => { setShowIntervalMenu(v=>!v); setShowTypeMenu(false); setShowIndicatorMenu(false); setShowStrokePanel(false); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIntervalMenu)}`}
+            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIntervalMenu)}`}
           >
             <Clock size={13}/> {localizeIntervalLabel(interval, lang)} <ChevronDown size={12} className={showIntervalMenu?'rotate-180':''}/>
           </button>
@@ -1392,7 +1392,7 @@ const rowBtn = React.useCallback((active) =>
         <div className="relative z-[210]">
           <button
             onClick={()=>{setShowTypeMenu(v=>!v);setShowIndicatorMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showTypeMenu)}`}
+            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showTypeMenu)}`}
           >
             <BarChart2 size={13}/>
             {{candle_solid:t('typeSolidShort'),candle_up_stroke:t('typeHollowShort'),candle_stroke:t('typeStrokeShort'),ohlc:t('typeBarShort'),area:t('typeAreaShort'),heikin_ashi:t('heikinAshi')}[chartType]||t('typeCandleFallback')}
@@ -1413,7 +1413,7 @@ const rowBtn = React.useCallback((active) =>
         <div className="relative z-[210]">
           <button
             onClick={()=>{setShowIndicatorMenu(v=>!v);setShowTypeMenu(false);setShowIntervalMenu(false);setShowStrokePanel(false);}}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIndicatorMenu)}`}
+            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showIndicatorMenu)}`}
           >
             <Settings2 size={13}/> {t('indicators')} <ChevronDown size={12} className={showIndicatorMenu?'rotate-180':''}/>
           </button>
@@ -1436,39 +1436,42 @@ const rowBtn = React.useCallback((active) =>
           )}
         </div>
 
-        {/* Fullscreen Button 1: Maximize2 (Mũi tên chéo 2 đầu - Fullscreen Current Orientation) */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          title={isFullscreen && !isLandscape ? "Thoát toàn màn hình" : "Toàn màn hình (Mũi tên chéo)"}
-          className={`p-2 rounded-xl border transition-all ${
-            isFullscreen && !isLandscape
-              ? `${A.solid} ${A.solidText}`
-              : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
-          }`}
-        >
-          {isFullscreen && !isLandscape ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-        </button>
+        {/* Fullscreen Buttons (MOBILE ONLY: lg:hidden) */}
+        <div className="flex lg:hidden items-center gap-1.5">
+          {/* Button 1: Diagonal 2-headed arrow (Maximize2) */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={isFullscreen && !isLandscape ? "Thoát toàn màn hình" : "Toàn màn hình (Mũi tên chéo)"}
+            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-black uppercase transition-all ${
+              isFullscreen && !isLandscape
+                ? `${A.solid} ${A.solidText}`
+                : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
+            }`}
+          >
+            {isFullscreen && !isLandscape ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
 
-        {/* Fullscreen Button 2: Maximize (Nút 4 góc ô vuông - Landscape Fullscreen Auto-Rotate) */}
-        <button
-          type="button"
-          onClick={toggleLandscapeFullscreen}
-          title={isLandscape ? "Thoát toàn màn hình xoay ngang" : "Toàn màn hình Xoay ngang (4 góc ô vuông)"}
-          className={`p-2 rounded-xl border transition-all ${
-            isLandscape
-              ? `${A.solid} ${A.solidText}`
-              : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
-          }`}
-        >
-          <Maximize size={15} />
-        </button>
+          {/* Button 2: 4 corners square (Maximize) - Landscape Auto Rotate */}
+          <button
+            type="button"
+            onClick={toggleLandscapeFullscreen}
+            title={isLandscape ? "Thoát toàn màn hình xoay ngang" : "Toàn màn hình Xoay ngang (4 góc ô vuông)"}
+            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-black uppercase transition-all ${
+              isLandscape
+                ? `${A.solid} ${A.solidText}`
+                : (isDark ? A.strokeIdleDark : A.strokeIdleLight)
+            }`}
+          >
+            <Maximize size={14} />
+          </button>
+        </div>
 
-        <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
-          <span className={`text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>{t('color')}</span>
+        <div className={`ml-auto flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border shadow-sm ${isDark?'bg-[#10151C] border-white/10':'bg-white border-slate-200'}`}>
+          <span className={`hidden sm:inline text-[9px] font-black uppercase tracking-wider ${isDark?'text-slate-400':'text-slate-500'}`}>{t('color')}</span>
           {A.overlayColors.map(hex=>(
             <button key={hex} onClick={()=>handleOverlayColorChange(hex)}
-              className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${overlayColor===hex?'ring-1 ring-offset-1':''}`}
+              className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 transition-all hover:scale-110 ${overlayColor===hex?'ring-1 ring-offset-1':''}`}
               style={{ backgroundColor:hex, borderColor:overlayColor===hex?(isDark?'#fff':'#1f2937'):'transparent' }}
             />
           ))}
