@@ -91,6 +91,18 @@ export const binanceAdapter = {
         return parseBalances(account);
     },
 
+    // Execution ticker
+    async getTickerPrice(symbol, environment) {
+        const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+        const res = await axios.get(`${base}/api/v3/ticker/price`, {
+            params: { symbol: symbol.toUpperCase() },
+            timeout: 8000,
+        });
+        const price = parseFloat(res.data?.price);
+        if (!(price > 0)) throw new Error(`BINANCE ${environment} ticker không hợp lệ cho ${symbol}`);
+        return price;
+    },
+
     async placeOrder(apiKey, secret, _passphrase, environment, { symbol, side, qty, orderType = 'MARKET', price }) {
         try {
             const params = {

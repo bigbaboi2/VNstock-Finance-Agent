@@ -8,6 +8,7 @@ import { getPipelineLogs } from '../services/pipelineLogService.js';
 import { getFunnelLogs } from '../services/tradeFunnelService.js';
 import { getAuditStatus, getAuditTail, readAuditFileTail } from '../services/auditLogService.js';
 import { getEffectiveAutoDuckConfig, updateAutoDuckConfig } from '../services/autoDuckConfigService.js';
+import { getLiveReadinessSnapshot } from '../services/liveStrategyGuardService.js';
 import { exportLiveTradeStats, DEFAULT_EXPORT_DIR } from '../services/liveTradeExportService.js';
 import { sumLiveRealizedPnl } from '../services/livePnlService.js';
 import {
@@ -762,5 +763,15 @@ export const getUsdRate = async (req, res) => {
         return res.json({ success: true, rate, source: 'Vietcombank', cachedAt: new Date() });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message, rate: 25400 });
+    }
+};
+
+// LIVE readiness
+export const getLiveReadinessHandler = async (_req, res) => {
+    try {
+        const data = await getLiveReadinessSnapshot();
+        return res.json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

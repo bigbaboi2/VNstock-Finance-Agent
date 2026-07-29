@@ -61,6 +61,17 @@ const parseWalletBalances = (result) => {
 export const bybitAdapter = {
     name: 'BYBIT',
 
+    async getTickerPrice(symbol, environment) {
+        const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+        const res = await axios.get(`${base}/v5/market/tickers`, {
+            params: { category: 'spot', symbol: symbol.toUpperCase() },
+            timeout: 8000,
+        });
+        const price = parseFloat(res.data?.result?.list?.[0]?.lastPrice);
+        if (!(price > 0)) throw new Error(`BYBIT ${environment} ticker không hợp lệ cho ${symbol}`);
+        return price;
+    },
+
     async testConnection(apiKey, secret, _passphrase, environment) {
         const start = Date.now();
         try {

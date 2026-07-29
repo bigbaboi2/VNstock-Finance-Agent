@@ -18,6 +18,13 @@ const UserOrderSchema = new mongoose.Schema({
     dynamicSizing: { type: Boolean, default: true },     // Bot tự điều chỉnh size theo score/risk
     usedCapital: { type: Number, default: 0 },           // Vốn đang triển khai trong các lệnh mở
     realizedPnl: { type: Number, default: 0 },           // Lãi/lỗ đã thực hiện tích lũy của gói
+    // Circuit-breaker state
+    riskPause: {
+        active: { type: Boolean, default: false },
+        reason: { type: String, default: '' },
+        trippedAt: { type: Date, default: null },
+        until: { type: Date, default: null },
+    },
     tradeAllocations: [{                                  // Lịch sử phân bổ vốn cho từng lệnh
         trade: { type: mongoose.Schema.Types.ObjectId, ref: 'AutoTrade' },
         symbol: { type: String, default: '' },

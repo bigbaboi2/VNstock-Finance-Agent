@@ -39,6 +39,48 @@ export const AUTODUCK_CONFIG_SCHEMA = {
         badge: 'live',
         hintKind: 'default',
     },
+    AUTODUCK_LIVE_MAX_QUOTE_DIVERGENCE_PCT: {
+        type: 'number', default: 0.35, group: 'safety',
+        label: 'Lệch giá market/execution tối đa (%)',
+        help: 'Không kích hoạt TP/SL/trailing khi giá market chuẩn lệch quá mức này so với ticker đúng sàn và môi trường thực thi.',
+        example: 'Mặc định 0.35. Giảm về 0.2 để siết chặt.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_LIVE_DAILY_LOSS_LIMIT_PCT: {
+        type: 'number', default: 2, group: 'safety',
+        label: 'Circuit breaker: lỗ tối đa/ngày (%)',
+        help: 'Tạm dừng vào lệnh LIVE mới cho package khi PnL fill đã đóng trong ngày chạm mức lỗ này. Không đóng vị thế đang mở.',
+        example: 'Mặc định 2. Đặt 0 để tắt.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_LIVE_CONSECUTIVE_LOSS_LIMIT: {
+        type: 'number', default: 2, group: 'safety',
+        label: 'Circuit breaker: số lệnh thua liên tiếp',
+        help: 'Tạm dừng entry LIVE mới khi package có chuỗi thua đã đóng đạt ngưỡng; tự gỡ khi sang ngày ICT mới.',
+        example: 'Mặc định 2. Đặt 0 để tắt.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_LIVE_SL_COOLDOWN_MINUTES: {
+        type: 'number', default: 120, group: 'safety',
+        label: 'Cooldown sau Stop Loss (phút)',
+        help: 'Không vào lại cùng mã sau SL trong thời gian này, áp dụng cho TESTNET và LIVE.',
+        example: 'Mặc định 120. Đặt 0 để tắt.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_LIVE_READINESS_MIN_TRADES: {
+        type: 'number', default: 60, group: 'safety',
+        label: 'Readiness: số lệnh TESTNET tối thiểu/setup',
+        help: 'Setup chỉ được vào connection LIVE khi đủ số lệnh TESTNET/shadow có market PnL hợp lệ.',
+        example: 'Mặc định 60.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_LIVE_READINESS_MIN_WIN_RATE: {
+        type: 'number', default: 55, group: 'safety',
+        label: 'Readiness: win rate tối thiểu (%)',
+        help: 'Ngưỡng win rate market PnL theo setup trước khi cho phép tiền thật.',
+        example: 'Mặc định 55.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_LIVE_READINESS_MIN_PROFIT_FACTOR: {
+        type: 'number', default: 1.25, group: 'safety',
+        label: 'Readiness: profit factor tối thiểu',
+        help: 'Tổng lời/tổng lỗ market PnL của setup phải đạt ngưỡng này trước khi mở LIVE.',
+        example: 'Mặc định 1.25.', badge: 'live', hintKind: 'default',
+    },
     AUTODUCK_SCAN_GAP_MS: {
         type: 'number',
         default: 900000,
@@ -621,6 +663,13 @@ export const CONFIG_GROUP_META = {
         fieldOrder: [
             'MAX_LIVE_ORDER_VALUE_USDT',
             'MAX_LIVE_ORDERS_PER_USER',
+            'AUTODUCK_LIVE_MAX_QUOTE_DIVERGENCE_PCT',
+            'AUTODUCK_LIVE_DAILY_LOSS_LIMIT_PCT',
+            'AUTODUCK_LIVE_CONSECUTIVE_LOSS_LIMIT',
+            'AUTODUCK_LIVE_SL_COOLDOWN_MINUTES',
+            'AUTODUCK_LIVE_READINESS_MIN_TRADES',
+            'AUTODUCK_LIVE_READINESS_MIN_WIN_RATE',
+            'AUTODUCK_LIVE_READINESS_MIN_PROFIT_FACTOR',
         ],
     },
     idle: {

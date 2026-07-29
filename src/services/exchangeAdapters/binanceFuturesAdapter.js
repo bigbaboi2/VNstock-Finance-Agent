@@ -47,6 +47,17 @@ const signedRequest = async (apiKey, secret, environment, method, path, params =
 export const binanceFuturesAdapter = {
     name: 'BINANCE_FUTURES',
 
+    async getTickerPrice(symbol, environment) {
+        const base = BASE_URLS[environment] || BASE_URLS.TESTNET;
+        const res = await axios.get(`${base}/fapi/v1/ticker/price`, {
+            params: { symbol: symbol.toUpperCase() },
+            timeout: 8000,
+        });
+        const price = parseFloat(res.data?.price);
+        if (!(price > 0)) throw new Error(`BINANCE FUTURES ${environment} ticker không hợp lệ cho ${symbol}`);
+        return price;
+    },
+
     async testConnection(apiKey, secret, _passphrase, environment) {
         const start = Date.now();
         try {

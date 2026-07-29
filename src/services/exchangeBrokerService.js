@@ -10,6 +10,7 @@ import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
 import { extractFeeFromOrderResult } from './brokerFeeService.js';
 import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
+import { getSetupReadiness } from './liveStrategyGuardService.js';
 import { maybeSetEquityBaseline } from './walletEquityService.js';
 import {
     computeLivePnlFromExchangeOrders as computeLivePnlCore,
@@ -35,6 +36,35 @@ export const computeLivePnlFromExchangeOrders = async (trade, usdVndRate = 25400
 };
 
 export { getLiveExitRemainingQty, releaseLiveEntryClaim };
+
+// Execution quote
+export const getExecutionQuote = async (trade) => {
+    if (!trade?.exchangeConnectionId) {
+        return { success: false, message: 'LIVE trade thiếu exchangeConnectionId.' };
+    }
+    try {
+        const connection = await ExchangeConnection.findById(trade.exchangeConnectionId).lean();
+        if (!connection || !connection.isActive) {
+            return { success: false, message: 'Kết nối sàn của LIVE trade không còn hoạt động.' };
+        }
+        const marketType = trade.marketType || 'SPOT';
+        const adapter = getAdapter(connection.exchangeName, marketType);
+        if (typeof adapter.getTickerPrice !== 'function') {
+            return { success: false, message: `${connection.exchangeName} chưa hỗ trợ execution ticker cho ${marketType}.` };
+        }
+        const price = await adapter.getTickerPrice(trade.symbol, connection.environment);
+        return {
+            success: Number.isFinite(price) && price > 0,
+            price,
+            source: `${connection.exchangeName}_${connection.environment}_${marketType}_TICKER`,
+            exchangeName: connection.exchangeName,
+            environment: connection.environment,
+            fetchedAt: new Date(),
+        };
+    } catch (err) {
+        return { success: false, message: `Không lấy được execution quote: ${err.message}` };
+    }
+};
 
 const confirmBrokerFill = async ({ connectionDoc, result, symbol }) => {
     if (!result?.success || !result.externalOrderId) return result;
@@ -658,6 +688,50 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             return { success: false, message: 'Không tìm thấy kết nối sàn hợp lệ của user.' };
         }
 
+        // LIVE key permission gate
+        if (connectionDoc.environment === 'LIVE' && (connectionDoc.permissions || []).includes('WITHDRAW')) {
+            appendAuditEvent('security', {
+                userOrderId: String(userOrder._id),
+                exchangeConnectionId: String(connectionDoc._id),
+                exchange: connectionDoc.exchangeName,
+                environment: connectionDoc.environment,
+                reason: 'withdraw_permission_enabled',
+            }, { event: 'live_entry_blocked_withdraw_permission', level: 'error', source: 'exchangeBrokerService' }).catch(() => {});
+            return {
+                success: false,
+                reason: 'WITHDRAW_PERMISSION_ENABLED',
+                message: 'Từ chối LIVE: API key đang có quyền WITHDRAW. Hãy tạo key chỉ READ + TRADE.',
+            };
+        }
+        if (connectionDoc.environment === 'TESTNET' && (connectionDoc.permissions || []).includes('WITHDRAW')) {
+            appendAuditEvent('security', {
+                userOrderId: String(userOrder._id),
+                exchangeConnectionId: String(connectionDoc._id),
+                exchange: connectionDoc.exchangeName,
+                environment: connectionDoc.environment,
+                reason: 'withdraw_permission_enabled',
+            }, { event: 'testnet_withdraw_permission_warning', level: 'warn', source: 'exchangeBrokerService' }).catch(() => {});
+        }
+
+        if (connectionDoc.environment === 'LIVE') {
+            const setup = trade.signalBreakdown?.entrySetup || 'UNKNOWN';
+            const readiness = await getSetupReadiness(setup);
+            if (!readiness.ready) {
+                appendAuditEvent('security', {
+                    userOrderId: String(userOrder._id),
+                    exchangeConnectionId: String(connectionDoc._id),
+                    symbol: trade.symbol,
+                    setup,
+                    readiness,
+                }, { event: 'live_entry_blocked_readiness', level: 'warn', source: 'exchangeBrokerService' }).catch(() => {});
+                return {
+                    success: false,
+                    reason: 'SETUP_NOT_READY_FOR_LIVE',
+                    message: `Từ chối LIVE ${setup}: readiness ${readiness.trades}/${readiness.criteria.minTrades}, WR ${readiness.winRate}%, PF ${readiness.profitFactor ?? '∞'}.`,
+                };
+            }
+        }
+
         if (trade.assetType === 'VN_STOCK' && connectionDoc.exchangeName !== 'DNSE') {
             return { success: false, message: 'Live execution VN_STOCK hiện chỉ hỗ trợ sàn DNSE.' };
         } else if (trade.assetType !== 'CRYPTO' && trade.assetType !== 'VN_STOCK') {
@@ -701,6 +775,44 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             marketType = 'FUTURES';
             leverage = getAutoDuckNumber('AUTO_FUTURES_LEVERAGE') || 3;
             orderSide = 'SELL';
+        }
+
+        // Entry quote divergence gate
+        if (trade.assetType === 'CRYPTO') {
+            const adapter = getAdapter(connectionDoc.exchangeName, marketType);
+            if (typeof adapter.getTickerPrice !== 'function') {
+                return {
+                    success: false,
+                    reason: 'EXECUTION_QUOTE_UNAVAILABLE',
+                    message: `${connectionDoc.exchangeName} chưa hỗ trợ execution quote cho ${marketType}.`,
+                };
+            }
+            const executionPrice = await adapter.getTickerPrice(trade.symbol, connectionDoc.environment);
+            const signalPrice = Number(trade.entryPrice);
+            const divergencePct = signalPrice > 0 && Number.isFinite(executionPrice)
+                ? Math.abs((executionPrice - signalPrice) / signalPrice) * 100
+                : null;
+            const configuredMax = getAutoDuckNumber('AUTODUCK_LIVE_MAX_QUOTE_DIVERGENCE_PCT');
+            const maxDivergencePct = Number.isFinite(configuredMax) ? configuredMax : 0.35;
+
+            if (!Number.isFinite(executionPrice) || executionPrice <= 0 || divergencePct === null || divergencePct > maxDivergencePct) {
+                appendAuditEvent('execution', {
+                    userOrderId: String(userOrder._id),
+                    autoTradeId: String(trade._id),
+                    symbol: trade.symbol,
+                    signalPrice,
+                    executionPrice: Number.isFinite(executionPrice) ? executionPrice : null,
+                    divergencePct,
+                    maxDivergencePct,
+                    exchange: connectionDoc.exchangeName,
+                    environment: connectionDoc.environment,
+                }, { event: 'live_entry_blocked_price_divergence', level: 'warn', source: 'exchangeBrokerService' }).catch(() => {});
+                return {
+                    success: false,
+                    reason: 'PRICE_DIVERGENCE',
+                    message: `Không vào ${trade.symbol}: giá tín hiệu ${signalPrice} và ${connectionDoc.environment} execution quote ${executionPrice ?? 'N/A'} lệch ${divergencePct?.toFixed(3) ?? 'N/A'}% (giới hạn ${maxDivergencePct}%).`,
+                };
+            }
         }
 
         const maxLive = await resolveMaxLiveOrders(userOrder);

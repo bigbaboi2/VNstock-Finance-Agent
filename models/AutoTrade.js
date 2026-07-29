@@ -17,6 +17,11 @@ const AutoTradeSchema = new mongoose.Schema({
     markSimPnl: { type: Number, default: null },
     markSimPnlPercent: { type: Number, default: null },
     markSimExitPrice: { type: Number, default: null },
+    // Market PnL telemetry
+    marketPnl: { type: Number, default: null },
+    marketPnlPercent: { type: Number, default: null },
+    marketExitPrice: { type: Number, default: null },
+    marketPnlSource: { type: String, default: null },
     aiScore: { type: Number, required: true },  
     confidence: { type: Number, required: true }, 
     reason: { type: String, required: true },  

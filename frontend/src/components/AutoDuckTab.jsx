@@ -1799,6 +1799,11 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                             ● LIVE
                         </span>
                     )}
+                    {order.riskPause?.active && (
+                        <span title={order.riskPause.reason} className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-red-500/15 text-red-400 border-red-500/30 shadow-sm">
+                            CIRCUIT PAUSE
+                        </span>
+                    )}
                     <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm ${statusClass}`}>
                         {order.status}
                     </span>

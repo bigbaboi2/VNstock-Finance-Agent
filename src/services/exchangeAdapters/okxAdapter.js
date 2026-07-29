@@ -63,6 +63,18 @@ const mapError = (err) => {
 export const okxAdapter = {
     name: 'OKX',
 
+    async getTickerPrice(symbol, environment) {
+        const headers = environment === 'TESTNET' ? { 'x-simulated-trading': '1' } : {};
+        const res = await axios.get(`${BASE_URL}/api/v5/market/ticker`, {
+            params: { instId: toOkxInstId(symbol) },
+            headers,
+            timeout: 8000,
+        });
+        const price = parseFloat(res.data?.data?.[0]?.last);
+        if (!(price > 0)) throw new Error(`OKX ${environment} ticker không hợp lệ cho ${symbol}`);
+        return price;
+    },
+
     async testConnection(apiKey, secret, passphrase, environment) {
         const start = Date.now();
         try {
