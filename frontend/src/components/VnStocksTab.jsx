@@ -783,10 +783,71 @@ const AiAnalysisLoader = React.memo(({
 });
 
 // =====================================================================
-// COMPONENT
-// ======================================================================
-const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, aiAnalysisDuration, vnReportTimestamp, setShowPdfModal, scrollContainerRef, setIsChatOpen, aiReport, setShowFullReportModal, compact = false, dockMode = false, externalToolbar = false, showMore: showMoreProp, onShowMoreChange, onScrollToTop, onLayoutChange }) => {
-    const { t, i18n } = useTranslation('vnStocks');
+// HELPER: Format date string cleanly for reports
+// =====================================================================
+const formatReportDateString = (tsInput) => {
+  if (!tsInput) return null;
+  
+  if (tsInput instanceof Date) {
+    return isNaN(tsInput.getTime()) ? null : tsInput.toLocaleTimeString('vi-VN', {
+      hour: '2-digit', minute: '2-digit',
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+  }
+  
+  if (typeof tsInput === 'number') {
+    const d = new Date(tsInput);
+    return isNaN(d.getTime()) ? null : d.toLocaleTimeString('vi-VN', {
+      hour: '2-digit', minute: '2-digit',
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+  }
+  
+  if (typeof tsInput === 'string') {
+    const standardDate = new Date(tsInput);
+    if (!isNaN(standardDate.getTime())) {
+      return standardDate.toLocaleTimeString('vi-VN', {
+        hour: '2-digit', minute: '2-digit',
+        day: '2-digit', month: '2-digit', year: 'numeric'
+      });
+    }
+    
+    const match = tsInput.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      
+      const timeMatch = tsInput.match(/(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+      let hours = 0, minutes = 0, seconds = 0;
+      if (timeMatch) {
+        hours = parseInt(timeMatch[1], 10);
+        minutes = parseInt(timeMatch[2], 10);
+        if (timeMatch[3]) seconds = parseInt(timeMatch[3], 10);
+      }
+      
+      const customDate = new Date(year, month, day, hours, minutes, seconds);
+      if (!isNaN(customDate.getTime())) {
+        return customDate.toLocaleTimeString('vi-VN', {
+          hour: '2-digit', minute: '2-digit',
+          day: '2-digit', month: '2-digit', year: 'numeric'
+        });
+      }
+    }
+    
+    if (tsInput.trim().length > 0) {
+      return tsInput.trim();
+    }
+  }
+  
+  return null;
+};
+
+// =====================================================================
+// COMPONENT: AI REPORT HEADER
+// =====================================================================
+const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, aiAnalysisDuration, vnReportTimestamp, lastAiVnTime, setShowPdfModal, scrollContainerRef, setIsChatOpen, aiReport, setShowFullReportModal, compact = false, dockMode = false, externalToolbar = false, showMore: showMoreProp, onShowMoreChange, onScrollToTop, onLayoutChange }) => {
+  const { t, i18n } = useTranslation('vnStocks');
   const [copied, setCopied] = useState(false);
   const [showMoreInternal, setShowMoreInternal] = useState(false);
   const showMore = showMoreProp !== undefined ? showMoreProp : showMoreInternal;
@@ -821,21 +882,20 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
     }
   };
 
-  const safeTime = vnReportTimestamp ? new Date(vnReportTimestamp) : null;
-  const isValidDate = safeTime && !isNaN(safeTime.getTime());
-  
-  const displayTime = isValidDate 
-    ? safeTime.toLocaleTimeString('vi-VN', { 
-        hour: '2-digit', minute: '2-digit', 
-        day: '2-digit', month: '2-digit', year: 'numeric' 
-      }) 
-    : null;
+  const rawTs = vnReportTimestamp || lastAiVnTime || marketData?.timestamp || marketData?.updatedAt;
+  const displayTime = formatReportDateString(rawTs);
 
+  const safeTime = rawTs ? new Date(rawTs) : null;
+  const isValidDate = safeTime && !isNaN(safeTime.getTime());
   const isFresh = aiAnalysisDuration != null || (isValidDate && (Date.now() - safeTime.getTime() < AI_REPORT_COOLDOWN_MS));
 
   const timeColorClass = isFresh 
-      ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50')
-      : (isDark ? 'text-slate-400 border-white/10 bg-white/5' : 'text-slate-500 border-slate-200 bg-slate-50');
+    ? (isDark 
+        ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/15 shadow-[0_0_12px_rgba(16,185,129,0.2)] font-black ring-1 ring-emerald-500/20' 
+        : 'text-emerald-800 border-emerald-300 bg-emerald-100/90 shadow-sm font-black ring-1 ring-emerald-400/30')
+    : (isDark 
+        ? 'text-amber-300 border-amber-500/40 bg-amber-500/15 shadow-[0_0_12px_rgba(245,158,11,0.2)] font-black ring-1 ring-amber-500/20' 
+        : 'text-amber-800 border-amber-300 bg-amber-100/90 shadow-sm font-black ring-1 ring-amber-400/30');
 
   if (compact && externalToolbar && !showMore) return null;
 
@@ -858,9 +918,10 @@ const AiReportHeader = ({ isDark, UI, marketData, actionData, isUpdatingAction, 
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
           {displayTime && (
-            <span className={`flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-full border transition-colors duration-500 ${timeColorClass}`}>
-              <Clock size={10} className={isFresh ? 'animate-pulse' : ''} />
-              {isFresh ? t('reportJustCreated') : t('reportCreatedOn')} {displayTime}
+            <span className={`flex items-center gap-1.5 text-[9.5px] uppercase tracking-wide px-3 py-1 rounded-full border transition-all duration-300 ${timeColorClass}`}>
+              <Clock size={11} className={isFresh ? 'animate-pulse text-emerald-400' : 'text-amber-400'} />
+              <span>{isFresh ? t('reportJustCreated') : t('reportCreatedOn')}</span>
+              <span className="font-black underline decoration-amber-400/40 underline-offset-2">{displayTime}</span>
             </span>
           )}
           {aiAnalysisDuration && (
@@ -1221,6 +1282,7 @@ const ReportDockToolbar = React.memo(({
   isUpdatingAction,
   debateResult,
   vnReportTimestamp,
+  lastAiVnTime,
   aiAnalysisDuration,
   activeTab,
   isExpanded,
@@ -1231,18 +1293,20 @@ const ReportDockToolbar = React.memo(({
   const lang = normalizeLanguage(i18n.language);
   const sym = marketData?.stockInfo?.symbol;
   const companyName = marketData?.companyProfile?.companyName;
-  const safeTime = vnReportTimestamp ? new Date(vnReportTimestamp) : null;
+  const rawTs = vnReportTimestamp || lastAiVnTime || marketData?.timestamp || marketData?.updatedAt;
+  const displayTime = formatReportDateString(rawTs);
+
+  const safeTime = rawTs ? new Date(rawTs) : null;
   const isValidDate = safeTime && !isNaN(safeTime.getTime());
-  const displayTime = isValidDate
-    ? safeTime.toLocaleTimeString('vi-VN', {
-        hour: '2-digit', minute: '2-digit',
-        day: '2-digit', month: '2-digit', year: 'numeric',
-      })
-    : null;
   const isFresh = aiAnalysisDuration != null || (isValidDate && (Date.now() - safeTime.getTime() < AI_REPORT_COOLDOWN_MS));
+
   const timeColorClass = isFresh
-    ? (isDark ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-emerald-600 border-emerald-300 bg-emerald-50')
-    : (isDark ? 'text-slate-400 border-white/10 bg-white/5' : 'text-slate-500 border-slate-200 bg-slate-50');
+    ? (isDark 
+        ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/15 shadow-[0_0_12px_rgba(16,185,129,0.2)] font-black ring-1 ring-emerald-500/20' 
+        : 'text-emerald-800 border-emerald-300 bg-emerald-100/90 shadow-sm font-black ring-1 ring-emerald-400/30')
+    : (isDark 
+        ? 'text-amber-300 border-amber-500/40 bg-amber-500/15 shadow-[0_0_12px_rgba(245,158,11,0.2)] font-black ring-1 ring-amber-500/20' 
+        : 'text-amber-800 border-amber-300 bg-amber-100/90 shadow-sm font-black ring-1 ring-amber-400/30');
 
   const btnPrimary = isDark
     ? 'bg-yellow-400/15 text-yellow-400 border-yellow-400/50 hover:bg-yellow-400/25 shadow-[0_0_12px_rgba(250,204,21,0.12)]'
@@ -1277,9 +1341,9 @@ const ReportDockToolbar = React.memo(({
           <div className="flex items-center gap-2 flex-wrap">
             <p className={`text-[12px] font-black uppercase tracking-wider truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{sym}</p>
             {displayTime && (
-              <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${timeColorClass}`}>
-                <Clock size={10} />
-                {displayTime}
+              <span className={`inline-flex items-center gap-1.5 text-[9px] uppercase tracking-wider px-2.5 py-0.5 rounded-full border shrink-0 transition-all duration-300 ${timeColorClass}`}>
+                <Clock size={10} className={isFresh ? 'animate-pulse text-emerald-400' : 'text-amber-400'} />
+                <span className="font-black">{displayTime}</span>
               </span>
             )}
           </div>
@@ -1342,12 +1406,6 @@ const ReportDockToolbar = React.memo(({
         </div>
       )}
 
-      {activeTab === 2 && !isExpanded && (
-        <span className={`hidden md:inline text-[9px] font-bold uppercase tracking-wider shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-          Nhấn + để xem
-        </span>
-      )}
-
       <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
@@ -1384,6 +1442,7 @@ const ReportReadingPinnedDock = React.memo(({
   isUpdatingAction,
   aiAnalysisDuration,
   vnReportTimestamp,
+  lastAiVnTime,
   setShowPdfModal,
   scrollContainerRef,
   setIsChatOpen,
@@ -1436,6 +1495,7 @@ const ReportReadingPinnedDock = React.memo(({
       isUpdatingAction={isUpdatingAction}
       debateResult={debateResult}
       vnReportTimestamp={vnReportTimestamp}
+      lastAiVnTime={lastAiVnTime}
       aiAnalysisDuration={aiAnalysisDuration}
       activeTab={activeTab}
       isExpanded={activeTab === 1 ? dockActionOpen : dockDebateOpen}
@@ -1456,6 +1516,7 @@ const ReportReadingPinnedDock = React.memo(({
           isUpdatingAction={isUpdatingAction}
           aiAnalysisDuration={aiAnalysisDuration}
           vnReportTimestamp={vnReportTimestamp}
+          lastAiVnTime={lastAiVnTime}
           setShowPdfModal={setShowPdfModal}
           scrollContainerRef={scrollContainerRef}
           setIsChatOpen={setIsChatOpen}
@@ -2532,6 +2593,7 @@ export default function VnStocksTab({
       isUpdatingAction={isUpdatingAction}
       aiAnalysisDuration={aiAnalysisDuration}
       vnReportTimestamp={vnReportTimestamp}
+      lastAiVnTime={lastAiVnTime}
       setShowPdfModal={setShowPdfModal}
       scrollContainerRef={scrollContainerRef}
       setIsChatOpen={setIsChatOpen}
@@ -2606,6 +2668,7 @@ export default function VnStocksTab({
         isUpdatingAction={isUpdatingAction}
         aiAnalysisDuration={aiAnalysisDuration}
         vnReportTimestamp={vnReportTimestamp}
+        lastAiVnTime={lastAiVnTime}
         setShowPdfModal={setShowPdfModal}
         scrollContainerRef={scrollContainerRef}
         setIsChatOpen={setIsChatOpen}
