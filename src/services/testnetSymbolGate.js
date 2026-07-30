@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import ExchangeConnection from '../../models/ExchangeConnection.js';
 import UserOrder from '../../models/UserOrder.js';
-import Setting from '../../models/Setting.js';
 import { getAdapter } from './exchangeAdapters/index.js';
 import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
 
@@ -54,9 +53,7 @@ export const resolveLiveMarketType = async (connectionDoc, direction) => {
     const isLong = direction === 'LONG' || direction === 'MUA';
     if (isLong) return { marketType: 'SPOT', blocked: false };
 
-    const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
-    const dbEnabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1));
-    const enabled = dbEnabled || getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
+    const enabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
     if (!enabled) {
         return { marketType: 'SPOT', blocked: true, reason: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false)' };
     }

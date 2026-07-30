@@ -741,20 +741,33 @@ export default function AutoDuckEnvSettingsPanel({
 
             {!collapsed && (
                 <div className={`mt-4 pt-4 border-t-2 ${hairline}`}>
+                    <div className={`mb-5 rounded-xl border-2 px-4 py-3 ${isDark ? 'bg-indigo-950/35 border-indigo-400/30' : 'bg-indigo-50 border-indigo-200'}`}>
+                        <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold">
+                            <span className={UI.textBold}>Futures SHORT:</span>
+                            <span className={`rounded-md border px-2 py-1 ${draft.AUTODUCK_AUTO_FUTURES_SHORT_ENABLED
+                                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                                : 'border-slate-400/35 bg-slate-500/10 text-slate-400'}`}>
+                                {draft.AUTODUCK_AUTO_FUTURES_SHORT_ENABLED ? 'BẬT' : 'TẮT · chỉ ghi shadow'}
+                            </span>
+                            <span className={UI.textMuted}>
+                                Continuation: {draft.AUTODUCK_LIVE_ALLOW_SHORT_CONTINUATION ? 'BẬT' : 'TẮT'} · Fallback: {draft.AUTODUCK_LIVE_ALLOW_SHORT_FALLBACK ? 'BẬT' : 'TẮT'} · chỉ connection Futures hợp lệ mới được khớp.
+                            </span>
+                        </div>
+                    </div>
                     <div className={`mb-5 rounded-xl border-2 px-4 py-3 ${isDark ? 'bg-slate-950/60 border-white/25' : 'bg-slate-50 border-slate-200'}`}>
                         <div className="flex items-center justify-between gap-3 mb-2">
                             <p className={`text-[12px] font-black uppercase tracking-wider ${UI.textBold}`}>LIVE readiness theo setup</p>
-                            <span className={`text-[10px] ${UI.textMuted}`}>TESTNET/shadow market PnL</span>
+                            <span className={`text-[10px] ${UI.textMuted}`}>Thống kê chung TESTNET/LIVE theo market PnL</span>
                         </div>
                         {Object.keys(readiness).length === 0 ? (
-                            <p className={`text-[12px] ${UI.textMuted}`}>Chưa có setup TESTNET đủ điều kiện để đánh giá LIVE.</p>
+                            <p className={`text-[12px] ${UI.textMuted}`}>Chưa có setup đã đóng đủ mẫu để đánh giá readiness.</p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
                                 {Object.values(readiness).map((row) => (
-                                    <span key={row.setup} className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${row.ready
+                                    <span key={`${row.setup}-${row.cohort}-${row.direction}`} className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${row.ready
                                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/35'
                                         : (isDark ? 'bg-amber-500/10 text-amber-200 border-amber-400/35' : 'bg-amber-50 text-amber-800 border-amber-300')}`}>
-                                        {row.setup}: {row.ready ? 'READY' : 'TESTNET'} · {row.trades}/{row.criteria?.minTrades} · WR {row.winRate}% · PF {row.profitFactor ?? '∞'}
+                                        {row.setup}/{row.cohort || 'CORE'}/{row.direction || 'LONG'}: {row.ready ? 'READY' : 'LEARNING'} · {row.trades}/{row.criteria?.minTrades} · WR {row.winRate}% · PF {row.profitFactor ?? '∞'}
                                     </span>
                                 ))}
                             </div>

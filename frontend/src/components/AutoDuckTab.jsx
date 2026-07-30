@@ -1804,6 +1804,11 @@ function UserOrderCard({ index, order, isDark, UI, onStop, onDelete }) {
                             CIRCUIT PAUSE
                         </span>
                     )}
+                    {Number(order.riskControl?.sizeMultiplier || 1) < 1 && (
+                        <span title={`${order.riskControl?.consecutiveLosses || 0} lệnh thua liên tiếp`} className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-amber-500/15 text-amber-400 border-amber-500/30 shadow-sm">
+                            SIZE ×{order.riskControl.sizeMultiplier}
+                        </span>
+                    )}
                     <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm ${statusClass}`}>
                         {order.status}
                     </span>

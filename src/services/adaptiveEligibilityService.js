@@ -81,12 +81,3 @@ export const resolveAdaptiveEligibility = ({
         },
     };
 };
-
-/** Size boost when quality above ceiling ref (priority/size, not harder gate). */
-export const convictionSizeBoostFromCeiling = (qualityScore, sizeMult = 1) => {
-    const ceiling = getQualityCeilingRef();
-    const q = Number(qualityScore) || 0;
-    if (q < ceiling) return sizeMult;
-    const extra = Math.min(0.15, (q - ceiling) * 0.02);
-    return sizeMult * (1 + extra);
-};

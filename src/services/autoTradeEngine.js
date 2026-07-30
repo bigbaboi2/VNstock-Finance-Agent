@@ -50,7 +50,7 @@ import {
 import { getSymbolInfo } from './symbolInfoService.js';
 import axios from 'axios';
 import { executeLiveEntry, executeLiveExit, executeLivePartialExit, computeLivePnlFromExchangeOrders, getExecutionQuote, releaseLiveEntryClaim } from './exchangeBrokerService.js';
-import { evaluateLiveCircuitBreaker } from './liveStrategyGuardService.js';
+import { evaluateLiveCircuitBreaker, evaluateSetupSymbolCooldown } from './liveStrategyGuardService.js';
 import {
     acquireDistributedLock,
     releaseDistributedLock,
@@ -83,6 +83,7 @@ import {
     applyQualityToSignal,
     passesLiveQuantGate,
     passesSimQuantGate,
+    passesResearchQuantGate,
     IDLE_PROBE_SETUP_WHITELIST,
 } from './entrySetupEngine.js';
 import {
@@ -122,7 +123,6 @@ import { computePriorityScore, sortCandidatesByPriority } from './priorityScoreS
 import { computeBreakoutAffinity } from './breakoutAffinityService.js';
 import {
     resolveAdaptiveEligibility,
-    convictionSizeBoostFromCeiling,
 } from './adaptiveEligibilityService.js';
 
 // ── CONSTANTS & HELPERS
@@ -214,12 +214,9 @@ const getIdleRelaxMaxAttempts = () => getAutoDuckNumber('AUTODUCK_IDLE_RELAX_MAX
 const getIdleMinSimScore = () => getAutoDuckNumber('AUTODUCK_IDLE_MIN_SIM_SCORE') || 68;
 const getIdleMinLiveScore = () => getAutoDuckNumber('AUTODUCK_IDLE_MIN_LIVE_SCORE') || 80;
 const getIdleAiProbeEnabled = () => getAutoDuckBoolean('AUTODUCK_IDLE_AI_PROBE_ENABLED');
-const getIdleAiProbeLive = () => getAutoDuckBoolean('AUTODUCK_IDLE_AI_PROBE_LIVE');
 const getIdleAiProbeMinScore = () => getAutoDuckNumber('AUTODUCK_IDLE_AI_PROBE_MIN_SCORE') || 78;
 const getIdleAiProbeSizeMult = () => getAutoDuckNumber('AUTODUCK_IDLE_AI_PROBE_SIZE_MULT') || 0.45;
-const getIdleLiveDailyTarget = () => getAutoDuckNumber('AUTODUCK_IDLE_LIVE_DAILY_TARGET') || 5;
-const getIdleLiveSizeMult = () => getAutoDuckNumber('AUTODUCK_IDLE_LIVE_SIZE_MULT') || 0.45;
-const getIdleLiveFloorRelax = () => Math.min(2, getAutoDuckNumber('AUTODUCK_IDLE_LIVE_FLOOR_RELAX') || 2);
+const getIdleLiveDailyTarget = () => getAutoDuckNumber('AUTODUCK_IDLE_LIVE_DAILY_TARGET') || 10;
 
 const idleScanState = {
     attempts: 0,
@@ -265,10 +262,46 @@ const countLiveOrdersWaiting = (asset) => UserOrder.countDocuments({
 });
 
 const isAutoFuturesShortEnabled = async () => {
-    const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
-    const dbEnabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1));
-    const cfgEnabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
-    return dbEnabled || cfgEnabled;
+    return getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
+};
+
+export const deriveResearchDirection = (signal) => {
+    const longScore = Number(signal?.breakdown?.longScore) || 0;
+    const shortScore = Number(signal?.breakdown?.shortScore) || 0;
+    const edge = Math.abs(longScore - shortScore);
+    const minDirectional = getAutoDuckNumber('AUTODUCK_RESEARCH_DIRECTIONAL_MIN') || 60;
+    const minEdge = getAutoDuckNumber('AUTODUCK_RESEARCH_EDGE_MIN') || 18;
+    const score = Math.max(longScore, shortScore);
+    if (score < minDirectional || edge < minEdge) return null;
+    return { direction: longScore > shortScore ? 'LONG' : 'SHORT', score, edge };
+};
+
+const loadCohortQuotaState = async () => {
+    const now = new Date();
+    const dayStart = startOfIctDay();
+    const weekStart = new Date(now.getTime() - 7 * 24 * 3600_000);
+    const trades = await AutoTrade.find({
+        executionMode: 'LIVE',
+        openedAt: { $gte: weekStart },
+        status: { $in: ['OPEN', 'PENDING', 'CLOSED'] },
+    }).select('cohort openedAt').lean();
+    const state = { day: { CORE: 0, RESEARCH: 0 }, week: { CORE: 0, RESEARCH: 0 } };
+    for (const trade of trades) {
+        const cohort = trade.cohort === 'RESEARCH' ? 'RESEARCH' : 'CORE';
+        state.week[cohort] += 1;
+        if (new Date(trade.openedAt) >= dayStart) state.day[cohort] += 1;
+    }
+    return state;
+};
+
+export const canUseCohortQuota = (state, cohort) => {
+    const coreMax = Math.max(1, getAutoDuckNumber('AUTODUCK_CORE_DAILY_MAX') || 12);
+    const researchMax = Math.max(0, getAutoDuckNumber('AUTODUCK_RESEARCH_DAILY_MAX') || 8);
+    if (cohort === 'CORE') return state.day.CORE < coreMax;
+    if (state.day.RESEARCH >= researchMax) return false;
+    const share = Math.max(0, Math.min(100, getAutoDuckNumber('AUTODUCK_RESEARCH_MAX_SHARE_PCT') || 40)) / 100;
+    const totalAfter = state.week.CORE + state.week.RESEARCH + 1;
+    return (state.week.RESEARCH + 1) / totalAfter <= share;
 };
 
 export const rebaseTradeLevelsFromFill = (trade, filledPrice) => {
@@ -2036,7 +2069,7 @@ const shouldIdleProbeOverrideAI = ({
     if ((signal?.breakdown?.edge || 0) < 25) return false;
 
     // SIM idle probe (existing)
-    if (schedulerMode === 'IDLE_FAST' && !liveOnlyMode && asset === 'CRYPTO' && !hasLiveUserOrderWaiting && !getIdleAiProbeLive()) {
+    if (schedulerMode === 'IDLE_FAST' && !liveOnlyMode && asset === 'CRYPTO' && !hasLiveUserOrderWaiting) {
         return true;
     }
     return false;
@@ -2272,22 +2305,22 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
             };
         }
 
-        if (quotes.divergent) {
+        const currentPrice = quotes.executionPrice;
+
+        if (trade.executionMeta?.forceSafeExit) {
             return {
-                shouldClose: false,
-                currentPrice: quotes.executionPrice,
+                shouldClose: true,
+                currentPrice,
                 marketPrice: quotes.marketPrice,
                 quoteSnapshot: quotes,
-                quoteDivergence: true,
-                exitReason: '',
+                quoteDivergence: quotes.divergent,
+                exitReason: 'emergency close: price invariant',
                 trailingUpdated: false,
                 slMoved: false,
                 partialFill: false,
                 partialPrice: null,
             };
         }
-
-        const currentPrice = quotes.executionPrice;
 
         const isLong  = trade.direction === 'LONG' || trade.direction === 'MUA';
         const isShort = trade.direction === 'SHORT' || trade.direction === 'BÁN';
@@ -2377,7 +2410,18 @@ const checkExitConditions = async (trade, marketContext = {}, isFastCheck = fals
             }
         }
 
-        return { shouldClose, currentPrice, marketPrice: quotes.marketPrice, quoteSnapshot: quotes, exitReason, trailingUpdated, slMoved, partialFill, partialPrice };
+        return {
+            shouldClose,
+            currentPrice,
+            marketPrice: quotes.marketPrice,
+            quoteSnapshot: quotes,
+            quoteDivergence: quotes.divergent,
+            exitReason,
+            trailingUpdated,
+            slMoved,
+            partialFill,
+            partialPrice,
+        };
     } catch (err) {
         console.log(chalk.yellow(`[EXIT CHECK] Không fetch được giá realtime cho ${trade.symbol}: ${err.message}`));
         return { shouldClose: false, currentPrice: null, exitReason: '', trailingUpdated: false, slMoved: false, partialFill: false, partialPrice: null };
@@ -2802,6 +2846,8 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
         // Cập nhật guard học máy từ kết quả thực tế trước khi quét (vòng phản hồi định lượng).
         await recomputeAdaptiveGuards();
+        const cohortQuotaState = await loadCohortQuotaState();
+        const shortExecutionEnabled = await isAutoFuturesShortEnabled();
 
         const macroMs = pipelineTimer.lap('macro');
         pushPipelineLog(
@@ -2935,10 +2981,18 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     techSignal.symbol = symbol;
                     techSignal.breakdown = { ...techSignal.breakdown, biasLedger };
 
+                    let researchSeed = false;
                     if (techSignal.direction === 'NEUTRAL') {
-                        stats.skipScore++;
-                        funnel.record('weak');
-                        continue;
+                        const researchDirection = deriveResearchDirection(techSignal);
+                        if (!researchDirection) {
+                            stats.skipScore++;
+                            funnel.record('weak');
+                            continue;
+                        }
+                        techSignal.direction = researchDirection.direction;
+                        techSignal.score = researchDirection.score;
+                        techSignal.breakdown.edge = researchDirection.edge;
+                        researchSeed = true;
                     }
 
                     if (asset === 'VN_STOCK' && techSignal.direction === 'SHORT') {
@@ -2954,7 +3008,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const isAsianQuietHours = asset === 'CRYPTO' && utcHour >= 0 && utcHour < 6;
                     const rawMinVolSurge = currentRiskConfig.volSurge[asset] || 1.2;
                     const minVolSurge = isAsianQuietHours ? Math.max(1.2, rawMinVolSurge - 0.2) : rawMinVolSurge;
-                    if (techSignal.volumeSurge < minVolSurge) {
+                    const researchMinVolSurge = asset === 'CRYPTO'
+                        ? Math.max(1, getAutoDuckNumber('AUTODUCK_RESEARCH_VOLUME_MIN') || 1.2)
+                        : minVolSurge;
+                    const coreVolumePass = techSignal.volumeSurge >= minVolSurge;
+                    if (techSignal.volumeSurge < researchMinVolSurge) {
                         stats.skipVolume = (stats.skipVolume || 0) + 1;
                         funnel.record('vol');
                         appendAuditEvent('candidate', {
@@ -2963,12 +3021,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             score: techSignal.score,
                             setup: techSignal.direction,
                             stage: 'vol',
-                            reason: `volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x${isAsianQuietHours ? ' (asian_quiet)' : ''}`,
+                            reason: `volSurge=${techSignal.volumeSurge}x < researchMin=${researchMinVolSurge}x`,
                         }, {
                             event: 'candidate_rejected',
                             source: 'autoTradeEngine',
                         }).catch(() => {});
-                        console.log(chalk.gray(`  [VOL FILTER] ${symbol}: volSurge=${techSignal.volumeSurge}x < min=${minVolSurge}x${isAsianQuietHours ? ' [asian_quiet]' : ''} (score=${techSignal.score})`));
+                        console.log(chalk.gray(`  [VOL FILTER] ${symbol}: volSurge=${techSignal.volumeSurge}x < researchMin=${researchMinVolSurge}x (score=${techSignal.score})`));
                         continue;
                     }
 
@@ -3013,11 +3071,24 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         effectiveEdgeFloor: adaptiveElig.effectiveEdgeFloor,
                     });
                     const simGate = passesSimQuantGate(entrySetup, techSignal);
+                    const researchGate = passesResearchQuantGate(entrySetup, techSignal);
+                    const isShortSignal = techSignal.direction === 'SHORT' || techSignal.direction === 'BÁN';
+                    const corePass = coreVolumePass && liveGate.pass && techSignal.score >= liveScoreThreshold;
+                    const researchPass = researchGate.pass && (researchSeed || !corePass);
+                    let cohort = corePass ? 'CORE' : (researchPass ? 'RESEARCH' : null);
+
+                    if (requiresLiveQuality && isShortSignal && !shortExecutionEnabled) {
+                        funnel.record('short_disabled', { symbol, score: techSignal.score, setup: entrySetup.type, reason: 'SHORT disabled by UI' });
+                        appendAuditEvent('candidate', {
+                            asset, symbol, score: techSignal.score, setup: entrySetup.type, stage: 'short_disabled', cohort: cohort || 'SHADOW',
+                        }, { event: 'short_shadow_candidate', source: 'autoTradeEngine' }).catch(() => {});
+                        continue;
+                    }
 
                     if (requiresLiveQuality) {
-                        if (!liveGate.pass || techSignal.score < liveScoreThreshold) {
+                        if (!cohort) {
                             stats.skipLiveGate++;
-                            const gateReason = liveGate.reason || `score ${techSignal.score} < ${liveScoreThreshold}`;
+                            const gateReason = `${liveGate.reason || `score ${techSignal.score} < ${liveScoreThreshold}`} | ${researchGate.reason}`;
                             funnel.record('live_gate', {
                                 symbol,
                                 score: techSignal.score,
@@ -3042,6 +3113,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             console.log(chalk.gray(`  [LIVE GATE] ${symbol}: ${gateReason} (adaptiveQ≥${adaptiveElig.effectiveQualityFloor})`));
                             continue;
                         }
+                        if (!canUseCohortQuota(cohortQuotaState, cohort)) {
+                            funnel.record('quota_blocked', { symbol, score: techSignal.score, setup: entrySetup.type, reason: `${cohort} quota` });
+                            continue;
+                        }
+                        funnel.record(cohort === 'CORE' ? 'core_eligible' : 'research_eligible');
+                        funnel.record(isShortSignal ? 'short_eligible' : 'long_eligible');
                         funnel.record('sim_ok');
                     } else if (!liveOnlyMode) {
                         if (!simGate.pass || techSignal.score < effectiveThreshold) {
@@ -3060,6 +3137,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             }).catch(() => {});
                             continue;
                         }
+                        cohort = 'CORE';
                         funnel.record('sim_ok');
                     }
 
@@ -3069,7 +3147,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         ));
                     }
 
-                    if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
+                    if (!requiresLiveQuality && currentOpenCount >= MAX_CONCURRENT_TRADES) {
                         stats.skipLimit++;
                         continue;
                     }
@@ -3079,34 +3157,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         assetType: asset, 
                         status: { $in: ['OPEN', 'PENDING'] } 
                     });
-                    if (existingOpen) {
-                        continue;
-                    }
-
-                    // ── SL COOLDOWN: tránh re-entry sau khi vừa bị stop loss ──
-                    // Nếu cùng mã vừa CLOSED với SL HIT trong 2 giờ qua → skip.
-                    // Ngăn pattern ENAUSDT 23/7: vào 3 lần liên tiếp, cả 3 SL.
-                    const configuredCooldown = getAutoDuckNumber('AUTODUCK_LIVE_SL_COOLDOWN_MINUTES');
-                    const slCooldownMinutes = Number.isFinite(configuredCooldown) ? Math.max(0, configuredCooldown) : 120;
-                    const slCooldownMs = slCooldownMinutes * 60 * 1000;
-                    const recentSl = await AutoTrade.findOne({
-                        symbol,
-                        assetType: asset,
-                        status: 'CLOSED',
-                        closedAt: { $gte: new Date(Date.now() - slCooldownMs) },
-                        exitReason: /SL HIT/i,
-                    });
-                    if (recentSl && slCooldownMs > 0) {
-                        const minsAgo = Math.round((Date.now() - new Date(recentSl.closedAt).getTime()) / 60000);
-                        console.log(chalk.gray(`  [SL COOLDOWN] ${symbol}: SL hit ${minsAgo}m ago — skip re-entry for 2h`));
-                        appendAuditEvent('candidate', {
-                            asset, symbol,
-                            score: techSignal.score,
-                            setup: entrySetup.type,
-                            stage: 'sl_cooldown',
-                            reason: `SL HIT ${minsAgo}m ago, cooldown 2h`,
-                        }, { event: 'candidate_rejected', source: 'autoTradeEngine' }).catch(() => {});
-                        funnel.record('risk', { symbol, reason: 'sl_cooldown' });
+                    if (existingOpen && !requiresLiveQuality) {
                         continue;
                     }
 
@@ -3153,7 +3204,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     });
                     if (idleProbeOverride) {
                         stats.aiSoftOverride++;
-                        const sizeMultLabel = liveHungry ? getIdleLiveSizeMult() : getIdleAiProbeSizeMult();
+                        const sizeMultLabel = getIdleAiProbeSizeMult();
                         aiConfirm = {
                             ...aiConfirm,
                             confirmed: true,
@@ -3242,6 +3293,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     // Ranked selection: defer allocate/match until all symbols scanned
                     eligibleCandidates.push({
                         symbol,
+                        cohort,
                         techSignal,
                         entrySetup,
                         tradePlan,
@@ -3276,6 +3328,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 try {
                     const {
                         symbol,
+                        cohort,
                         techSignal,
                         entrySetup,
                         tradePlan,
@@ -3288,7 +3341,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         adaptiveElig,
                     } = cand;
 
-                    if (currentOpenCount >= MAX_CONCURRENT_TRADES) {
+                    if (!requiresLiveQuality && currentOpenCount >= MAX_CONCURRENT_TRADES) {
                         stats.skipLimit++;
                         funnel.record('limit');
                         break;
@@ -3299,9 +3352,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         assetType: asset,
                         status: { $in: ['OPEN', 'PENDING'] },
                     });
-                    if (existingOpen) continue;
+                    if (existingOpen && !requiresLiveQuality) continue;
 
-                    const deferTradePersist = liveOnlyMode;
+                    const deferTradePersist = liveOnlyMode || requiresLiveQuality;
                     const {
                         directionLabel,
                         entryPrice,
@@ -3312,7 +3365,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     } = tradePlan;
 
                     // 7. Allocation
-                    let availableCapital = TOTAL_CAPITAL - currentAllocatedCapital;
+                    let availableCapital = requiresLiveQuality
+                        ? TOTAL_CAPITAL
+                        : TOTAL_CAPITAL - currentAllocatedCapital;
                     if (availableCapital <= 0) {
                         stats.skipLimit++;
                         continue;
@@ -3335,22 +3390,15 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         else baseAlloc = 0.10;
                         allocationPct = Math.min(0.40, (baseAlloc * currentRiskConfig.allocationMultiplier) + utilizationBonus);
                     }
-                    // ── CONVICTION SIZING (quyết đoán hơn) ──
-                    // Setup VÀNG = TREND_PULLBACK + score≥80 (vùng WR cao nhất theo data thật) → tăng size.
-                    // Score≥80 nói chung → tăng nhẹ. Cap tổng vẫn ≤ 40% vốn.
                     const convictionMult = 1.0;
                     allocationPct = Math.min(0.40, allocationPct * convictionMult);
                     if (idleProbeOverride) {
-                        const probeMult = liveHungry ? getIdleLiveSizeMult() : getIdleAiProbeSizeMult();
+                        const probeMult = getIdleAiProbeSizeMult();
                         allocationPct = Math.max(0.02, allocationPct * probeMult);
                     }
 
                     const eligSizeMult = Number(adaptiveElig?.sizeMult) || 1;
-                    let combinedSizeMult = adaptiveSizeMult * eligSizeMult;
-                    combinedSizeMult = convictionSizeBoostFromCeiling(
-                        techSignal.breakdown?.qualityScore ?? techSignal.score,
-                        combinedSizeMult
-                    );
+                    const combinedSizeMult = adaptiveSizeMult * eligSizeMult;
                     let idealInvestedAmount = TOTAL_CAPITAL * allocationPct * combinedSizeMult;
                     
                     let maxVolumeByRisk = Infinity;
@@ -3446,7 +3494,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         assetType: asset,
                         status: { $in: ['OPEN', 'PENDING'] },
                     });
-                    if (raceGuardCheck) {
+                    if (raceGuardCheck && !requiresLiveQuality) {
                         if (!deferTradePersist) {
                             currentOpenCount = Math.max(currentOpenCount - 1, 0);
                             currentAllocatedCapital -= investedAmount;
@@ -3454,9 +3502,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         continue;
                     }
 
-                    const newTrade = new AutoTrade({
+                    let newTrade = new AutoTrade({
                         symbol,
                         assetType: asset,
+                        cohort,
                         direction: directionLabel,
                         entryPrice,
                         takeProfitPrice,
@@ -3480,6 +3529,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             ...techSignal.breakdown,
                             originalSL: stopLossPrice,
                             entrySetup: entrySetup.type,
+                            cohort,
                             rsi: techSignal.rsi ?? null,
                             volumeSurge: techSignal.volumeSurge ?? null,
                             fearGreed: assetMacro.fearGreed ?? null,
@@ -3502,6 +3552,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             contextSource: executionContext.source || null,
                         },
                     });
+                    const signalTrade = newTrade;
+                    const signalTradeTemplate = signalTrade.toObject({ depopulate: true });
+                    for (const key of ['_id', 'id', '__v', 'createdAt', 'updatedAt', 'externalOrderId', 'exchangeConnectionId']) {
+                        delete signalTradeTemplate[key];
+                    }
 
                     // Mongoose gán `_id` ngay khi `new Model()` — KHÔNG dùng `_id` làm cờ "đã save".
                     // Dùng `isNew` (false sau save thành công) để tránh double-save khi LIVE path gọi lại.
@@ -3535,16 +3590,29 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     let liveMeta = null;
 
                     for (const userOrder of pendingUserOrders) {
+                        newTrade = userOrder.executionMode === 'LIVE'
+                            ? new AutoTrade(signalTradeTemplate)
+                            : signalTrade;
                         const isPortfolio = userOrder.allocationMode === 'PORTFOLIO';
+                        let packageRiskSizeMultiplier = 1;
 
                         // FIXED đã MATCHED rồi thì không xét lại; PORTFOLIO ACTIVE vẫn nhận thêm lệnh
                         if (!isPortfolio && userOrder.status !== 'PENDING') continue;
 
                         // LIVE: quant gate + quality score (không nới ngưỡng idle).
                         if (userOrder.executionMode === 'LIVE') {
-                            if (!liveGate.pass || techSignal.score < liveScoreThreshold) continue;
-
+                            if (!canUseCohortQuota(cohortQuotaState, cohort)) {
+                                funnel.record('quota_blocked', { symbol, setup: entrySetup.type, reason: `${cohort} quota` });
+                                continue;
+                            }
                             const circuit = evaluateLiveCircuitBreaker(userOrder);
+                            packageRiskSizeMultiplier = circuit.sizeMultiplier || 1;
+                            userOrder.riskControl = {
+                                consecutiveLosses: circuit.consecutiveLosses || 0,
+                                sizeMultiplier: packageRiskSizeMultiplier,
+                                reducedSince: packageRiskSizeMultiplier < 1 ? (userOrder.riskControl?.reducedSince || new Date()) : null,
+                                lastPositiveAt: circuit.lastPositiveAt || userOrder.riskControl?.lastPositiveAt || null,
+                            };
                             if (circuit.blocked) {
                                 userOrder.riskPause = {
                                     active: true,
@@ -3569,7 +3637,17 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 userOrder.riskPause = { active: false, reason: '', trippedAt: null, until: null };
                                 await userOrder.save();
                             }
-
+                            const comboCooldown = evaluateSetupSymbolCooldown(userOrder, {
+                                setup: entrySetup.type,
+                                symbol,
+                                direction: directionLabel,
+                            });
+                            if (comboCooldown.blocked) {
+                                userOrder.result.message = `[COOLDOWN] ${entrySetup.type}/${symbol}/${directionLabel} tới ${comboCooldown.until.toISOString()}`;
+                                await userOrder.save();
+                                funnel.record('risk', { symbol, setup: entrySetup.type, reason: comboCooldown.code });
+                                continue;
+                            }
                             const softBlock = String(getAutoDuckString('AUTODUCK_LIVE_SYMBOL_SOFT_BLOCK') || '')
                                 .split(',')
                                 .map((s) => s.trim().toUpperCase())
@@ -3643,6 +3721,11 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         }
 
                         // ── TESTNET symbol gate (trước broker — tránh UNMATCHED) ──
+                        if (userOrder.executionMode === 'LIVE' && packageRiskSizeMultiplier < 1) {
+                            allocatedCapital = Math.max(1, Math.round(allocatedCapital * packageRiskSizeMultiplier));
+                            matchNote += ` | LOSS-RISK size×${packageRiskSizeMultiplier}`;
+                        }
+
                         if (userOrder.executionMode === 'LIVE' && userOrder.exchangeConnectionId && asset === 'CRYPTO') {
                             const conn = testnetGateContext?.connectionsById?.[String(userOrder.exchangeConnectionId)]
                                 || await ExchangeConnection.findById(userOrder.exchangeConnectionId);
@@ -3678,6 +3761,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 continue;
                             }
                             if (!conn || String(conn.exchangeName).toUpperCase() !== 'BINANCE') {
+                                funnel.record('short_unsupported', { symbol, setup: entrySetup.type, reason: 'Binance Futures required' });
                                 userOrder.result.message = `[SHORT GATE] SHORT LIVE chỉ hỗ trợ Binance Futures. Gói tiếp tục chờ mã khác/kết nối phù hợp.`;
                                 await userOrder.save();
                                 appendAuditEvent('security', {
@@ -3728,11 +3812,60 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                     username: liveResult.username || userOrder.username,
                                 };
                                 funnel.record('matched_live');
+                                funnel.record(cohort === 'RESEARCH' ? 'research_matched' : 'core_matched');
+                                funnel.record(directionLabel === 'SHORT' ? 'short_matched' : 'long_matched');
+                                cohortQuotaState.day[cohort] += 1;
+                                cohortQuotaState.week[cohort] += 1;
                                 if (liveResult.filledPrice) {
                                     rebaseTradeLevelsFromFill(newTrade, liveResult.filledPrice);
                                     applyExitPolicyToTrade(newTrade, 'LIVE');
                                     if (!ensureTradePriceInvariant(newTrade)) {
-                                        throw new Error(`TP/SL không hợp lệ sau fill ${symbol} @ ${liveResult.filledPrice}`);
+                                        newTrade.executionMode = 'LIVE';
+                                        newTrade.marketType = liveResult.marketType || 'SPOT';
+                                        newTrade.leverage = liveResult.leverage || 1;
+                                        newTrade.exchangeConnectionId = liveResult.exchangeConnectionId;
+                                        newTrade.externalOrderId = liveResult.externalOrderId;
+                                        if (liveResult.filledQuantity > 0) newTrade.volume = liveResult.filledQuantity;
+                                        newTrade.executionMeta = {
+                                            ...(newTrade.executionMeta || {}),
+                                            priceInvariantFailure: { at: new Date(), filledPrice: liveResult.filledPrice },
+                                        };
+                                        await newTrade.save();
+                                        const safeExit = await executeLiveExit({
+                                            trade: newTrade,
+                                            exitReason: 'SAFE_CLOSE_PRICE_INVARIANT',
+                                        });
+                                        if (safeExit.success) {
+                                            const fillPnl = await computeLivePnlFromExchangeOrders(newTrade, currentUsdRate);
+                                            newTrade.status = 'CLOSED';
+                                            newTrade.closedAt = new Date();
+                                            newTrade.exitReason = 'SAFE_CLOSE_PRICE_INVARIANT';
+                                            newTrade.exitTag = 'EMERGENCY_EXIT';
+                                            newTrade.exitPrice = fillPnl?.exitPrice || safeExit.filledPrice || liveResult.filledPrice;
+                                            if (fillPnl?.eligible) {
+                                                newTrade.pnl = fillPnl.pnl;
+                                                newTrade.pnlPercent = fillPnl.pnlPercent;
+                                                newTrade.pnlSource = fillPnl.source || 'LIVE_FILLS';
+                                            }
+                                        }
+                                        newTrade.executionMeta = {
+                                            ...(newTrade.executionMeta || {}),
+                                            forceSafeExit: !safeExit.success,
+                                            priceInvariantSafeExit: {
+                                                at: new Date(),
+                                                success: safeExit.success,
+                                                message: safeExit.message,
+                                            },
+                                        };
+                                        await newTrade.save();
+                                        appendAuditEvent('execution', {
+                                            tradeId: String(newTrade._id),
+                                            symbol,
+                                            filledPrice: liveResult.filledPrice,
+                                            safeExitSuccess: safeExit.success,
+                                            safeExitMessage: safeExit.message,
+                                        }, { event: 'price_invariant_safe_exit', level: 'warn', source: 'autoTradeEngine' }).catch(() => {});
+                                        continue;
                                     }
                                 }
                                 if (liveResult.filledQuantity > 0) {
@@ -3755,6 +3888,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                         exchange: liveResult.exchangeName || null,
                                         filledAt: new Date(),
                                     },
+                                    entryExecutionQuote: {
+                                        price: liveResult.executionQuote || null,
+                                        environment: liveResult.environment || null,
+                                        exchange: liveResult.exchangeName || null,
+                                        fetchedAt: new Date(),
+                                    },
                                     entrySlippagePct: getQuoteDivergencePct(entryPrice, liveResult.filledPrice),
                                 };
                                 newTrade.executionMode = 'LIVE';
@@ -3766,7 +3905,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 const fillQty = liveResult.filledQuantity || newTrade.volume;
                                 liveMsg = ` 🔴 LIVE: ${liveResult.message} | fill qty=${fillQty}`;
                                 console.log(chalk.bgMagenta.white(
-                                    `  [LIVE MATCH] package=${userOrder._id} ${symbol} fill=OK qty=${fillQty} testnet=${liveResult.environment || 'n/a'} | ${(allocatedCapital/1e6).toFixed(2)}Tr`
+                                    `  [LIVE MATCH] package=${userOrder._id} ${symbol} fill=OK qty=${fillQty} environment=${liveResult.environment || 'n/a'} | ${(allocatedCapital/1e6).toFixed(2)}Tr`
                                 ));
                                 appendAuditEvent('live_execution', {
                                     userOrderId: String(userOrder._id),
@@ -3833,6 +3972,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 }).catch(() => {});
                             } else {
                                 liveEntryFailed = true;
+                                if (['PRICE_DIVERGENCE', 'EXECUTION_QUOTE_UNAVAILABLE'].includes(liveResult.reason)) {
+                                    funnel.record('quote_blocked', { symbol, setup: entrySetup.type, reason: liveResult.reason });
+                                }
                                 // Chỉ xóa khi chắc chắn lệnh không fill (không timeout / không có orderId mơ hồ)
                                 if (deferTradePersist && !newTrade.isNew) {
                                     await AutoTrade.deleteOne({ _id: newTrade._id });
@@ -4339,10 +4481,9 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                             maxDivergencePct: quoteSnapshot?.maxDivergencePct ?? null,
                             marketSource: quoteSnapshot?.marketSource ?? null,
                             executionSource: quoteSnapshot?.executionSource ?? null,
-                        }, { event: 'price_divergence_blocked_exit', level: 'warn', source: 'autoTradeEngine' }).catch(() => {});
+                        }, { event: 'price_divergence_observed', level: 'warn', source: 'autoTradeEngine' }).catch(() => {});
                     }
-                    console.log(chalk.yellow(`[PRICE DIVERGENCE] ${trade.symbol}: market=${marketPrice} execution=${currentPrice} (${Number(quoteSnapshot?.divergencePct || 0).toFixed(3)}%) — giữ lệnh OPEN.`));
-                    continue;
+                    console.log(chalk.yellow(`[PRICE DIVERGENCE] ${trade.symbol}: market=${marketPrice} execution=${currentPrice} (${Number(quoteSnapshot?.divergencePct || 0).toFixed(3)}%) — exit vẫn theo giá execution.`));
                 }
 
                 if (quoteUnavailable) {
@@ -4538,6 +4679,16 @@ async function runExitAndLearningPipeline(macroBundles = {}, isFastCheck = false
                             .filter(a => !a.closedAt)
                             .reduce((s, a) => s + (Number(a.amount) || 0), 0);
                         pOrder.result.finalPnl = matchedRealizedPnl;
+                        const refreshedRisk = evaluateLiveCircuitBreaker(pOrder);
+                        pOrder.riskControl = {
+                            consecutiveLosses: refreshedRisk.consecutiveLosses || 0,
+                            sizeMultiplier: refreshedRisk.sizeMultiplier || 1,
+                            reducedSince: refreshedRisk.sizeMultiplier < 1 ? (pOrder.riskControl?.reducedSince || new Date()) : null,
+                            lastPositiveAt: trade.pnl > 0 ? new Date() : (pOrder.riskControl?.lastPositiveAt || null),
+                        };
+                        if (pOrder.riskPause?.active && !refreshedRisk.blocked) {
+                            pOrder.riskPause = { active: false, reason: '', trippedAt: null, until: null };
+                        }
                         pOrder.result.message = `[PORTFOLIO] ${trade.symbol} đóng: ${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent}% (${released.pnl >= 0 ? '+' : ''}${Math.round(released.pnl / 1000)}k). Quỹ: ${(effectiveCapital / 1e6).toFixed(2)}Tr | PnL tích lũy: ${matchedRealizedPnl >= 0 ? '+' : ''}${Math.round(matchedRealizedPnl / 1000)}k.`;
                         await pOrder.save();
                         if (trade.executionMode === 'LIVE') {

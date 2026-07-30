@@ -10,7 +10,6 @@ import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
 import { extractFeeFromOrderResult } from './brokerFeeService.js';
 import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
-import { getSetupReadiness } from './liveStrategyGuardService.js';
 import { maybeSetEquityBaseline } from './walletEquityService.js';
 import {
     computeLivePnlFromExchangeOrders as computeLivePnlCore,
@@ -713,25 +712,6 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             }, { event: 'testnet_withdraw_permission_warning', level: 'warn', source: 'exchangeBrokerService' }).catch(() => {});
         }
 
-        if (connectionDoc.environment === 'LIVE') {
-            const setup = trade.signalBreakdown?.entrySetup || 'UNKNOWN';
-            const readiness = await getSetupReadiness(setup);
-            if (!readiness.ready) {
-                appendAuditEvent('security', {
-                    userOrderId: String(userOrder._id),
-                    exchangeConnectionId: String(connectionDoc._id),
-                    symbol: trade.symbol,
-                    setup,
-                    readiness,
-                }, { event: 'live_entry_blocked_readiness', level: 'warn', source: 'exchangeBrokerService' }).catch(() => {});
-                return {
-                    success: false,
-                    reason: 'SETUP_NOT_READY_FOR_LIVE',
-                    message: `Từ chối LIVE ${setup}: readiness ${readiness.trades}/${readiness.criteria.minTrades}, WR ${readiness.winRate}%, PF ${readiness.profitFactor ?? '∞'}.`,
-                };
-            }
-        }
-
         if (trade.assetType === 'VN_STOCK' && connectionDoc.exchangeName !== 'DNSE') {
             return { success: false, message: 'Live execution VN_STOCK hiện chỉ hỗ trợ sàn DNSE.' };
         } else if (trade.assetType !== 'CRYPTO' && trade.assetType !== 'VN_STOCK') {
@@ -762,10 +742,9 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         let marketType = 'SPOT';
         let leverage = 1;
         let orderSide = 'BUY';
+        let executionQuote = null;
         if (!isLong) {
-            const flag = await Setting.findOne({ key: 'autoFuturesShortEnabled' });
-            const cfgEnabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
-            const enabled = Boolean(flag && (flag.value === true || flag.value === 'true' || flag.value === 1)) || cfgEnabled;
+            const enabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
             if (!enabled) {
                 return { success: false, message: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false) — theo dõi simulated.' };
             }
@@ -788,12 +767,13 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
                 };
             }
             const executionPrice = await adapter.getTickerPrice(trade.symbol, connectionDoc.environment);
+            executionQuote = executionPrice;
             const signalPrice = Number(trade.entryPrice);
             const divergencePct = signalPrice > 0 && Number.isFinite(executionPrice)
                 ? Math.abs((executionPrice - signalPrice) / signalPrice) * 100
                 : null;
             const configuredMax = getAutoDuckNumber('AUTODUCK_LIVE_MAX_QUOTE_DIVERGENCE_PCT');
-            const maxDivergencePct = Number.isFinite(configuredMax) ? configuredMax : 0.35;
+            const maxDivergencePct = Number.isFinite(configuredMax) ? configuredMax : 2;
 
             if (!Number.isFinite(executionPrice) || executionPrice <= 0 || divergencePct === null || divergencePct > maxDivergencePct) {
                 appendAuditEvent('execution', {
@@ -861,7 +841,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         } else {
             // Crypto: vốn quy ra USDT
             const capitalUSDT = effectiveCapital / (usdVndRate || 25400);
-            qty = capitalUSDT / Number(trade.entryPrice);
+            qty = capitalUSDT / Number(executionQuote || trade.entryPrice);
         }
 
         const result = await placeOrder({
@@ -870,7 +850,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             side: orderSide,
             qty,
             orderType: 'MARKET',
-            estimatedPrice: Number(trade.entryPrice),
+            estimatedPrice: Number(executionQuote || trade.entryPrice),
             purpose: 'ENTRY',
             autoTradeId: trade._id,
             userOrderId: userOrder._id,
@@ -981,6 +961,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             exchangeName: connectionDoc.exchangeName,
             orderSide,
             username: userOrder.username,
+            executionQuote,
         };
     } catch (err) {
         if (claimId) {

@@ -26,6 +26,18 @@ export const createFunnelTracker = (asset) => {
         limit: 0,
         matchedSim: 0,
         matchedLive: 0,
+        coreEligible: 0,
+        researchEligible: 0,
+        coreMatched: 0,
+        researchMatched: 0,
+        longEligible: 0,
+        shortEligible: 0,
+        longMatched: 0,
+        shortMatched: 0,
+        shortDisabled: 0,
+        shortUnsupported: 0,
+        quoteBlocked: 0,
+        quotaBlocked: 0,
     };
     const setupReasons = {};
     const liveGateReasons = {};
@@ -120,6 +132,18 @@ export const createFunnelTracker = (asset) => {
                 case 'matched_live':
                     counts.matchedLive++;
                     break;
+                case 'core_eligible': counts.coreEligible++; break;
+                case 'research_eligible': counts.researchEligible++; break;
+                case 'core_matched': counts.coreMatched++; break;
+                case 'research_matched': counts.researchMatched++; break;
+                case 'long_eligible': counts.longEligible++; break;
+                case 'short_eligible': counts.shortEligible++; break;
+                case 'long_matched': counts.longMatched++; break;
+                case 'short_matched': counts.shortMatched++; break;
+                case 'short_disabled': counts.shortDisabled++; pushReject('short_disabled', detail); break;
+                case 'short_unsupported': counts.shortUnsupported++; pushReject('short_unsupported', detail); break;
+                case 'quote_blocked': counts.quoteBlocked++; pushReject('quote_blocked', detail); break;
+                case 'quota_blocked': counts.quotaBlocked++; pushReject('quota_blocked', detail); break;
                 case 'near_live':
                     if (detail.symbol) recordCandidate(detail);
                     break;
@@ -157,7 +181,7 @@ export const formatFunnelLogLines = (summary) => {
     if (!summary) return [];
     const c = summary;
     const lines = [
-        `[${c.asset} FUNNEL] scanned=${c.scanned} | weak=${c.weak} | vol=${c.vol} | setup=${c.setup} | sim_ok=${c.simOk} | live_gate=${c.liveGate} | ai_veto=${c.aiVeto} | testnet=${c.testnet} | matched_live=${c.matchedLive} | matched_sim=${c.matchedSim}`,
+        `[${c.asset} FUNNEL] scanned=${c.scanned} | weak=${c.weak} | vol=${c.vol} | setup=${c.setup} | core=${c.coreEligible}/${c.coreMatched} | research=${c.researchEligible}/${c.researchMatched} | long=${c.longEligible}/${c.longMatched} | short=${c.shortEligible}/${c.shortMatched} | short_off=${c.shortDisabled} | quote=${c.quoteBlocked} | quota=${c.quotaBlocked} | matched_live=${c.matchedLive}`,
     ];
     const setupStr = formatReasonMap(c.setupReasons);
     if (setupStr) lines.push(`  setup: ${setupStr}`);
@@ -190,6 +214,18 @@ const persistFunnelCycle = async (summary) => {
             limit,
             matchedSim,
             matchedLive,
+            coreEligible,
+            researchEligible,
+            coreMatched,
+            researchMatched,
+            longEligible,
+            shortEligible,
+            longMatched,
+            shortMatched,
+            shortDisabled,
+            shortUnsupported,
+            quoteBlocked,
+            quotaBlocked,
             setupReasons,
             liveGateReasons,
             aiVetoReasons,
@@ -214,6 +250,18 @@ const persistFunnelCycle = async (summary) => {
             limit,
             matchedSim,
             matchedLive,
+            coreEligible,
+            researchEligible,
+            coreMatched,
+            researchMatched,
+            longEligible,
+            shortEligible,
+            longMatched,
+            shortMatched,
+            shortDisabled,
+            shortUnsupported,
+            quoteBlocked,
+            quotaBlocked,
             setupReasons,
             liveGateReasons,
             aiVetoReasons,

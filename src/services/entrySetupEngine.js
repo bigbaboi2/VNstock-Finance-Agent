@@ -379,3 +379,21 @@ export const passesSimQuantGate = (entrySetup, signal) => {
     if (edge < simEdge) return { pass: false, reason: `edge ${edge} < ${simEdge}` };
     return { pass: true, reason: 'SIM quant gate OK' };
 };
+
+export const passesResearchQuantGate = (entrySetup, signal) => {
+    if (!entrySetup?.valid) return { pass: false, reason: 'setup invalid' };
+    const type = entrySetup.type;
+    if (!getLiveSetupWhitelist().has(type)) {
+        return { pass: false, reason: `setup ${type} không trong whitelist` };
+    }
+    const q = signal.breakdown?.qualityScore ?? signal.score ?? 0;
+    const edge = signal.breakdown?.edge ?? 0;
+    const conf = signal.breakdown?.confluenceCount ?? computeConfluenceScore(signal, signal.direction);
+    const minQuality = getAutoDuckNumber('AUTODUCK_RESEARCH_QUALITY_MIN') || 70;
+    const minEdge = getAutoDuckNumber('AUTODUCK_RESEARCH_EDGE_MIN') || 18;
+    const minConfluence = getAutoDuckNumber('AUTODUCK_RESEARCH_CONFLUENCE_MIN') || 2;
+    if (q < minQuality) return { pass: false, reason: `research quality ${q} < ${minQuality}` };
+    if (conf < minConfluence) return { pass: false, reason: `research confluence ${conf} < ${minConfluence}` };
+    if (edge < minEdge) return { pass: false, reason: `research edge ${edge} < ${minEdge}` };
+    return { pass: true, reason: 'RESEARCH quant gate OK', minQuality, minEdge, minConfluence };
+};

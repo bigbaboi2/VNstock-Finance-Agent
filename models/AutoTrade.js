@@ -27,6 +27,7 @@ const AutoTradeSchema = new mongoose.Schema({
     reason: { type: String, required: true },  
     aiReportSnapshot: { type: String },  
     signalBreakdown: { type: mongoose.Schema.Types.Mixed, default: {} },
+    cohort: { type: String, enum: ['CORE', 'RESEARCH'], default: 'CORE', index: true },
     // ── PARTIAL SCALE-OUT (Policy E) ──
     // Chốt `tp1Fraction` vị thế ở takeProfit1Price, dời SL phần còn lại về breakeven,
     // để phần còn lại chạy theo chandelier ATR. Bằng chứng backtest: expectancy ÂM→DƯƠNG.

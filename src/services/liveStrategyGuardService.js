@@ -27,13 +27,12 @@ const marketValue = (trade) => {
 };
 
 export const getLiveReadinessSnapshot = async () => {
-    const testnetEntries = await ExchangeOrder.find({
+    const executionEntries = await ExchangeOrder.find({
         purpose: 'ENTRY',
-        environment: 'TESTNET',
         autoTradeId: { $ne: null },
         status: { $in: ['FILLED', 'PARTIAL'] },
     }).select('autoTradeId').lean();
-    const ids = [...new Set(testnetEntries.map((row) => String(row.autoTradeId)))];
+    const ids = [...new Set(executionEntries.map((row) => String(row.autoTradeId)))];
     if (!ids.length) return {};
 
     const trades = await AutoTrade.find({
@@ -41,21 +40,25 @@ export const getLiveReadinessSnapshot = async () => {
         status: 'CLOSED',
         executionMode: 'LIVE',
         pnlSource: { $in: officialSources },
-    }).select('signalBreakdown.entrySetup marketPnl marketPnlPercent markSimPnl markSimPnlPercent pnl pnlPercent closedAt').lean();
+    }).select('signalBreakdown.entrySetup cohort direction marketPnl marketPnlPercent markSimPnl markSimPnlPercent pnl pnlPercent closedAt').lean();
 
     const bySetup = {};
     for (const trade of trades) {
         const setup = trade.signalBreakdown?.entrySetup || 'UNKNOWN';
+        const cohort = trade.cohort || 'CORE';
+        const direction = trade.direction || 'LONG';
+        const profileKey = `${setup}|${cohort}|${direction}`;
         const pct = marketPct(trade);
         if (pct == null) continue;
-        if (!bySetup[setup]) bySetup[setup] = [];
-        bySetup[setup].push({ pct, pnl: marketValue(trade), closedAt: trade.closedAt });
+        if (!bySetup[profileKey]) bySetup[profileKey] = [];
+        bySetup[profileKey].push({ pct, pnl: marketValue(trade), closedAt: trade.closedAt, setup, cohort, direction });
     }
 
     const minTrades = Math.max(1, getAutoDuckNumber('AUTODUCK_LIVE_READINESS_MIN_TRADES') || 60);
     const minWinRate = getAutoDuckNumber('AUTODUCK_LIVE_READINESS_MIN_WIN_RATE') || 55;
     const minProfitFactor = getAutoDuckNumber('AUTODUCK_LIVE_READINESS_MIN_PROFIT_FACTOR') || 1.25;
-    return Object.fromEntries(Object.entries(bySetup).map(([setup, rows]) => {
+    return Object.fromEntries(Object.entries(bySetup).map(([profileKey, rows]) => {
+        const { setup, cohort, direction } = rows[0];
         const wins = rows.filter((row) => row.pct > 0);
         const losses = rows.filter((row) => row.pct < 0);
         const grossProfit = wins.reduce((sum, row) => sum + row.pct, 0);
@@ -64,8 +67,10 @@ export const getLiveReadinessSnapshot = async () => {
         const pnl = rows.reduce((sum, row) => sum + row.pnl, 0);
         const winRate = rows.length ? wins.length / rows.length * 100 : 0;
         const ready = rows.length >= minTrades && winRate >= minWinRate && profitFactor >= minProfitFactor && pnl > 0;
-        return [setup, {
+        return [profileKey, {
             setup,
+            cohort,
+            direction,
             ready,
             trades: rows.length,
             wins: wins.length,
@@ -79,7 +84,7 @@ export const getLiveReadinessSnapshot = async () => {
 
 export const getSetupReadiness = async (setup) => {
     const snapshot = await getLiveReadinessSnapshot();
-    return snapshot[setup] || {
+    return Object.values(snapshot).find((row) => row.setup === setup) || {
         setup,
         ready: false,
         trades: 0,
@@ -96,31 +101,62 @@ export const getSetupReadiness = async (setup) => {
     };
 };
 
-// Package circuit breaker
+export const resolveLossRiskState = (rows = []) => {
+    let consecutiveLosses = 0;
+    let lastPositiveAt = null;
+    for (const row of rows) {
+        const pnl = Number(row.pnl) || 0;
+        if (pnl > 0) {
+            lastPositiveAt = row.closedAt || null;
+            break;
+        }
+        if (pnl < 0) consecutiveLosses += 1;
+    }
+    const configured = getAutoDuckNumber('AUTODUCK_LOSS_SIZE_MULTIPLIER');
+    const lossMultiplier = Number.isFinite(configured) && configured > 0 && configured <= 1 ? configured : 0.5;
+    return { consecutiveLosses, sizeMultiplier: consecutiveLosses >= 2 ? lossMultiplier : 1, lastPositiveAt };
+};
+
 export const evaluateLiveCircuitBreaker = (userOrder) => {
     const allocations = (userOrder?.tradeAllocations || [])
         .filter((row) => row?.executionMode === 'LIVE' && row?.closedAt)
         .sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt));
     const dayStart = startOfIctDay();
-    const daily = allocations.filter((row) => new Date(row.closedAt) >= dayStart);
-    const dailyPnl = daily.reduce((sum, row) => sum + (Number(row.pnl) || 0), 0);
+    const dailyPnl = allocations
+        .filter((row) => new Date(row.closedAt) >= dayStart)
+        .reduce((sum, row) => sum + (Number(row.pnl) || 0), 0);
     const capital = Number(userOrder?.totalCapital) || Number(userOrder?.capital) || 0;
     const dailyLossLimitPct = Math.max(0, getAutoDuckNumber('AUTODUCK_LIVE_DAILY_LOSS_LIMIT_PCT') || 0);
-    const dailyLimit = capital * dailyLossLimitPct / 100;
+    const risk = resolveLossRiskState(allocations);
+    if (capital > 0 && dailyLossLimitPct > 0 && dailyPnl <= -(capital * dailyLossLimitPct / 100)) {
+        return {
+            blocked: true,
+            code: 'DAILY_LOSS_LIMIT',
+            reason: `Circuit breaker: PnL hôm nay ${Math.round(dailyPnl).toLocaleString('vi-VN')}đ chạm giới hạn -${dailyLossLimitPct}%`,
+            until: new Date(dayStart.getTime() + 24 * 3600_000),
+            dailyPnl,
+            ...risk,
+        };
+    }
+    return { blocked: false, until: null, dailyPnl, ...risk };
+};
 
-    let consecutiveLosses = 0;
-    for (const row of allocations) {
-        if ((Number(row.pnl) || 0) < 0) consecutiveLosses += 1;
-        else break;
+export const evaluateSetupSymbolCooldown = (userOrder, { setup, symbol, direction, now = new Date() } = {}) => {
+    const rows = (userOrder?.tradeAllocations || [])
+        .filter((row) => row?.executionMode === 'LIVE' && row?.closedAt
+            && String(row.symbol || '').toUpperCase() === String(symbol || '').toUpperCase()
+            && String(row.direction || '').toUpperCase() === String(direction || '').toUpperCase()
+            && String(row.setup || '') === String(setup || ''))
+        .sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt));
+    let losses = 0;
+    for (const row of rows) {
+        const pnl = Number(row.pnl) || 0;
+        if (pnl > 0) break;
+        if (pnl < 0) losses += 1;
+        if (losses >= 2) break;
     }
-    const consecutiveLimit = Math.max(0, Math.floor(getAutoDuckNumber('AUTODUCK_LIVE_CONSECUTIVE_LOSS_LIMIT') || 0));
-    const nextIctDay = new Date(dayStart.getTime() + 24 * 3600_000);
-
-    if (dailyLossLimitPct > 0 && dailyPnl <= -dailyLimit) {
-        return { blocked: true, code: 'DAILY_LOSS_LIMIT', reason: `Circuit breaker: PnL hôm nay ${Math.round(dailyPnl).toLocaleString('vi-VN')}đ chạm giới hạn -${dailyLossLimitPct}%`, until: nextIctDay, dailyPnl, consecutiveLosses };
-    }
-    if (consecutiveLimit > 0 && consecutiveLosses >= consecutiveLimit) {
-        return { blocked: true, code: 'CONSECUTIVE_LOSSES', reason: `Circuit breaker: ${consecutiveLosses} lệnh LIVE thua liên tiếp (giới hạn ${consecutiveLimit})`, until: nextIctDay, dailyPnl, consecutiveLosses };
-    }
-    return { blocked: false, until: null, dailyPnl, consecutiveLosses };
+    if (losses < 2 || !rows[0]?.closedAt) return { blocked: false, losses, until: null };
+    const minutes = Math.max(0, getAutoDuckNumber('AUTODUCK_COMBO_LOSS_COOLDOWN_MINUTES') || 60);
+    const until = new Date(new Date(rows[0].closedAt).getTime() + minutes * 60_000);
+    return { blocked: until > now, losses, until, code: 'SETUP_SYMBOL_DIRECTION_COOLDOWN' };
 };
