@@ -3,10 +3,12 @@ import test from 'node:test';
 import {
     canUseCohortQuota,
     deriveResearchDirection,
+    computeAiPriorityAdjustment,
     ensureTradePriceInvariant,
     getQuoteDivergencePct,
     hasValidTradePriceInvariant,
     rebaseTradeLevelsFromFill,
+    resolveAiPermissionFromResponse,
 } from '../src/services/autoTradeEngine.js';
 import {
     evaluateLiveCircuitBreaker,
@@ -14,6 +16,8 @@ import {
     resolveLossRiskState,
 } from '../src/services/liveStrategyGuardService.js';
 import { computeLivePnlFromOrderList } from '../src/services/livePnlService.js';
+import { resolveRetryAfterMs } from '../src/services/aiSignalCandidateService.js';
+import { computeProviderBackoffMs } from '../src/services/multiProviderRouter.js';
 
 test('NEXO-style market/testnet mismatch is detected for telemetry', () => {
     const divergence = getQuoteDivergencePct(0.740, 0.723);
@@ -26,6 +30,41 @@ test('research rescues a directional neutral signal without relaxing its edge', 
         { direction: 'LONG', score: 62, edge: 22 },
     );
     assert.equal(deriveResearchDirection({ breakdown: { longScore: 62, shortScore: 49 } }), null);
+});
+
+test('AI soft veto reduces priority but does not reject the candidate', () => {
+    const permission = resolveAiPermissionFromResponse(JSON.stringify({
+        verdict: 'VETO', confidence: 75, hardVeto: false, reason: 'Thiếu một xác nhận phụ.',
+    }));
+    assert.equal(permission.confirmed, true);
+    assert.equal(permission.softVeto, true);
+    assert.equal(permission.hardVeto, false);
+    assert.equal(computeAiPriorityAdjustment(permission, 8), -6);
+});
+
+test('AI hard veto remains an absolute rejection', () => {
+    const permission = resolveAiPermissionFromResponse(JSON.stringify({
+        verdict: 'VETO', confidence: 90, hardVeto: true, reason: 'Fake breakout rõ.',
+    }));
+    assert.equal(permission.confirmed, false);
+    assert.equal(permission.hardVeto, true);
+});
+
+test('AI does not create a hard veto from an explicitly negated risk', () => {
+    const permission = resolveAiPermissionFromResponse(JSON.stringify({
+        verdict: 'CONFIRM', confidence: 80, hardVeto: false, reason: 'Không có dấu hiệu ngược xu hướng hoặc fake breakout.',
+    }));
+    assert.equal(permission.confirmed, true);
+    assert.equal(permission.hardVeto, false);
+});
+
+test('provider and candidate retry use dynamic capped backoff', () => {
+    assert.equal(computeProviderBackoffMs('groq', 1), 30_000);
+    assert.equal(computeProviderBackoffMs('groq', 2), 45_000);
+    assert.equal(computeProviderBackoffMs('gemini_flash', 1), 90_000);
+    assert.equal(computeProviderBackoffMs('groq', 20), 300_000);
+    assert.equal(resolveRetryAfterMs({ retryAfterMs: 45_000 }, 1), 45_000);
+    assert.equal(resolveRetryAfterMs({}, 20), 300_000);
 });
 
 test('rolling quota never lets Research exceed 40 percent', () => {

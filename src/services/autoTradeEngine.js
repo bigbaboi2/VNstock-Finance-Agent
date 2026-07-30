@@ -124,6 +124,17 @@ import { computeBreakoutAffinity } from './breakoutAffinityService.js';
 import {
     resolveAdaptiveEligibility,
 } from './adaptiveEligibilityService.js';
+import {
+    aiCandidateKey,
+    deferAiCandidate,
+    getNextAiCandidateAttemptAt,
+    loadAiCandidateQueue,
+    markAiCandidateAttempt,
+    markAiRoleOutage,
+    markAiRoleRecovered,
+    queueAiCandidate,
+    resolveAiCandidate,
+} from './aiSignalCandidateService.js';
 
 // ── CONSTANTS & HELPERS
 
@@ -1998,7 +2009,9 @@ export const parseAIVerdictJson = (response = '') => {
         const parsed = parseLlmJson(response);
         if (!parsed) return null;
         const verdict = String(parsed.verdict || '').toUpperCase();
+        if (!['CONFIRM', 'VETO'].includes(verdict)) return null;
         return {
+            verdict,
             confirmed: verdict === 'CONFIRM',
             vetoed: verdict === 'VETO',
             hardVeto: parsed.hardVeto === true,
@@ -2008,6 +2021,42 @@ export const parseAIVerdictJson = (response = '') => {
     } catch {
         return null;
     }
+};
+
+export const computeAiPriorityAdjustment = (aiResult = {}, configuredMax = null) => {
+    const rawMax = configuredMax == null
+        ? getAutoDuckNumber('AUTODUCK_AI_PRIORITY_MAX_ADJUSTMENT')
+        : Number(configuredMax);
+    const maxAdjustment = Math.max(0, Math.min(20, Number.isFinite(rawMax) ? rawMax : 8));
+    const confidence = Math.max(0, Math.min(100, Number(aiResult.confidence) || 0));
+    const magnitude = Math.round(maxAdjustment * confidence / 100);
+    return String(aiResult.verdict || '').toUpperCase() === 'VETO' ? -magnitude : magnitude;
+};
+
+export const resolveAiPermissionFromResponse = (response = '') => {
+    const parsed = parseAIVerdictJson(response);
+    if (parsed) {
+        const hardVeto = parsed.hardVeto || isHardAIRejection(parsed.reason);
+        return {
+            confirmed: !hardVeto,
+            verdict: parsed.verdict,
+            confidence: parsed.confidence,
+            hardVeto,
+            softVeto: parsed.verdict === 'VETO' && !hardVeto,
+            reason: parsed.reason,
+        };
+    }
+    const legacyConfirmed = parseAISignalVerdict(response);
+    const verdict = legacyConfirmed ? 'CONFIRM' : 'VETO';
+    const hardVeto = isHardAIRejection(response);
+    return {
+        confirmed: !hardVeto,
+        verdict,
+        confidence: 50,
+        hardVeto,
+        softVeto: verdict === 'VETO' && !hardVeto,
+        reason: String(response || '').trim(),
+    };
 };
 
 const aiRoleForAsset = (asset) => {
@@ -2030,7 +2079,10 @@ export const parseAISignalVerdict = (response = '') => {
 };
 
 export const isHardAIRejection = (response = '') => {
-    const text = String(response || '').toLowerCase().normalize('NFC');
+    const text = String(response || '').toLowerCase().normalize('NFC').replace(
+        /(?:không|chưa)\s+(?:có\s+)?(?:dấu\s+hiệu\s+)?(?:ngược\s+xu\s+hướng|fake\s+breakout|short\s+squeeze|phân\s+phối|đảo\s+chiều)(?:\s+(?:mạnh|rõ|rõ\s+ràng))?(?:\s+hoặc\s+(?:ngược\s+xu\s+hướng|fake\s+breakout|short\s+squeeze|phân\s+phối|đảo\s+chiều)(?:\s+(?:mạnh|rõ|rõ\s+ràng))?)*/giu,
+        '',
+    );
     const hardPatterns = [
         /mâu thuẫn nghiêm trọng/,
         /ngược xu hướng/,
@@ -2159,40 +2211,47 @@ ${lessonContext}
 Trả lời JSON duy nhất (không markdown):
 {"verdict":"CONFIRM"|"VETO","confidence":0-100,"hardVeto":true|false,"reason":"2-3 câu tiếng Việt"}`;
 
-        const response = await generateWithRole(aiRoleForAsset(asset), prompt, {
+        const role = aiRoleForAsset(asset);
+        const routed = await generateWithRole(role, prompt, {
             maxTokens: 300,
             temperature: 0.2,
             responseFormat: 'json_object',
+            returnMeta: true,
+            suppressFailureAlert: true,
         });
+        const response = routed.text;
 
-        const parsed = parseAIVerdictJson(response);
-        let confirmed;
-        let hardVeto = false;
-        if (parsed) {
-            hardVeto = parsed.hardVeto || parsed.vetoed;
-            confirmed = liveVetoMode
-                ? !parsed.vetoed && !parsed.hardVeto
-                : parsed.confirmed;
-        } else {
-            const legacy = parseAISignalVerdict(response);
-            confirmed = liveVetoMode ? legacy !== false : legacy;
-            hardVeto = isHardAIRejection(response);
-            if (hardVeto) confirmed = false;
-        }
+        const permission = resolveAiPermissionFromResponse(response);
 
         return {
-            confirmed,
-            hardVeto,
-            reason: parsed?.reason || response.trim(),
+            ...permission,
+            provider: routed.provider,
+            providerStatus: routed.providerStatus,
+            role,
         };
 
     } catch (err) {
         console.log(chalk.yellow(`[AI CONFIRM] Không gọi được AI: ${err.message}`));
+        if (err?.code === 'AI_CHAIN_EXHAUSTED') {
+            return {
+                confirmed: false,
+                unavailable: true,
+                verdict: 'UNAVAILABLE',
+                confidence: 0,
+                hardVeto: false,
+                reason: err.message,
+                role: err.role || aiRoleForAsset(asset),
+                error: err,
+                providerStatus: err.providerAttempts || [],
+            };
+        }
         if (options.liveVetoMode) {
-            return { confirmed: false, hardVeto: false, reason: 'AI không phản hồi — LIVE skip (không auto-confirm).' };
+            return { confirmed: false, unavailable: true, verdict: 'UNAVAILABLE', confidence: 0, hardVeto: false, reason: 'AI không phản hồi — LIVE skip.' };
         }
         return {
             confirmed: (signal.breakdown?.qualityScore ?? signal.score) >= 75,
+            verdict: 'FALLBACK',
+            confidence: 0,
             hardVeto: false,
             reason: 'AI không phản hồi — SIM fallback qualityScore >= 75.',
         };
@@ -2812,7 +2871,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
         ));
 
         // 2. Target assets (Tự động quét động theo kết nối sàn & gói lệnh)
-        const targetAssets = await resolveDynamicTargetAssets(forcedAssetType);
+        const aiQueueState = await loadAiCandidateQueue();
+        const retryProcessedIds = new Set();
+        const baseTargetAssets = await resolveDynamicTargetAssets(forcedAssetType);
+        const retryAssets = forcedAssetType
+            ? []
+            : aiQueueState.due.map((row) => row.assetType);
+        const targetAssets = [...new Set([...baseTargetAssets, ...retryAssets])];
 
         if (targetAssets.includes('CRYPTO')) {
             try {
@@ -2939,6 +3004,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                 }
             }
 
+            const dueForAsset = aiQueueState.due.filter((row) => row.assetType === asset);
+            if (dueForAsset.length) {
+                symbolsToScan = [...new Set([...dueForAsset.map((row) => row.symbol), ...symbolsToScan])];
+                console.log(chalk.cyan(`  [SEEMS_GOOD] ưu tiên retry ${dueForAsset.map((row) => row.symbol).join(', ')}`));
+            }
+
             // 4. Analyze symbol
             for (const symbol of symbolsToScan) {
                 try {
@@ -2949,6 +3020,12 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     try {
                         candles = await fetchAnalysisCandles(symbol, asset);
                     } catch (fetchErr) {
+                        const affected = dueForAsset.filter((row) => row.symbol === symbol);
+                        for (const row of affected) {
+                            await deferAiCandidate(row._id, { code: 'MARKET_DATA_UNAVAILABLE', message: fetchErr.message });
+                            retryProcessedIds.add(String(row._id));
+                            funnel.record('ai_retry_deferred', { symbol, reason: fetchErr.message });
+                        }
                         continue;
                     }
 
@@ -3184,6 +3261,21 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     }
 
                     // 5. AI confirm
+                    const candidateQueueKey = aiCandidateKey({
+                        assetType: asset,
+                        symbol,
+                        direction: techSignal.direction,
+                        setup: entrySetup.type,
+                    });
+                    const queuedCandidate = aiQueueState.pendingByKey.get(candidateQueueKey);
+                    if (queuedCandidate && !aiQueueState.dueIds.has(String(queuedCandidate._id))) {
+                        funnel.record('ai_outage_waiting', { symbol, setup: entrySetup.type, reason: 'provider cooldown' });
+                        continue;
+                    }
+                    if (queuedCandidate) {
+                        retryProcessedIds.add(String(queuedCandidate._id));
+                    }
+
                     let aiConfirm = await getAISignalConfirmation(asset, techSignal, assetMacro.marketStatus, assetMacro.diagnosticDesc || diagnosticDesc, executionContext, currentRiskConfig, {
                         schedulerMode,
                         thresholdRelax,
@@ -3192,6 +3284,38 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         liveVetoMode: requiresLiveQuality,
                         entrySetup,
                     });
+                    if (aiConfirm.unavailable) {
+                        const queued = await queueAiCandidate({
+                            assetType: asset,
+                            symbol,
+                            direction: techSignal.direction,
+                            setup: entrySetup.type,
+                            cohort,
+                            role: aiConfirm.role || aiRoleForAsset(asset),
+                            technicalSnapshot: {
+                                score: techSignal.score,
+                                breakdown: techSignal.breakdown,
+                                volumeSurge: techSignal.volumeSurge,
+                                entryPrice: tradePlan.entryPrice,
+                            },
+                            contextSnapshot: {
+                                marketStatus: assetMacro.marketStatus,
+                                executionContext,
+                                news: newsContext,
+                            },
+                            error: aiConfirm.error || { message: aiConfirm.reason },
+                        });
+                        retryProcessedIds.add(String(queued?._id || queuedCandidate?._id || ''));
+                        await markAiRoleOutage({
+                            role: aiConfirm.role || aiRoleForAsset(asset),
+                            providerAttempts: aiConfirm.error?.providerAttempts || aiConfirm.providerStatus || [],
+                        });
+                        funnel.record('ai_outage_queued', { symbol, setup: entrySetup.type, reason: aiConfirm.reason });
+                        continue;
+                    }
+
+                    if (queuedCandidate) await markAiCandidateAttempt(queuedCandidate._id);
+                    await markAiRoleRecovered({ role: aiConfirm.role || aiRoleForAsset(asset), provider: aiConfirm.provider });
                     const idleProbeOverride = shouldIdleProbeOverrideAI({
                         asset,
                         signal: techSignal,
@@ -3211,13 +3335,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             reason: `[IDLE PROBE OVERRIDE · size x${sizeMultLabel}] AI bác bỏ mềm, nhưng tín hiệu đã qua filter định lượng và score ${techSignal.score} >= ${getIdleAiProbeMinScore()}. Lý do AI gốc: ${aiConfirm.reason}`,
                         };
                     }
-                    console.log(chalk.blue(`  [AI CONFIRM] ${aiConfirm.confirmed ? '✅ XÁC NHẬN' : '❌ BÁC BỎ'} — ${aiConfirm.reason}`));
+                    console.log(chalk.blue(`  [AI ${aiConfirm.hardVeto ? 'HARD VETO' : aiConfirm.verdict}] confidence=${aiConfirm.confidence} provider=${aiConfirm.provider || 'n/a'} — ${aiConfirm.reason}`));
 
                     const breakoutAff = asset === 'CRYPTO'
                         ? computeBreakoutAffinity(candles, { direction: techSignal.direction })
                         : { affinity: 0.5, score: 50, n: 0, wins: 0, losses: 0, note: 'n/a' };
                     const symbolExp = getSymbolExpectancy(asset, symbol);
-                    const { priorityScore, components: priorityComponents } = computePriorityScore({
+                    const { priorityScore: basePriorityScore, components: priorityComponents } = computePriorityScore({
                         qualityScore: techSignal.breakdown?.qualityScore ?? techSignal.score,
                         symbolExpectancy: symbolExp,
                         breakoutAffinityScore: breakoutAff.score,
@@ -3225,10 +3349,28 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         direction: techSignal.direction,
                         idleHungry: false,
                     });
+                    const aiPriorityAdjustment = computeAiPriorityAdjustment(aiConfirm);
+                    const priorityScore = Math.max(0, Math.min(100, basePriorityScore + aiPriorityAdjustment));
                     techSignal.breakdown = {
                         ...techSignal.breakdown,
                         priorityScore,
-                        priorityComponents,
+                        priorityComponents: {
+                            ...priorityComponents,
+                            basePriorityScore,
+                            aiAdjustment: aiPriorityAdjustment,
+                            aiVerdict: aiConfirm.verdict,
+                            aiConfidence: aiConfirm.confidence,
+                            aiProvider: aiConfirm.provider,
+                        },
+                        aiEvaluation: {
+                            verdict: aiConfirm.verdict,
+                            confidence: aiConfirm.confidence,
+                            hardVeto: aiConfirm.hardVeto,
+                            softVeto: aiConfirm.softVeto,
+                            priorityAdjustment: aiPriorityAdjustment,
+                            provider: aiConfirm.provider,
+                            reason: aiConfirm.reason,
+                        },
                         breakoutAffinity: breakoutAff,
                         adaptiveEligibility: {
                             effectiveQualityFloor: adaptiveElig.effectiveQualityFloor,
@@ -3255,9 +3397,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         breakdown: techSignal.breakdown,
                     });
 
-                    if (!aiConfirm.confirmed) {
+                    if (aiConfirm.hardVeto) {
                         stats.aiRejected++;
-                        funnel.record('ai_veto', {
+                        funnel.record('ai_hard_veto', {
                             symbol,
                             score: techSignal.score,
                             setup: entrySetup.type,
@@ -3273,10 +3415,34 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             priorityScore,
                             biasLedger: techSignal.breakdown?.biasLedger || null,
                         }, {
-                            event: 'candidate_rejected',
+                            event: 'candidate_rejected_ai_hard_veto',
                             source: 'autoTradeEngine',
                         }).catch(() => {});
+                        if (queuedCandidate) {
+                            await resolveAiCandidate(queuedCandidate._id, 'VETOED', {
+                                verdict: aiConfirm.verdict,
+                                confidence: aiConfirm.confidence,
+                                reason: aiConfirm.reason,
+                                provider: aiConfirm.provider,
+                            });
+                        }
                         continue;
+                    }
+
+                    funnel.record(aiConfirm.softVeto ? 'ai_soft_veto' : 'ai_confirmed', {
+                        symbol,
+                        setup: entrySetup.type,
+                        confidence: aiConfirm.confidence,
+                        adjustment: aiPriorityAdjustment,
+                    });
+                    if (queuedCandidate) {
+                        await resolveAiCandidate(queuedCandidate._id, 'CONFIRMED', {
+                            verdict: aiConfirm.verdict,
+                            confidence: aiConfirm.confidence,
+                            priorityAdjustment: aiPriorityAdjustment,
+                            provider: aiConfirm.provider,
+                            reason: aiConfirm.reason,
+                        });
                     }
 
                     if (dryRun) {
@@ -4072,6 +4238,19 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     console.log(chalk.yellow(`  [ERROR] Lỗi khớp ranked ${cand?.symbol || '?'}: ${candErr.message}`));
                     continue;
                 }
+            }
+
+            for (const queued of dueForAsset) {
+                const id = String(queued._id);
+                if (retryProcessedIds.has(id)) continue;
+                await resolveAiCandidate(queued._id, 'INVALIDATED', {
+                    reason: 'Candidate không còn qua đầy đủ gate với dữ liệu mới.',
+                });
+                retryProcessedIds.add(id);
+                funnel.record('ai_retry_invalidated', { symbol: queued.symbol, setup: queued.setup });
+            }
+            for (const expired of aiQueueState.expired.filter((row) => row.assetType === asset)) {
+                funnel.record('ai_retry_expired', { symbol: expired.symbol, setup: expired.setup });
             }
             
             if (stats.scanned > 0) {
@@ -4879,8 +5058,13 @@ const bootAutoDuckSchedulerIntervals = () => {
         // Faster discovery when a LIVE package is idle, but never relax LIVE
         // score/setup gates.  setTimeout below ensures scans cannot overlap.
         const idleFast = liveWaiting > 0 && liveOpen === 0;
-        const minGapMs = idleFast ? Math.min(normalGapMs, getIdleFastScanMs()) : normalGapMs;
-        return { minGapMs, liveWaiting, liveOpen, idleFast };
+        const baseGapMs = idleFast ? Math.min(normalGapMs, getIdleFastScanMs()) : normalGapMs;
+        const nextAiAttemptAt = await getNextAiCandidateAttemptAt();
+        const aiRetryGapMs = nextAiAttemptAt
+            ? Math.max(30_000, new Date(nextAiAttemptAt).getTime() - Date.now())
+            : Infinity;
+        const minGapMs = Math.min(baseGapMs, aiRetryGapMs);
+        return { minGapMs, liveWaiting, liveOpen, idleFast, nextAiAttemptAt };
     };
 
     /** Idle relax trên vòng quét chính + LIVE hunger khi dưới daily target. */

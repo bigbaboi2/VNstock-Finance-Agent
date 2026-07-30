@@ -265,6 +265,7 @@ export default function AutoDuckEnvSettingsPanel({
     const [resettingGroup, setResettingGroup] = useState(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
     const [readiness, setReadiness] = useState({});
+    const [aiCandidates, setAiCandidates] = useState([]);
     const [openGroups, setOpenGroups] = useState(() => new Set());
     const [configSearch, setConfigSearch] = useState('');
     const [searchIgnoreCase, setSearchIgnoreCase] = useState(true);
@@ -293,6 +294,11 @@ export default function AutoDuckEnvSettingsPanel({
         return nextGroups;
     };
 
+    const loadAiCandidates = async () => {
+        const res = await axios.get('/api/auto-trade/ai-candidates?status=PENDING&limit=20').catch(() => null);
+        if (res?.data?.success) setAiCandidates(res.data.data || []);
+    };
+
     const loadConfig = async () => {
         setLoadingConfig(true);
         try {
@@ -305,6 +311,7 @@ export default function AutoDuckEnvSettingsPanel({
             }
             const readinessRes = await axios.get('/api/auto-trade/live-readiness').catch(() => null);
             if (readinessRes?.data?.success) setReadiness(readinessRes.data.data || {});
+            await loadAiCandidates();
         } catch (err) {
             onMessage?.({ text: err.response?.data?.message || t('errLoadConfig'), isError: true });
         } finally {
@@ -314,6 +321,13 @@ export default function AutoDuckEnvSettingsPanel({
 
     useEffect(() => {
         if (!collapsed) loadConfig();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collapsed]);
+
+    useEffect(() => {
+        if (collapsed) return undefined;
+        const timer = setInterval(loadAiCandidates, 15_000);
+        return () => clearInterval(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [collapsed]);
 
@@ -741,6 +755,28 @@ export default function AutoDuckEnvSettingsPanel({
 
             {!collapsed && (
                 <div className={`mt-4 pt-4 border-t-2 ${hairline}`}>
+                    <div className={`mb-5 rounded-xl border-2 px-4 py-3 ${isDark ? 'bg-amber-950/25 border-amber-400/30' : 'bg-amber-50 border-amber-200'}`}>
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                            <p className={`text-[12px] font-black uppercase tracking-wider ${UI.textBold}`}>SEEMS_GOOD chờ AI</p>
+                            <span className={`text-[11px] font-semibold ${aiCandidates.length ? 'text-amber-400' : 'text-emerald-400'}`}>{aiCandidates.length} candidate</span>
+                        </div>
+                        {aiCandidates.length === 0 ? (
+                            <p className={`text-[12px] ${UI.textMuted}`}>Không có tín hiệu đang chờ provider hồi phục.</p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {aiCandidates.map((row) => {
+                                    const retrySec = Math.max(0, Math.ceil((new Date(row.nextAttemptAt).getTime() - Date.now()) / 1000));
+                                    const ageMin = Math.max(0, Math.floor((Date.now() - new Date(row.firstQualifiedAt).getTime()) / 60000));
+                                    const providers = (row.lastError?.providerAttempts || []).map((item) => item.provider).filter(Boolean).join('/') || row.role;
+                                    return (
+                                        <span key={row._id} className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${isDark ? 'bg-amber-500/10 text-amber-200 border-amber-400/35' : 'bg-white text-amber-800 border-amber-300'}`}>
+                                            {row.symbol} · {row.cohort}/{row.direction} · {providers} · tuổi {ageMin}m · retry {retrySec}s · lần {row.attemptCount}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                     <div className={`mb-5 rounded-xl border-2 px-4 py-3 ${isDark ? 'bg-indigo-950/35 border-indigo-400/30' : 'bg-indigo-50 border-indigo-200'}`}>
                         <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold">
                             <span className={UI.textBold}>Futures SHORT:</span>
@@ -767,7 +803,7 @@ export default function AutoDuckEnvSettingsPanel({
                                     <span key={`${row.setup}-${row.cohort}-${row.direction}`} className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${row.ready
                                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/35'
                                         : (isDark ? 'bg-amber-500/10 text-amber-200 border-amber-400/35' : 'bg-amber-50 text-amber-800 border-amber-300')}`}>
-                                        {row.setup}/{row.cohort || 'CORE'}/{row.direction || 'LONG'}: {row.ready ? 'READY' : 'LEARNING'} · {row.trades}/{row.criteria?.minTrades} · WR {row.winRate}% · PF {row.profitFactor ?? '∞'}
+                                        {row.setup}/{row.cohort || 'CORE'}/{row.direction || 'LONG'}: {row.ready ? 'READY' : 'LEARNING'} · {row.trades}/{row.criteria?.minTrades} · WR {row.winRate}% · PF {row.profitFactor ?? '∞'} · DD {Number(row.maxDrawdown || 0).toLocaleString('vi-VN')}đ · AI {row.avgAiAdjustment >= 0 ? '+' : ''}{row.avgAiAdjustment || 0}
                                     </span>
                                 ))}
                             </div>

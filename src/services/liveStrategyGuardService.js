@@ -40,7 +40,7 @@ export const getLiveReadinessSnapshot = async () => {
         status: 'CLOSED',
         executionMode: 'LIVE',
         pnlSource: { $in: officialSources },
-    }).select('signalBreakdown.entrySetup cohort direction marketPnl marketPnlPercent markSimPnl markSimPnlPercent pnl pnlPercent closedAt').lean();
+    }).select('signalBreakdown.entrySetup signalBreakdown.aiEvaluation cohort direction marketPnl marketPnlPercent markSimPnl markSimPnlPercent pnl pnlPercent closedAt').lean();
 
     const bySetup = {};
     for (const trade of trades) {
@@ -51,7 +51,15 @@ export const getLiveReadinessSnapshot = async () => {
         const pct = marketPct(trade);
         if (pct == null) continue;
         if (!bySetup[profileKey]) bySetup[profileKey] = [];
-        bySetup[profileKey].push({ pct, pnl: marketValue(trade), closedAt: trade.closedAt, setup, cohort, direction });
+        bySetup[profileKey].push({
+            pct,
+            pnl: marketValue(trade),
+            closedAt: trade.closedAt,
+            setup,
+            cohort,
+            direction,
+            aiEvaluation: trade.signalBreakdown?.aiEvaluation || null,
+        });
     }
 
     const minTrades = Math.max(1, getAutoDuckNumber('AUTODUCK_LIVE_READINESS_MIN_TRADES') || 60);
@@ -65,6 +73,18 @@ export const getLiveReadinessSnapshot = async () => {
         const grossLoss = Math.abs(losses.reduce((sum, row) => sum + row.pct, 0));
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? Infinity : 0);
         const pnl = rows.reduce((sum, row) => sum + row.pnl, 0);
+        let equity = 0;
+        let peak = 0;
+        let maxDrawdown = 0;
+        for (const row of [...rows].sort((a, b) => new Date(a.closedAt) - new Date(b.closedAt))) {
+            equity += Number(row.pnl) || 0;
+            peak = Math.max(peak, equity);
+            maxDrawdown = Math.max(maxDrawdown, peak - equity);
+        }
+        const aiRows = rows.filter((row) => row.aiEvaluation);
+        const avgAiAdjustment = aiRows.length
+            ? aiRows.reduce((sum, row) => sum + (Number(row.aiEvaluation?.priorityAdjustment) || 0), 0) / aiRows.length
+            : 0;
         const winRate = rows.length ? wins.length / rows.length * 100 : 0;
         const ready = rows.length >= minTrades && winRate >= minWinRate && profitFactor >= minProfitFactor && pnl > 0;
         return [profileKey, {
@@ -77,6 +97,9 @@ export const getLiveReadinessSnapshot = async () => {
             winRate: Math.round(winRate * 100) / 100,
             profitFactor: Number.isFinite(profitFactor) ? Math.round(profitFactor * 100) / 100 : null,
             pnl: Math.round(pnl),
+            maxDrawdown: Math.round(maxDrawdown),
+            aiSoftVetoTrades: aiRows.filter((row) => row.aiEvaluation?.softVeto).length,
+            avgAiAdjustment: Math.round(avgAiAdjustment * 100) / 100,
             criteria: { minTrades, minWinRate, minProfitFactor, positivePnl: true },
         }];
     }));

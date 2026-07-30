@@ -1643,6 +1643,14 @@ function TradeCard({ log, isDark, UI }) {
                             <ScoreBlock label="Reward" value={`+${formatNumber(rewardPct, 2)}%`} tone="text-emerald-500" />
                             <ScoreBlock label="Risk" value={`-${formatNumber(riskPct, 2)}%`} tone="text-red-500" />
                         </div>
+                        {breakdown.aiEvaluation && (
+                            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <ScoreBlock label="AI verdict" value={breakdown.aiEvaluation.hardVeto ? 'HARD VETO' : breakdown.aiEvaluation.verdict} tone={breakdown.aiEvaluation.softVeto ? 'text-amber-400' : 'text-purple-400'} />
+                                <ScoreBlock label="AI confidence" value={`${breakdown.aiEvaluation.confidence ?? 0}%`} tone="text-purple-400" />
+                                <ScoreBlock label="AI priority" value={`${Number(breakdown.aiEvaluation.priorityAdjustment || 0) >= 0 ? '+' : ''}${breakdown.aiEvaluation.priorityAdjustment || 0}`} tone={Number(breakdown.aiEvaluation.priorityAdjustment || 0) >= 0 ? 'text-emerald-400' : 'text-amber-400'} />
+                                <ScoreBlock label="AI provider" value={breakdown.aiEvaluation.provider || 'N/A'} tone="text-cyan-400" />
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

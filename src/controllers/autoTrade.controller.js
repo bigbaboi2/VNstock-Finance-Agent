@@ -11,6 +11,7 @@ import { getEffectiveAutoDuckConfig, updateAutoDuckConfig } from '../services/au
 import { getLiveReadinessSnapshot } from '../services/liveStrategyGuardService.js';
 import { exportLiveTradeStats, DEFAULT_EXPORT_DIR } from '../services/liveTradeExportService.js';
 import { sumLiveRealizedPnl } from '../services/livePnlService.js';
+import { listAiCandidates } from '../services/aiSignalCandidateService.js';
 import {
     countOpenTradesOfOrder,
     healStaleAllocations,
@@ -770,6 +771,17 @@ export const getUsdRate = async (req, res) => {
 export const getLiveReadinessHandler = async (_req, res) => {
     try {
         const data = await getLiveReadinessSnapshot();
+        return res.json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export const getAiSignalCandidatesHandler = async (req, res) => {
+    try {
+        const status = String(req.query.status || 'PENDING').toUpperCase();
+        const limit = Number(req.query.limit) || 50;
+        const data = await listAiCandidates({ status, limit });
         return res.json({ success: true, data });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });

@@ -44,7 +44,7 @@ const RATE_LIMIT_COOLDOWN_MS = {
     cerebras:  60_000,
     sambanova: 60_000,
     openrouter:60_000,
-    deepsinfra: 60_000,
+    deepinfra: 60_000,
     gemini:    90_000,   
 };
 
@@ -59,12 +59,17 @@ function isProviderBlocked(providerKey) {
     return false;
 }
 
-function markProviderBlocked(providerKey, reason = 'rate_limit') {
-    const cooldown = RATE_LIMIT_COOLDOWN_MS[providerKey.split(':')[0]] || RATE_LIMIT_COOLDOWN_MS.default;
+export const computeProviderBackoffMs = (providerKey, failCount = 1) => {
+    const rawFamily = providerKey.split(':')[0];
+    const family = rawFamily.startsWith('gemini_') ? 'gemini' : rawFamily;
+    const cooldown = RATE_LIMIT_COOLDOWN_MS[family] || RATE_LIMIT_COOLDOWN_MS.default;
+    return Math.min(cooldown * Math.pow(1.5, Math.max(0, failCount - 1)), 5 * 60_000);
+};
+
+function markProviderBlocked(providerKey, reason = 'rate_limit', suppressAlert = false) {
     const prev = rateLimitTracker.get(providerKey);
     const failCount = (prev?.failCount || 0) + 1;
-    // Exponential backoff: tối đa 5 phút
-    const backoff = Math.min(cooldown * Math.pow(1.5, failCount - 1), 5 * 60_000);
+    const backoff = computeProviderBackoffMs(providerKey, failCount);
     rateLimitTracker.set(providerKey, {
         blockedUntil: Date.now() + backoff,
         failCount,
@@ -73,7 +78,7 @@ function markProviderBlocked(providerKey, reason = 'rate_limit') {
     const cooldownSec = (backoff / 1000).toFixed(0);
     console.log(chalk.yellow(`[ROUTER] 🚫 ${providerKey} bị block (${reason}), cooldown ${cooldownSec}s`));
 
-    if (failCount === 1 || failCount % 10 === 0) {
+    if (!suppressAlert && (failCount === 1 || failCount % 10 === 0)) {
         const issue = reason === 'rate_limit' ? 'Vượt quá Rate Limit (429/503)' : 'Lỗi kết nối / API Key có vấn đề';
         const alertMsg = buildSystemAlertMessage(
             'AI Router',
@@ -82,6 +87,7 @@ function markProviderBlocked(providerKey, reason = 'rate_limit') {
         );
         sendTelegramMessage(alertMsg).catch(() => {});
     }
+    return rateLimitTracker.get(providerKey);
 }
 
 function clearProviderBlock(providerKey) {
@@ -344,7 +350,7 @@ const PROVIDER_REGISTRY = {
 // Mỗi role có 1 chain ưu tiên. Provider đầu tiên = ưu tiên cao nhất.
 // 'gemini_pro' = Gemini Pro  
 // 'gemini_flash' = Gemini Flash  
-const ROLE_PROVIDER_CHAINS = {
+export const ROLE_PROVIDER_CHAINS = {
      main:        ['gemini_pro', 'gemini_flash', 'groq', 'cerebras'],
 
      tech:        ['groq', 'cerebras', 'sambanova', 'gemini_flash'],
@@ -404,11 +410,21 @@ export async function generateWithRole(role, prompt, options = {}) {
     const normalizedRole = role.toUpperCase();
 
     const errors = [];
+    const providerAttempts = [];
 
     for (const providerKey of chain) {
         // Kiểm tra xem provider có đang bị block không
         if (isProviderBlocked(providerKey)) {
             errors.push(`${providerKey}: đang bị cooldown`);
+            const state = rateLimitTracker.get(providerKey);
+            providerAttempts.push({
+                provider: providerKey,
+                status: 'COOLDOWN',
+                blockedUntil: state?.blockedUntil || null,
+                remainingMs: Math.max(0, Number(state?.blockedUntil || 0) - Date.now()),
+                failCount: state?.failCount || 0,
+                reason: state?.reason || 'cooldown',
+            });
             continue;
         }
 
@@ -442,7 +458,9 @@ export async function generateWithRole(role, prompt, options = {}) {
 
             clearProviderBlock(providerKey);
             console.log(chalk.dim(`[ROUTER] ✅ Role [${normalizedRole}] hoàn tất qua [${providerKey.toUpperCase()}]`));
-            return result;
+            return options.returnMeta
+                ? { text: result, provider: providerKey, role, providerStatus: getRoleProviderStatus(role) }
+                : result;
 
         } catch (err) {
             const errMsg = err.message || String(err);
@@ -450,13 +468,22 @@ export async function generateWithRole(role, prompt, options = {}) {
                 || err.response?.status === 429
                 || err.response?.status === 503;
 
-            if (isRateLimit) {
-                markProviderBlocked(providerKey, 'rate_limit');
-            } else {
+            const reason = isRateLimit ? 'rate_limit' : 'provider_error';
+            const state = markProviderBlocked(providerKey, reason, options.suppressFailureAlert === true);
+            if (!isRateLimit) {
                 console.log(chalk.yellow(`[ROUTER] ⚠️ [${providerKey}] lỗi không phải rate limit: ${errMsg}`));
             }
 
             errors.push(`${providerKey}: ${errMsg.slice(0, 80)}`);
+            providerAttempts.push({
+                provider: providerKey,
+                status: 'FAILED',
+                blockedUntil: state?.blockedUntil || null,
+                remainingMs: Math.max(0, Number(state?.blockedUntil || 0) - Date.now()),
+                failCount: state?.failCount || 1,
+                reason,
+                message: errMsg.slice(0, 160),
+            });
             console.log(chalk.yellow(`[ROUTER] ↪ Fallback sang provider tiếp theo...`));
         }
     }
@@ -464,13 +491,24 @@ export async function generateWithRole(role, prompt, options = {}) {
     // Toàn bộ chain thất bại
     const errorSummary = errors.join(' | ');
     console.log(chalk.bgRed.white(`[ROUTER] ❌ Role [${normalizedRole}] — toàn bộ chain thất bại: ${errorSummary}`));
+    if (!options.suppressFailureAlert) {
         const alertMsg = buildSystemAlertMessage(
             'AI Router',
             `Toàn bộ chain cho Role [${normalizedRole}] thất bại`,
             `Chi tiết lỗi: ${errorSummary}`
         );
         sendTelegramMessage(alertMsg).catch(() => {});
-    throw new Error(`[ROUTER] Toàn bộ providers cho role "${role}" đều thất bại. Chi tiết: ${errorSummary}`);
+    }
+    const positiveRetries = providerAttempts.map((row) => Number(row.remainingMs)).filter((ms) => ms > 0);
+    const maxFailCount = Math.max(1, ...providerAttempts.map((row) => Number(row.failCount) || 0));
+    const fallbackRetryMs = Math.min(60_000 * Math.pow(1.5, maxFailCount - 1), 5 * 60_000);
+    const error = new Error(`[ROUTER] Toàn bộ providers cho role "${role}" đều thất bại. Chi tiết: ${errorSummary}`);
+    error.code = 'AI_CHAIN_EXHAUSTED';
+    error.role = role;
+    error.providerAttempts = providerAttempts;
+    error.retryAfterMs = positiveRetries.length ? Math.min(...positiveRetries) : fallbackRetryMs;
+    error.attemptCount = maxFailCount;
+    throw error;
 }
  
 export async function generateWithRoleStream(role, prompt, onChunk, options = {}) {
@@ -556,6 +594,7 @@ export function getRateLimitStatus() {
     for (const [key, state] of rateLimitTracker.entries()) {
         status[key] = {
             blocked: state.blockedUntil > now,
+            blockedUntil: state.blockedUntil || 0,
             remainingMs: Math.max(0, state.blockedUntil - now),
             failCount: state.failCount,
             reason: state.reason,
@@ -565,11 +604,17 @@ export function getRateLimitStatus() {
      const allProviders = ['groq', 'cerebras', 'sambanova', 'openrouter', 'deepinfra', 'gemini_pro', 'gemini_flash'];
     for (const p of allProviders) {
         if (!status[p]) {
-            status[p] = { blocked: false, remainingMs: 0, failCount: 0 };
+            status[p] = { blocked: false, blockedUntil: 0, remainingMs: 0, failCount: 0 };
         }
     }
 
     return status;
+}
+
+export function getRoleProviderStatus(role) {
+    const chain = ROLE_PROVIDER_CHAINS[role] || ROLE_PROVIDER_CHAINS.default;
+    const all = getRateLimitStatus();
+    return chain.map((provider) => ({ provider, ...(all[provider] || { blocked: false, blockedUntil: 0, remainingMs: 0, failCount: 0 }) }));
 }
 
 /**

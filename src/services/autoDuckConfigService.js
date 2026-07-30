@@ -85,6 +85,21 @@ export const AUTODUCK_CONFIG_SCHEMA = {
         label: 'Research volume surge tối thiểu', help: 'Sàn volume surge cho Research.',
         example: 'Mặc định 1.2.', badge: 'live', hintKind: 'default',
     },
+    AUTODUCK_AI_PRIORITY_MAX_ADJUSTMENT: {
+        type: 'number', default: 8, group: 'quality',
+        label: 'AI priority adjustment tối đa', help: 'Giới hạn điểm AI cộng/trừ vào priority; không ảnh hưởng quality hoặc size.',
+        example: 'Mặc định ±8.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_AI_CANDIDATE_TTL_MINUTES: {
+        type: 'number', default: 30, group: 'idle',
+        label: 'SEEMS_GOOD TTL (phút)', help: 'Thời gian tối đa giữ candidate khi toàn bộ AI provider lỗi.',
+        example: 'Mặc định 30 phút.', badge: 'live', hintKind: 'default',
+    },
+    AUTODUCK_AI_RETRY_BATCH_SIZE: {
+        type: 'number', default: 3, group: 'idle',
+        label: 'AI retry tối đa mỗi chu kỳ', help: 'Giới hạn candidate SEEMS_GOOD được đánh giá lại để tránh burst API.',
+        example: 'Mặc định 3.', badge: 'live', hintKind: 'default',
+    },
     AUTODUCK_LIVE_DAILY_LOSS_LIMIT_PCT: {
         type: 'number', default: 2, group: 'safety',
         label: 'Circuit breaker: lỗ tối đa/ngày (%)',
@@ -686,6 +701,8 @@ export const CONFIG_GROUP_META = {
             'AUTODUCK_SCAN_GAP_MIN_MS',
             'AUTODUCK_IDLE_MIN_LIVE_SCORE',
             'AUTODUCK_IDLE_LIVE_DAILY_TARGET',
+            'AUTODUCK_AI_CANDIDATE_TTL_MINUTES',
+            'AUTODUCK_AI_RETRY_BATCH_SIZE',
             'AUTODUCK_IDLE_FAST_SCAN_MS',
             'AUTODUCK_IDLE_RELAX_TARGETS',
             'AUTODUCK_IDLE_RELAX_STEP_SCORE',
@@ -717,6 +734,7 @@ export const CONFIG_GROUP_META = {
             'AUTODUCK_RESEARCH_EDGE_MIN',
             'AUTODUCK_RESEARCH_CONFLUENCE_MIN',
             'AUTODUCK_RESEARCH_VOLUME_MIN',
+            'AUTODUCK_AI_PRIORITY_MAX_ADJUSTMENT',
             'AUTODUCK_LIVE_RISK_OFF_SIZE_MULT',
             'AUTODUCK_LIVE_RISK_OFF_VETO',
             'AUTODUCK_LIVE_SYMBOL_SOFT_BLOCK',

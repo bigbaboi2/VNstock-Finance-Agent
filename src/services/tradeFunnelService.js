@@ -38,6 +38,14 @@ export const createFunnelTracker = (asset) => {
         shortUnsupported: 0,
         quoteBlocked: 0,
         quotaBlocked: 0,
+        aiConfirmed: 0,
+        aiSoftVeto: 0,
+        aiHardVeto: 0,
+        aiOutageQueued: 0,
+        aiOutageWaiting: 0,
+        aiRetryDeferred: 0,
+        aiRetryInvalidated: 0,
+        aiRetryExpired: 0,
     };
     const setupReasons = {};
     const liveGateReasons = {};
@@ -144,6 +152,14 @@ export const createFunnelTracker = (asset) => {
                 case 'short_unsupported': counts.shortUnsupported++; pushReject('short_unsupported', detail); break;
                 case 'quote_blocked': counts.quoteBlocked++; pushReject('quote_blocked', detail); break;
                 case 'quota_blocked': counts.quotaBlocked++; pushReject('quota_blocked', detail); break;
+                case 'ai_confirmed': counts.aiConfirmed++; break;
+                case 'ai_soft_veto': counts.aiSoftVeto++; pushReject('ai_soft_veto', detail); break;
+                case 'ai_hard_veto': counts.aiHardVeto++; counts.aiVeto++; pushReject('ai_hard_veto', detail); break;
+                case 'ai_outage_queued': counts.aiOutageQueued++; pushReject('ai_outage_queued', detail); break;
+                case 'ai_outage_waiting': counts.aiOutageWaiting++; break;
+                case 'ai_retry_deferred': counts.aiRetryDeferred++; pushReject('ai_retry_deferred', detail); break;
+                case 'ai_retry_invalidated': counts.aiRetryInvalidated++; pushReject('ai_retry_invalidated', detail); break;
+                case 'ai_retry_expired': counts.aiRetryExpired++; pushReject('ai_retry_expired', detail); break;
                 case 'near_live':
                     if (detail.symbol) recordCandidate(detail);
                     break;
@@ -181,7 +197,7 @@ export const formatFunnelLogLines = (summary) => {
     if (!summary) return [];
     const c = summary;
     const lines = [
-        `[${c.asset} FUNNEL] scanned=${c.scanned} | weak=${c.weak} | vol=${c.vol} | setup=${c.setup} | core=${c.coreEligible}/${c.coreMatched} | research=${c.researchEligible}/${c.researchMatched} | long=${c.longEligible}/${c.longMatched} | short=${c.shortEligible}/${c.shortMatched} | short_off=${c.shortDisabled} | quote=${c.quoteBlocked} | quota=${c.quotaBlocked} | matched_live=${c.matchedLive}`,
+        `[${c.asset} FUNNEL] scanned=${c.scanned} | weak=${c.weak} | vol=${c.vol} | setup=${c.setup} | core=${c.coreEligible}/${c.coreMatched} | research=${c.researchEligible}/${c.researchMatched} | AI=${c.aiConfirmed}/${c.aiSoftVeto}/${c.aiHardVeto} | AI_queue=${c.aiOutageQueued}/${c.aiRetryInvalidated} | long=${c.longEligible}/${c.longMatched} | short=${c.shortEligible}/${c.shortMatched} | matched_live=${c.matchedLive}`,
     ];
     const setupStr = formatReasonMap(c.setupReasons);
     if (setupStr) lines.push(`  setup: ${setupStr}`);
@@ -226,6 +242,14 @@ const persistFunnelCycle = async (summary) => {
             shortUnsupported,
             quoteBlocked,
             quotaBlocked,
+            aiConfirmed,
+            aiSoftVeto,
+            aiHardVeto,
+            aiOutageQueued,
+            aiOutageWaiting,
+            aiRetryDeferred,
+            aiRetryInvalidated,
+            aiRetryExpired,
             setupReasons,
             liveGateReasons,
             aiVetoReasons,
@@ -262,6 +286,14 @@ const persistFunnelCycle = async (summary) => {
             shortUnsupported,
             quoteBlocked,
             quotaBlocked,
+            aiConfirmed,
+            aiSoftVeto,
+            aiHardVeto,
+            aiOutageQueued,
+            aiOutageWaiting,
+            aiRetryDeferred,
+            aiRetryInvalidated,
+            aiRetryExpired,
             setupReasons,
             liveGateReasons,
             aiVetoReasons,
