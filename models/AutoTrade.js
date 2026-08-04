@@ -27,6 +27,13 @@ const AutoTradeSchema = new mongoose.Schema({
     reason: { type: String, required: true },  
     aiReportSnapshot: { type: String },  
     signalBreakdown: { type: mongoose.Schema.Types.Mixed, default: {} },
+    setupType: { type: String, default: null, index: true },
+    setupScore: { type: Number, default: null },
+    confluenceScore: { type: Number, default: null },
+    confluenceCount: { type: Number, default: null },
+    signalEdge: { type: Number, default: null },
+    marketRegime: { type: String, default: null },
+    entryGateReason: { type: String, default: null },
     cohort: { type: String, enum: ['CORE', 'RESEARCH'], default: 'CORE', index: true },
     // ── PARTIAL SCALE-OUT (Policy E) ──
     // Chốt `tp1Fraction` vị thế ở takeProfit1Price, dời SL phần còn lại về breakeven,
@@ -45,6 +52,8 @@ const AutoTradeSchema = new mongoose.Schema({
     leverage: { type: Number, default: 1 },
     exchangeConnectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExchangeConnection', default: null },
     externalOrderId: { type: String, default: null },
+    entryNotificationKey: { type: String, default: null },
+    entryNotifiedAt: { type: Date, default: null },
     status: { type: String, default: 'OPEN', enum: ['OPEN', 'PENDING', 'CLOSED', 'WATCH', 'SKIP'] },
     openedAt: { type: Date, default: Date.now },
     closedAt: { type: Date, default: null },
@@ -56,5 +65,9 @@ const AutoTradeSchema = new mongoose.Schema({
 
 AutoTradeSchema.index({ symbol: 1, status: 1 });
 AutoTradeSchema.index({ openedAt: -1 });
+AutoTradeSchema.index(
+    { exchangeConnectionId: 1, entryNotificationKey: 1 },
+    { unique: true, partialFilterExpression: { entryNotificationKey: { $type: 'string' } } }
+);
 
 export default mongoose.models.AutoTrade || mongoose.model('AutoTrade', AutoTradeSchema);

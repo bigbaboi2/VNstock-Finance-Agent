@@ -344,6 +344,16 @@ export const passesLiveQuantGate = (entrySetup, signal, opts = {}) => {
     const q = signal.breakdown?.qualityScore ?? signal.score;
     const edge = signal.breakdown?.edge ?? 0;
     const conf = signal.breakdown?.confluenceCount ?? computeConfluenceScore(signal, signal.direction);
+    const isLong = signal.direction === 'LONG' || signal.direction === 'MUA';
+    const htfTrend = String(signal.breakdown?.htfTrend || 'NEUTRAL').toUpperCase();
+    const momentum = Number(isLong ? signal.breakdown?.macdLong : signal.breakdown?.macdShort) || 0;
+    const volumeSurge = Number(signal.volumeSurge) || 0;
+    if (signal.assetType === 'CRYPTO' || signal.breakdown?.htfTrend) {
+        if (isLong && htfTrend !== 'UP') return { pass: false, reason: `HTF ${htfTrend} không đồng thuận LONG` };
+        if (!isLong && htfTrend !== 'DOWN') return { pass: false, reason: `HTF ${htfTrend} không đồng thuận SHORT` };
+        if (momentum < 60) return { pass: false, reason: `momentum ${momentum} < 60` };
+        if (volumeSurge < 1.2) return { pass: false, reason: `volumeSurge ${volumeSurge} < 1.2` };
+    }
     const adx = signal.breakdown?.adx ?? signal.adx?.adx ?? 0;
     if (adx < 18 && edge < 30) return { pass: false, reason: `ADX ${adx} thấp + edge ${edge} yếu` };
     const staticMin = getLiveQualityMinForSetup(type);

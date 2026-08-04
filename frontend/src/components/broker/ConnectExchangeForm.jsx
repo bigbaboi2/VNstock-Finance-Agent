@@ -35,6 +35,8 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
         label: '',
         apiKey: '',
         secret: '',
+        futuresApiKey: '',
+        futuresSecret: '',
         passphrase: '',
         environment: 'TESTNET',
     });
@@ -70,6 +72,9 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 balances: res.data.testResult?.balances,
                 latencyMs: res.data.testResult?.latencyMs,
                 permissions: res.data.testResult?.permissions,
+                spotOk: res.data.testResult?.spotOk,
+                futuresOk: res.data.testResult?.futuresOk,
+                futuresError: res.data.testResult?.futuresError,
             });
             if (res.data.success) {
                 setTimeout(() => { onCreated?.(); }, 1800);
@@ -161,6 +166,22 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                 </div>
 
                 {/* PASSPHRASE / PIN */}
+                {form.exchangeName === 'BINANCE' && (
+                    <div className={`rounded-xl border p-3 space-y-3 ${isDark ? 'border-cyan-400/25 bg-cyan-500/5' : 'border-cyan-200 bg-cyan-50'}`}>
+                        <p className="text-[11px] font-black text-cyan-400">BINANCE FUTURES CREDENTIALS</p>
+                        <p className={`text-[10px] ${UI.textMuted}`}>
+                            Tùy chọn nhưng bắt buộc để short nếu key Futures khác key Spot. Binance Testnet thường dùng key riêng tại testnet.binancefuture.com.
+                        </p>
+                        <input className={inputCls} type={showKey ? 'text' : 'password'} autoComplete="off"
+                            placeholder="Futures API Key"
+                            value={form.futuresApiKey} onChange={e => setForm({ ...form, futuresApiKey: e.target.value.trim() })} />
+                        <input className={inputCls} type={showSecret ? 'text' : 'password'} autoComplete="off"
+                            placeholder="Futures Secret Key"
+                            value={form.futuresSecret} onChange={e => setForm({ ...form, futuresSecret: e.target.value.trim() })} />
+                    </div>
+                )}
+
+                {/* PASSPHRASE / PIN */}
                 {exchange.needsPassphrase && (
                     <div>
                         <label className={`text-[10px] font-black uppercase tracking-widest ${UI.textMuted}`}>
@@ -207,6 +228,12 @@ export default function ConnectExchangeForm({ username, isDark, UI, onClose, onC
                             : (isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-300 text-red-600')
                     }`}>
                         <p>{result.message}</p>
+                        {form.exchangeName === 'BINANCE' && (
+                            <p className="mt-1">
+                                Spot: {result.spotOk ? 'OK' : 'FAIL'} · Futures: {result.futuresOk ? 'OK' : 'FAIL'}
+                                {result.futuresError ? ` — ${result.futuresError}` : ''}
+                            </p>
+                        )}
                         {result.warning && <p className="text-orange-400 mt-1">{result.warning}</p>}
                         {result.success && result.balances && (
                             <p className={`mt-1 font-mono ${UI.textMuted}`}>

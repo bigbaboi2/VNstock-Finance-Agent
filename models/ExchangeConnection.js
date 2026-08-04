@@ -14,6 +14,9 @@ const ExchangeConnectionSchema = new mongoose.Schema({
     secretEncrypted:     { type: String, required: true },
     passphraseEncrypted: { type: String, default: null }, // OKX bắt buộc
     apiKeyMasked:        { type: String, required: true },
+    futuresApiKeyEncrypted: { type: String, default: null },
+    futuresSecretEncrypted: { type: String, default: null },
+    futuresApiKeyMasked:    { type: String, default: null },
 
     environment:         { type: String, enum: ['TESTNET', 'LIVE'], default: 'TESTNET' },
     permissions:         { type: [String], default: ['READ'] }, // không bao giờ chứa WITHDRAW
@@ -24,6 +27,10 @@ const ExchangeConnectionSchema = new mongoose.Schema({
     lastTestStatus:      { type: String, enum: ['OK', 'FAILED', 'UNTESTED'], default: 'UNTESTED' },
     lastTestMessage:     { type: String, default: '' },
     lastTestLatencyMs:   { type: Number, default: null },
+    spotOk:              { type: Boolean, default: false },
+    futuresOk:           { type: Boolean, default: false },
+    futuresError:        { type: String, default: '' },
+    futuresTestedAt:     { type: Date, default: null },
 
     balanceSnapshot:     { type: mongoose.Schema.Types.Mixed, default: {} }, // { USDT: 1200.5, BTC: 0.05 }
     balanceUpdatedAt:    { type: Date, default: null },
@@ -43,6 +50,7 @@ ExchangeConnectionSchema.methods.toSafeJSON = function () {
         exchangeName: this.exchangeName,
         label: this.label,
         apiKeyMasked: this.apiKeyMasked,
+        futuresApiKeyMasked: this.futuresApiKeyMasked,
         environment: this.environment,
         permissions: this.permissions,
         isActive: this.isActive,
@@ -50,6 +58,10 @@ ExchangeConnectionSchema.methods.toSafeJSON = function () {
         lastTestStatus: this.lastTestStatus,
         lastTestMessage: this.lastTestMessage,
         lastTestLatencyMs: this.lastTestLatencyMs,
+        spotOk: this.spotOk,
+        futuresOk: this.futuresOk,
+        futuresError: this.futuresError,
+        futuresTestedAt: this.futuresTestedAt,
         balanceSnapshot: this.balanceSnapshot,
         balanceUpdatedAt: this.balanceUpdatedAt,
         equityBaselineUSDT: this.equityBaselineUSDT,

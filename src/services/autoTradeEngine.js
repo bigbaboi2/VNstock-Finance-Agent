@@ -25,7 +25,6 @@ import {
 import {
     buildAutoTradeCloseMessage,
     buildAutoTradeOpenMessage,
-    buildMarketRadarMessage,
     buildVolatilityAlertMessage,
     buildVolatilityDigestMessage,
     buildDailyPnLReportMessage,
@@ -50,7 +49,7 @@ import {
 import { getSymbolInfo } from './symbolInfoService.js';
 import axios from 'axios';
 import { executeLiveEntry, executeLiveExit, executeLivePartialExit, computeLivePnlFromExchangeOrders, getExecutionQuote, releaseLiveEntryClaim } from './exchangeBrokerService.js';
-import { evaluateLiveCircuitBreaker, evaluateSetupSymbolCooldown } from './liveStrategyGuardService.js';
+import { evaluateLiveCircuitBreaker, evaluateSetupSymbolCooldown, evaluateShortCircuitBreaker } from './liveStrategyGuardService.js';
 import {
     acquireDistributedLock,
     releaseDistributedLock,
@@ -2841,12 +2840,6 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
         let vnMarketContext = null;
         let vnMacro = buildVnMacroSnapshot();
         let cryptoMacro = null;
-        const radarCandidates = {
-            CRYPTO: [],
-            VN_STOCK: [],
-            DERIVATIVES: [],
-        };
-        const cycleMatchedTrades = [];
 
         try {
             vnMarketContext = await getVnMarketContext();
@@ -3135,6 +3128,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     } else {
                         techSignal = applyQualityToSignal(techSignal, entrySetup, executionContext);
                     }
+                    techSignal.breakdown = { ...techSignal.breakdown, htfTrend };
 
                     const adaptiveElig = resolveAdaptiveEligibility({
                         assetType: asset,
@@ -3243,6 +3237,19 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
                     if (!tradePlan) {
                         stats.skipRisk++;
+                        continue;
+                    }
+
+                    const plannedRisk = Number(tradePlan.riskPct) || 0;
+                    const plannedReward = Number(tradePlan.rewardPct) || 0;
+                    const plannedRR = plannedRisk > 0 ? plannedReward / plannedRisk : 0;
+                    const minLiveRR = Math.max(0, getAutoDuckNumber('AUTODUCK_LIVE_MIN_RR') || 1.8);
+                    if (requiresLiveQuality && plannedRR < minLiveRR) {
+                        stats.skipRisk++;
+                        funnel.record('risk', { symbol, setup: entrySetup.type, reason: `RR ${plannedRR.toFixed(2)} < ${minLiveRR}` });
+                        appendAuditEvent('candidate', {
+                            asset, symbol, setup: entrySetup.type, stage: 'reward_risk', plannedRR, minLiveRR,
+                        }, { event: 'candidate_rejected', source: 'autoTradeEngine' }).catch(() => {});
                         continue;
                     }
 
@@ -3379,23 +3386,6 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             sizeMult: adaptiveElig.sizeMult,
                         },
                     };
-
-                    radarCandidates[asset].push({
-                        symbol,
-                        assetType: asset,
-                        direction: tradePlan.directionLabel,
-                        score: techSignal.score,
-                        priorityScore,
-                        entryPrice: tradePlan.entryPrice,
-                        takeProfitPrice: tradePlan.takeProfitPrice,
-                        stopLossPrice: tradePlan.stopLossPrice,
-                        rewardPct: tradePlan.rewardPct,
-                        riskPct: tradePlan.riskPct,
-                        aiConfirmed: aiConfirm.confirmed,
-                        reason: aiConfirm.reason,
-                        news: newsContext,
-                        breakdown: techSignal.breakdown,
-                    });
 
                     if (aiConfirm.hardVeto) {
                         stats.aiRejected++;
@@ -3685,6 +3675,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         aiScore: techSignal.score,
                         confidence: techSignal.breakdown?.qualityScore ?? techSignal.score,
                         reason: aiConfirm.reason,
+                        setupType: entrySetup.type,
+                        setupScore: entrySetup.setupScore ?? null,
+                        confluenceScore: techSignal.breakdown?.confluenceScore ?? null,
+                        confluenceCount: techSignal.breakdown?.confluenceCount ?? null,
+                        signalEdge: techSignal.breakdown?.edge ?? null,
+                        marketRegime: assetMacro.marketStatus || null,
+                        entryGateReason: liveGate.reason || simGate.reason || null,
                         exitReason: null,
                         exitTag: null,
                         aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; setup=${entrySetup.type}; qualityScore=${techSignal.breakdown?.qualityScore}; confluence=${techSignal.breakdown?.confluenceCount}; legacyScore=${techSignal.breakdown?.legacyScore}; edge=${techSignal.breakdown?.edge}; news=${newsContext.summary}`,
@@ -3701,6 +3698,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             fearGreed: assetMacro.fearGreed ?? null,
                             fearGreedLabel: assetMacro.fearGreedLabel ?? null,
                             btcChangePct: assetMacro.btcChangePct ?? null,
+                            fundingRatePct: executionContext?.derivatives?.fundingRatePct ?? null,
                             plannedRR: (() => {
                                 const risk = Math.abs(entryPrice - stopLossPrice);
                                 const reward = Math.abs(takeProfitPrice - entryPrice);
@@ -3754,6 +3752,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
                     let liveMatched = false;
                     let liveMeta = null;
+                    let liveNotificationTrade = null;
 
                     for (const userOrder of pendingUserOrders) {
                         newTrade = userOrder.executionMode === 'LIVE'
@@ -3944,6 +3943,35 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 }).catch(() => {});
                                 continue;
                             }
+                            const environmentFlag = conn.environment === 'LIVE'
+                                ? 'AUTODUCK_AUTO_FUTURES_SHORT_LIVE_ENABLED'
+                                : 'AUTODUCK_AUTO_FUTURES_SHORT_TESTNET_ENABLED';
+                            const allowedSymbols = new Set(String(getAutoDuckString('AUTODUCK_SHORT_CORE_SYMBOLS') || '')
+                                .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean));
+                            if (!getAutoDuckBoolean(environmentFlag)) {
+                                userOrder.result.message = `[SHORT GATE] SHORT ${conn.environment} đang TẮT trên UI.`;
+                                await userOrder.save();
+                                continue;
+                            }
+                            if (!conn.futuresOk || !conn.permissions?.includes('FUTURES')) {
+                                userOrder.result.message = `[SHORT GATE] Connection ${conn.environment} chưa vượt Futures probe. Hãy kiểm tra kết nối lại.`;
+                                await userOrder.save();
+                                continue;
+                            }
+                            if (!allowedSymbols.has(String(symbol).toUpperCase())) {
+                                userOrder.result.message = `[SHORT GATE] ${symbol} không nằm trong whitelist short.`;
+                                await userOrder.save();
+                                continue;
+                            }
+                            const shortCircuit = await evaluateShortCircuitBreaker({ exchangeConnectionId: conn._id });
+                            if (shortCircuit.blocked) {
+                                userOrder.result.message = `[SHORT CIRCUIT] ${shortCircuit.reason}`;
+                                await userOrder.save();
+                                appendAuditEvent('security', {
+                                    userOrderId: String(userOrder._id), symbol, setup: entrySetup.type, ...shortCircuit,
+                                }, { event: 'live_short_blocked_circuit', level: 'warn', source: 'autoTradeEngine' }).catch(() => {});
+                                continue;
+                            }
                         }
 
                         // ── NHÁNH LIVE EXECUTION trước (để biết executionMode chính xác) ──
@@ -3976,6 +4004,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                     filledQuantity: liveResult.filledQuantity || liveResult.finalQty,
                                     orderSide: liveResult.orderSide,
                                     username: liveResult.username || userOrder.username,
+                                    feeUSDT: liveResult.feeUSDT || 0,
+                                    notionalUSDT: (liveResult.filledQuantity || liveResult.finalQty || 0) * (liveResult.filledPrice || entryPrice),
+                                    availableCapitalVND: Math.max(0,
+                                        (Number(userOrder.totalCapital) || Number(userOrder.capital) || 0)
+                                        - (Number(userOrder.usedCapital) || 0)
+                                        - Number(allocatedCapital || 0)
+                                    ),
                                 };
                                 funnel.record('matched_live');
                                 funnel.record(cohort === 'RESEARCH' ? 'research_matched' : 'core_matched');
@@ -4068,6 +4103,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                                 newTrade.exchangeConnectionId = liveResult.exchangeConnectionId;
                                 newTrade.externalOrderId = liveResult.externalOrderId;
                                 await newTrade.save();
+                                liveNotificationTrade = newTrade;
                                 const fillQty = liveResult.filledQuantity || newTrade.volume;
                                 liveMsg = ` 🔴 LIVE: ${liveResult.message} | fill qty=${fillQty}`;
                                 console.log(chalk.bgMagenta.white(
@@ -4207,28 +4243,35 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         stats.matched++;
                     }
 
-                    // Radar summary: 1 dòng / lệnh mở trong chu kỳ (mode cuối sau match LIVE)
-                    if (newTrade._id && (liveMatched || !deferTradePersist)) {
-                        cycleMatchedTrades.push({
-                            symbol,
-                            direction: directionLabel,
-                            mode: (liveMatched || newTrade.executionMode === 'LIVE') ? 'LIVE' : 'SIM',
-                            asset,
-                        });
-                    }
-
                     // 9. Telegram MỞ LỆNH: chỉ thông báo khi là lệnh LIVE.
                     //    Mô phỏng chạy nền training AI → im lặng, xem qua /sim.
-                    if (liveMatched) {
+                    if (liveMatched && liveNotificationTrade && Number(liveMeta?.filledQuantity) > 0) {
+                        const notificationTrade = liveNotificationTrade || newTrade;
+                        const notificationKey = String(liveMeta?.externalOrderId || notificationTrade.externalOrderId || notificationTrade._id);
+                        const claimedNotification = await AutoTrade.findOneAndUpdate(
+                            { _id: notificationTrade._id, entryNotifiedAt: null },
+                            { $set: { entryNotificationKey: notificationKey, entryNotifiedAt: new Date() } },
+                            { new: true }
+                        );
+                        if (!claimedNotification) continue;
+                        liveMeta.openPositions = await AutoTrade.countDocuments({
+                            executionMode: 'LIVE', status: { $in: ['OPEN', 'PENDING'] },
+                        });
                         const telegramOpenMessage = buildAutoTradeOpenMessage(
-                            newTrade,
+                            claimedNotification,
                             aiConfirm,
                             quote,
                             executionContext,
                             tradePlan,
                             liveMeta
                         );
-                        await sendTelegramMessage(telegramOpenMessage).catch(() => {});
+                        const notifyResult = await sendTelegramMessage(telegramOpenMessage).catch((error) => ({ ok: false, error: error.message }));
+                        if (notifyResult?.ok === false) {
+                            await AutoTrade.updateOne(
+                                { _id: claimedNotification._id, entryNotificationKey: notificationKey },
+                                { $set: { entryNotifiedAt: null }, $unset: { entryNotificationKey: 1 } }
+                            ).catch(() => {});
+                        }
                         console.log(chalk.green.bold(
                             `  [LỆNH LIVE ${tradeStatus}] ${directionLabel} ${symbol} @ ${entryPrice} | Score: ${techSignal.score}`
                         ));
@@ -4282,75 +4325,6 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
         // Gửi 1 tin biến động gộp và in log gộp tin trống sau khi quét xong mọi asset (tránh spam từng mã)
         await flushVolatilityAlerts();
         flushEmptyNewsSymbolsLog();
-
-        for (const asset of Object.keys(radarCandidates)) {
-            radarCandidates[asset].sort((a, b) => {
-                if (Number(b.aiConfirmed) !== Number(a.aiConfirmed)) {
-                    return Number(b.aiConfirmed) - Number(a.aiConfirmed);
-                }
-                const pd = (b.priorityScore || 0) - (a.priorityScore || 0);
-                if (pd !== 0) return pd;
-                return (b.score || 0) - (a.score || 0);
-            });
-        }
-
-        // ── RADAR THROTTLE: chỉ gửi khi có tín hiệu MẠNH (AI duyệt + score >= 80) ──
-        // Trước đây gửi gần như mỗi chu kỳ → spam. Giờ chỉ báo cơ hội đáng giá.
-        // Lưu ý: chỉ gửi radar khi chu kỳ này có ít nhất 1 lệnh LIVE khớp thực sự.
-        // Các chu kỳ SIM thuần túy (training AI nền) → im lặng hoàn toàn trên Telegram.
-        const RADAR_MIN_SCORE = 80;
-        const isStrong = (c) => c.aiConfirmed === true && (c.score || 0) >= RADAR_MIN_SCORE;
-        const strongRadar = {};
-        let hasStrongSignal = false;
-        for (const [asset, items] of Object.entries(radarCandidates)) {
-            const strong = (items || []).filter(isStrong);
-            strongRadar[asset] = strong;
-            if (strong.length) hasStrongSignal = true;
-        }
-        // Chỉ gửi radar khi: có tín hiệu mạnh AND có lệnh LIVE khớp trong chu kỳ này
-        const liveMatchedTrades = cycleMatchedTrades.filter((t) => t.mode === 'LIVE');
-        const hasLiveActivity = liveMatchedTrades.length > 0;
-        if (!liveOnlyMode && hasStrongSignal && hasLiveActivity) {
-            let fundSnapshot = null;
-            try {
-                const [livePortfolios, openLiveByAsset] = await Promise.all([
-                    UserOrder.find({
-                        allocationMode: 'PORTFOLIO',
-                        executionMode: 'LIVE',
-                        status: { $in: ['ACTIVE', 'PENDING'] },
-                    }).lean(),
-                    AutoTrade.aggregate([
-                        { $match: { status: { $in: ['OPEN', 'PENDING'] }, executionMode: 'LIVE' } },
-                        { $group: { _id: '$assetType', n: { $sum: 1 } } },
-                    ]),
-                ]);
-                const openByAsset = { CRYPTO: 0, VN_STOCK: 0, DERIVATIVES: 0 };
-                for (const row of openLiveByAsset) {
-                    if (row?._id && openByAsset[row._id] != null) openByAsset[row._id] = row.n || 0;
-                }
-                fundSnapshot = {
-                    fund: livePortfolios.reduce((s, p) => s + getEffectivePortfolioCapital(p), 0),
-                    pnl: livePortfolios.reduce((s, p) => s + getMatchedRealizedPnl(p), 0),
-                    portfolioCount: livePortfolios.length,
-                    openByAsset,
-                };
-            } catch (fundErr) {
-                console.log(chalk.gray(`[RADAR] Không lấy được snapshot quỹ: ${fundErr.message}`));
-            }
-
-            await sendTelegramMessage(buildMarketRadarMessage(strongRadar, {
-                generatedAt: new Date(),
-                marketStatus,
-                vnMarketStatus: vnMacro?.marketStatus || marketStatus,
-                cryptoMarketStatus: cryptoMacro?.marketStatus || null,
-                cryptoFearGreed: cryptoMacro?.fearGreed ?? null,
-                cryptoBtcChangePct: cryptoMacro?.btcChangePct ?? null,
-                matchedTrades: liveMatchedTrades,  // chỉ hiện lệnh LIVE, bỏ qua SIM
-                fundSnapshot,
-            })).catch(() => {});
-        } else if (!liveOnlyMode && hasStrongSignal && !hasLiveActivity) {
-            console.log(chalk.gray(`[RADAR] Có tín hiệu mạnh nhưng không có lệnh LIVE khớp → bỏ qua thông báo Telegram.`));
-        }
 
         if (!isOutOfStandardHours) {
             const pendingTrades = await AutoTrade.find({ status: 'PENDING', assetType: { $ne: 'CRYPTO' } });

@@ -183,3 +183,61 @@ export const evaluateSetupSymbolCooldown = (userOrder, { setup, symbol, directio
     const until = new Date(new Date(rows[0].closedAt).getTime() + minutes * 60_000);
     return { blocked: until > now, losses, until, code: 'SETUP_SYMBOL_DIRECTION_COOLDOWN' };
 };
+
+export const evaluateShortCircuitBreaker = async ({ exchangeConnectionId = null } = {}) => {
+    const since = new Date(Date.now() - 30 * 24 * 3600_000);
+    const tradeFilter = {
+        status: 'CLOSED',
+        executionMode: 'LIVE',
+        direction: 'SHORT',
+        pnlSource: { $in: officialSources },
+        closedAt: { $gte: since },
+    };
+    if (exchangeConnectionId) tradeFilter.exchangeConnectionId = exchangeConnectionId;
+    const trades = await AutoTrade.find(tradeFilter)
+        .select('pnlPercent entryPrice stopLossPrice closedAt').sort({ closedAt: 1 }).lean();
+
+    let consecutiveLosses = 0;
+    for (const trade of [...trades].reverse()) {
+        const pnl = Number(trade.pnlPercent) || 0;
+        if (pnl > 0) break;
+        if (pnl < 0) consecutiveLosses += 1;
+    }
+
+    let equityR = 0;
+    let peakR = 0;
+    let maxDrawdownR = 0;
+    for (const trade of trades) {
+        const entry = Number(trade.entryPrice);
+        const stop = Number(trade.stopLossPrice);
+        const riskPct = entry > 0 && stop > 0 ? Math.abs(stop - entry) / entry * 100 : 0;
+        if (!(riskPct > 0)) continue;
+        equityR += (Number(trade.pnlPercent) || 0) / riskPct;
+        peakR = Math.max(peakR, equityR);
+        maxDrawdownR = Math.max(maxDrawdownR, peakR - equityR);
+    }
+
+    const failureFilter = { purpose: 'ENTRY', marketType: 'FUTURES', side: 'SELL' };
+    if (exchangeConnectionId) failureFilter.exchangeConnectionId = exchangeConnectionId;
+    const recentOrders = await ExchangeOrder.find(failureFilter)
+        .select('status sentAt').sort({ sentAt: -1 }).limit(20).lean();
+    let consecutiveBrokerFailures = 0;
+    for (const order of recentOrders) {
+        if (['FILLED', 'PARTIAL'].includes(order.status)) break;
+        if (order.status === 'FAILED') consecutiveBrokerFailures += 1;
+    }
+
+    const maxLosses = Math.max(1, getAutoDuckNumber('AUTODUCK_SHORT_MAX_CONSECUTIVE_LOSSES') || 5);
+    const maxDrawdown = Math.max(1, getAutoDuckNumber('AUTODUCK_SHORT_MAX_DRAWDOWN_R') || 6);
+    const maxBrokerFailures = Math.max(1, getAutoDuckNumber('AUTODUCK_SHORT_BROKER_FAILURE_LIMIT') || 3);
+    if (consecutiveLosses >= maxLosses) {
+        return { blocked: true, code: 'SHORT_LOSS_STREAK', reason: `Short bị khóa: ${consecutiveLosses} lệnh thua liên tiếp`, consecutiveLosses, maxDrawdownR, consecutiveBrokerFailures };
+    }
+    if (maxDrawdownR >= maxDrawdown) {
+        return { blocked: true, code: 'SHORT_DRAWDOWN', reason: `Short bị khóa: drawdown ${maxDrawdownR.toFixed(2)}R >= ${maxDrawdown}R`, consecutiveLosses, maxDrawdownR, consecutiveBrokerFailures };
+    }
+    if (consecutiveBrokerFailures >= maxBrokerFailures) {
+        return { blocked: true, code: 'SHORT_BROKER_FAILURES', reason: `Short bị khóa: ${consecutiveBrokerFailures} lỗi broker liên tiếp`, consecutiveLosses, maxDrawdownR, consecutiveBrokerFailures };
+    }
+    return { blocked: false, consecutiveLosses, maxDrawdownR, consecutiveBrokerFailures };
+};

@@ -375,6 +375,28 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
     }
     const fillLine = fillBits.length ? fillBits.join(' \\| ') : null;
 
+    const notionalUSDT = Number(liveMeta?.notionalUSDT)
+        || (Number(fillQty) > 0 && Number(fillPrice) > 0 ? Number(fillQty) * Number(fillPrice) : 0);
+    const marginUSDT = marketType === 'FUTURES' && notionalUSDT > 0
+        ? notionalUSDT / Math.max(1, Number(leverage) || 1)
+        : 0;
+    const executionLine = notionalUSDT > 0
+        ? `Notional: ${escapeMarkdownV2(notionalUSDT.toFixed(2))} USDT${marginUSDT > 0 ? ` · Ký quỹ: ${escapeMarkdownV2(marginUSDT.toFixed(2))} USDT` : ''}`
+        : null;
+    const feeFundingBits = [];
+    if (Number(liveMeta?.feeUSDT) > 0) feeFundingBits.push(`Phí ${Number(liveMeta.feeUSDT).toFixed(4)} USDT`);
+    const funding = Number(executionContext?.derivatives?.fundingRatePct);
+    if (Number.isFinite(funding)) feeFundingBits.push(`Funding ${funding.toFixed(4)}%`);
+    const feeFundingLine = feeFundingBits.length ? escapeMarkdownV2(feeFundingBits.join(' · ')) : null;
+    const setup = trade.setupType || trade.signalBreakdown?.entrySetup || '--';
+    const edge = trade.signalEdge ?? trade.signalBreakdown?.edge ?? '--';
+    const confluence = trade.confluenceCount ?? trade.signalBreakdown?.confluenceCount ?? '--';
+    const regime = trade.marketRegime || trade.marketCondition || executionContext?.marketStatus || '--';
+    const signalLine = `Setup: ${escapeMarkdownV2(String(setup))} · Edge: ${escapeMarkdownV2(String(edge))} · Đồng thuận: ${escapeMarkdownV2(String(confluence))} · Regime: ${escapeMarkdownV2(String(regime))}`;
+    const portfolioLine = liveMeta?.openPositions != null
+        ? `Vị thế LIVE mở: ${escapeMarkdownV2(String(liveMeta.openPositions))}${Number.isFinite(Number(liveMeta.availableCapitalVND)) ? ` · Vốn khả dụng: ${escapeMarkdownV2(formatVND(Number(liveMeta.availableCapitalVND)))} VNĐ` : ''}`
+        : null;
+
     const tpSl = `TP ${tpFmt} \\(${escapeMarkdownV2(rewardPct != null ? `+${rewardPct.toFixed(2)}%` : '--')}\\) · SL ${slFmt} \\(${escapeMarkdownV2(riskPct != null ? `-${riskPct.toFixed(2)}%` : '--')}\\) · R:R ${escapeMarkdownV2(rrRatio)}`;
 
     return [
@@ -384,8 +406,12 @@ const buildAutoTradeOpenMessage = (trade, aiConfirm, quote, executionContext = {
         `Entry: ${entryFmt}`,
         tpSl,
         fillLine,
+        executionLine,
+        feeFundingLine,
         capitalLine,
         `AI: ${score}`,
+        signalLine,
+        portfolioLine,
         `\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-`,
         reason,
     ].filter(Boolean).join('\n');

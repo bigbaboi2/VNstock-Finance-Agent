@@ -220,7 +220,18 @@ export default function ConnectionCard({ conn, username, isDark, UI, onChanged, 
                 </span>
             </div>
 
-            {conn.lastTestMessage && String(conn.lastTestMessage).includes('Futures FAIL') && (
+            {String(conn.exchangeName).toUpperCase() === 'BINANCE' && (
+                <div className="flex flex-wrap gap-2 text-[10px] font-black">
+                    <span className={conn.spotOk ? 'text-emerald-400' : 'text-red-400'}>
+                        SPOT {conn.spotOk ? 'OK' : 'FAIL'}
+                    </span>
+                    <span className={conn.futuresOk ? 'text-cyan-400' : 'text-amber-400'}>
+                        FUTURES {conn.futuresOk ? 'OK' : 'FAIL'}
+                    </span>
+                </div>
+            )}
+
+            {conn.futuresOk === false && conn.futuresTestedAt && (
                 <p className="text-[10px] font-black text-amber-400 leading-snug">
                     ⚠️ Spot OK nhưng Futures FAIL — SHORT/đòn bẩy sẽ UNMATCHED.
                     {String(conn.environment).toUpperCase() === 'TESTNET'

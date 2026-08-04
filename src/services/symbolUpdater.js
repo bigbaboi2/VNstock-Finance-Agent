@@ -13,14 +13,40 @@ const FALLBACK_STOCKS = [
 
 const VCI_SYMBOLS_URL = 'https://trading.vietcap.com.vn/api/price/symbols/getAll';
 const STOCK_CATALOG_SYNC_KEY = 'stockCatalogSync';
+const VIETCAP_ENGLISH_NAME_SYNC_KEY = 'vietcapEnglishNameSync';
 const MIN_STOCKS_FOR_CACHE = 100;
 const DEFAULT_STOCK_CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_VIETCAP_ENGLISH_NAME_CACHE_TTL_MS = 15 * 24 * 60 * 60 * 1000;
 
 const getTtlMs = () => {
     const configured = Number(process.env.STOCK_CATALOG_CACHE_TTL_MS);
     return Number.isFinite(configured) && configured >= 0
         ? configured
         : DEFAULT_STOCK_CATALOG_TTL_MS;
+};
+
+const getVietcapEnglishNameTtlMs = () => {
+    const configured = Number(process.env.VIETCAP_ENGLISH_NAME_CACHE_TTL_MS);
+    return Number.isFinite(configured) && configured >= 0
+        ? configured
+        : DEFAULT_VIETCAP_ENGLISH_NAME_CACHE_TTL_MS;
+};
+
+const getFreshVietcapEnglishNameCache = async () => {
+    const [syncState, namedStockCount] = await Promise.all([
+        Setting.findOne({ key: VIETCAP_ENGLISH_NAME_SYNC_KEY }).lean(),
+        Stock.countDocuments({ companyNameEn: { $type: 'string', $ne: '' } }),
+    ]);
+    const syncedAt = new Date(syncState?.value?.syncedAt || 0).getTime();
+    const ageMs = Date.now() - syncedAt;
+    const ttlMs = getVietcapEnglishNameTtlMs();
+
+    return {
+        isFresh: namedStockCount >= MIN_STOCKS_FOR_CACHE && syncedAt > 0 && ageMs >= 0 && ageMs < ttlMs,
+        namedStockCount,
+        ageMs,
+        ttlMs,
+    };
 };
 
 const getFreshCatalogCache = async () => {
@@ -61,9 +87,18 @@ const saveCatalogSyncState = async ({ stockCount, vietcapCount = 0 }) => {
  * Sync official English company names from Vietcap public listing API.
  * Source field: enOrganName (e.g. "Phu Nhuan Jewelry Joint Stock Company").
  */
-export async function syncEnglishCompanyNamesFromVci() {
-    console.log(chalk.yellow('[HỆ THỐNG] Đồng bộ tên tiếng Anh (Vietcap enOrganName)...'));
+export async function syncEnglishCompanyNamesFromVci({ force = false } = {}) {
     try {
+        const cache = await getFreshVietcapEnglishNameCache();
+        if (!force && cache.isFresh) {
+            const remainingDays = Math.max(0, Math.ceil((cache.ttlMs - cache.ageMs) / (24 * 60 * 60 * 1000)));
+            console.log(chalk.cyan(
+                `[HỆ THỐNG] Tên EN Vietcap đang dùng cache MongoDB (${cache.namedStockCount} mã, refresh sau ~${remainingDays} ngày).`
+            ));
+            return 0;
+        }
+
+        console.log(chalk.yellow('[HỆ THỐNG] Đồng bộ tên tiếng Anh (Vietcap enOrganName)...'));
         const res = await axios.get(VCI_SYMBOLS_URL, {
             timeout: 25_000,
             headers: {
@@ -108,6 +143,19 @@ export async function syncEnglishCompanyNamesFromVci() {
             const result = await Stock.bulkWrite(ops.slice(i, i + CHUNK), { ordered: false });
             modified += (result.modifiedCount || 0) + (result.upsertedCount || 0);
         }
+        await Setting.updateOne(
+            { key: VIETCAP_ENGLISH_NAME_SYNC_KEY },
+            {
+                $set: {
+                    value: {
+                        syncedAt: new Date(),
+                        namedStockCount: ops.length,
+                        source: 'vietcap',
+                    },
+                },
+            },
+            { upsert: true }
+        );
         console.log(chalk.green(`[HỆ THỐNG] Đã cập nhật tên EN cho ~${ops.length} mã (Vietcap).`));
         return ops.length;
     } catch (err) {
@@ -180,7 +228,7 @@ export async function updateSymbolsDatabase({ force = false } = {}) {
                 console.log(chalk.green(`[HỆ THỐNG] Truy xuất CAFEF: Đã nạp & đồng bộ thành công ${allStocks.length} mã lên MongoDB.`));
 
                 // Overlay official EN (+ cleaner VI) names from Vietcap
-                const vietcapCount = await syncEnglishCompanyNamesFromVci();
+                const vietcapCount = await syncEnglishCompanyNamesFromVci({ force });
                 await saveCatalogSyncState({ stockCount: allStocks.length, vietcapCount });
 
                 return allStocks;
@@ -192,7 +240,7 @@ export async function updateSymbolsDatabase({ force = false } = {}) {
         console.log(chalk.red(`[LỖI] Quá trình đồng bộ thất bại: ${error.message}`));
 
         // Still try EN sync if CafeF failed but DB already has symbols
-        await syncEnglishCompanyNamesFromVci();
+        await syncEnglishCompanyNamesFromVci({ force });
 
         const existingStocks = await Stock.find({});
         if (existingStocks.length > 0) {

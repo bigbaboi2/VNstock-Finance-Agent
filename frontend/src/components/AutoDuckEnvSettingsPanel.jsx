@@ -254,6 +254,7 @@ export default function AutoDuckEnvSettingsPanel({
     onToggleEngine,
     onRiskLevelChange,
     onMessage,
+    liveConnections = [],
 }) {
     const { t } = useTranslation('autoDuck');
     const [collapsed, setCollapsed] = useState(true);
@@ -788,6 +789,9 @@ export default function AutoDuckEnvSettingsPanel({
                             <span className={UI.textMuted}>
                                 Continuation: {draft.AUTODUCK_LIVE_ALLOW_SHORT_CONTINUATION ? 'BẬT' : 'TẮT'} · Fallback: {draft.AUTODUCK_LIVE_ALLOW_SHORT_FALLBACK ? 'BẬT' : 'TẮT'} · chỉ connection Futures hợp lệ mới được khớp.
                             </span>
+                            <span className={UI.textMuted}>
+                                TESTNET: {draft.AUTODUCK_AUTO_FUTURES_SHORT_TESTNET_ENABLED ? 'BẬT' : 'TẮT'} · LIVE: {draft.AUTODUCK_AUTO_FUTURES_SHORT_LIVE_ENABLED ? 'BẬT' : 'TẮT'} · Leverage: {draft.AUTODUCK_DYNAMIC_FUTURES_LEVERAGE ? 'ĐỘNG' : 'CỐ ĐỊNH'} (tối đa {draft.AUTODUCK_MAX_FUTURES_LEVERAGE || 3}x)
+                            </span>
                         </div>
                     </div>
                     <div className={`mb-5 rounded-xl border-2 px-4 py-3 ${isDark ? 'bg-slate-950/60 border-white/25' : 'bg-slate-50 border-slate-200'}`}>
@@ -1297,7 +1301,12 @@ export default function AutoDuckEnvSettingsPanel({
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     {(group.keys || []).map((field) => {
-                                                        const enabled = isDependencyMet(field, draft);
+                                                        const futuresEnvironmentReady = field.key === 'AUTODUCK_AUTO_FUTURES_SHORT_LIVE_ENABLED'
+                                                            ? liveConnections.some((c) => c.environment === 'LIVE' && c.futuresOk && (c.permissions || []).includes('FUTURES'))
+                                                            : field.key === 'AUTODUCK_AUTO_FUTURES_SHORT_TESTNET_ENABLED'
+                                                                ? liveConnections.some((c) => c.environment === 'TESTNET' && c.futuresOk && (c.permissions || []).includes('FUTURES'))
+                                                                : true;
+                                                        const enabled = isDependencyMet(field, draft) && futuresEnvironmentReady;
                                                         const dirty = isDirty(field.key);
                                                         return (
                                                         <div

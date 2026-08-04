@@ -9,7 +9,7 @@ import { sendTelegramMessage, escapeHtml } from './telegramService.js';
 import { isSymbolTradableOnConnection } from './testnetSymbolGate.js';
 import { appendAuditEvent } from './auditLogService.js';
 import { extractFeeFromOrderResult } from './brokerFeeService.js';
-import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
+import { getAutoDuckBoolean, getAutoDuckNumber, getAutoDuckString } from './autoDuckConfigService.js';
 import { maybeSetEquityBaseline } from './walletEquityService.js';
 import {
     computeLivePnlFromExchangeOrders as computeLivePnlCore,
@@ -26,6 +26,38 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getFillPollMs = () => getAutoDuckNumber('AUTODUCK_LIVE_FILL_POLL_MS') || 2000;
 const getFillPollTimeoutMs = () => getAutoDuckNumber('AUTODUCK_LIVE_FILL_TIMEOUT_MS') || 25000;
+
+const parseShortSymbolWhitelist = () => new Set(
+    String(getAutoDuckString('AUTODUCK_SHORT_CORE_SYMBOLS') || 'BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,LINKUSDT')
+        .split(',').map((s) => normalizeCryptoSymbol(s.trim())).filter(Boolean)
+);
+
+export const resolveDynamicFuturesLeverage = (trade, { environment = null, liveClosedShortTrades = Infinity } = {}) => {
+    const configuredMax = Math.max(1, Math.min(20, Math.round(getAutoDuckNumber('AUTODUCK_MAX_FUTURES_LEVERAGE') || 3)));
+    if (environment === 'LIVE' && Number(liveClosedShortTrades) < 10) return 1;
+    if (!getAutoDuckBoolean('AUTODUCK_DYNAMIC_FUTURES_LEVERAGE')) {
+        return Math.min(configuredMax, Math.max(1, Math.round(getAutoDuckNumber('AUTO_FUTURES_LEVERAGE') || 1)));
+    }
+    const b = trade?.signalBreakdown || {};
+    const quality = Number(b.qualityScore ?? trade?.aiScore ?? trade?.setupScore) || 0;
+    const edge = Number(trade?.signalEdge ?? b.edge) || 0;
+    const confluence = Number(trade?.confluenceCount ?? b.confluenceCount) || 0;
+    const atrPct = Number(trade?.entryAtr) > 0 && Number(trade?.entryPrice) > 0
+        ? Number(trade.entryAtr) / Number(trade.entryPrice) * 100
+        : null;
+    const funding = Number(b.fundingRatePct ?? trade?.executionMeta?.fundingRatePct);
+    const riskOff = /RISK[- ]?OFF/i.test(String(trade?.marketRegime || trade?.marketCondition || ''));
+    if (!riskOff && quality >= 93 && edge >= 40 && confluence >= 5
+        && Number.isFinite(atrPct) && atrPct <= 3
+        && Number.isFinite(funding) && Math.abs(funding) <= 0.1) {
+        return Math.min(configuredMax, 3);
+    }
+    if (!riskOff && quality >= 88 && edge >= 35 && confluence >= 4
+        && (!Number.isFinite(atrPct) || atrPct <= 4)) {
+        return Math.min(configuredMax, 2);
+    }
+    return 1;
+};
 
 /**
  * PnL LIVE từ fills — luôn trả object có `eligible` (caller phải check `fillPnl?.eligible`).
@@ -163,9 +195,13 @@ const ensureFeeOnExchangeOrder = async ({
 };
 
 /** Decrypt credentials trong memory — không bao giờ return ra ngoài service này */
-const getCredentials = (connectionDoc) => ({
-    apiKey: decrypt(connectionDoc.apiKeyEncrypted),
-    secret: decrypt(connectionDoc.secretEncrypted),
+const getCredentials = (connectionDoc, marketType = 'SPOT') => ({
+    apiKey: decrypt(String(marketType).toUpperCase() === 'FUTURES' && connectionDoc.futuresApiKeyEncrypted
+        ? connectionDoc.futuresApiKeyEncrypted
+        : connectionDoc.apiKeyEncrypted),
+    secret: decrypt(String(marketType).toUpperCase() === 'FUTURES' && connectionDoc.futuresSecretEncrypted
+        ? connectionDoc.futuresSecretEncrypted
+        : connectionDoc.secretEncrypted),
     passphrase: connectionDoc.passphraseEncrypted ? decrypt(connectionDoc.passphraseEncrypted) : null,
 });
 
@@ -193,6 +229,7 @@ export const testConnection = async (connectionDoc) => {
     const adapter = getAdapter(connectionDoc.exchangeName);
     const creds = getCredentials(connectionDoc);
     const result = await adapter.testConnection(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment);
+    result.spotOk = Boolean(result.success);
 
     // Spot Test OK ≠ Futures OK: SHORT/đòn bẩy gọi endpoint Futures riêng
     // (Binance Testnet Spot và Futures còn dùng key khác nhau).
@@ -200,8 +237,9 @@ export const testConnection = async (connectionDoc) => {
     if (result.success && FUTURES_SUPPORTED.includes(String(connectionDoc.exchangeName).toUpperCase())) {
         try {
             const futAdapter = getAdapter(connectionDoc.exchangeName, 'FUTURES');
+            const futuresCreds = getCredentials(connectionDoc, 'FUTURES');
             futuresProbe = await futAdapter.testConnection(
-                creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment
+                futuresCreds.apiKey, futuresCreds.secret, futuresCreds.passphrase, connectionDoc.environment
             );
             const perms = [...(result.permissions || [])];
             if (futuresProbe.success) {
@@ -229,6 +267,12 @@ export const testConnection = async (connectionDoc) => {
     connectionDoc.lastTestStatus = result.success ? 'OK' : 'FAILED';
     connectionDoc.lastTestMessage = result.message || '';
     connectionDoc.lastTestLatencyMs = result.latencyMs ?? null;
+    connectionDoc.spotOk = Boolean(result.spotOk);
+    connectionDoc.futuresOk = Boolean(result.futuresOk);
+    connectionDoc.futuresError = result.futuresError || '';
+    connectionDoc.futuresTestedAt = FUTURES_SUPPORTED.includes(String(connectionDoc.exchangeName).toUpperCase())
+        ? new Date()
+        : null;
     if (result.success) {
         connectionDoc.permissions = result.permissions;
         connectionDoc.balanceSnapshot = result.balances;
@@ -254,7 +298,7 @@ export const testConnection = async (connectionDoc) => {
 /** Lấy balance realtime từ sàn (không dùng cache) */
 export const getBalance = async (connectionDoc, marketType = 'SPOT') => {
     const adapter = getAdapter(connectionDoc.exchangeName, marketType);
-    const creds = getCredentials(connectionDoc);
+    const creds = getCredentials(connectionDoc, marketType);
     const balances = await adapter.getBalance(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment);
     connectionDoc.balanceSnapshot = balances;
     connectionDoc.balanceUpdatedAt = new Date();
@@ -312,7 +356,7 @@ export const placeOrder = async ({
     }
 
     const adapter = getAdapter(connectionDoc.exchangeName, marketType);
-    const creds = getCredentials(connectionDoc);
+    const creds = getCredentials(connectionDoc, marketType);
 
     // ── FUTURES: đặt chế độ ký quỹ + đòn bẩy trước khi MỞ vị thế (bỏ qua khi đóng/reduceOnly) ──
     if (isFutures && !reduceOnly && typeof adapter.setLeverage === 'function') {
@@ -470,9 +514,11 @@ export const placeOrder = async ({
 };
 
 /** Hủy lệnh đang pending */
-export const cancelOrder = async ({ connectionDoc, externalOrderId, symbol }) => {
-    const adapter = getAdapter(connectionDoc.exchangeName);
-    const creds = getCredentials(connectionDoc);
+export const cancelOrder = async ({ connectionDoc, externalOrderId, symbol, marketType = null }) => {
+    const order = marketType ? null : await ExchangeOrder.findOne({ externalOrderId }).select('marketType').lean();
+    const resolvedMarketType = marketType || order?.marketType || 'SPOT';
+    const adapter = getAdapter(connectionDoc.exchangeName, resolvedMarketType);
+    const creds = getCredentials(connectionDoc, resolvedMarketType);
     const result = await adapter.cancelOrder(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment, {
         externalOrderId, symbol: normalizeCryptoSymbol(symbol),
     });
@@ -483,7 +529,7 @@ export const cancelOrder = async ({ connectionDoc, externalOrderId, symbol }) =>
 };
 
 /** Poll sàn cho đến khi lệnh FILLED/PARTIAL hoặc timeout + reconcile cuối. */
-export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol, initial = {} }) => {
+export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol, marketType = null, initial = {} }) => {
     if (initial.status === 'FILLED' && initial.filledPrice) {
         await ensureFeeOnExchangeOrder({
             externalOrderId,
@@ -500,7 +546,7 @@ export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol,
     const deadline = Date.now() + fillTimeoutMs;
     while (Date.now() < deadline) {
         await sleep(fillPollMs);
-        const status = await getOrderStatus({ connectionDoc, externalOrderId, symbol });
+        const status = await getOrderStatus({ connectionDoc, externalOrderId, symbol, marketType });
         if (!status.success) continue;
         appendAuditEvent('broker', {
             exchange: connectionDoc.exchangeName,
@@ -565,7 +611,7 @@ export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol,
     // ── Timeout: reconcile một lần nữa trước khi báo fail ──
     let finalStatus = null;
     try {
-        finalStatus = await getOrderStatus({ connectionDoc, externalOrderId, symbol });
+        finalStatus = await getOrderStatus({ connectionDoc, externalOrderId, symbol, marketType });
     } catch (reconErr) {
         console.log(chalk.yellow(`[BROKER] reconcile sau timeout lỗi: ${reconErr.message}`));
     }
@@ -648,9 +694,11 @@ export const waitForOrderFill = async ({ connectionDoc, externalOrderId, symbol,
     };
 };
 
-export const getOrderStatus = async ({ connectionDoc, externalOrderId, symbol }) => {
-    const adapter = getAdapter(connectionDoc.exchangeName);
-    const creds = getCredentials(connectionDoc);
+export const getOrderStatus = async ({ connectionDoc, externalOrderId, symbol, marketType = null }) => {
+    const order = marketType ? null : await ExchangeOrder.findOne({ externalOrderId }).select('marketType').lean();
+    const resolvedMarketType = marketType || order?.marketType || 'SPOT';
+    const adapter = getAdapter(connectionDoc.exchangeName, resolvedMarketType);
+    const creds = getCredentials(connectionDoc, resolvedMarketType);
     const result = await adapter.getOrderStatus(creds.apiKey, creds.secret, creds.passphrase, connectionDoc.environment, {
         externalOrderId, symbol: normalizeCryptoSymbol(symbol),
     });
@@ -746,13 +794,42 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
         if (!isLong) {
             const enabled = getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_ENABLED');
             if (!enabled) {
-                return { success: false, message: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false) — theo dõi simulated.' };
+                return { success: false, reason: 'SHORT_DISABLED', message: 'SHORT auto đang TẮT — theo dõi simulated.' };
             }
             if (String(connectionDoc.exchangeName).toUpperCase() !== 'BINANCE') {
-                return { success: false, message: 'SHORT auto chỉ hỗ trợ Binance Futures.' };
+                return { success: false, reason: 'SHORT_EXCHANGE_UNSUPPORTED', message: 'SHORT auto chỉ hỗ trợ Binance Futures.' };
+            }
+            const environmentFlag = connectionDoc.environment === 'LIVE'
+                ? 'AUTODUCK_AUTO_FUTURES_SHORT_LIVE_ENABLED'
+                : 'AUTODUCK_AUTO_FUTURES_SHORT_TESTNET_ENABLED';
+            if (!getAutoDuckBoolean(environmentFlag)) {
+                return { success: false, reason: 'SHORT_ENVIRONMENT_DISABLED', message: `SHORT ${connectionDoc.environment} đang TẮT trên UI.` };
+            }
+            if (!connectionDoc.futuresOk || !connectionDoc.permissions?.includes('FUTURES')) {
+                return {
+                    success: false,
+                    reason: 'FUTURES_NOT_READY',
+                    message: `Connection ${connectionDoc.environment} chưa vượt qua Futures probe. Hãy bấm kiểm tra kết nối lại.`,
+                };
+            }
+            const normalizedShortSymbol = normalizeCryptoSymbol(trade.symbol);
+            if (!parseShortSymbolWhitelist().has(normalizedShortSymbol)) {
+                return { success: false, reason: 'SHORT_SYMBOL_NOT_ALLOWED', message: `${normalizedShortSymbol} không nằm trong whitelist short.` };
             }
             marketType = 'FUTURES';
-            leverage = getAutoDuckNumber('AUTO_FUTURES_LEVERAGE') || 3;
+            const liveClosedShortTrades = connectionDoc.environment === 'LIVE'
+                ? await AutoTrade.countDocuments({
+                    exchangeConnectionId: connectionDoc._id,
+                    executionMode: 'LIVE',
+                    direction: 'SHORT',
+                    status: 'CLOSED',
+                    pnlSource: { $in: ['LIVE_FILLS', 'LIVE_FILLS_NET_FEE'] },
+                })
+                : Infinity;
+            leverage = resolveDynamicFuturesLeverage(trade, {
+                environment: connectionDoc.environment,
+                liveClosedShortTrades,
+            });
             orderSide = 'SELL';
         }
 
@@ -878,6 +955,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             connectionDoc,
             externalOrderId: result.externalOrderId,
             symbol: trade.symbol,
+            marketType,
             initial: {
                 success: true,
                 message: `Lệnh LIVE đã gửi ra ${connectionDoc.exchangeName} (${connectionDoc.environment}). OrderID: ${result.externalOrderId}`,
@@ -962,6 +1040,7 @@ export const executeLiveEntry = async ({ userOrder, trade, usdVndRate, capitalVn
             orderSide,
             username: userOrder.username,
             executionQuote,
+            feeUSDT: Number(result.exchangeOrderDoc?.feeUSDT) || 0,
         };
     } catch (err) {
         if (claimId) {

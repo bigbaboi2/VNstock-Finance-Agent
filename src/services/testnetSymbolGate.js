@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import ExchangeConnection from '../../models/ExchangeConnection.js';
 import UserOrder from '../../models/UserOrder.js';
 import { getAdapter } from './exchangeAdapters/index.js';
-import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
+import { getAutoDuckBoolean, getAutoDuckNumber, getAutoDuckString } from './autoDuckConfigService.js';
 
 const normalizeCryptoSymbol = (symbol) => {
     const s = String(symbol).toUpperCase().replace(/-/g, '');
@@ -57,6 +57,9 @@ export const resolveLiveMarketType = async (connectionDoc, direction) => {
     if (!enabled) {
         return { marketType: 'SPOT', blocked: true, reason: 'SHORT auto đang TẮT (autoFuturesShortEnabled=false)' };
     }
+    if (connectionDoc.environment === 'TESTNET' && !getAutoDuckBoolean('AUTODUCK_AUTO_FUTURES_SHORT_TESTNET_ENABLED')) {
+        return { marketType: 'FUTURES', blocked: true, reason: 'SHORT TESTNET đang TẮT trên UI' };
+    }
     if (String(connectionDoc.exchangeName).toUpperCase() !== 'BINANCE') {
         return { marketType: 'SPOT', blocked: true, reason: 'SHORT auto chỉ hỗ trợ Binance Futures' };
     }
@@ -81,6 +84,18 @@ export const isSymbolTradableOnConnection = async (connectionDoc, symbol, direct
             reason: market.reason,
             marketType: market.marketType,
         };
+    }
+
+    const isShort = direction === 'SHORT' || direction === 'BÁN';
+    if (isShort) {
+        const whitelist = new Set(String(getAutoDuckString('AUTODUCK_SHORT_CORE_SYMBOLS') || '')
+            .split(',').map((s) => normalizeCryptoSymbol(s.trim())).filter(Boolean));
+        if (!whitelist.has(normSymbol)) {
+            return { supported: false, environment: 'TESTNET', marketType: 'FUTURES', normSymbol, reason: `${normSymbol} không nằm trong whitelist short` };
+        }
+        if (!connectionDoc.futuresOk || !connectionDoc.permissions?.includes('FUTURES')) {
+            return { supported: false, environment: 'TESTNET', marketType: 'FUTURES', normSymbol, reason: 'Connection chưa vượt Futures probe' };
+        }
     }
 
     const set = await fetchTradableSymbolsSet({

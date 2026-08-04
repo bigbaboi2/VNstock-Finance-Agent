@@ -576,6 +576,7 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                             onToggleEngine={handleToggleEngine}
                             onRiskLevelChange={handleRiskLevelChange}
                             onMessage={setActionMessage}
+                            liveConnections={liveConnections}
                         />
                         <button
                             type="button"
@@ -835,6 +836,7 @@ export default function AutoDuckTab({ username, isDark, UI, uiStyle = 'classic' 
                 onToggleEngine={handleToggleEngine}
                 onRiskLevelChange={handleRiskLevelChange}
                 onMessage={setActionMessage}
+                liveConnections={liveConnections}
             />
 
             {/* ═══════ GÓI LỆNH ỦY THÁC CÁ NHÂN (SIMULATED / LIVE) ═══════ */}

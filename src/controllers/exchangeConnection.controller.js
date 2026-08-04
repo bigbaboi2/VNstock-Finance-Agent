@@ -88,10 +88,13 @@ export const resetEquityBaselineEndpoint = async (req, res) => {
 /** POST /api/exchange-connections — tạo kết nối mới + test ngay */
 export const createConnection = async (req, res) => {
     try {
-        const { username, exchangeName, apiKey, secret, passphrase, label, environment } = req.body;
+        const { username, exchangeName, apiKey, secret, futuresApiKey, futuresSecret, passphrase, label, environment } = req.body;
 
         if (!username || !exchangeName || !apiKey || !secret) {
             return res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc (username, exchangeName, apiKey, secret).' });
+        }
+        if ((futuresApiKey && !futuresSecret) || (!futuresApiKey && futuresSecret)) {
+            return res.status(400).json({ success: false, message: 'Futures API Key và Futures Secret phải được nhập cùng nhau.' });
         }
         const exchange = String(exchangeName).toUpperCase();
         if (!SUPPORTED_EXCHANGES.includes(exchange)) {
@@ -114,6 +117,9 @@ export const createConnection = async (req, res) => {
             secretEncrypted: encrypt(secret),
             passphraseEncrypted: passphrase ? encrypt(passphrase) : null,
             apiKeyMasked: maskKey(apiKey),
+            futuresApiKeyEncrypted: futuresApiKey ? encrypt(futuresApiKey) : null,
+            futuresSecretEncrypted: futuresSecret ? encrypt(futuresSecret) : null,
+            futuresApiKeyMasked: futuresApiKey ? maskKey(futuresApiKey) : null,
             environment: environment === 'LIVE' ? 'LIVE' : 'TESTNET',
         });
         await doc.save();
@@ -178,6 +184,9 @@ export const testConnectionEndpoint = async (req, res) => {
         const result = await brokerService.testConnection(doc);
         return res.json({
             success: result.success,
+            spotOk: result.spotOk,
+            futuresOk: result.futuresOk,
+            futuresError: result.futuresError || '',
             permissions: result.permissions,
             balances: result.balances,
             latencyMs: result.latencyMs,
