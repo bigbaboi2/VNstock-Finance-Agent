@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import chalk from 'chalk';
 import AutoTrade from '../../models/AutoTrade.js';
 import Setting from '../../models/Setting.js';
@@ -13,7 +14,14 @@ import {
 import { buildAutoTradeOpenMessage, sendTelegramMessage } from '../services/telegramService.js';
 
 const MIN_INTERNAL_SCORE = 68; // Ngưỡng điểm nội bộ tối thiểu để chấp nhận tín hiệu ngoài
-const EXTERNAL_SIGNAL_SECRET = process.env.EXTERNAL_SIGNAL_SECRET || 'default-secret-key-please-change';
+const EXTERNAL_SIGNAL_SECRET = String(process.env.EXTERNAL_SIGNAL_SECRET || '').trim();
+
+const hasValidSignalSecret = (providedSecret) => {
+    if (!EXTERNAL_SIGNAL_SECRET || typeof providedSecret !== 'string') return false;
+    const provided = Buffer.from(providedSecret);
+    const expected = Buffer.from(EXTERNAL_SIGNAL_SECRET);
+    return provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
+};
 
 const normalizeAssetType = (symbol) => {
     const s = symbol.toUpperCase();
@@ -25,9 +33,14 @@ const normalizeAssetType = (symbol) => {
 };
 
 export const processExternalSignal = async (req, res) => {
+    if (!EXTERNAL_SIGNAL_SECRET) {
+        console.error(chalk.red.bold('[EXTERNAL] DISABLED: EXTERNAL_SIGNAL_SECRET is not configured.'));
+        return res.status(503).json({ success: false, message: 'External signal integration is not configured.' });
+    }
+
     // SECURITY GATE: Check for secret key
     const providedSecret = req.headers['x-signal-secret'];
-    if (providedSecret !== EXTERNAL_SIGNAL_SECRET) {
+    if (!hasValidSignalSecret(providedSecret)) {
         console.log(chalk.red.bold(`[EXTERNAL] FORBIDDEN: Invalid or missing secret key from ${req.ip}`));
         return res.status(403).json({ success: false, message: 'Forbidden: Invalid credentials.' });
     }
