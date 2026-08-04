@@ -47,5 +47,15 @@
   "tooltipHigh": "H",
   "tooltipLow": "L",
   "tooltipClose": "C",
-  "tooltipVol": "Vol"
+  "tooltipVol": "Vol",
+  "forecast": "Dự báo",
+  "forecastToggleTitle": "Bật hoặc tắt nến dự báo kỹ thuật",
+  "forecastConfidence": "Tin cậy",
+  "forecastAccuracy": "Đúng",
+  "forecastSamples": "Mẫu",
+  "forecastNeedsCandles": "Cần ít nhất {{count}} nến để dự báo",
+  "maPresetShort": "Ngắn",
+  "maPresetLong": "Dài",
+  "maPresetAll": "Tất cả",
+  "maLongDataHint": "SMA100 và SMA200 sẽ xuất hiện khi có đủ dữ liệu."
 }

@@ -47,5 +47,15 @@
   "tooltipHigh": "H",
   "tooltipLow": "L",
   "tooltipClose": "C",
-  "tooltipVol": "Vol"
+  "tooltipVol": "Vol",
+  "forecast": "Forecast",
+  "forecastToggleTitle": "Toggle the technical forecast candle",
+  "forecastConfidence": "Confidence",
+  "forecastAccuracy": "Hit rate",
+  "forecastSamples": "Samples",
+  "forecastNeedsCandles": "At least {{count}} candles are required for a forecast",
+  "maPresetShort": "Short",
+  "maPresetLong": "Long",
+  "maPresetAll": "All",
+  "maLongDataHint": "SMA100 and SMA200 appear when enough history is available."
 }

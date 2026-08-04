@@ -7,9 +7,45 @@ import {
   Pencil, MoveHorizontal, Baseline, Trash2,
   Settings2, ChevronDown, Check, BarChart2, Clock, RefreshCw,
   ChevronLeft, ChevronRight, Minus, Plus,
-  SlidersHorizontal, TrendingUp, MousePointer,
+  SlidersHorizontal, TrendingUp, MousePointer, Activity,
   Maximize2, Maximize, Minimize2, X
 } from 'lucide-react';
+import {
+  MIN_FORECAST_CANDLES,
+  calculateForecast,
+  toHeikinAshi,
+} from '../lib/chartForecast';
+
+const EXTENDED_MAX_BAR_SPACE = 96;
+
+function patchKlineExtendedZoom(chart, maxBarSpace = EXTENDED_MAX_BAR_SPACE) {
+  let timeScaleStore;
+  try {
+    timeScaleStore = chart?.getChartStore?.().getTimeScaleStore?.();
+  } catch {
+    return;
+  }
+  if (!timeScaleStore || timeScaleStore.__omniExtendedZoomPatched) return;
+
+  const originalSetBarSpace = timeScaleStore.setBarSpace.bind(timeScaleStore);
+  timeScaleStore.__omniExtendedZoomPatched = true;
+  timeScaleStore.setBarSpace = function (requestedBarSpace, adjustBeforeFunc) {
+    if (!Number.isFinite(requestedBarSpace) || requestedBarSpace < 1) return;
+    const nextBarSpace = Math.min(requestedBarSpace, maxBarSpace);
+    if (nextBarSpace <= 50) {
+      originalSetBarSpace(nextBarSpace, adjustBeforeFunc);
+      return;
+    }
+    if (this._barSpace === nextBarSpace) return;
+
+    this._barSpace = nextBarSpace;
+    this._gapBarSpace = this._calcGapBarSpace();
+    adjustBeforeFunc?.();
+    this.adjustVisibleRange();
+    this._chartStore.getTooltipStore().recalculateCrosshair(true);
+    this._chartStore.getChart().adjustPaneViewport(false, true, true, true);
+  };
+}
 
 
 function patchKlineDragCapture(chart) {
@@ -71,11 +107,19 @@ function patchKlineDragCapture(chart) {
       if (evInstance.__omniXLastPageX == null) evInstance.__omniXLastPageX = pageX;
       const dx = pageX - evInstance.__omniXLastPageX;
       evInstance.__omniXLastPageX = pageX;
-      const zoomScale = -dx / AXIS_DRAG_X_PX;
-      if (zoomScale !== 0) {
-        const ts = chart.getChartStore().getTimeScaleStore();
-        const rightX = ts._totalBarSpace || downWidget.getBounding?.()?.width || 0;
-        ts.zoom(zoomScale, { x: rightX });
+      evInstance.__omniPendingXAxisDx = (evInstance.__omniPendingXAxisDx || 0) + dx;
+      if (evInstance.__omniXAxisRaf == null && evInstance.__omniPendingXAxisDx !== 0) {
+        evInstance.__omniXAxisRaf = requestAnimationFrame(() => {
+          evInstance.__omniXAxisRaf = null;
+          const pendingDx = evInstance.__omniPendingXAxisDx || 0;
+          evInstance.__omniPendingXAxisDx = 0;
+          const zoomScale = -pendingDx / AXIS_DRAG_X_PX;
+          if (zoomScale !== 0) {
+            const ts = chart.getChartStore().getTimeScaleStore();
+            const rightX = ts._totalBarSpace || downWidget.getBounding?.()?.width || 0;
+            ts.zoom(zoomScale, { x: rightX });
+          }
+        });
       }
     }
   };
@@ -87,25 +131,33 @@ function patchKlineDragCapture(chart) {
       if (evInstance.__omniYLastPageY == null) evInstance.__omniYLastPageY = pageY;
       const dy = pageY - evInstance.__omniYLastPageY;
       evInstance.__omniYLastPageY = pageY;
-      const cur = yAxis.getRange?.();
-      if (cur && dy !== 0) {
-        const scale = 1 + dy / AXIS_DRAG_Y_PX;
-        const newRange = cur.range * Math.max(scale, 0.05);
-        const difRange = (newRange - cur.range) / 2;
-        const newFrom = cur.from - difRange;
-        const newTo = cur.to + difRange;
-        const newRealFrom = yAxis.convertToRealValue(newFrom);
-        const newRealTo = yAxis.convertToRealValue(newTo);
-        yAxis.setAutoCalcTickFlag?.(false);
-        yAxis.setRange({
-          from: newFrom,
-          to: newTo,
-          range: newRange,
-          realFrom: newRealFrom,
-          realTo: newRealTo,
-          realRange: newRealTo - newRealFrom,
+      evInstance.__omniPendingYAxisDy = (evInstance.__omniPendingYAxisDy || 0) + dy;
+      if (evInstance.__omniYAxisRaf == null && evInstance.__omniPendingYAxisDy !== 0) {
+        evInstance.__omniYAxisRaf = requestAnimationFrame(() => {
+          evInstance.__omniYAxisRaf = null;
+          const pendingDy = evInstance.__omniPendingYAxisDy || 0;
+          evInstance.__omniPendingYAxisDy = 0;
+          const cur = yAxis.getRange?.();
+          if (cur && pendingDy !== 0) {
+            const scale = 1 + pendingDy / AXIS_DRAG_Y_PX;
+            const newRange = cur.range * Math.max(scale, 0.05);
+            const difRange = (newRange - cur.range) / 2;
+            const newFrom = cur.from - difRange;
+            const newTo = cur.to + difRange;
+            const newRealFrom = yAxis.convertToRealValue(newFrom);
+            const newRealTo = yAxis.convertToRealValue(newTo);
+            yAxis.setAutoCalcTickFlag?.(false);
+            yAxis.setRange({
+              from: newFrom,
+              to: newTo,
+              range: newRange,
+              realFrom: newRealFrom,
+              realTo: newRealTo,
+              realRange: newRealTo - newRealFrom,
+            });
+            chart.adjustPaneViewport(false, true, true, true);
+          }
         });
-        chart.adjustPaneViewport(false, true, true, true);
       }
     }
   };
@@ -123,25 +175,32 @@ function patchKlineDragCapture(chart) {
 
       const dy = pageY - evInstance.__omniYLastPanePageY;
       evInstance.__omniYLastPanePageY = pageY;
-
-      const cur = yAxis.getRange?.();
-      const paneHeight = pane?.getBounding?.()?.height || 300;
-      if (cur && dy !== 0 && paneHeight > 0) {
-        const deltaPrice = (dy / paneHeight) * cur.range;
-        const newFrom = cur.from + deltaPrice;
-        const newTo = cur.to + deltaPrice;
-        const newRealFrom = yAxis.convertToRealValue(newFrom);
-        const newRealTo = yAxis.convertToRealValue(newTo);
-        yAxis.setAutoCalcTickFlag?.(false);
-        yAxis.setRange({
-          from: newFrom,
-          to: newTo,
-          range: cur.range,
-          realFrom: newRealFrom,
-          realTo: newRealTo,
-          realRange: newRealTo - newRealFrom,
+      evInstance.__omniPendingPaneDy = (evInstance.__omniPendingPaneDy || 0) + dy;
+      if (evInstance.__omniPaneRaf == null && evInstance.__omniPendingPaneDy !== 0) {
+        evInstance.__omniPaneRaf = requestAnimationFrame(() => {
+          evInstance.__omniPaneRaf = null;
+          const pendingDy = evInstance.__omniPendingPaneDy || 0;
+          evInstance.__omniPendingPaneDy = 0;
+          const cur = yAxis.getRange?.();
+          const paneHeight = pane?.getBounding?.()?.height || 300;
+          if (cur && pendingDy !== 0 && paneHeight > 0) {
+            const deltaPrice = (pendingDy / paneHeight) * cur.range;
+            const newFrom = cur.from + deltaPrice;
+            const newTo = cur.to + deltaPrice;
+            const newRealFrom = yAxis.convertToRealValue(newFrom);
+            const newRealTo = yAxis.convertToRealValue(newTo);
+            yAxis.setAutoCalcTickFlag?.(false);
+            yAxis.setRange({
+              from: newFrom,
+              to: newTo,
+              range: cur.range,
+              realFrom: newRealFrom,
+              realTo: newRealTo,
+              realRange: newRealTo - newRealFrom,
+            });
+            chart.adjustPaneViewport(false, true, true, true);
+          }
         });
-        chart.adjustPaneViewport(false, true, true, true);
       }
     } catch {}
   };
@@ -604,6 +663,171 @@ if (!_drawOverlaysRegistered) {
   } catch (e) { /* already registered / hot reload */ }
 }
 
+try {
+    registerOverlay({
+      name: 'omniForecastCandle',
+      totalStep: 2,
+      lock: true,
+      needDefaultPointFigure: false,
+      needDefaultXAxisFigure: false,
+      needDefaultYAxisFigure: false,
+      createPointFigures: ({ coordinates, bounding, barSpace, overlay }) => {
+        if (coordinates.length < 3) return [];
+        const [anchorPoint, highPoint, lowPoint] = coordinates;
+        const meta = overlay.extendData || {};
+        // Match KLineCharts' real candle body width at every zoom level.
+        const width = Math.max(3, barSpace.gapBar - 1);
+        const x = anchorPoint.x - width / 2;
+        const top = Math.min(highPoint.y, anchorPoint.y);
+        const bottom = Math.max(lowPoint.y, anchorPoint.y);
+        const upHeight = Math.max(anchorPoint.y - top, 1);
+        const downHeight = Math.max(bottom - anchorPoint.y, 1);
+        const compact = bounding.width < 620;
+        const probabilityFontSize = compact ? 11 : 12;
+        const probabilityLabelWidth = compact ? 42 : 46;
+        const probabilityLabelHeight = probabilityFontSize + 8;
+        const canPlaceUpInside = width >= probabilityLabelWidth && upHeight >= probabilityLabelHeight;
+        const canPlaceDownInside = width >= probabilityLabelWidth && downHeight >= probabilityLabelHeight;
+        const hasProbabilityRoomRight = bounding.width - (x + width) >= probabilityLabelWidth + 8;
+        const outsideProbabilityX = hasProbabilityRoomRight
+          ? x + width + 5
+          : anchorPoint.x;
+        const outsideProbabilityAlign = hasProbabilityRoomRight ? 'left' : 'center';
+        const upLabelPosition = canPlaceUpInside
+          ? { x: anchorPoint.x, y: top + upHeight / 2, align: 'center', baseline: 'middle' }
+          : { x: outsideProbabilityX, y: top, align: outsideProbabilityAlign, baseline: 'bottom' };
+        const downLabelPosition = canPlaceDownInside
+          ? { x: anchorPoint.x, y: anchorPoint.y + downHeight / 2, align: 'center', baseline: 'middle' }
+          : { x: outsideProbabilityX, y: bottom, align: outsideProbabilityAlign, baseline: 'top' };
+        const roomOnRight = bounding.width - anchorPoint.x > (compact ? 105 : 220);
+        const labelX = roomOnRight ? anchorPoint.x + width / 2 + 7 : anchorPoint.x - width / 2 - 7;
+        const labelAlign = roomOnRight ? 'left' : 'right';
+        const summary = compact ? meta.compactLabel : meta.fullLabel;
+        const labelY = compact
+          ? Math.min(Math.max(22, top + 16), bounding.height - 18)
+          : Math.max(18, top - 25);
+        const probabilityLabelBackground = meta.isDark
+          ? 'rgba(15,23,42,0.92)'
+          : 'rgba(255,255,255,0.96)';
+        const probabilityUpColor = meta.isDark ? '#34D399' : '#047857';
+        const probabilityDownColor = meta.isDark ? '#FB7185' : '#DC2626';
+        const forecastBorderColor = meta.isDark ? '#FACC15' : '#CA8A04';
+        return [
+          {
+            key: 'forecast-up',
+            type: 'rect',
+            attrs: { x, y: top, width, height: upHeight },
+            styles: { style: 'fill', color: 'rgba(8,153,129,0.42)', borderRadius: 1 },
+            ignoreEvent: true,
+          },
+          {
+            key: 'forecast-down',
+            type: 'rect',
+            attrs: { x, y: anchorPoint.y, width, height: downHeight },
+            styles: { style: 'fill', color: 'rgba(242,54,69,0.42)', borderRadius: 1 },
+            ignoreEvent: true,
+          },
+          {
+            key: 'forecast-border',
+            type: 'rect',
+            attrs: { x, y: top, width, height: Math.max(bottom - top, 2) },
+            styles: {
+              style: 'stroke',
+              borderColor: forecastBorderColor,
+              borderSize: meta.isDark ? 1.5 : 2,
+              borderStyle: 'dashed',
+              borderDashedValue: meta.isDark ? [5, 3] : [6, 3],
+              borderRadius: 1,
+            },
+            ignoreEvent: true,
+          },
+          {
+            key: 'forecast-anchor',
+            type: 'line',
+            attrs: {
+              coordinates: [
+                { x: anchorPoint.x - width / 2 - 2, y: anchorPoint.y },
+                { x: anchorPoint.x + width / 2 + 2, y: anchorPoint.y },
+              ],
+            },
+            styles: {
+              style: 'dashed',
+              color: forecastBorderColor,
+              size: meta.isDark ? 1 : 1.5,
+              dashedValue: [3, 2],
+            },
+            ignoreEvent: true,
+          },
+          {
+            key: 'forecast-up-label',
+            type: 'text',
+            attrs: { ...upLabelPosition, text: `↑${meta.upProbability}%` },
+            styles: {
+              style: 'fill',
+              color: probabilityUpColor,
+              size: probabilityFontSize,
+              family: 'Segoe UI, Arial, sans-serif',
+              weight: '700',
+              backgroundColor: probabilityLabelBackground,
+              borderColor: meta.isDark ? 'rgba(52,211,153,0.55)' : 'rgba(4,120,87,0.35)',
+              borderSize: 1,
+              borderRadius: 3,
+              paddingLeft: 5,
+              paddingRight: 5,
+              paddingTop: 3,
+              paddingBottom: 3,
+            },
+            ignoreEvent: true,
+          },
+          {
+            key: 'forecast-down-label',
+            type: 'text',
+            attrs: { ...downLabelPosition, text: `↓${meta.downProbability}%` },
+            styles: {
+              style: 'fill',
+              color: probabilityDownColor,
+              size: probabilityFontSize,
+              family: 'Segoe UI, Arial, sans-serif',
+              weight: '700',
+              backgroundColor: probabilityLabelBackground,
+              borderColor: meta.isDark ? 'rgba(251,113,133,0.55)' : 'rgba(220,38,38,0.35)',
+              borderSize: 1,
+              borderRadius: 3,
+              paddingLeft: 5,
+              paddingRight: 5,
+              paddingTop: 3,
+              paddingBottom: 3,
+            },
+            ignoreEvent: true,
+          },
+          {
+            key: 'forecast-summary',
+            type: 'text',
+            attrs: { x: labelX, y: labelY, text: summary || '', align: labelAlign, baseline: 'bottom' },
+            styles: {
+              style: 'stroke_fill',
+              color: meta.isDark ? '#F8FAFC' : '#0F172A',
+              size: compact ? 11 : 12,
+              family: 'Segoe UI, Arial, sans-serif',
+              weight: '700',
+              backgroundColor: meta.isDark ? 'rgba(15,23,42,0.92)' : 'rgba(255,255,255,0.94)',
+              borderColor: forecastBorderColor,
+              borderStyle: 'dashed',
+              borderDashedValue: [5, 3],
+              borderSize: meta.isDark ? 1 : 1.5,
+              borderRadius: 3,
+              paddingLeft: 7,
+              paddingRight: 7,
+              paddingTop: 4,
+              paddingBottom: 4,
+            },
+            ignoreEvent: true,
+          },
+        ];
+      },
+    });
+} catch { void 0; }
+
 const MAIN_INDICATORS = [
   { key:'MA',          labelKey:'ma' },
   { key:'EMA',         labelKey:'ema' },
@@ -646,8 +870,21 @@ const CHART_TYPES = [
   {id:'area',             labelKey:'areaChart'},
   {id:'heikin_ashi',      labelKey:'heikinAshi'},
 ];
-const OVERLAY_COLORS_VIOLET = ['#8B5CF6','#A855F7','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
-const OVERLAY_COLORS_YELLOW = ['#EAB308','#FACC15','#FF9600','#089981','#F23645','#2196F3','#FFFFFF'];
+const OVERLAY_COLOR_PALETTE = [
+  '#EAB308', '#FACC15', '#FF9600', '#F97316', '#EF4444', '#F23645',
+  '#EC4899', '#A855F7', '#8B5CF6', '#6366F1', '#2196F3', '#06B6D4',
+  '#14B8A6', '#089981', '#22C55E', '#84CC16', '#64748B', '#FFFFFF',
+];
+const accentPalette = (first) => [first, ...OVERLAY_COLOR_PALETTE.filter(color => color !== first)];
+const MA_PRESETS = Object.freeze({
+  short: [5, 10, 20],
+  long: [50, 100, 200],
+  all: [5, 10, 20, 50, 100, 200],
+});
+const FORECAST_STORAGE_KEY = 'omni_chart_forecast_enabled';
+const FORECAST_SYNC_EVENT = 'omniduck_chart_forecast_setting';
+const MA_PRESET_STORAGE_KEY = 'omni_chart_ma_preset';
+const clampVisibleColorCount = (count, total) => Math.max(1, Math.min(count || 1, total));
 const STROKE_SIZES   = [1,2,3,4];
 
 /** Accent: crypto=violet, vnstock/derivatives=yellow, international=teal */
@@ -669,7 +906,7 @@ const ACCENT = {
     selectedTextDark: 'text-violet-400',
     selectedTextLight: 'text-violet-600',
     defaultOverlay: '#8B5CF6',
-    overlayColors: OVERLAY_COLORS_VIOLET,
+    overlayColors: accentPalette('#8B5CF6'),
   },
   yellow: {
     solid: 'bg-yellow-500',
@@ -688,7 +925,7 @@ const ACCENT = {
     selectedTextDark: 'text-yellow-400',
     selectedTextLight: 'text-yellow-600',
     defaultOverlay: '#EAB308',
-    overlayColors: OVERLAY_COLORS_YELLOW,
+    overlayColors: accentPalette('#EAB308'),
   },
   teal: {
     solid: 'bg-teal-600',
@@ -707,7 +944,7 @@ const ACCENT = {
     selectedTextDark: 'text-teal-400',
     selectedTextLight: 'text-teal-600',
     defaultOverlay: '#14B8A6',
-    overlayColors: OVERLAY_COLORS_VIOLET,
+    overlayColors: accentPalette('#14B8A6'),
   },
 };
 
@@ -737,6 +974,18 @@ export default React.memo(function TradingChart({
   const strokeSizeRef       = useRef(2);
   const strokeStyleRef      = useRef('solid');
   const overlayColorRef     = useRef(A.defaultOverlay);
+  const paletteContainerRef = useRef(null);
+  const forecastOverlayIdRef = useRef(null);
+  const forecastPreviousOffsetRef = useRef(null);
+  const forecastAppliedOffsetRef = useRef(null);
+  const forecastResultRef = useRef(null);
+  const chartInteractionActiveRef = useRef(false);
+  const chartPointerActiveRef = useRef(false);
+  const chartInteractionTimerRef = useRef(null);
+  const pendingChartDataRef = useRef(false);
+  const rawDataRef = useRef([]);
+  const displayDataRef = useRef([]);
+  const appliedSeriesRef = useRef({ chartType: null, interval: null, data: [] });
 
   const outerWrapperRef = useRef(null);
   const nativeFullscreenRef = useRef(false);
@@ -841,6 +1090,25 @@ export default React.memo(function TradingChart({
   const [strokeSize,        setStrokeSize]         = useState(2);
   const [strokeStyle,       setStrokeStyle]        = useState('solid');
   const [activeTool,        setActiveTool]         = useState('select');
+  const [forecastEnabled, setForecastEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem(FORECAST_STORAGE_KEY);
+      return saved == null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [forecastResult, setForecastResult] = useState(null);
+  const [pendingDataRevision, setPendingDataRevision] = useState(0);
+  const [maPreset, setMaPreset] = useState(() => {
+    try {
+      const saved = localStorage.getItem(MA_PRESET_STORAGE_KEY);
+      return MA_PRESETS[saved] ? saved : 'short';
+    } catch {
+      return 'short';
+    }
+  });
+  const [visibleColorCount, setVisibleColorCount] = useState(A.overlayColors.length);
 
   const isDark = theme === 'dark';
   const anyMenuOpen = showIntervalMenu || showTypeMenu || showIndicatorMenu || showStrokePanel;
@@ -849,7 +1117,35 @@ export default React.memo(function TradingChart({
     const next = (ACCENT[accent] || ACCENT.violet).defaultOverlay;
     setOverlayColor(next);
     overlayColorRef.current = next;
+    setVisibleColorCount((ACCENT[accent] || ACCENT.violet).overlayColors.length);
   }, [accent]);
+
+  useEffect(() => {
+    const onForecastSync = (event) => setForecastEnabled(Boolean(event.detail?.enabled));
+    const onStorage = (event) => {
+      if (event.key === FORECAST_STORAGE_KEY) setForecastEnabled(event.newValue !== 'false');
+    };
+    window.addEventListener(FORECAST_SYNC_EVENT, onForecastSync);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(FORECAST_SYNC_EVENT, onForecastSync);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    const element = paletteContainerRef.current;
+    if (!element) return undefined;
+    const updateCount = () => {
+      const swatchSlot = window.innerWidth < 640 ? 23 : 27;
+      const next = clampVisibleColorCount(Math.floor(element.clientWidth / swatchSlot), A.overlayColors.length);
+      setVisibleColorCount(next);
+    };
+    const observer = new ResizeObserver(updateCount);
+    observer.observe(element);
+    updateCount();
+    return () => observer.disconnect();
+  }, [A.overlayColors]);
 
    useEffect(() => { overlayColorRef.current = overlayColor; }, [overlayColor]);
   useEffect(() => { strokeSizeRef.current   = strokeSize;   }, [strokeSize]);
@@ -884,6 +1180,12 @@ export default React.memo(function TradingChart({
     setShowIntervalMenu(false); setShowTypeMenu(false);
     setShowIndicatorMenu(false); setShowStrokePanel(false);
   }, []);
+  const handleForecastToggle = useCallback(() => {
+    const next = !forecastEnabled;
+    setForecastEnabled(next);
+    try { localStorage.setItem(FORECAST_STORAGE_KEY, String(next)); } catch { /* storage unavailable */ }
+    window.dispatchEvent(new CustomEvent(FORECAST_SYNC_EVENT, { detail: { enabled: next } }));
+  }, [forecastEnabled]);
   const handleScrollLeft  = useCallback(() => chartInstance.current?.scrollByDistance(chartInstance.current.getBarSpace()), []);
   const handleScrollRight = useCallback(() => chartInstance.current?.scrollByDistance(-chartInstance.current.getBarSpace()), []);
   const handleResetChart  = useCallback(() => { chartInstance.current?.setBarSpace(6); chartInstance.current?.scrollToRealTime(); }, []);
@@ -1013,7 +1315,8 @@ export default React.memo(function TradingChart({
         chartInstance.current.removeIndicator('candle_pane', name);
         setActiveMain(p => p.filter(n => n !== name));
       } else {
-        chartInstance.current.createIndicator(name, true, interactivePaneOptions('candle_pane'));
+        const indicator = name === 'MA' ? { name: 'MA', calcParams: MA_PRESETS[maPreset] } : name;
+        chartInstance.current.createIndicator(indicator, true, interactivePaneOptions('candle_pane'));
         setActiveMain(p => [...p, name]);
       }
     } else {
@@ -1027,7 +1330,19 @@ export default React.memo(function TradingChart({
         setActiveSub(p => [...p, name]);
       }
     }
-  }, [activeMain, activeSub, interactivePaneOptions]);
+  }, [activeMain, activeSub, interactivePaneOptions, maPreset]);
+
+  const handleMaPresetChange = useCallback((preset) => {
+    if (!MA_PRESETS[preset]) return;
+    setMaPreset(preset);
+    try { localStorage.setItem(MA_PRESET_STORAGE_KEY, preset); } catch { /* storage unavailable */ }
+    if (activeMain.includes('MA')) {
+      chartInstance.current?.overrideIndicator(
+        { name: 'MA', calcParams: MA_PRESETS[preset] },
+        'candle_pane',
+      );
+    }
+  }, [activeMain]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -1042,6 +1357,7 @@ export default React.memo(function TradingChart({
         if (ind !== 'VOL') chartInstance.current.createIndicator(ind, false, interactivePaneOptions(`pane_${ind}`, 120));
       });
     }
+    patchKlineExtendedZoom(chartInstance.current);
     const chart = chartInstance.current;
     const upColor='#089981', downColor='#F23645', noChangeColor='#089981';
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.09)';
@@ -1094,7 +1410,7 @@ export default React.memo(function TradingChart({
           upBorderColor:upColor, downBorderColor:downColor, noChangeBorderColor:noChangeColor,
           upWickColor:upColor,   downWickColor:downColor,   noChangeWickColor:noChangeColor
         },
-        margin: { top:0.2, bottom:0.05 },
+        margin: { top:0.2, bottom:forecastEnabled ? 0.15 : 0.05 },
         priceMark: { show:false },
         tooltip:   { showRule:'none' }
       },
@@ -1106,7 +1422,8 @@ export default React.memo(function TradingChart({
           { style:'solid', size:1.5, color:'#9D65C9' },
           { style:'solid', size:1.5, color:'#2196F3' },
           { style:'solid', size:1.5, color:'#E11D74' },
-          { style:'solid', size:1.5, color:'#01C5C4' }
+          { style:'solid', size:1.5, color:'#01C5C4' },
+          { style:'solid', size:1.5, color:'#22C55E' }
         ],
         tooltip: {
           showRule: 'always',
@@ -1184,9 +1501,65 @@ export default React.memo(function TradingChart({
       }
     });
 
-    chart.subscribeAction('onScroll', () => setActiveOverlay(null));
-    chart.subscribeAction('onZoom',   () => setActiveOverlay(null));
-  }, [theme, isDark, chartType, interactivePaneOptions, lang]);
+  }, [theme, isDark, chartType, interactivePaneOptions, lang, forecastEnabled]);
+
+  useEffect(() => {
+    const chart = chartInstance.current;
+    const container = chartContainerRef.current;
+    if (!chart || !container) return undefined;
+
+    const clearSettleTimer = () => {
+      if (chartInteractionTimerRef.current != null) {
+        window.clearTimeout(chartInteractionTimerRef.current);
+        chartInteractionTimerRef.current = null;
+      }
+    };
+    const finishInteraction = () => {
+      if (chartPointerActiveRef.current) return;
+      chartInteractionActiveRef.current = false;
+      chartInteractionTimerRef.current = null;
+      if (pendingChartDataRef.current) {
+        pendingChartDataRef.current = false;
+        setPendingDataRevision(revision => revision + 1);
+      }
+    };
+    const scheduleInteractionFinish = () => {
+      clearSettleTimer();
+      chartInteractionTimerRef.current = window.setTimeout(finishInteraction, 140);
+    };
+    const handlePointerDown = () => {
+      clearSettleTimer();
+      chartPointerActiveRef.current = true;
+      chartInteractionActiveRef.current = true;
+    };
+    const handlePointerEnd = () => {
+      if (!chartPointerActiveRef.current) return;
+      chartPointerActiveRef.current = false;
+      scheduleInteractionFinish();
+    };
+    const handleNavigation = () => {
+      chartInteractionActiveRef.current = true;
+      setActiveOverlay(current => current == null ? current : null);
+      if (!chartPointerActiveRef.current) scheduleInteractionFinish();
+    };
+
+    container.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    window.addEventListener('pointerup', handlePointerEnd, { passive: true });
+    window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
+    chart.subscribeAction('onScroll', handleNavigation);
+    chart.subscribeAction('onZoom', handleNavigation);
+
+    return () => {
+      clearSettleTimer();
+      container.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      chart.unsubscribeAction('onScroll', handleNavigation);
+      chart.unsubscribeAction('onZoom', handleNavigation);
+      chartPointerActiveRef.current = false;
+      chartInteractionActiveRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let rafId = null;
@@ -1210,7 +1583,27 @@ export default React.memo(function TradingChart({
 
 
   useEffect(() => {
-    if (!chartInstance.current || !data?.length) return;
+    if (!chartInstance.current) return;
+    if (!data?.length) {
+      rawDataRef.current = [];
+      displayDataRef.current = [];
+      appliedSeriesRef.current = { chartType, interval, data: [] };
+      const emptyForecast = forecastEnabled ? {
+        status: 'insufficient_data',
+        required: MIN_FORECAST_CANDLES,
+        available: 0,
+      } : null;
+      forecastResultRef.current = emptyForecast;
+      setForecastResult(emptyForecast);
+      return;
+    }
+    const appliedSeries = appliedSeriesRef.current;
+    if (chartInteractionActiveRef.current && appliedSeries.data.length > 0 &&
+      appliedSeries.chartType === chartType && appliedSeries.interval === interval) {
+      pendingChartDataRef.current = true;
+      return;
+    }
+    pendingChartDataRef.current = false;
     const formatted = data.map(d => {
       let ts=0, tv=d.time||d.date;
       if (tv!=null) {
@@ -1232,25 +1625,181 @@ export default React.memo(function TradingChart({
       return { timestamp:ts, open:Number(d.open)||0, high:Number(d.high)||0, low:Number(d.low)||0, close:Number(d.close)||0, volume:Number(d.value)||Number(d.volume)||0 };
     }).filter(d=>!isNaN(d.timestamp)&&d.timestamp>0).sort((a,b)=>a.timestamp-b.timestamp);
 
-    let display = formatted;
-    if (chartType==='heikin_ashi') {
-      display=[];
-      for (let i=0;i<formatted.length;i++) {
-        const c=formatted[i];
-        if (i===0){display.push({...c});continue;}
-        const p=display[i-1];
-        const hc=(c.open+c.high+c.low+c.close)/4, ho=(p.open+p.close)/2;
-        display.push({...c, open:ho, high:Math.max(c.high,ho,hc), low:Math.min(c.low,ho,hc), close:hc});
+    const display = chartType === 'heikin_ashi' ? toHeikinAshi(formatted) : formatted;
+    rawDataRef.current = formatted;
+    displayDataRef.current = display;
+
+    const previous = appliedSeriesRef.current;
+    const sameCandle = (before, after) => Boolean(before && after &&
+      before.timestamp === after.timestamp && before.open === after.open &&
+      before.high === after.high && before.low === after.low &&
+      before.close === after.close && before.volume === after.volume);
+    const sameSeriesContext = previous.chartType === chartType && previous.interval === interval;
+    const previousLength = previous.data.length;
+    const nextLength = display.length;
+    const sharedHistoryLength = Math.max(0, Math.min(previousLength, nextLength) - 1);
+    let sharedHistoryUnchanged = sameSeriesContext;
+    if (sharedHistoryUnchanged) {
+      for (let index = 0; index < sharedHistoryLength; index += 1) {
+        const before = previous.data[index];
+        const after = display[index];
+        if (!sameCandle(before, after)) {
+          sharedHistoryUnchanged = false;
+          break;
+        }
       }
     }
-    const cur=chartInstance.current.getDataList();
-    const isNew=!cur.length||(cur[0]&&display[0]&&cur[0].timestamp!==display[0].timestamp)||Math.abs(cur.length-display.length)>5;
-    if (isNew) chartInstance.current.applyNewData(display);
-    else       chartInstance.current.updateData(display[display.length-1]);
+    const previousLast = previous.data[previous.data.length - 1];
+    const nextLast = display[display.length - 1];
+    const chart = chartInstance.current;
+    const chartData = chart.getDataList();
+    const chartMatchesPrevious = chartData.length === previousLength &&
+      chartData[0]?.timestamp === previous.data[0]?.timestamp &&
+      chartData[chartData.length - 1]?.timestamp === previousLast?.timestamp;
+    const canUpdateLast = chartMatchesPrevious && sharedHistoryUnchanged &&
+      previousLength === nextLength &&
+      previousLast?.timestamp === nextLast?.timestamp;
+    const canAppendLast = chartMatchesPrevious && sharedHistoryUnchanged &&
+      nextLength === previousLength + 1 &&
+      display[nextLength - 2]?.timestamp === previousLast?.timestamp &&
+      nextLast?.timestamp > previousLast?.timestamp;
+
+    let seriesDataChanged = true;
+    if (canUpdateLast) {
+      seriesDataChanged = !sameCandle(previousLast, nextLast);
+      if (seriesDataChanged) chart.updateData(nextLast);
+    } else if (canAppendLast) {
+      const finalizedPrevious = display[nextLength - 2];
+      if (!sameCandle(previousLast, finalizedPrevious)) chart.updateData(finalizedPrevious);
+      chart.updateData(nextLast);
+    } else {
+      const visibleRange = chart.getVisibleRange();
+      const wasViewingHistory = chartData.length > 0 && visibleRange?.to < chartData.length;
+      const centerIndex = wasViewingHistory
+        ? Math.max(0, Math.min(
+          chartData.length - 1,
+          Math.floor((Math.max(0, visibleRange.from) + Math.min(chartData.length - 1, visibleRange.to - 1)) / 2),
+        ))
+        : -1;
+      const viewportAnchorTimestamp = centerIndex >= 0 ? chartData[centerIndex]?.timestamp : null;
+      chart.applyNewData(display, undefined, () => {
+        if (viewportAnchorTimestamp != null && chartInstance.current === chart) {
+          chart.scrollToTimestamp(viewportAnchorTimestamp, 0);
+        }
+      });
+    }
+    appliedSeriesRef.current = { chartType, interval, data: display };
+
+    if (forecastEnabled && (seriesDataChanged || forecastResultRef.current == null)) {
+      const calculated = calculateForecast(formatted);
+      let nextForecast = calculated;
+      if (calculated.status === 'ready' && chartType === 'heikin_ashi') {
+        const displayedAnchor = display[display.length - 1].close;
+        const scale = calculated.anchor !== 0 ? Math.abs(displayedAnchor / calculated.anchor) : 1;
+        nextForecast = {
+          ...calculated,
+          anchor: displayedAnchor,
+          forecastHigh: displayedAnchor + (calculated.forecastHigh - calculated.anchor) * scale,
+          forecastLow: displayedAnchor - (calculated.anchor - calculated.forecastLow) * scale,
+        };
+      }
+      forecastResultRef.current = nextForecast;
+      setForecastResult(nextForecast);
+    } else {
+      if (!forecastEnabled && forecastResultRef.current != null) {
+        forecastResultRef.current = null;
+        setForecastResult(null);
+      }
+    }
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event('omniduck_update_dual_tags'));
     });
-  }, [data, chartType]);
+  }, [data, chartType, forecastEnabled, interval, pendingDataRevision]);
+
+  useEffect(() => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+
+    const removeForecast = () => {
+      if (forecastOverlayIdRef.current) {
+        chart.removeOverlay({ id: forecastOverlayIdRef.current });
+        forecastOverlayIdRef.current = null;
+      }
+      if (forecastPreviousOffsetRef.current != null) {
+        const chartData = chart.getDataList();
+        const visibleRange = chart.getVisibleRange();
+        const wasViewingHistory = chartData.length > 0 && visibleRange?.to < chartData.length;
+        const centerIndex = wasViewingHistory
+          ? Math.max(0, Math.min(
+            chartData.length - 1,
+            Math.floor((Math.max(0, visibleRange.from) + Math.min(chartData.length - 1, visibleRange.to - 1)) / 2),
+          ))
+          : -1;
+        const viewportAnchorTimestamp = centerIndex >= 0 ? chartData[centerIndex]?.timestamp : null;
+        chart.setOffsetRightDistance(forecastPreviousOffsetRef.current);
+        if (viewportAnchorTimestamp != null) chart.scrollToTimestamp(viewportAnchorTimestamp, 0);
+        forecastPreviousOffsetRef.current = null;
+      }
+      forecastAppliedOffsetRef.current = null;
+    };
+
+    if (!forecastEnabled || forecastResult?.status !== 'ready' || !displayDataRef.current.length) {
+      removeForecast();
+      return;
+    }
+
+    if (forecastPreviousOffsetRef.current == null) {
+      forecastPreviousOffsetRef.current = chart.getOffsetRightDistance();
+    }
+    const containerWidth = chartContainerRef.current?.clientWidth || 640;
+    const requiredOffset = Math.min(104, Math.max(56, containerWidth * 0.12));
+    const targetOffset = Math.max(forecastPreviousOffsetRef.current, requiredOffset);
+    const chartDataLength = chart.getDataList().length;
+    const visibleRange = chart.getVisibleRange();
+    const isViewingHistory = chartDataLength > 0 && visibleRange?.to < chartDataLength;
+    if (!isViewingHistory && forecastAppliedOffsetRef.current !== targetOffset) {
+      chart.setOffsetRightDistance(targetOffset);
+      forecastAppliedOffsetRef.current = targetOffset;
+    }
+
+    const accuracyText = forecastResult.historicalAccuracy == null
+      ? '--'
+      : `${forecastResult.historicalAccuracy}%`;
+    const fullLabel = `${t('forecastConfidence')} ${forecastResult.confidence}% | ${t('forecastAccuracy')} ${accuracyText} | ${t('forecastSamples')} ${forecastResult.sampleSize}`;
+    const compactLabel = `${forecastResult.confidence}% / ${accuracyText}`;
+    const dataIndex = displayDataRef.current.length;
+    const override = {
+      id: forecastOverlayIdRef.current,
+      points: [
+        { dataIndex, value: forecastResult.anchor },
+        { dataIndex, value: forecastResult.forecastHigh },
+        { dataIndex, value: forecastResult.forecastLow },
+      ],
+      extendData: {
+        upProbability: forecastResult.upProbability,
+        downProbability: forecastResult.downProbability,
+        fullLabel,
+        compactLabel,
+        isDark,
+      },
+    };
+
+    const existing = forecastOverlayIdRef.current
+      ? chart.getOverlayById(forecastOverlayIdRef.current)
+      : null;
+    if (existing) {
+      chart.overrideOverlay(override);
+    } else {
+      forecastOverlayIdRef.current = chart.createOverlay({
+        name: 'omniForecastCandle',
+        groupId: 'omni_forecast',
+        lock: true,
+        zLevel: 20,
+        points: override.points,
+        extendData: override.extendData,
+      }, 'candle_pane');
+    }
+  }, [forecastEnabled, forecastResult, isDark, isFullscreen, isLandscape, t]);
 
   useEffect(() => {
     const fmtVol = (v) => v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v);
@@ -1321,35 +1870,74 @@ export default React.memo(function TradingChart({
     if (chartInstance.current) chartInstance.current.subscribeAction('onCrosshairChange', onCross);
     updateTopBar();
     return () => { if (chartInstance.current) chartInstance.current.unsubscribeAction('onCrosshairChange', onCross); };
-  }, [isDark, data, t, lang]);
+  }, [isDark, t, lang]);
 
   useEffect(() => {
     const fmt  = (v) => v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v);
     const fmtP = (p) => Number.isInteger(p)?p.toString():p.toFixed(2);
+    const hideTag = (element) => {
+      if (element && element.style.display !== 'none') element.style.display = 'none';
+    };
+    const updateTag = (element, { y, text, background, color, border = 'none', filled = true }) => {
+      if (!element || !Number.isFinite(y)) return;
+      const styleKey = `${background}|${color}|${border}|${filled}`;
+      if (element.dataset.omniStyleKey !== styleKey) {
+        element.dataset.omniStyleKey = styleKey;
+        element.style.cssText = `display:block;top:0;background:${background};color:${color};border:${border};position:absolute;right:3px;width:44px;height:22px;line-height:${filled ? 22 : 20}px;text-align:center;font-size:11px;font-family:Inter,sans-serif;font-weight:700;border-radius:2px;z-index:${filled ? 49 : 50};pointer-events:none;box-sizing:border-box;will-change:transform;contain:layout style paint`;
+      } else if (element.style.display !== 'block') {
+        element.style.display = 'block';
+      }
+      element.style.transform = `translate3d(0,${Math.round(y) - 11}px,0)`;
+      if (element.textContent !== text) element.textContent = text;
+    };
     const update = () => {
       const info = window.__omniduck_dual_tags;
       if (!info||!priceLabelLatestRef.current) return;
       const { latest, edge, showVol } = info;
       const cL = latest.isUp?'#089981':'#F23645';
-      priceLabelLatestRef.current.style.cssText = `display:block;top:${latest.priceY-11}px;background:${cL};color:#fff;position:absolute;right:3px;width:44px;height:22px;line-height:22px;text-align:center;font-size:11px;font-family:Inter,sans-serif;font-weight:700;border-radius:2px;z-index:49;pointer-events:none;transition:top .05s linear`;
-      priceLabelLatestRef.current.innerText = fmtP(latest.price);
+      updateTag(priceLabelLatestRef.current, {
+        y: latest.priceY,
+        text: fmtP(latest.price),
+        background: cL,
+        color: '#fff',
+      });
       if (showVol) {
-        volLabelLatestRef.current.style.cssText = `display:block;top:${latest.volY-11}px;background:${cL};color:#fff;position:absolute;right:3px;width:44px;height:22px;line-height:22px;text-align:center;font-size:11px;font-family:Inter,sans-serif;font-weight:700;border-radius:2px;z-index:49;pointer-events:none;transition:top .05s linear`;
-        volLabelLatestRef.current.innerText = fmt(latest.vol);
-      } else { volLabelLatestRef.current.style.display='none'; }
+        updateTag(volLabelLatestRef.current, {
+          y: latest.volY,
+          text: fmt(latest.vol),
+          background: cL,
+          color: '#fff',
+        });
+      } else {
+        hideTag(volLabelLatestRef.current);
+      }
       if (priceLabelEdgeRef.current) {
         if (edge.isLatest) {
-          priceLabelEdgeRef.current.style.display='none';
-          volLabelEdgeRef.current.style.display='none';
+          hideTag(priceLabelEdgeRef.current);
+          hideTag(volLabelEdgeRef.current);
         } else {
           const cE=edge.isUp?'#089981':'#F23645';
           const bgE=isDark?'#0B0F14':'#fff';
-          priceLabelEdgeRef.current.style.cssText = `display:block;top:${edge.priceY-11}px;background:${bgE};color:${cE};border:1px solid ${cE};position:absolute;right:3px;width:44px;height:22px;line-height:20px;text-align:center;font-size:11px;font-family:Inter,sans-serif;font-weight:700;border-radius:2px;z-index:50;pointer-events:none;box-sizing:border-box;transition:top .05s linear`;
-          priceLabelEdgeRef.current.innerText = fmtP(edge.price);
+          updateTag(priceLabelEdgeRef.current, {
+            y: edge.priceY,
+            text: fmtP(edge.price),
+            background: bgE,
+            color: cE,
+            border: `1px solid ${cE}`,
+            filled: false,
+          });
           if (showVol) {
-            volLabelEdgeRef.current.style.cssText = `display:block;top:${edge.volY-11}px;background:${bgE};color:${cE};border:1px solid ${cE};position:absolute;right:3px;width:44px;height:22px;line-height:20px;text-align:center;font-size:11px;font-family:Inter,sans-serif;font-weight:700;border-radius:2px;z-index:50;pointer-events:none;box-sizing:border-box;transition:top .05s linear`;
-            volLabelEdgeRef.current.innerText = fmt(edge.vol);
-          } else { volLabelEdgeRef.current.style.display='none'; }
+            updateTag(volLabelEdgeRef.current, {
+              y: edge.volY,
+              text: fmt(edge.vol),
+              background: bgE,
+              color: cE,
+              border: `1px solid ${cE}`,
+              filled: false,
+            });
+          } else {
+            hideTag(volLabelEdgeRef.current);
+          }
         }
       }
     };
@@ -1409,6 +1997,13 @@ const rowBtn = React.useCallback((active) =>
       ? `bg-[#10151C] ${A.idleBorder} ${A.idleText} ${A.hoverSolid}`
       : `bg-white border-slate-300 text-slate-700 ${A.hoverSolid}`);
 
+  const visibleOverlayColors = React.useMemo(() => {
+    const count = clampVisibleColorCount(visibleColorCount, A.overlayColors.length);
+    const colors = A.overlayColors.slice(0, count);
+    if (!colors.includes(overlayColor)) colors[colors.length - 1] = overlayColor;
+    return colors;
+  }, [A.overlayColors, overlayColor, visibleColorCount]);
+
   return (
     <div
       ref={outerWrapperRef}
@@ -1458,7 +2053,7 @@ const rowBtn = React.useCallback((active) =>
               >
                 <Clock size={12} className="shrink-0" />
                 <span className="truncate">{localizeIntervalLabel(interval, lang)}</span>
-                <ChevronDown size={11} className={`shrink-0 ${showIntervalMenu ? 'rotate-180' : ''}`} />
+                <ChevronDown size={11} className={`shrink-0 max-[520px]:hidden ${showIntervalMenu ? 'rotate-180' : ''}`} />
               </button>
               {showIntervalMenu && (
                 <div className={`${menuBase} w-40`}>
@@ -1489,7 +2084,7 @@ const rowBtn = React.useCallback((active) =>
                 <span className="truncate">
                   {{ candle_solid: t('typeSolidShort'), candle_up_stroke: t('typeHollowShort'), candle_stroke: t('typeStrokeShort'), ohlc: t('typeBarShort'), area: t('typeAreaShort'), heikin_ashi: t('heikinAshi') }[chartType] || t('typeCandleFallback')}
                 </span>
-                <ChevronDown size={11} className={`shrink-0 ${showTypeMenu ? 'rotate-180' : ''}`} />
+                <ChevronDown size={11} className={`shrink-0 max-[520px]:hidden ${showTypeMenu ? 'rotate-180' : ''}`} />
               </button>
               {showTypeMenu && (
                 <div className={`${menuBase} w-48`}>
@@ -1510,15 +2105,43 @@ const rowBtn = React.useCallback((active) =>
               >
                 <Settings2 size={12} className="shrink-0" />
                 <span className="truncate">{t('indicators')}</span>
-                <ChevronDown size={11} className={`shrink-0 ${showIndicatorMenu ? 'rotate-180' : ''}`} />
+                <ChevronDown size={11} className={`shrink-0 max-[520px]:hidden ${showIndicatorMenu ? 'rotate-180' : ''}`} />
               </button>
               {showIndicatorMenu && (
                 <div className={`${menuBase} w-64`}>
                   <p className="px-4 pt-2 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('overlayIndicators')}</p>
                   {MAIN_INDICATORS.map(ind => (
-                    <button key={ind.key} onClick={() => toggleIndicator(ind.key, true)} className={rowBtn(activeMain.includes(ind.key))}>
-                      {t(ind.labelKey)}{activeMain.includes(ind.key) && <Check size={12} />}
-                    </button>
+                    <React.Fragment key={ind.key}>
+                      <button onClick={() => toggleIndicator(ind.key, true)} className={rowBtn(activeMain.includes(ind.key))}>
+                        {t(ind.labelKey)}{activeMain.includes(ind.key) && <Check size={12} />}
+                      </button>
+                      {ind.key === 'MA' && activeMain.includes('MA') && (
+                        <div className={`mx-2 mb-2 rounded-lg p-2 ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+                          <div className="grid grid-cols-3 gap-1">
+                            {Object.keys(MA_PRESETS).map(preset => (
+                              <button
+                                key={preset}
+                                type="button"
+                                aria-pressed={maPreset === preset}
+                                onClick={(event) => { event.stopPropagation(); handleMaPresetChange(preset); }}
+                                className={`rounded-md px-1.5 py-1.5 text-[9px] font-black uppercase transition-colors ${
+                                  maPreset === preset
+                                    ? `${A.solid} ${A.solidText}`
+                                    : (isDark ? 'text-slate-300 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-200')
+                                }`}
+                              >
+                                {t(`maPreset${preset[0].toUpperCase()}${preset.slice(1)}`)}
+                              </button>
+                            ))}
+                          </div>
+                          {(maPreset === 'long' || maPreset === 'all') && rawDataRef.current.length < 200 && (
+                            <p className="mt-1.5 px-1 text-[9px] leading-snug text-slate-500">
+                              {t('maLongDataHint')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </React.Fragment>
                   ))}
                   <div className="h-px bg-white/10 my-2" />
                   <p className="px-4 pb-1 text-[9px] font-black text-slate-500 uppercase">{t('subIndicators')}</p>
@@ -1532,6 +2155,22 @@ const rowBtn = React.useCallback((active) =>
             </div>
 
             {/* 4 & 5. NÚT PHÓNG TO TOÀN MÀN HÌNH (MOBILE ONLY: lg:hidden) */}
+            <div className="relative z-[210] flex-1">
+              <button
+                type="button"
+                onClick={handleForecastToggle}
+                aria-pressed={forecastEnabled}
+                title={forecastResult?.status === 'insufficient_data'
+                  ? t('forecastNeedsCandles', { count: MIN_FORECAST_CANDLES })
+                  : t('forecastToggleTitle')}
+                className={`w-full flex items-center justify-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(forecastEnabled)}`}
+              >
+                <Activity size={12} className="shrink-0" />
+                <span className="truncate">{t('forecast')}</span>
+                {forecastEnabled && <Check size={11} className="shrink-0 max-[520px]:hidden" />}
+              </button>
+            </div>
+
             <div className="flex lg:hidden items-center gap-1 shrink-0">
               <button
                 type="button"
@@ -1565,21 +2204,25 @@ const rowBtn = React.useCallback((active) =>
           <div className={`w-full flex items-center justify-between px-2.5 py-1 rounded-xl border shadow-sm ${
             isDark ? 'bg-[#10151C]/90 border-white/10' : 'bg-white border-slate-200'
           }`}>
-            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar flex-1 py-0.5">
+            <div className="flex items-center gap-2 flex-1 min-w-0 py-0.5">
               <span className={`text-[9px] font-black uppercase tracking-wider shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {t('color')}:
               </span>
-              <div className="flex items-center gap-1.5">
-                {A.overlayColors.map(hex => (
+              <div ref={paletteContainerRef} className="flex-1 min-w-0 overflow-hidden">
+                <div className="flex w-full items-center justify-between">
+                {visibleOverlayColors.map(hex => (
                   <button
                     key={hex}
                     onClick={() => handleOverlayColorChange(hex)}
+                    title={hex}
+                    aria-label={`${t('color')} ${hex}`}
                     className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 transition-all hover:scale-110 shrink-0 ${
                       overlayColor === hex ? 'ring-1 ring-offset-1' : ''
                     }`}
                     style={{ backgroundColor: hex, borderColor: overlayColor === hex ? (isDark ? '#fff' : '#1f2937') : 'transparent' }}
                   />
                 ))}
+                </div>
               </div>
             </div>
 
@@ -1653,6 +2296,10 @@ const rowBtn = React.useCallback((active) =>
                   setActiveOverlay(null);
                 } else {
                   chartInstance.current?.removeAllOverlay();
+                  forecastOverlayIdRef.current = null;
+                  if (forecastResult?.status === 'ready') {
+                    setForecastResult({ ...forecastResult });
+                  }
                   setActiveOverlay(null);
                 }
               }}
