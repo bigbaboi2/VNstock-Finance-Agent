@@ -100,10 +100,17 @@ test('flat candles and zero volume remain finite', () => {
   assert.ok(Number.isFinite(forecast.forecastLow));
 });
 
-test('walk-forward accuracy ignores a tied next close', () => {
+test('walk-forward accuracy caps recent samples and ignores a tied next close', () => {
   const candles = makeCandles(70);
+  // The 15-candle cap evaluates signal indices 54..67. A tie at outcome index
+  // 55 removes one completed sample, leaving 13 scored outcomes.
   candles[55] = { ...candles[55], close: candles[54].close };
   const forecast = calculateForecast(candles, { minAccuracySamples: 1 });
-  assert.equal(forecast.sampleSize, candles.length - MIN_FORECAST_CANDLES - 2);
+  assert.equal(forecast.sampleSize, 13);
   assert.ok(forecast.historicalAccuracy >= 0 && forecast.historicalAccuracy <= 100);
+});
+
+test('walk-forward accuracy never exceeds the performance sample cap', () => {
+  const forecast = calculateForecast(makeCandles(500), { minAccuracySamples: 1 });
+  assert.equal(forecast.sampleSize, 14);
 });

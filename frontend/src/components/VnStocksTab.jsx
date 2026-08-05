@@ -1595,7 +1595,7 @@ const pickUnseen = (arr, seenSet) => {
 // =====================================================================
 // COMPONENT CHÍNH: VN STOCKS TAB
 // =====================================================================
-export default function VnStocksTab({
+const VnStocksTab = React.memo(function VnStocksTab({
   isDark, UI,
   allStocks,
   marketData,
@@ -4856,4 +4856,6 @@ export default function VnStocksTab({
       />
     </div>
   );
-}
+});
+
+export default VnStocksTab;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useId } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { localizeIntervalLabel } from '../i18n/vnMarketLabels';
@@ -13,6 +13,7 @@ import {
 import {
   MIN_FORECAST_CANDLES,
   calculateForecast,
+  clearForecastCache,
   toHeikinAshi,
 } from '../lib/chartForecast';
 
@@ -162,53 +163,87 @@ function patchKlineDragCapture(chart) {
     }
   };
 
-  const performMainPaneVerticalPan = (evInstance, downWidget, pageY) => {
+  const applyMainPaneVerticalPan = (evInstance, downWidget) => {
     try {
       const pane = downWidget.getPane?.();
       const yAxis = pane?.getAxisComponent?.();
-      if (!yAxis) return;
+      const pendingDy = evInstance.__omniPendingPaneDy || 0;
+      evInstance.__omniPendingPaneDy = 0;
+      if (!yAxis || pendingDy === 0) return;
 
-      if (evInstance.__omniYLastPanePageY == null) {
-        evInstance.__omniYLastPanePageY = pageY;
-        return;
-      }
+      const cur = yAxis.getRange?.();
+      const paneHeight = pane?.getBounding?.()?.height || 300;
+      if (!cur || paneHeight <= 0) return;
 
-      const dy = pageY - evInstance.__omniYLastPanePageY;
-      evInstance.__omniYLastPanePageY = pageY;
-      evInstance.__omniPendingPaneDy = (evInstance.__omniPendingPaneDy || 0) + dy;
-      if (evInstance.__omniPaneRaf == null && evInstance.__omniPendingPaneDy !== 0) {
-        evInstance.__omniPaneRaf = requestAnimationFrame(() => {
-          evInstance.__omniPaneRaf = null;
-          const pendingDy = evInstance.__omniPendingPaneDy || 0;
-          evInstance.__omniPendingPaneDy = 0;
-          const cur = yAxis.getRange?.();
-          const paneHeight = pane?.getBounding?.()?.height || 300;
-          if (cur && pendingDy !== 0 && paneHeight > 0) {
-            const deltaPrice = (pendingDy / paneHeight) * cur.range;
-            const newFrom = cur.from + deltaPrice;
-            const newTo = cur.to + deltaPrice;
-            const newRealFrom = yAxis.convertToRealValue(newFrom);
-            const newRealTo = yAxis.convertToRealValue(newTo);
-            yAxis.setAutoCalcTickFlag?.(false);
-            yAxis.setRange({
-              from: newFrom,
-              to: newTo,
-              range: cur.range,
-              realFrom: newRealFrom,
-              realTo: newRealTo,
-              realRange: newRealTo - newRealFrom,
-            });
-            chart.adjustPaneViewport(false, true, true, true);
-          }
-        });
-      }
-    } catch {}
+      const deltaPrice = (pendingDy / paneHeight) * cur.range;
+      const newFrom = cur.from + deltaPrice;
+      const newTo = cur.to + deltaPrice;
+      const newRealFrom = yAxis.convertToRealValue(newFrom);
+      const newRealTo = yAxis.convertToRealValue(newTo);
+      yAxis.setAutoCalcTickFlag?.(false);
+      yAxis.setRange({
+        from: newFrom,
+        to: newTo,
+        range: cur.range,
+        realFrom: newRealFrom,
+        realTo: newRealTo,
+        realRange: newRealTo - newRealFrom,
+      });
+    } catch { /* private KLineCharts API can differ between patch releases */ }
   };
+
+  const queueMainPaneDrag = (evInstance, downWidget, sourceEvent, widgetEvent, nativeMove) => {
+    if (widgetEvent?.pageY != null) {
+      if (evInstance.__omniYLastPanePageY != null) {
+        evInstance.__omniPendingPaneDy = (evInstance.__omniPendingPaneDy || 0) +
+          (widgetEvent.pageY - evInstance.__omniYLastPanePageY);
+      }
+      evInstance.__omniYLastPanePageY = widgetEvent.pageY;
+    }
+    evInstance.__omniPendingPaneEvent = sourceEvent;
+    if (evInstance.__omniPaneRaf != null) return true;
+
+    evInstance.__omniPaneRaf = requestAnimationFrame(() => {
+      evInstance.__omniPaneRaf = null;
+      const latestEvent = evInstance.__omniPendingPaneEvent;
+      evInstance.__omniPendingPaneEvent = null;
+      // Native drag handles horizontal navigation. Applying the accumulated
+      // vertical delta before it lets KLineCharts paint both changes together.
+      applyMainPaneVerticalPan(evInstance, downWidget);
+      nativeMove(latestEvent);
+    });
+    return true;
+  };
+
+  const clearPendingMainPaneDrag = (evInstance) => {
+    if (evInstance.__omniPaneRaf != null) {
+      cancelAnimationFrame(evInstance.__omniPaneRaf);
+      evInstance.__omniPaneRaf = null;
+    }
+    evInstance.__omniPendingPaneDy = 0;
+    evInstance.__omniPendingPaneEvent = null;
+  };
+
+  const clearPendingDragFrames = (evInstance) => {
+    clearPendingMainPaneDrag(evInstance);
+    if (evInstance.__omniXAxisRaf != null) {
+      cancelAnimationFrame(evInstance.__omniXAxisRaf);
+      evInstance.__omniXAxisRaf = null;
+    }
+    if (evInstance.__omniYAxisRaf != null) {
+      cancelAnimationFrame(evInstance.__omniYAxisRaf);
+      evInstance.__omniYAxisRaf = null;
+    }
+    evInstance.__omniPendingXAxisDx = 0;
+    evInstance.__omniPendingYAxisDy = 0;
+  };
+  chart.__omniCancelDragFrames = () => clearPendingDragFrames(ev);
 
   const origPressedMove = ev.pressedMouseMoveEvent?.bind(ev);
   const origMouseUp = ev.mouseUpEvent?.bind(ev);
   if (origMouseUp) {
     ev.mouseUpEvent = function (e) {
+      clearPendingDragFrames(this);
       this.__omniXLastPageX = null;
       this.__omniYLastPageY = null;
       this.__omniYLastPanePageY = null;
@@ -240,10 +275,7 @@ function patchKlineDragCapture(chart) {
         return true;
       }
       if (down) {
-        const event = this._makeWidgetEvent(e, down);
-        if (event?.pageY != null) {
-          performMainPaneVerticalPan(this, down, event.pageY);
-        }
+        return origPressedMove(e);
       }
       return origPressedMove(e);
     };
@@ -260,12 +292,6 @@ function patchKlineDragCapture(chart) {
         if (name === 'xAxis') performXAxisDrag(this, down, pageX);
         if (name === 'yAxis') performYAxisDrag(this, down, pageY);
         return true;
-      }
-    } else if (down) {
-      const touch = e.touches?.[0] || e.targetTouches?.[0] || e;
-      const pageY = touch.pageY ?? touch.clientY;
-      if (pageY != null) {
-        performMainPaneVerticalPan(this, down, pageY);
       }
     }
     return false;
@@ -298,6 +324,7 @@ function patchKlineDragCapture(chart) {
 
   const origTouchEnd = ev.touchEndEvent?.bind(ev);
   ev.touchEndEvent = function (e) {
+    clearPendingDragFrames(this);
     this.__omniXLastPageX = null;
     this.__omniYLastPageY = null;
     this.__omniYLastPanePageY = null;
@@ -368,16 +395,28 @@ let _vol_registered = false;
 if (!_vol_registered) {
   _vol_registered = true;
   try {
+    // Per-instance state for the dual price/volume tags. Previously this used
+    // a single `window.__omniduck_dual_tags` object + one global rAF-pending
+    // flag shared by EVERY chart on the page: whichever chart redrew last
+    // "won", every other mounted chart (mini/watchlist charts, etc.) would
+    // then paint tags with THAT chart's data, and every redraw frame of any
+    // one chart forced every other instance's listener to run too. Fixed by
+    // namespacing both the data and the dispatched event by instance id
+    // (passed in via calcParams[1], see createIndicator/overrideIndicator
+    // call sites which now pass `forecastCacheKeyRef.current`).
+    if (!window.__omniduck_dual_tags_map) window.__omniduck_dual_tags_map = new Map();
+    if (!window.__omniduck_raf_pending_map) window.__omniduck_raf_pending_map = new Map();
     registerIndicator({
       name: 'TV_VOL_OVERLAY',
       shortName: 'VOL',
-      calcParams: [true],
+      calcParams: [true, ''],
       calc: (dl) => dl.map(k => ({ volume: k.volume||0, open: k.open||0, close: k.close||0 })),
       draw: ({ ctx, bounding, visibleRange, indicator, xAxis, yAxis }) => {
         const { height } = bounding;
         const dl = indicator.result;
         if (!dl.length) return true;
         const showVol = indicator.calcParams[0];
+        const instanceId = indicator.calcParams[1] || '';
         const p0 = xAxis.convertToPixel(0), p1 = xAxis.convertToPixel(1);
         const barWidth = Math.max(Math.abs(p1 - p0) * 0.8, 1);
         let maxVol = 0;
@@ -388,7 +427,7 @@ if (!_vol_registered) {
         const ei = Math.min(visibleRange.to - 1, dl.length - 1);
         const edge = dl[ei];
         if (latest && edge && yAxis) {
-          window.__omniduck_dual_tags = {
+          window.__omniduck_dual_tags_map.set(instanceId, {
             showVol,
             latest: {
               price: latest.close, priceY: yAxis.convertToPixel(latest.close),
@@ -403,12 +442,12 @@ if (!_vol_registered) {
               volY: height - (maxVol>0 ? ((edge.volume||0)/maxVol)*(height*0.25) : 0),
               isUp: edge.close >= edge.open
             }
-          };
-          if (!window.__omniduck_raf_pending) {
-            window.__omniduck_raf_pending = true;
+          });
+          if (!window.__omniduck_raf_pending_map.get(instanceId)) {
+            window.__omniduck_raf_pending_map.set(instanceId, true);
             requestAnimationFrame(() => {
-              window.__omniduck_raf_pending = false;
-              window.dispatchEvent(new Event('omniduck_update_dual_tags'));
+              window.__omniduck_raf_pending_map.set(instanceId, false);
+              window.dispatchEvent(new CustomEvent('omniduck_update_dual_tags', { detail: { instanceId } }));
             });
           }
         }
@@ -673,157 +712,376 @@ try {
       needDefaultYAxisFigure: false,
       createPointFigures: ({ coordinates, bounding, barSpace, overlay }) => {
         if (coordinates.length < 3) return [];
-        const [anchorPoint, highPoint, lowPoint] = coordinates;
+        const [anchorPoint, bandHighPoint] = coordinates;
+        if (!anchorPoint || !Number.isFinite(anchorPoint.x) || !Number.isFinite(anchorPoint.y)) {
+          return [];
+        }
+        // The forecast block always sits to the right of the latest real
+        // candle. When the user pans back to view older history, anchorPoint
+        // scrolls far past the right edge of the viewport — but this
+        // function used to still build the full figure set (dashed
+        // rects/lines/labels/trendline) every single redraw frame regardless.
+        // Skip all of that work when nothing would actually be visible.
+        const offscreenMargin = 40;
+        if (anchorPoint.x > bounding.width + offscreenMargin || anchorPoint.x < -offscreenMargin) {
+          return [];
+        }
         const meta = overlay.extendData || {};
-        // Match KLineCharts' real candle body width at every zoom level.
+        const isSequence = meta.displayMode === 'sequence';
         const width = Math.max(3, barSpace.gapBar - 1);
-        const x = anchorPoint.x - width / 2;
-        const top = Math.min(highPoint.y, anchorPoint.y);
-        const bottom = Math.max(lowPoint.y, anchorPoint.y);
-        const upHeight = Math.max(anchorPoint.y - top, 1);
-        const downHeight = Math.max(bottom - anchorPoint.y, 1);
         const compact = bounding.width < 620;
         const probabilityFontSize = compact ? 11 : 12;
-        const probabilityLabelWidth = compact ? 42 : 46;
-        const probabilityLabelHeight = probabilityFontSize + 8;
-        const canPlaceUpInside = width >= probabilityLabelWidth && upHeight >= probabilityLabelHeight;
-        const canPlaceDownInside = width >= probabilityLabelWidth && downHeight >= probabilityLabelHeight;
-        const hasProbabilityRoomRight = bounding.width - (x + width) >= probabilityLabelWidth + 8;
-        const outsideProbabilityX = hasProbabilityRoomRight
-          ? x + width + 5
-          : anchorPoint.x;
-        const outsideProbabilityAlign = hasProbabilityRoomRight ? 'left' : 'center';
-        const upLabelPosition = canPlaceUpInside
-          ? { x: anchorPoint.x, y: top + upHeight / 2, align: 'center', baseline: 'middle' }
-          : { x: outsideProbabilityX, y: top, align: outsideProbabilityAlign, baseline: 'bottom' };
-        const downLabelPosition = canPlaceDownInside
-          ? { x: anchorPoint.x, y: anchorPoint.y + downHeight / 2, align: 'center', baseline: 'middle' }
-          : { x: outsideProbabilityX, y: bottom, align: outsideProbabilityAlign, baseline: 'top' };
-        const roomOnRight = bounding.width - anchorPoint.x > (compact ? 105 : 220);
-        const labelX = roomOnRight ? anchorPoint.x + width / 2 + 7 : anchorPoint.x - width / 2 - 7;
-        const labelAlign = roomOnRight ? 'left' : 'right';
-        const summary = compact ? meta.compactLabel : meta.fullLabel;
-        const labelY = compact
-          ? Math.min(Math.max(22, top + 16), bounding.height - 18)
-          : Math.max(18, top - 25);
         const probabilityLabelBackground = meta.isDark
           ? 'rgba(15,23,42,0.92)'
           : 'rgba(255,255,255,0.96)';
         const probabilityUpColor = meta.isDark ? '#34D399' : '#047857';
         const probabilityDownColor = meta.isDark ? '#FB7185' : '#DC2626';
         const forecastBorderColor = meta.isDark ? '#FACC15' : '#CA8A04';
-        return [
-          {
-            key: 'forecast-up',
-            type: 'rect',
-            attrs: { x, y: top, width, height: upHeight },
-            styles: { style: 'fill', color: 'rgba(8,153,129,0.42)', borderRadius: 1 },
-            ignoreEvent: true,
+        const figures = [];
+
+        // ---- Probability Band Mode (Dynamic multi-point trajectory envelope line path) ----
+        if (!isSequence) {
+          const horizon = meta.horizonCount || 1;
+          const upWeight = (meta.upProbability || 50) / 100;
+          const downWeight = 1 - upWeight;
+
+          const topChannelCoords = [{ x: anchorPoint.x, y: anchorPoint.y }];
+          const bottomChannelCoords = [{ x: anchorPoint.x, y: anchorPoint.y }];
+          const centerChannelCoords = [{ x: anchorPoint.x, y: anchorPoint.y }];
+
+          for (let s = 1; s <= horizon; s += 1) {
+            const coordOffset = 3 + (s - 1) * 8;
+            if (coordinates.length < coordOffset + 8) break;
+
+            const upHighC = coordinates[coordOffset + 1];
+            const upCloseC = coordinates[coordOffset + 3];
+            const downLowC = coordinates[coordOffset + 6];
+            const downCloseC = coordinates[coordOffset + 7];
+
+            if (upHighC && downLowC && upCloseC && downCloseC &&
+                Number.isFinite(upHighC.x) && Number.isFinite(upHighC.y) && Number.isFinite(downLowC.y)) {
+              const dayX = upHighC.x;
+              topChannelCoords.push({ x: dayX, y: upHighC.y });
+              bottomChannelCoords.push({ x: dayX, y: downLowC.y });
+              centerChannelCoords.push({ x: dayX, y: upCloseC.y * upWeight + downCloseC.y * downWeight });
+            }
+          }
+
+          if (topChannelCoords.length >= 2) {
+            figures.push(
+              {
+                key: 'forecast-band-top-line',
+                type: 'line',
+                attrs: { coordinates: topChannelCoords },
+                styles: { style: 'dashed', color: probabilityUpColor, size: 1.5, dashedValue: [5, 3] },
+                ignoreEvent: true,
+              },
+              {
+                key: 'forecast-band-bottom-line',
+                type: 'line',
+                attrs: { coordinates: bottomChannelCoords },
+                styles: { style: 'dashed', color: probabilityDownColor, size: 1.5, dashedValue: [5, 3] },
+                ignoreEvent: true,
+              },
+              {
+                key: 'forecast-anchor-line',
+                type: 'line',
+                attrs: { coordinates: centerChannelCoords },
+                styles: { style: 'dashed', color: forecastBorderColor, size: 1.2, dashedValue: [3, 2] },
+                ignoreEvent: true,
+              },
+            );
+
+            for (let k = 1; k < topChannelCoords.length; k += 1) {
+              figures.push(
+                {
+                  key: `forecast-band-node-top-${k}`,
+                  type: 'circle',
+                  attrs: { x: topChannelCoords[k].x, y: topChannelCoords[k].y, r: 3 },
+                  styles: { style: 'fill', color: probabilityUpColor },
+                  ignoreEvent: true,
+                },
+                {
+                  key: `forecast-band-node-bottom-${k}`,
+                  type: 'circle',
+                  attrs: { x: bottomChannelCoords[k].x, y: bottomChannelCoords[k].y, r: 3 },
+                  styles: { style: 'fill', color: probabilityDownColor },
+                  ignoreEvent: true,
+                },
+              );
+            }
+
+            const lastTopPt = topChannelCoords[topChannelCoords.length - 1];
+            const lastBottomPt = bottomChannelCoords[bottomChannelCoords.length - 1];
+
+            figures.push(
+              {
+                key: 'forecast-up-label',
+                type: 'text',
+                attrs: {
+                  x: lastTopPt.x,
+                  y: lastTopPt.y - 6,
+                  text: `↑${meta.upProbability}%`,
+                  align: 'center',
+                  baseline: 'bottom',
+                },
+                styles: {
+                  style: 'fill', color: probabilityUpColor, size: probabilityFontSize,
+                  family: 'Segoe UI, Arial, sans-serif', weight: '700',
+                  backgroundColor: probabilityLabelBackground,
+                  borderColor: meta.isDark ? 'rgba(52,211,153,0.55)' : 'rgba(4,120,87,0.35)',
+                  borderSize: 1, borderRadius: 3,
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 3, paddingBottom: 3,
+                },
+                ignoreEvent: true,
+              },
+              {
+                key: 'forecast-down-label',
+                type: 'text',
+                attrs: {
+                  x: lastBottomPt.x,
+                  y: lastBottomPt.y + 6,
+                  text: `↓${meta.downProbability}%`,
+                  align: 'center',
+                  baseline: 'top',
+                },
+                styles: {
+                  style: 'fill', color: probabilityDownColor, size: probabilityFontSize,
+                  family: 'Segoe UI, Arial, sans-serif', weight: '700',
+                  backgroundColor: probabilityLabelBackground,
+                  borderColor: meta.isDark ? 'rgba(251,113,133,0.55)' : 'rgba(220,38,38,0.35)',
+                  borderSize: 1, borderRadius: 3,
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 3, paddingBottom: 3,
+                },
+                ignoreEvent: true,
+              },
+            );
+          }
+        }
+
+        // ---- Dual-Branch Sequence Mode (Both Up & Down candles share the SAME vertical X axis) ----
+        const trendlineCoords = [{ x: anchorPoint.x, y: anchorPoint.y }];
+        if (isSequence) {
+          let prevUpPt = { x: anchorPoint.x, y: anchorPoint.y };
+          let prevDownPt = { x: anchorPoint.x, y: anchorPoint.y };
+          const horizon = meta.horizonCount || 1;
+          const upWeight = (meta.upProbability || 50) / 100;
+          const downWeight = 1 - upWeight;
+
+          for (let s = 1; s <= horizon; s += 1) {
+            const coordOffset = 3 + (s - 1) * 8;
+            if (coordinates.length < coordOffset + 8) break;
+
+            const upOpenC = coordinates[coordOffset];
+            const upHighC = coordinates[coordOffset + 1];
+            const upLowC = coordinates[coordOffset + 2];
+            const upCloseC = coordinates[coordOffset + 3];
+
+            const downOpenC = coordinates[coordOffset + 4];
+            const downHighC = coordinates[coordOffset + 5];
+            const downLowC = coordinates[coordOffset + 6];
+            const downCloseC = coordinates[coordOffset + 7];
+
+            if (!upOpenC || !upHighC || !upLowC || !upCloseC ||
+                !downOpenC || !downHighC || !downLowC || !downCloseC ||
+                !Number.isFinite(upCloseC.x) || !Number.isFinite(upCloseC.y) ||
+                !Number.isFinite(downCloseC.x) || !Number.isFinite(downCloseC.y)) {
+              continue;
+            }
+
+            const dayX = upCloseC.x; // Exact central timestamp X axis for session s
+            const weightedY = upCloseC.y * upWeight + downCloseC.y * downWeight;
+            trendlineCoords.push({ x: dayX, y: weightedY });
+
+            const cWidth = Math.max(3, barSpace.gapBar - 1);
+            const cX = dayX - cWidth / 2;
+            const centerX = dayX;
+
+            const stepObj = meta.steps && meta.steps[s - 1];
+            const stepUpProb = stepObj ? stepObj.upProbability : (meta.upProbability || 50);
+            const stepDownProb = stepObj ? stepObj.downProbability : (meta.downProbability || 50);
+
+            // Dynamic opacity scaling: higher probability -> richer color, max opacity capped at 0.46 fill (always lighter than solid real candles)
+            const upRatio = Math.min(0.90, Math.max(0.15, stepUpProb / 100));
+            const upFillAlpha = (0.15 + upRatio * 0.33).toFixed(2);
+            const upStrokeAlpha = (0.45 + upRatio * 0.40).toFixed(2);
+            const upFillColor = `rgba(8,153,129,${upFillAlpha})`;
+            const upBorderColor = `rgba(8,153,129,${upStrokeAlpha})`;
+
+            const downRatio = Math.min(0.90, Math.max(0.15, stepDownProb / 100));
+            const downFillAlpha = (0.15 + downRatio * 0.33).toFixed(2);
+            const downStrokeAlpha = (0.45 + downRatio * 0.40).toFixed(2);
+            const downFillColor = `rgba(242,54,69,${downFillAlpha})`;
+            const downBorderColor = `rgba(242,54,69,${downStrokeAlpha})`;
+
+            // Branch continuation dashed lines from previous step to current day center
+            figures.push(
+              {
+                key: `forecast-branch-up-line-${s}`,
+                type: 'line',
+                attrs: { coordinates: [{ x: prevUpPt.x, y: prevUpPt.y }, { x: centerX, y: upOpenC.y }] },
+                styles: { style: 'dashed', color: upBorderColor, size: 1, dashedValue: [2, 2] },
+                ignoreEvent: true,
+              },
+              {
+                key: `forecast-branch-down-line-${s}`,
+                type: 'line',
+                attrs: { coordinates: [{ x: prevDownPt.x, y: prevDownPt.y }, { x: centerX, y: downOpenC.y }] },
+                styles: { style: 'dashed', color: downBorderColor, size: 1, dashedValue: [2, 2] },
+                ignoreEvent: true,
+              },
+            );
+
+            // Up candle (Green) centered on same vertical axis
+            const upBodyTop = Math.min(upOpenC.y, upCloseC.y);
+            const upBodyH = Math.max(Math.abs(upCloseC.y - upOpenC.y), 2);
+            figures.push(
+              {
+                key: `forecast-step-up-wick-${s}`,
+                type: 'line',
+                attrs: { coordinates: [{ x: centerX, y: upHighC.y }, { x: centerX, y: upLowC.y }] },
+                styles: { style: 'dashed', color: upBorderColor, size: 1, dashedValue: [2, 2] },
+                ignoreEvent: true,
+              },
+              {
+                key: `forecast-step-up-body-${s}`,
+                type: 'rect',
+                attrs: { x: cX, y: upBodyTop, width: cWidth, height: upBodyH },
+                styles: {
+                  style: 'stroke_fill', color: upFillColor,
+                  borderColor: upBorderColor, borderSize: 1.2,
+                  borderStyle: 'dashed', borderDashedValue: [3, 2], borderRadius: 1,
+                },
+                ignoreEvent: true,
+              },
+            );
+
+            // Down candle (Red) centered on same vertical axis
+            const downBodyTop = Math.min(downOpenC.y, downCloseC.y);
+            const downBodyH = Math.max(Math.abs(downCloseC.y - downOpenC.y), 2);
+            figures.push(
+              {
+                key: `forecast-step-down-wick-${s}`,
+                type: 'line',
+                attrs: { coordinates: [{ x: centerX, y: downHighC.y }, { x: centerX, y: downLowC.y }] },
+                styles: { style: 'dashed', color: downBorderColor, size: 1, dashedValue: [2, 2] },
+                ignoreEvent: true,
+              },
+              {
+                key: `forecast-step-down-body-${s}`,
+                type: 'rect',
+                attrs: { x: cX, y: downBodyTop, width: cWidth, height: downBodyH },
+                styles: {
+                  style: 'stroke_fill', color: downFillColor,
+                  borderColor: downBorderColor, borderSize: 1.2,
+                  borderStyle: 'dashed', borderDashedValue: [3, 2], borderRadius: 1,
+                },
+                ignoreEvent: true,
+              },
+            );
+
+            // Probability labels on day 1
+            if (s === 1) {
+              figures.push(
+                {
+                  key: 'forecast-fork-up-label',
+                  type: 'text',
+                  attrs: { x: centerX, y: upHighC.y - 5, text: `↑${meta.upProbability}%`, align: 'center', baseline: 'bottom' },
+                  styles: {
+                    style: 'fill', color: probabilityUpColor, size: probabilityFontSize - 1,
+                    family: 'Segoe UI, Arial, sans-serif', weight: '700',
+                    backgroundColor: probabilityLabelBackground, borderRadius: 2,
+                    paddingLeft: 3, paddingRight: 3, paddingTop: 2, paddingBottom: 2,
+                  },
+                  ignoreEvent: true,
+                },
+                {
+                  key: 'forecast-fork-down-label',
+                  type: 'text',
+                  attrs: { x: centerX, y: downLowC.y + 5, text: `↓${meta.downProbability}%`, align: 'center', baseline: 'top' },
+                  styles: {
+                    style: 'fill', color: probabilityDownColor, size: probabilityFontSize - 1,
+                    family: 'Segoe UI, Arial, sans-serif', weight: '700',
+                    backgroundColor: probabilityLabelBackground, borderRadius: 2,
+                    paddingLeft: 3, paddingRight: 3, paddingTop: 2, paddingBottom: 2,
+                  },
+                  ignoreEvent: true,
+                },
+              );
+            }
+
+            prevUpPt = { x: centerX, y: upCloseC.y };
+            prevDownPt = { x: centerX, y: downCloseC.y };
+          }
+        }
+
+        // ---- Summary label (confidence / accuracy / samples) ------------
+        const roomOnRight = bounding.width - anchorPoint.x > (compact ? 105 : 220);
+        const labelX = roomOnRight ? anchorPoint.x + width / 2 + 7 : anchorPoint.x - width / 2 - 7;
+        const labelAlign = roomOnRight ? 'left' : 'right';
+        const summary = compact ? meta.compactLabel : meta.fullLabel;
+        const summaryTop = bandHighPoint?.y && Number.isFinite(bandHighPoint.y) ? Math.min(anchorPoint.y, bandHighPoint.y) : anchorPoint.y;
+        const labelY = compact
+          ? Math.min(Math.max(22, summaryTop + 16), bounding.height - 18)
+          : Math.max(18, summaryTop - 25);
+        figures.push({
+          key: 'forecast-summary',
+          type: 'text',
+          attrs: { x: labelX, y: labelY, text: summary || '', align: labelAlign, baseline: 'bottom' },
+          styles: {
+            style: 'stroke_fill',
+            color: meta.isDark ? '#F8FAFC' : '#0F172A',
+            size: compact ? 11 : 12,
+            family: 'Segoe UI, Arial, sans-serif',
+            weight: '700',
+            backgroundColor: meta.isDark ? 'rgba(15,23,42,0.92)' : 'rgba(255,255,255,0.94)',
+            borderColor: forecastBorderColor,
+            borderStyle: 'dashed',
+            borderDashedValue: [5, 3],
+            borderSize: meta.isDark ? 1 : 1.5,
+            borderRadius: 3,
+            paddingLeft: 7,
+            paddingRight: 7,
+            paddingTop: 4,
+            paddingBottom: 4,
           },
-          {
-            key: 'forecast-down',
-            type: 'rect',
-            attrs: { x, y: anchorPoint.y, width, height: downHeight },
-            styles: { style: 'fill', color: 'rgba(242,54,69,0.42)', borderRadius: 1 },
-            ignoreEvent: true,
-          },
-          {
-            key: 'forecast-border',
-            type: 'rect',
-            attrs: { x, y: top, width, height: Math.max(bottom - top, 2) },
-            styles: {
-              style: 'stroke',
-              borderColor: forecastBorderColor,
-              borderSize: meta.isDark ? 1.5 : 2,
-              borderStyle: 'dashed',
-              borderDashedValue: meta.isDark ? [5, 3] : [6, 3],
-              borderRadius: 1,
-            },
-            ignoreEvent: true,
-          },
-          {
-            key: 'forecast-anchor',
-            type: 'line',
-            attrs: {
-              coordinates: [
-                { x: anchorPoint.x - width / 2 - 2, y: anchorPoint.y },
-                { x: anchorPoint.x + width / 2 + 2, y: anchorPoint.y },
-              ],
-            },
-            styles: {
-              style: 'dashed',
-              color: forecastBorderColor,
-              size: meta.isDark ? 1 : 1.5,
-              dashedValue: [3, 2],
-            },
-            ignoreEvent: true,
-          },
-          {
-            key: 'forecast-up-label',
-            type: 'text',
-            attrs: { ...upLabelPosition, text: `↑${meta.upProbability}%` },
-            styles: {
-              style: 'fill',
-              color: probabilityUpColor,
-              size: probabilityFontSize,
-              family: 'Segoe UI, Arial, sans-serif',
-              weight: '700',
-              backgroundColor: probabilityLabelBackground,
-              borderColor: meta.isDark ? 'rgba(52,211,153,0.55)' : 'rgba(4,120,87,0.35)',
-              borderSize: 1,
-              borderRadius: 3,
-              paddingLeft: 5,
-              paddingRight: 5,
-              paddingTop: 3,
-              paddingBottom: 3,
-            },
-            ignoreEvent: true,
-          },
-          {
-            key: 'forecast-down-label',
-            type: 'text',
-            attrs: { ...downLabelPosition, text: `↓${meta.downProbability}%` },
-            styles: {
-              style: 'fill',
-              color: probabilityDownColor,
-              size: probabilityFontSize,
-              family: 'Segoe UI, Arial, sans-serif',
-              weight: '700',
-              backgroundColor: probabilityLabelBackground,
-              borderColor: meta.isDark ? 'rgba(251,113,133,0.55)' : 'rgba(220,38,38,0.35)',
-              borderSize: 1,
-              borderRadius: 3,
-              paddingLeft: 5,
-              paddingRight: 5,
-              paddingTop: 3,
-              paddingBottom: 3,
-            },
-            ignoreEvent: true,
-          },
-          {
-            key: 'forecast-summary',
-            type: 'text',
-            attrs: { x: labelX, y: labelY, text: summary || '', align: labelAlign, baseline: 'bottom' },
-            styles: {
-              style: 'stroke_fill',
-              color: meta.isDark ? '#F8FAFC' : '#0F172A',
-              size: compact ? 11 : 12,
-              family: 'Segoe UI, Arial, sans-serif',
-              weight: '700',
-              backgroundColor: meta.isDark ? 'rgba(15,23,42,0.92)' : 'rgba(255,255,255,0.94)',
-              borderColor: forecastBorderColor,
-              borderStyle: 'dashed',
-              borderDashedValue: [5, 3],
-              borderSize: meta.isDark ? 1 : 1.5,
-              borderRadius: 3,
-              paddingLeft: 7,
-              paddingRight: 7,
-              paddingTop: 4,
-              paddingBottom: 4,
-            },
-            ignoreEvent: true,
-          },
-        ];
+          ignoreEvent: true,
+        });
+
+        if (meta.showTrendline && trendlineCoords.length >= 2) {
+          const validTrendlineCoords = trendlineCoords.filter(pt => pt && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+          if (validTrendlineCoords.length >= 2) {
+            // A single multi-point line figure instead of N separate 2-point
+            // dashed segments — one setLineDash() call instead of up to
+            // `horizonCount` of them, see perf notes elsewhere in this file.
+            figures.push({
+              key: 'forecast-trendline-seg',
+              type: 'line',
+              attrs: { coordinates: validTrendlineCoords },
+              styles: {
+                style: 'dashed',
+                color: forecastBorderColor,
+                size: meta.isDark ? 1.5 : 2,
+                dashedValue: [4, 3],
+              },
+              ignoreEvent: true,
+            });
+          }
+          for (let j = 0; j < validTrendlineCoords.length; j += 1) {
+            figures.push({
+              key: `forecast-trendline-node-${j}`,
+              type: 'circle',
+              attrs: { x: validTrendlineCoords[j].x, y: validTrendlineCoords[j].y, r: 3 },
+              styles: {
+                style: 'fill',
+                color: forecastBorderColor,
+              },
+              ignoreEvent: true,
+            });
+          }
+        }
+
+        return figures;
       },
     });
 } catch { void 0; }
@@ -971,6 +1229,7 @@ export default React.memo(function TradingChart({
   const priceLabelEdgeRef   = useRef(null);
   const volLabelEdgeRef     = useRef(null);
   const activeToolRef       = useRef('select');
+  const activeOverlayRef    = useRef(null);
   const strokeSizeRef       = useRef(2);
   const strokeStyleRef      = useRef('solid');
   const overlayColorRef     = useRef(A.defaultOverlay);
@@ -978,7 +1237,13 @@ export default React.memo(function TradingChart({
   const forecastOverlayIdRef = useRef(null);
   const forecastPreviousOffsetRef = useRef(null);
   const forecastAppliedOffsetRef = useRef(null);
+  const forecastOverlaySignatureRef = useRef(null);
   const forecastResultRef = useRef(null);
+  // Stable per-mounted-instance key so calculateForecast's internal cache
+  // never gets clobbered by another TradingChart instance (mini charts,
+  // watchlist previews, etc.) rendering at the same time. See chartForecast.js.
+  const reactInstanceId = useId();
+  const forecastCacheKeyRef = useRef(`chart_${reactInstanceId}`);
   const chartInteractionActiveRef = useRef(false);
   const chartPointerActiveRef = useRef(false);
   const chartInteractionTimerRef = useRef(null);
@@ -986,6 +1251,7 @@ export default React.memo(function TradingChart({
   const rawDataRef = useRef([]);
   const displayDataRef = useRef([]);
   const appliedSeriesRef = useRef({ chartType: null, interval: null, data: [] });
+  const isProgrammaticScrollRef = useRef(false);
 
   const outerWrapperRef = useRef(null);
   const nativeFullscreenRef = useRef(false);
@@ -1090,6 +1356,33 @@ export default React.memo(function TradingChart({
   const [strokeSize,        setStrokeSize]         = useState(2);
   const [strokeStyle,       setStrokeStyle]        = useState('solid');
   const [activeTool,        setActiveTool]         = useState('select');
+  const [showForecastMenu, setShowForecastMenu] = useState(false);
+  const forecastMenuRef = useRef(null);
+  const [forecastCandleCount, setForecastCandleCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem('omni_chart_forecast_candles');
+      const parsed = parseInt(saved, 10);
+      return parsed >= 1 && parsed <= 5 ? parsed : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const [showForecastTrendline, setShowForecastTrendline] = useState(() => {
+    try {
+      const saved = localStorage.getItem('omni_chart_forecast_trendline');
+      return saved == null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [forecastDisplayMode, setForecastDisplayMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('omni_chart_forecast_mode');
+      return saved === 'sequence' ? 'sequence' : 'band';
+    } catch {
+      return 'band';
+    }
+  });
   const [forecastEnabled, setForecastEnabled] = useState(() => {
     try {
       const saved = localStorage.getItem(FORECAST_STORAGE_KEY);
@@ -1134,6 +1427,17 @@ export default React.memo(function TradingChart({
   }, []);
 
   useEffect(() => {
+    if (!showForecastMenu) return undefined;
+    const handleClickOutside = (e) => {
+      if (forecastMenuRef.current && !forecastMenuRef.current.contains(e.target)) {
+        setShowForecastMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, [showForecastMenu]);
+
+  useEffect(() => {
     const element = paletteContainerRef.current;
     if (!element) return undefined;
     const updateCount = () => {
@@ -1147,9 +1451,10 @@ export default React.memo(function TradingChart({
     return () => observer.disconnect();
   }, [A.overlayColors]);
 
-   useEffect(() => { overlayColorRef.current = overlayColor; }, [overlayColor]);
+  useEffect(() => { overlayColorRef.current = overlayColor; }, [overlayColor]);
   useEffect(() => { strokeSizeRef.current   = strokeSize;   }, [strokeSize]);
   useEffect(() => { strokeStyleRef.current  = strokeStyle;  }, [strokeStyle]);
+  useEffect(() => { activeOverlayRef.current = activeOverlay; }, [activeOverlay]);
 
   useEffect(() => {
     if (currentInterval && currentInterval !== interval) setInterval(currentInterval);
@@ -1321,11 +1626,11 @@ export default React.memo(function TradingChart({
       }
     } else {
       if (activeSub.includes(name)) {
-        if (name === 'VOL') chartInstance.current.overrideIndicator({ name:'TV_VOL_OVERLAY', calcParams:[false] }, 'candle_pane');
+        if (name === 'VOL') chartInstance.current.overrideIndicator({ name:'TV_VOL_OVERLAY', calcParams:[false, forecastCacheKeyRef.current] }, 'candle_pane');
         else                chartInstance.current.removeIndicator(`pane_${name}`);
         setActiveSub(p => p.filter(n => n !== name));
       } else {
-        if (name === 'VOL') chartInstance.current.overrideIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true] }, 'candle_pane');
+        if (name === 'VOL') chartInstance.current.overrideIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true, forecastCacheKeyRef.current] }, 'candle_pane');
         else                chartInstance.current.createIndicator(name, false, interactivePaneOptions(`pane_${name}`, 120));
         setActiveSub(p => [...p, name]);
       }
@@ -1352,7 +1657,7 @@ export default React.memo(function TradingChart({
       chartInstance.current.setScrollEnabled(true);
       chartInstance.current.setZoomEnabled(true);
       chartInstance.current.setPaneOptions(interactivePaneOptions('candle_pane'));
-      chartInstance.current.createIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true] }, true, interactivePaneOptions('candle_pane'));
+      chartInstance.current.createIndicator({ name:'TV_VOL_OVERLAY', calcParams:[true, forecastCacheKeyRef.current] }, true, interactivePaneOptions('candle_pane'));
       activeSub.forEach(ind => {
         if (ind !== 'VOL') chartInstance.current.createIndicator(ind, false, interactivePaneOptions(`pane_${ind}`, 120));
       });
@@ -1522,6 +1827,9 @@ export default React.memo(function TradingChart({
         pendingChartDataRef.current = false;
         setPendingDataRevision(revision => revision + 1);
       }
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new CustomEvent('omniduck_update_dual_tags', { detail: { instanceId: forecastCacheKeyRef.current } }));
+      });
     };
     const scheduleInteractionFinish = () => {
       clearSettleTimer();
@@ -1538,12 +1846,20 @@ export default React.memo(function TradingChart({
       scheduleInteractionFinish();
     };
     const handleNavigation = () => {
+      if (isProgrammaticScrollRef.current) {
+        isProgrammaticScrollRef.current = false;
+        return;
+      }
       chartInteractionActiveRef.current = true;
-      setActiveOverlay(current => current == null ? current : null);
+      if (activeOverlayRef.current != null) {
+        activeOverlayRef.current = null;
+        setActiveOverlay(null);
+      }
       if (!chartPointerActiveRef.current) scheduleInteractionFinish();
     };
 
-    container.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    container.addEventListener('pointerdown', handlePointerDown, { passive: true, capture: true });
+    container.addEventListener('wheel', handleNavigation, { passive: true, capture: true });
     window.addEventListener('pointerup', handlePointerEnd, { passive: true });
     window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
     chart.subscribeAction('onScroll', handleNavigation);
@@ -1551,7 +1867,8 @@ export default React.memo(function TradingChart({
 
     return () => {
       clearSettleTimer();
-      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointerdown', handlePointerDown, true);
+      container.removeEventListener('wheel', handleNavigation, true);
       window.removeEventListener('pointerup', handlePointerEnd);
       window.removeEventListener('pointercancel', handlePointerEnd);
       chart.unsubscribeAction('onScroll', handleNavigation);
@@ -1575,9 +1892,13 @@ export default React.memo(function TradingChart({
       if (rafId) cancelAnimationFrame(rafId);
       ro.disconnect();
       if (chartInstance.current && chartContainerRef.current) {
+        chartInstance.current.__omniCancelDragFrames?.();
         dispose(chartContainerRef.current);
         chartInstance.current = null;
       }
+      clearForecastCache(forecastCacheKeyRef.current);
+      window.__omniduck_dual_tags_map?.delete(forecastCacheKeyRef.current);
+      window.__omniduck_raf_pending_map?.delete(forecastCacheKeyRef.current);
     };
   }, []);
 
@@ -1664,10 +1985,8 @@ export default React.memo(function TradingChart({
       display[nextLength - 2]?.timestamp === previousLast?.timestamp &&
       nextLast?.timestamp > previousLast?.timestamp;
 
-    let seriesDataChanged = true;
     if (canUpdateLast) {
-      seriesDataChanged = !sameCandle(previousLast, nextLast);
-      if (seriesDataChanged) chart.updateData(nextLast);
+      if (!sameCandle(previousLast, nextLast)) chart.updateData(nextLast);
     } else if (canAppendLast) {
       const finalizedPrevious = display[nextLength - 2];
       if (!sameCandle(previousLast, finalizedPrevious)) chart.updateData(finalizedPrevious);
@@ -1682,22 +2001,42 @@ export default React.memo(function TradingChart({
         ))
         : -1;
       const viewportAnchorTimestamp = centerIndex >= 0 ? chartData[centerIndex]?.timestamp : null;
+      isProgrammaticScrollRef.current = true;
       chart.applyNewData(display, undefined, () => {
         if (viewportAnchorTimestamp != null && chartInstance.current === chart) {
+          isProgrammaticScrollRef.current = true;
           chart.scrollToTimestamp(viewportAnchorTimestamp, 0);
         }
       });
     }
     appliedSeriesRef.current = { chartType, interval, data: display };
 
-    if (forecastEnabled && (seriesDataChanged || forecastResultRef.current == null)) {
-      const calculated = calculateForecast(formatted);
-      let nextForecast = calculated;
+    const lastBar = formatted[formatted.length - 1];
+    const isSameCandle = forecastResultRef.current?.lastCandleTimestamp === lastBar?.timestamp &&
+      forecastResultRef.current?.lastCandleClose === lastBar?.close &&
+      forecastResultRef.current?.horizonCount === forecastCandleCount &&
+      forecastResultRef.current?.interval === interval &&
+      forecastResultRef.current?.chartType === chartType;
+
+    if (forecastEnabled && (!isSameCandle || forecastResultRef.current == null)) {
+      const calculated = calculateForecast(formatted, {
+        horizonCount: forecastCandleCount,
+        interval,
+        cacheKey: forecastCacheKeyRef.current,
+      });
+      let nextForecast = {
+        ...calculated,
+        lastCandleTimestamp: lastBar?.timestamp,
+        lastCandleClose: lastBar?.close,
+        horizonCount: forecastCandleCount,
+        interval,
+        chartType,
+      };
       if (calculated.status === 'ready' && chartType === 'heikin_ashi') {
         const displayedAnchor = display[display.length - 1].close;
         const scale = calculated.anchor !== 0 ? Math.abs(displayedAnchor / calculated.anchor) : 1;
         nextForecast = {
-          ...calculated,
+          ...nextForecast,
           anchor: displayedAnchor,
           forecastHigh: displayedAnchor + (calculated.forecastHigh - calculated.anchor) * scale,
           forecastLow: displayedAnchor - (calculated.anchor - calculated.forecastLow) * scale,
@@ -1712,19 +2051,21 @@ export default React.memo(function TradingChart({
       }
     }
     requestAnimationFrame(() => {
-      window.dispatchEvent(new Event('omniduck_update_dual_tags'));
+      window.dispatchEvent(new CustomEvent('omniduck_update_dual_tags', { detail: { instanceId: forecastCacheKeyRef.current } }));
     });
-  }, [data, chartType, forecastEnabled, interval, pendingDataRevision]);
+  }, [data, chartType, forecastEnabled, interval, pendingDataRevision, forecastCandleCount]);
 
   useEffect(() => {
     const chart = chartInstance.current;
     if (!chart) return;
 
     const removeForecast = () => {
+      try { chart.removeOverlay({ groupId: 'omni_forecast' }); } catch {}
       if (forecastOverlayIdRef.current) {
-        chart.removeOverlay({ id: forecastOverlayIdRef.current });
+        try { chart.removeOverlay({ id: forecastOverlayIdRef.current }); } catch {}
         forecastOverlayIdRef.current = null;
       }
+      forecastOverlaySignatureRef.current = null;
       if (forecastPreviousOffsetRef.current != null) {
         const chartData = chart.getDataList();
         const visibleRange = chart.getVisibleRange();
@@ -1736,14 +2077,19 @@ export default React.memo(function TradingChart({
           ))
           : -1;
         const viewportAnchorTimestamp = centerIndex >= 0 ? chartData[centerIndex]?.timestamp : null;
+        isProgrammaticScrollRef.current = true;
         chart.setOffsetRightDistance(forecastPreviousOffsetRef.current);
-        if (viewportAnchorTimestamp != null) chart.scrollToTimestamp(viewportAnchorTimestamp, 0);
+        if (viewportAnchorTimestamp != null) {
+          isProgrammaticScrollRef.current = true;
+          chart.scrollToTimestamp(viewportAnchorTimestamp, 0);
+        }
         forecastPreviousOffsetRef.current = null;
       }
       forecastAppliedOffsetRef.current = null;
     };
 
-    if (!forecastEnabled || forecastResult?.status !== 'ready' || !displayDataRef.current.length) {
+    const activeForecast = forecastResultRef.current || forecastResult;
+    if (!forecastEnabled || activeForecast?.status !== 'ready' || !displayDataRef.current.length) {
       removeForecast();
       return;
     }
@@ -1752,78 +2098,129 @@ export default React.memo(function TradingChart({
       forecastPreviousOffsetRef.current = chart.getOffsetRightDistance();
     }
     const containerWidth = chartContainerRef.current?.clientWidth || 640;
-    const requiredOffset = Math.min(104, Math.max(56, containerWidth * 0.12));
+    const requiredOffset = Math.min(140, Math.max(60, containerWidth * (0.08 + forecastCandleCount * 0.035)));
     const targetOffset = Math.max(forecastPreviousOffsetRef.current, requiredOffset);
     const chartDataLength = chart.getDataList().length;
     const visibleRange = chart.getVisibleRange();
     const isViewingHistory = chartDataLength > 0 && visibleRange?.to < chartDataLength;
     if (!isViewingHistory && forecastAppliedOffsetRef.current !== targetOffset) {
+      isProgrammaticScrollRef.current = true;
       chart.setOffsetRightDistance(targetOffset);
       forecastAppliedOffsetRef.current = targetOffset;
     }
 
-    const accuracyText = forecastResult.historicalAccuracy == null
+    const accuracyText = activeForecast.historicalAccuracy == null
       ? '--'
-      : `${forecastResult.historicalAccuracy}%`;
-    const fullLabel = `${t('forecastConfidence')} ${forecastResult.confidence}% | ${t('forecastAccuracy')} ${accuracyText} | ${t('forecastSamples')} ${forecastResult.sampleSize}`;
-    const compactLabel = `${forecastResult.confidence}% / ${accuracyText}`;
-    const dataIndex = displayDataRef.current.length;
+      : `${activeForecast.historicalAccuracy}%`;
+    const fullLabel = `${t('forecastConfidence')} ${activeForecast.confidence}% | ${t('forecastAccuracy')} ${accuracyText} | ${t('forecastSamples')} ${activeForecast.sampleSize}`;
+    const compactLabel = `${activeForecast.confidence}% / ${accuracyText}`;
+    const dataIndex = displayDataRef.current.length - 1;
+    const steps = Array.isArray(activeForecast.steps) ? activeForecast.steps : [];
+
+    const lastStep = steps.length > 0 ? steps[steps.length - 1] : null;
+    const points = [
+      { dataIndex, value: activeForecast.anchor },
+      { dataIndex: dataIndex + forecastCandleCount, value: lastStep ? lastStep.forecastHigh : activeForecast.forecastHigh },
+      { dataIndex: dataIndex + forecastCandleCount, value: lastStep ? lastStep.forecastLow : activeForecast.forecastLow },
+    ];
+
+    steps.forEach((st) => {
+      const stepIndex = dataIndex + st.step;
+      const up = st.upCandle || { open: st.open, high: st.high, low: st.low, close: st.close };
+      const down = st.downCandle || { open: st.open, high: st.high, low: st.low, close: st.close };
+      points.push(
+        { dataIndex: stepIndex, value: up.open },
+        { dataIndex: stepIndex, value: up.high },
+        { dataIndex: stepIndex, value: up.low },
+        { dataIndex: stepIndex, value: up.close },
+        { dataIndex: stepIndex, value: down.open },
+        { dataIndex: stepIndex, value: down.high },
+        { dataIndex: stepIndex, value: down.low },
+        { dataIndex: stepIndex, value: down.close }
+      );
+    });
+
+    const overlaySignature = [
+      dataIndex,
+      activeForecast.lastCandleTimestamp,
+      activeForecast.lastCandleClose,
+      activeForecast.upProbability,
+      activeForecast.downProbability,
+      activeForecast.forecastHigh,
+      activeForecast.forecastLow,
+      forecastCandleCount,
+      showForecastTrendline,
+      forecastDisplayMode,
+      isDark,
+      fullLabel,
+    ].join('|');
+    if (forecastOverlaySignatureRef.current === overlaySignature && forecastOverlayIdRef.current) {
+      return;
+    }
+
     const override = {
       id: forecastOverlayIdRef.current,
-      points: [
-        { dataIndex, value: forecastResult.anchor },
-        { dataIndex, value: forecastResult.forecastHigh },
-        { dataIndex, value: forecastResult.forecastLow },
-      ],
+      points,
       extendData: {
-        upProbability: forecastResult.upProbability,
-        downProbability: forecastResult.downProbability,
+        upProbability: activeForecast.upProbability,
+        downProbability: activeForecast.downProbability,
         fullLabel,
         compactLabel,
         isDark,
+        showTrendline: showForecastTrendline,
+        displayMode: forecastDisplayMode,
+        horizonCount: forecastCandleCount,
+        steps: activeForecast.steps || [],
+        trendline: activeForecast.trendline || [],
       },
     };
 
-    const existing = forecastOverlayIdRef.current
-      ? chart.getOverlayById(forecastOverlayIdRef.current)
-      : null;
-    if (existing) {
-      chart.overrideOverlay(override);
-    } else {
-      forecastOverlayIdRef.current = chart.createOverlay({
-        name: 'omniForecastCandle',
-        groupId: 'omni_forecast',
-        lock: true,
-        zLevel: 20,
-        points: override.points,
-        extendData: override.extendData,
-      }, 'candle_pane');
+    try { chart.removeOverlay({ groupId: 'omni_forecast' }); } catch {}
+    if (forecastOverlayIdRef.current) {
+      try { chart.removeOverlay({ id: forecastOverlayIdRef.current }); } catch {}
+      forecastOverlayIdRef.current = null;
     }
-  }, [forecastEnabled, forecastResult, isDark, isFullscreen, isLandscape, t]);
+
+    forecastOverlayIdRef.current = chart.createOverlay({
+      name: 'omniForecastCandle',
+      groupId: 'omni_forecast',
+      lock: true,
+      zLevel: 20,
+      points: override.points,
+      extendData: override.extendData,
+    }, 'candle_pane');
+    forecastOverlaySignatureRef.current = overlaySignature;
+  }, [forecastEnabled, forecastResult, isDark, isFullscreen, isLandscape, t, forecastCandleCount, showForecastTrendline, forecastDisplayMode]);
 
   useEffect(() => {
     const fmtVol = (v) => v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'K':String(v);
+    const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+    let lastTopBarKey = '';
     const updateTopBar = (target) => {
       if (!topBarRef.current) return;
       let d = target;
       if (!d) { const list=chartInstance.current?.getDataList(); if(list?.length) d=list[list.length-1]; else return; }
+      const key = `${d.timestamp}_${d.open}_${d.high}_${d.low}_${d.close}_${d.volume}_${isDark}_${lang}`;
+      if (lastTopBarKey === key) return;
+      lastTopBarKey = key;
+
       const color    = d.close>=d.open?'#089981':'#F23645';
       const lblColor = isDark?'#9CA3AF':'#6B7280';
       const valColor = isDark?'#F1F5F9':'#111827';
-      const bg       = isDark?'rgba(13,17,23,0.80)':'rgba(255,255,255,0.90)';
+      const bg       = isDark?'rgba(13,17,23,0.95)':'rgba(255,255,255,0.95)';
       const dt=new Date(d.timestamp);
       const hh=String(dt.getHours()).padStart(2,'0'), mn=String(dt.getMinutes()).padStart(2,'0');
       const isDaily=(hh==='07'&&mn==='00')||(hh==='00'&&mn==='00');
       const timeStr = lang === 'en'
         ? (isDaily
-          ? dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          : dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }))
+          ? `${MONTHS_EN[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`
+          : `${MONTHS_EN[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()} ${hh}:${mn}`)
         : (isDaily
           ? `${String(dt.getDate()).padStart(2,'0')} Tháng ${dt.getMonth()+1}, ${dt.getFullYear()}`
           : `${String(dt.getDate()).padStart(2,'0')} Tháng ${dt.getMonth()+1}, ${dt.getFullYear()} ${hh}:${mn}`);
       topBarRef.current.innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:12px;font-family:Inter,sans-serif;background:${bg};padding:5px 12px;border-radius:6px;backdrop-filter:blur(4px);box-shadow:0 1px 4px rgba(0,0,0,0.15);">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;font-family:Inter,sans-serif;background:${bg};padding:5px 12px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.15);">
           <span style="color:${lblColor}">${t('tooltipTime')}: <span style="color:${valColor}">${timeStr}</span></span>
           <span style="color:${lblColor}">${t('tooltipOpen')}: <span style="color:${color}">${d.open.toFixed(2)}</span></span>
           <span style="color:${lblColor}">${t('tooltipHigh')}: <span style="color:${color}">${d.high.toFixed(2)}</span></span>
@@ -1833,43 +2230,54 @@ export default React.memo(function TradingChart({
         </div>`;
     };
 
-     const updateIndicatorBar = (params) => {
+    let lastIndKey = '';
+    const updateIndicatorBar = (params) => {
       if (!indicatorBarRef.current) return;
       const infos = params?.indicatorTooltipDatas || [];
-       const relevant = infos.filter(info => info.values?.length && info.name !== 'VOL');
-      if (!relevant.length) { indicatorBarRef.current.style.display='none'; return; }
-      const bg = isDark?'rgba(13,17,23,0.80)':'rgba(255,255,255,0.90)';
+      const relevant = infos.filter(info => info.values?.length && info.name !== 'VOL');
+      if (!relevant.length) {
+        if (indicatorBarRef.current.style.display !== 'none') indicatorBarRef.current.style.display='none';
+        lastIndKey = '';
+        return;
+      }
+      const bg = isDark?'rgba(13,17,23,0.95)':'rgba(255,255,255,0.95)';
       const parts = relevant.map(info => {
         const vals = info.values.map(v =>
           `<span style="color:${v.color||'#9CA3AF'};font-weight:700;margin-left:4px">${v.title}: <span style="color:${v.color||'#E5E7EB'}">${v.value}</span></span>`
         ).join('');
         return `<span style="color:${isDark?'#CBD5E1':'#475569'};font-weight:800;margin-right:2px">${info.name}</span>${vals}`;
       }).join('<span style="color:#4B5563;margin:0 8px">|</span>');
+      
+      const key = `${parts}_${isDark}`;
+      if (lastIndKey === key) return;
+      lastIndKey = key;
+
       indicatorBarRef.current.style.display = 'block';
-      indicatorBarRef.current.innerHTML = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-family:Inter,sans-serif;background:${bg};padding:4px 12px;border-radius:6px;backdrop-filter:blur(4px);font-size:11px;">${parts}</div>`;
+      indicatorBarRef.current.innerHTML = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-family:Inter,sans-serif;background:${bg};padding:4px 12px;border-radius:6px;font-size:11px;">${parts}</div>`;
     };
 
-    const onCross = (() => {
-      let rafId = null;
-      return (params) => {
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          if (params?.dataIndex != null) {
-            const list = chartInstance.current?.getDataList();
-            if (list) updateTopBar(list[params.dataIndex]);
-            updateIndicatorBar(params);
-          } else {
-            updateTopBar();
-            if (indicatorBarRef.current) indicatorBarRef.current.style.display='none';
-          }
-        });
-      };
-    })();
+    let crosshairRafId = null;
+    const onCross = (params) => {
+      if (crosshairRafId) cancelAnimationFrame(crosshairRafId);
+      crosshairRafId = requestAnimationFrame(() => {
+        crosshairRafId = null;
+        if (params?.dataIndex != null) {
+          const list = chartInstance.current?.getDataList();
+          if (list) updateTopBar(list[params.dataIndex]);
+          updateIndicatorBar(params);
+        } else {
+          updateTopBar();
+          if (indicatorBarRef.current) indicatorBarRef.current.style.display='none';
+        }
+      });
+    };
 
     if (chartInstance.current) chartInstance.current.subscribeAction('onCrosshairChange', onCross);
     updateTopBar();
-    return () => { if (chartInstance.current) chartInstance.current.unsubscribeAction('onCrosshairChange', onCross); };
+    return () => {
+      if (crosshairRafId) cancelAnimationFrame(crosshairRafId);
+      if (chartInstance.current) chartInstance.current.unsubscribeAction('onCrosshairChange', onCross);
+    };
   }, [isDark, t, lang]);
 
   useEffect(() => {
@@ -1890,8 +2298,15 @@ export default React.memo(function TradingChart({
       element.style.transform = `translate3d(0,${Math.round(y) - 11}px,0)`;
       if (element.textContent !== text) element.textContent = text;
     };
-    const update = () => {
-      const info = window.__omniduck_dual_tags;
+    const update = (event) => {
+      // Namespaced by instance id: ignore updates dispatched by other
+      // TradingChart instances on the page (e.g. mini/watchlist charts).
+      // Without this filter every mounted chart re-ran this whole handler
+      // on every OTHER chart's redraw frame, which is what made dragging
+      // one chart visibly stutter the rest of the page.
+      const eventInstanceId = event?.detail?.instanceId;
+      if (eventInstanceId != null && eventInstanceId !== forecastCacheKeyRef.current) return;
+      const info = window.__omniduck_dual_tags_map?.get(forecastCacheKeyRef.current);
       if (!info||!priceLabelLatestRef.current) return;
       const { latest, edge, showVol } = info;
       const cL = latest.isUp?'#089981':'#F23645';
@@ -2155,20 +2570,109 @@ const rowBtn = React.useCallback((active) =>
             </div>
 
             {/* 4 & 5. NÚT PHÓNG TO TOÀN MÀN HÌNH (MOBILE ONLY: lg:hidden) */}
-            <div className="relative z-[210] flex-1">
+            <div className="relative z-[210] flex-1" ref={forecastMenuRef}>
               <button
                 type="button"
-                onClick={handleForecastToggle}
+                onClick={() => {
+                  setShowForecastMenu(v => !v);
+                  setShowIntervalMenu(false);
+                  setShowTypeMenu(false);
+                  setShowIndicatorMenu(false);
+                  setShowStrokePanel(false);
+                }}
                 aria-pressed={forecastEnabled}
                 title={forecastResult?.status === 'insufficient_data'
                   ? t('forecastNeedsCandles', { count: MIN_FORECAST_CANDLES })
                   : t('forecastToggleTitle')}
-                className={`w-full flex items-center justify-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(forecastEnabled)}`}
+                className={`w-full flex items-center justify-center gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase shadow-sm transition-all ${tbBtn(showForecastMenu || forecastEnabled)}`}
               >
-                <Activity size={12} className="shrink-0" />
+                <Clock size={12} className="shrink-0" />
                 <span className="truncate">{t('forecast')}</span>
                 {forecastEnabled && <Check size={11} className="shrink-0 max-[520px]:hidden" />}
               </button>
+              {showForecastMenu && (
+                <div className={`${menuBase} w-60 p-3 flex flex-col gap-2.5`}>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-bold">{t('forecast')}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !forecastEnabled;
+                        setForecastEnabled(next);
+                        try { localStorage.setItem(FORECAST_STORAGE_KEY, String(next)); } catch {}
+                        window.dispatchEvent(new CustomEvent(FORECAST_SYNC_EVENT, { detail: { enabled: next } }));
+                      }}
+                      className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${forecastEnabled ? A.solid : (isDark ? 'bg-slate-700' : 'bg-slate-300')}`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform ${forecastEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">{t('forecastCandlesCount')}</span>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[1, 2, 3, 4, 5].map((cnt) => (
+                        <button
+                          key={cnt}
+                          type="button"
+                          onClick={() => {
+                            setForecastCandleCount(cnt);
+                            try { localStorage.setItem('omni_chart_forecast_candles', String(cnt)); } catch {}
+                          }}
+                          className={`py-1 rounded-lg text-xs font-bold transition-all ${
+                            forecastCandleCount === cnt
+                              ? `${A.solid} ${A.solidText}`
+                              : (isDark ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')
+                          }`}
+                        >
+                          {cnt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs font-bold">{t('forecastTrendline')}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !showForecastTrendline;
+                        setShowForecastTrendline(next);
+                        try { localStorage.setItem('omni_chart_forecast_trendline', String(next)); } catch {}
+                      }}
+                      className={`w-9 h-5 rounded-full transition-colors relative p-0.5 ${showForecastTrendline ? A.solid : (isDark ? 'bg-slate-700' : 'bg-slate-300')}`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform ${showForecastTrendline ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 pt-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">{t('forecastDisplayMode')}</span>
+                    <div className="grid grid-cols-2 gap-1">
+                      {[
+                        { id: 'band', label: t('forecastModeBand') },
+                        { id: 'sequence', label: t('forecastModeSequence') },
+                      ].map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => {
+                            setForecastDisplayMode(mode.id);
+                            try { localStorage.setItem('omni_chart_forecast_mode', mode.id); } catch {}
+                          }}
+                          className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all truncate ${
+                            forecastDisplayMode === mode.id
+                              ? `${A.solid} ${A.solidText}`
+                              : (isDark ? 'bg-white/5 text-slate-300 hover:bg-white/10' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex lg:hidden items-center gap-1 shrink-0">
@@ -2297,6 +2801,7 @@ const rowBtn = React.useCallback((active) =>
                 } else {
                   chartInstance.current?.removeAllOverlay();
                   forecastOverlayIdRef.current = null;
+                  forecastOverlaySignatureRef.current = null;
                   if (forecastResult?.status === 'ready') {
                     setForecastResult({ ...forecastResult });
                   }

@@ -361,11 +361,11 @@ export const ROLE_PROVIDER_CHAINS = {
 
      bull:        ['groq', 'cerebras', 'openrouter', 'gemini_flash'],
 
-     bear: ['sambanova', 'groq', 'gemini_flash'],
+     bear:        ['sambanova', 'groq', 'gemini_flash'],
 
      pm:          ['groq', 'cerebras', 'gemini_flash', 'gemini_pro'],
 
-     bull_defense: ['groq', 'cerebras', 'sambanova', 'gemini_flash'],
+     bull_defense:['groq', 'cerebras', 'sambanova', 'gemini_flash'],
 
      action:      ['gemini_flash', 'groq', 'cerebras'],
 

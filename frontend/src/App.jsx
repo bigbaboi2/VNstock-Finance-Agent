@@ -1597,7 +1597,9 @@ useEffect(() => {
         .catch(() => {});
 
       await new Promise((resolve) => {
-  const newsUrl = `${API_BASE_URL}${API_BASE_URL && !API_BASE_URL.endsWith('/') ? '/' : ''}api/news/${symbol}?newsMode=${currentNewsMode}`;
+  const newsUrl = API_BASE_URL
+    ? `${API_BASE_URL.replace(/\/+$/, '')}/api/news/${symbol}?newsMode=${currentNewsMode}`
+    : `/api/news/${symbol}?newsMode=${currentNewsMode}`;
   const controller = new AbortController();
   eventSourceRef.current = controller;
 
@@ -2120,6 +2122,10 @@ const handleAiAnalysis = async (forceRefresh = false) => {
     }
   };
 
+  const handleRegisterVnStocksCloseChat = useCallback((fn) => {
+    vnStocksCloseChatRef.current = fn;
+  }, []);
+
   const handleIntervalChange = async (newInterval) => {
     setActiveInterval(newInterval);
     if (!marketData || !marketData.stockInfo.symbol) return;
@@ -2345,7 +2351,7 @@ const handleAiAnalysis = async (forceRefresh = false) => {
             loadingHeatmap={loadingHeatmap}
             lastAiVnTime={lastAiVnTime}
             currentUser={currentUser}
-            onRequestCloseChat={(fn) => { vnStocksCloseChatRef.current = fn; }}
+            onRequestCloseChat={handleRegisterVnStocksCloseChat}
             aiAnalysisDuration={aiAnalysisDuration}
             vnReportTimestamp={vnReportTimestamp}
             debateResult={debateResult}

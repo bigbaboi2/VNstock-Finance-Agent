@@ -231,10 +231,11 @@ export function calculateSignalScore(candles) {
   };
 }
 
-function calculateHistoricalAccuracy(candles, maxSamples) {
+function calculateHistoricalAccuracy(candles, maxSamples = 15) {
+  const sampleCap = Math.min(maxSamples || 15, 15);
   const firstEvaluationIndex = Math.max(
     MIN_FORECAST_CANDLES - 1,
-    candles.length - 1 - maxSamples,
+    candles.length - 1 - sampleCap,
   );
   let correct = 0;
   let sampleSize = 0;
@@ -268,9 +269,82 @@ function calculateExcursions(candles, lookback = 20) {
   return { upward: average(upward), downward: average(downward) };
 }
 
+export function getNextTradingTimestamp(lastTimestamp, interval = '1D', stepOffset = 1) {
+  let currentMs = Number(lastTimestamp) || Date.now();
+  let step = 0;
+  const isDaily = !interval || interval === '1D' || interval === 'D' || interval === '1W' || interval === '1M';
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  while (step < stepOffset) {
+    if (isDaily) {
+      currentMs += dayMs;
+      const dayOfWeek = new Date(currentMs).getDay(); // 0 = Sun, 6 = Sat
+      if (dayOfWeek === 6) {
+        currentMs += 2 * dayMs; // skip to Monday
+      } else if (dayOfWeek === 0) {
+        currentMs += dayMs; // skip to Monday
+      }
+    } else {
+      const minutes = parseInt(interval, 10) || 60;
+      currentMs += minutes * 60 * 1000;
+      const d = new Date(currentMs);
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek === 6) {
+        currentMs += 2 * dayMs; // skip Sat & Sun
+      } else if (dayOfWeek === 0) {
+        currentMs += dayMs; // skip Sun
+      }
+    }
+    step += 1;
+  }
+  return currentMs;
+}
+
+// --- Per-instance cache -----------------------------------------------
+// IMPORTANT: this used to be a single pair of module-level variables shared
+// by every caller. When more than one chart (e.g. mini watchlist charts +
+// the main chart) called calculateForecast concurrently, each call clobbered
+// the others' cache, forcing a full, synchronous recompute (including the
+// expensive historical backtest below) on nearly every render/tick across
+// ALL chart instances. That's a primary cause of page-wide jank.
+//
+// Fix: keep a small Map of caches keyed by an explicit `options.cacheKey`
+// (e.g. a per-component id, or `${symbol}_${interval}`) so instances never
+// step on each other. Callers that don't pass a cacheKey fall back to a
+// shared bucket (previous behaviour), so this is backward compatible.
+const forecastCacheStore = new Map();
+
+function getForecastCacheBucket(cacheKey) {
+  const key = cacheKey || '__default__';
+  let bucket = forecastCacheStore.get(key);
+  if (!bucket) {
+    bucket = {
+      forecastMemoKey: '',
+      forecastMemoResult: null,
+      // Separate, coarser-grained cache for the historical backtest, see
+      // note above calculateForecast() for why this is split out.
+      accuracyMemoKey: '',
+      accuracyMemoResult: null,
+    };
+    forecastCacheStore.set(key, bucket);
+  }
+  return bucket;
+}
+
+// Call when a chart instance unmounts, or when switching symbols, to avoid
+// unbounded growth of forecastCacheStore over a long session.
+export function clearForecastCache(cacheKey) {
+  if (cacheKey) forecastCacheStore.delete(cacheKey);
+  else forecastCacheStore.clear();
+}
+
 export function calculateForecast(candles, options = {}) {
-  const maxBacktestSamples = options.maxBacktestSamples ?? 120;
-  const minAccuracySamples = options.minAccuracySamples ?? 20;
+  const maxBacktestSamples = options.maxBacktestSamples ?? 15;
+  const minAccuracySamples = options.minAccuracySamples ?? 10;
+  const horizonCount = clamp(options.horizonCount || 1, 1, 5);
+  const interval = options.interval || '1D';
+  const cache = getForecastCacheBucket(options.cacheKey);
+
   if (!Array.isArray(candles) || candles.length < MIN_FORECAST_CANDLES) {
     return {
       status: 'insufficient_data',
@@ -279,16 +353,40 @@ export function calculateForecast(candles, options = {}) {
     };
   }
 
+  const latest = candles[candles.length - 1];
+  // Includes latest.close so an intrabar price tick still refreshes the
+  // score/probabilities (cheap: one calculateSignalScore call).
+  const memoKey = `${candles.length}|${latest?.timestamp}|${latest?.close}|${horizonCount}|${interval}|${maxBacktestSamples}|${minAccuracySamples}`;
+
+  if (cache.forecastMemoResult && cache.forecastMemoKey === memoKey) {
+    return cache.forecastMemoResult;
+  }
+
   const signal = calculateSignalScore(candles.slice(-SIGNAL_LOOKBACK_CANDLES));
   const upProbability = round(clamp(50 + signal.score * 45, 5, 95), 1);
   const downProbability = round(100 - upProbability, 1);
   const confidence = Math.max(upProbability, downProbability);
-  const historical = calculateHistoricalAccuracy(candles, maxBacktestSamples);
+
+  // The backtest (calculateHistoricalAccuracy) re-runs calculateSignalScore
+  // up to `maxBacktestSamples` times over ~260-candle windows each — far
+  // more expensive than the single call above. Its result only actually
+  // changes when a *new candle closes* (i.e. candles.length or the last
+  // closed candle changes), not on every intrabar price tick. So it gets
+  // its own, coarser cache key without `latest.close` in it.
+  const previousClosed = candles[candles.length - 2];
+  const accuracyKey = `${candles.length}|${previousClosed?.timestamp}|${maxBacktestSamples}|${minAccuracySamples}`;
+  let historical;
+  if (cache.accuracyMemoResult && cache.accuracyMemoKey === accuracyKey) {
+    historical = cache.accuracyMemoResult;
+  } else {
+    historical = calculateHistoricalAccuracy(candles, maxBacktestSamples);
+    cache.accuracyMemoKey = accuracyKey;
+    cache.accuracyMemoResult = historical;
+  }
   const historicalAccuracy = historical.sampleSize >= minAccuracySamples
     ? round(historical.accuracy, 1)
     : null;
 
-  const latest = candles[candles.length - 1];
   const excursions = calculateExcursions(candles, 20);
   const fallbackRange = signal.atr * 0.8;
   const upwardBase = excursions.upward > 0 ? excursions.upward : fallbackRange;
@@ -298,7 +396,100 @@ export function calculateForecast(candles, options = {}) {
   const upwardRange = clamp(upwardBase * upwardScale, signal.atr * 0.25, signal.atr * 1.75);
   const downwardRange = clamp(downwardBase * downwardScale, signal.atr * 0.25, signal.atr * 1.75);
 
-  return {
+  const steps = [];
+  let prevClose = latest.close;
+  let prevUpClose = latest.close;
+  let prevDownClose = latest.close;
+
+  let prevUpHigh = latest.close;
+  let prevUpLow = latest.close;
+  let prevDownHigh = latest.close;
+  let prevDownLow = latest.close;
+
+  const trendline = [{ step: 0, timestamp: latest.timestamp, price: latest.close }];
+
+  // Signal bias: asymmetric expansion for bullish vs bearish momentum
+  const upBias = signal.score >= 0 ? 1 + signal.score * 0.45 : Math.max(0.4, 1 + signal.score * 0.35);
+  const downBias = signal.score <= 0 ? 1 + Math.abs(signal.score) * 0.45 : Math.max(0.4, 1 - signal.score * 0.35);
+  const anchorCandleRange = Math.max(Math.abs(latest.high - latest.low), signal.atr * 0.6);
+
+  for (let i = 1; i <= horizonCount; i += 1) {
+    const stepUpProb = round(clamp(50 + signal.score * 45 * (0.92 ** (i - 1)), 10, 90), 1);
+    const stepDownProb = round(100 - stepUpProb, 1);
+
+    let upRange, downRange;
+    if (i === 1) {
+      upRange = clamp(anchorCandleRange * 0.70 + upwardRange * upBias * 0.40, signal.atr * 0.4, signal.atr * 2.2);
+      downRange = clamp(anchorCandleRange * 0.70 + downwardRange * downBias * 0.40, signal.atr * 0.4, signal.atr * 2.2);
+    } else {
+      // Step i candle length derived directly from step i-1 candle length & range
+      const lastUpRange = Math.max(prevUpHigh - prevUpLow, signal.atr * 0.4);
+      const lastDownRange = Math.max(prevDownHigh - prevDownLow, signal.atr * 0.4);
+      upRange = clamp(lastUpRange * (0.90 + 0.14 * upBias), signal.atr * 0.4, signal.atr * 2.2);
+      downRange = clamp(lastDownRange * (0.90 + 0.14 * downBias), signal.atr * 0.4, signal.atr * 2.2);
+    }
+
+    const upOpen = prevUpClose;
+    const upMove = upRange * 0.55;
+    const upClose = upOpen + upMove;
+    const upHigh = upClose + upRange * 0.22;
+    const upLow = upOpen - upRange * 0.08;
+
+    const downOpen = prevDownClose;
+    const downMove = downRange * 0.55;
+    const downClose = downOpen - downMove;
+    const downLow = downClose - downRange * 0.22;
+    const downHigh = downOpen + downRange * 0.08;
+
+    const stepOpen = prevClose;
+    const expectedMove = (upMove - downMove) * 0.35;
+    const stepClose = prevClose + expectedMove;
+    const stepHigh = Math.max(upHigh, stepOpen);
+    const stepLow = Math.min(downLow, stepOpen);
+    const timestamp = getNextTradingTimestamp(latest.timestamp, interval, i);
+
+    steps.push({
+      step: i,
+      timestamp,
+      open: round(stepOpen, 2),
+      high: round(stepHigh, 2),
+      low: round(stepLow, 2),
+      close: round(stepClose, 2),
+      upCandle: {
+        open: round(upOpen, 2),
+        high: round(upHigh, 2),
+        low: round(upLow, 2),
+        close: round(upClose, 2),
+      },
+      downCandle: {
+        open: round(downOpen, 2),
+        high: round(downHigh, 2),
+        low: round(downLow, 2),
+        close: round(downClose, 2),
+      },
+      forecastHigh: round(upHigh, 2),
+      forecastLow: round(downLow, 2),
+      upProbability: stepUpProb,
+      downProbability: stepDownProb,
+    });
+
+    trendline.push({
+      step: i,
+      timestamp,
+      price: round(stepClose, 2),
+    });
+
+    prevClose = stepClose;
+    prevUpClose = upClose;
+    prevDownClose = downClose;
+
+    prevUpHigh = upHigh;
+    prevUpLow = upLow;
+    prevDownHigh = downHigh;
+    prevDownLow = downLow;
+  }
+
+  const result = {
     status: 'ready',
     score: round(signal.score, 6),
     upProbability,
@@ -309,10 +500,17 @@ export function calculateForecast(candles, options = {}) {
     anchor: latest.close,
     forecastHigh: latest.close + upwardRange,
     forecastLow: latest.close - downwardRange,
+    steps,
+    trendline,
+    horizonCount,
     atr: signal.atr,
     components: signal.components,
     indicators: signal.indicators,
   };
+
+  cache.forecastMemoKey = memoKey;
+  cache.forecastMemoResult = result;
+  return result;
 }
 
 export function toHeikinAshi(candles) {
