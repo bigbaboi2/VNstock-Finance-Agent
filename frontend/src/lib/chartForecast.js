@@ -429,13 +429,19 @@ export function calculateForecast(candles, options = {}) {
       downRange = clamp(lastDownRange * (0.90 + 0.14 * downBias), signal.atr * 0.4, signal.atr * 2.2);
     }
 
-    const upOpen = prevUpClose;
+    // Blend candle open prices toward the probability-weighted trendline
+    // to prevent exponential divergence of Up/Down branches.
+    // Step 1 opens at anchor close; step 2+ blends 35% toward the weighted expected price.
+    const weightedExpected = prevUpClose * (stepUpProb / 100) + prevDownClose * (stepDownProb / 100);
+    const trendBlend = i === 1 ? 0 : 0.35;
+
+    const upOpen = prevUpClose * (1 - trendBlend) + weightedExpected * trendBlend;
     const upMove = upRange * 0.55;
     const upClose = upOpen + upMove;
     const upHigh = upClose + upRange * 0.22;
     const upLow = upOpen - upRange * 0.08;
 
-    const downOpen = prevDownClose;
+    const downOpen = prevDownClose * (1 - trendBlend) + weightedExpected * trendBlend;
     const downMove = downRange * 0.55;
     const downClose = downOpen - downMove;
     const downLow = downClose - downRange * 0.22;
