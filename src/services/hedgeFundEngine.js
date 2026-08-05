@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { generateWithRole } from './aiService.js';
-import { parseLlmJson } from '../utils/parseLlmJson.js';
+import { parseLlmJson, extractActionFromPmText } from '../utils/parseLlmJson.js';
 import { searchVnNewsDirectly, fetchRedditMacro, fetchFireAntSocial } from '../scrapers/vnNewsSearch.js';
 import { aiLanguageInstruction } from '../utils/i18nMessages.js';
 
@@ -13,6 +13,18 @@ export async function runDebatePipeline(ticker, data, emitProgress, onDebateChun
     const language = reqContext?.language === 'en' ? 'en' : 'vi';
     const langInstr = aiLanguageInstruction(language);
     const withLang = (prompt) => `${String(prompt).replace(/- Chỉ trả lời bằng tiếng Việt\./g, `- ${langInstr}`)}\n\n${langInstr}`;
+
+    // Provider tracking — ghi nhận AI nào đảm nhiệm từng vai trò
+    const providerMap = {};
+    const _extractMeta = (res) => {
+        if (res && typeof res === 'object' && 'provider' in res) {
+            const raw = res.text;
+            const text = typeof raw === 'string' ? raw : (raw?.response?.text?.() || String(raw ?? ''));
+            return { text, provider: res.provider || 'unknown' };
+        }
+        if (typeof res === 'string') return { text: res, provider: 'unknown' };
+        return { text: res?.response?.text?.() || String(res ?? ''), provider: 'unknown' };
+    };
 
     emitProgress({ step: 'DEBATE_INIT', message: 'Triệu tập Hội đồng Phân tích Độc lập...', progress: 60 });
 
@@ -201,16 +213,22 @@ Giới hạn: 180 từ.
 
     const [techRes, fundRes, newsRes] = await Promise.all([
         //Technical — Fast Groq + Cerebras fallback (128K context is enough for technical data)
-        generateWithRole('tech', [{ text: withLang(techPrompt) }]),
+        generateWithRole('tech', [{ text: withLang(techPrompt) }], { returnMeta: true }),
         //Basic — Cerebras/SambaNova (long context for financial reports)
-        generateWithRole('fundamental', [{ text: withLang(fundPrompt) }]),
+        generateWithRole('fundamental', [{ text: withLang(fundPrompt) }], { returnMeta: true }),
         //Sentiment & macro — SambaNova + Groq fallback
-        generateWithRole('news', [{ text: withLang(newsPrompt) }]),
+        generateWithRole('news', [{ text: withLang(newsPrompt) }], { returnMeta: true }),
     ]);
 
-    const techAnalysis = typeof techRes === 'string' ? techRes : techRes.response?.text?.() || techRes;
-    const fundAnalysis = typeof fundRes === 'string' ? fundRes : fundRes.response?.text?.() || fundRes;
-    const newsAnalysis = typeof newsRes === 'string' ? newsRes : newsRes.response?.text?.() || newsRes;
+    const techMeta = _extractMeta(techRes);
+    const fundMeta = _extractMeta(fundRes);
+    const newsMeta = _extractMeta(newsRes);
+    const techAnalysis = techMeta.text;
+    const fundAnalysis = fundMeta.text;
+    const newsAnalysis = newsMeta.text;
+    providerMap.tech = techMeta.provider;
+    providerMap.fundamental = fundMeta.provider;
+    providerMap.news = newsMeta.provider;
 
     onDebateChunk({ type: 'tech', content: techAnalysis });
     onDebateChunk({ type: 'fund', content: fundAnalysis });
@@ -284,9 +302,11 @@ Giới hạn: 180 từ.
     `;
     //Bulls — Groq (fast, optimistic, looking for reasons to buy)
     if (reqContext.isDisconnected) throw new Error('Client disconnected before bull opening');
-    const bullRes = await generateWithRole('bull', [{ text: withLang(bullPrompt) }]);
-    const bullCase = typeof bullRes === 'string' ? bullRes : bullRes.response?.text?.() || bullRes;
-    onDebateChunk({ type: 'bull', content: bullCase }); //✅
+    const bullRes = await generateWithRole('bull', [{ text: withLang(bullPrompt) }], { returnMeta: true });
+    const bullMeta = _extractMeta(bullRes);
+    const bullCase = bullMeta.text;
+    providerMap.bull = bullMeta.provider;
+    onDebateChunk({ type: 'bull', content: bullCase });
 
     //==================== BEAR REBUTTAL ====================
     emitProgress({ step: 'DEBATE_BEAR', message: 'Phe Gấu đang phản biện...', progress: 74 });
@@ -331,9 +351,11 @@ Giới hạn: 180 từ.
     `;
     //Bears — Cerebras (good reasoning, finding weaknesses)
     if (reqContext.isDisconnected) throw new Error('Client disconnected before bear rebuttal');
-    const bearRes = await generateWithRole('bear', [{ text: withLang(bearPrompt) }]);
-    const bearCase = typeof bearRes === 'string' ? bearRes : bearRes.response?.text?.() || bearRes;
-    onDebateChunk({ type: 'bear', content: bearCase }); //Call
+    const bearRes = await generateWithRole('bear', [{ text: withLang(bearPrompt) }], { returnMeta: true });
+    const bearMeta = _extractMeta(bearRes);
+    const bearCase = bearMeta.text;
+    providerMap.bear = bearMeta.provider;
+    onDebateChunk({ type: 'bear', content: bearCase });
 
     //==================== BULL FINAL DEFENSE ====================
     emitProgress({ step: 'DEBATE_BULL_DEFENSE', message: 'Phe Bò đang phản công lần cuối...', progress: 77 });
@@ -364,8 +386,10 @@ Giới hạn 180 từ.
 `;
     //Bull counterattack — Groq/Cerebras (needs to be fast and logical)
     if (reqContext.isDisconnected) throw new Error('Client disconnected before bull defense');
-    const bullDefenseRes = await generateWithRole('bull_defense', [{ text: withLang(bullDefensePrompt) }]);
-    const bullDefense = typeof bullDefenseRes === 'string' ? bullDefenseRes : bullDefenseRes.response?.text?.() || bullDefenseRes;
+    const bullDefenseRes = await generateWithRole('bull_defense', [{ text: withLang(bullDefensePrompt) }], { returnMeta: true });
+    const bullDefenseMeta = _extractMeta(bullDefenseRes);
+    const bullDefense = bullDefenseMeta.text;
+    providerMap.bullDefense = bullDefenseMeta.provider;
     onDebateChunk({ type: 'def', content: bullDefense });
 
     //=========================================================
@@ -444,8 +468,10 @@ Tổng độ dài dưới 700 từ.
 
      //Portfolio Manager — Groq (summary, final decision)
      if (reqContext.isDisconnected) throw new Error('Client disconnected before PM decision');
-     const pmRes = await generateWithRole('pm', [{ text: withLang(pmPrompt) }]);
-    const pmDecision = typeof pmRes === 'string' ? pmRes : pmRes.response?.text?.() || pmRes;
+    const pmRes = await generateWithRole('pm', [{ text: withLang(pmPrompt) }], { returnMeta: true });
+    const pmMeta = _extractMeta(pmRes);
+    const pmDecision = pmMeta.text;
+    providerMap.pm = pmMeta.provider;
     onDebateChunk({ type: 'pm', content: pmDecision });
 
     //=======================================================================
@@ -477,40 +503,64 @@ ${pmDecision}`;
         target2: "N/A",
         horizon: "N/A",
         conviction: "Thấp",
-        reason: "Chờ xác nhận thị trường"
+        reason: "Chờ xác nhận thị trường",
+        isExtracted: false,
+        extractionMethod: 'fallback',
     };
 
-    let lastActionPanelRaw = '';
+    // --- Layer 1 & 2: AI JSON extraction (2 attempts) ---
+    let aiExtracted = false;
+    for (let attempt = 1; attempt <= 2 && !aiExtracted; attempt++) {
+        if (reqContext.isDisconnected) break;
+        try {
+            const opts = {
+                responseFormat: 'json_object',
+                temperature: attempt === 1 ? 0.1 : 0,
+                returnMeta: true,
+            };
+            const jsonRes = await generateWithRole('json', [
+                { text: attempt === 1
+                    ? actionPanelPrompt
+                    : `Trả về JSON duy nhất, không giải thích, không markdown.\n${actionPanelPrompt}` }
+            ], opts);
 
-    try {
-        if (reqContext.isDisconnected) throw new Error('Client disconnected before action panel extraction');
-        //Action panel JSON — Gemini Flash most stable for JSON output, Groq fallback
-        const jsonText = await generateWithRole('json', [
-            { text: actionPanelPrompt }
-        ], {
-            responseFormat: 'json_object',
-            temperature: 0.1,
-        });
+            const jsonMeta = _extractMeta(jsonRes);
+            providerMap.actionPanel = jsonMeta.provider;
 
-        lastActionPanelRaw = typeof jsonText === 'string'
-            ? jsonText
-            : (typeof jsonText?.response?.text === 'function' ? jsonText.response.text() : String(jsonText ?? ''));
+            const parsed = parseLlmJson(jsonMeta.text);
+            if (!parsed || typeof parsed !== 'object' || !parsed.action) {
+                throw new Error(`Attempt ${attempt}: JSON không hợp lệ hoặc thiếu field "action"`);
+            }
 
-        const parsed = parseLlmJson(lastActionPanelRaw);
-        if (!parsed || typeof parsed !== 'object') {
-            throw new Error('Không tìm thấy JSON object hợp lệ trong phản hồi AI');
+            actionPanelData = {
+                ...actionPanelData,
+                ...parsed,
+                action: parsed.action || actionPanelData.action,
+                isExtracted: true,
+                extractionMethod: attempt === 1 ? 'ai_json' : 'ai_retry',
+            };
+            aiExtracted = true;
+            console.log(chalk.greenBright(`[DEBATE] ✅ Action Panel trích xuất thành công (attempt ${attempt}): ${actionPanelData.action} [${jsonMeta.provider}]`));
+        } catch (e) {
+            console.warn(chalk.yellow(`[DEBATE] ⚠️ AI extraction attempt ${attempt} thất bại: ${e.message}`));
         }
+    }
 
-        actionPanelData = {
-            ...actionPanelData,
-            ...parsed,
-            action: parsed.action || actionPanelData.action,
-        };
-        console.log(chalk.greenBright(`[DEBATE] Action Panel trích xuất thành công: ${actionPanelData.action}`));
-    } catch (e) {
-        console.error(chalk.red("[DEBATE] JSON Parse Error khi trích xuất Action Panel:"), e.message);
-        if (lastActionPanelRaw) {
-            console.error(chalk.gray(`[DEBATE] Raw snippet: ${lastActionPanelRaw.slice(0, 280)}...`));
+    // --- Layer 3: Regex fallback từ PM decision text ---
+    if (!aiExtracted) {
+        console.log(chalk.cyan('[DEBATE] 🔄 Thử regex fallback từ phán quyết PM...'));
+        const regexResult = extractActionFromPmText(pmDecision);
+        if (regexResult) {
+            actionPanelData = {
+                ...actionPanelData,
+                ...regexResult,
+                isExtracted: true,
+                extractionMethod: 'regex_pm',
+            };
+            providerMap.actionPanel = 'regex_fallback';
+            console.log(chalk.greenBright(`[DEBATE] ✅ Regex fallback thành công: ${actionPanelData.action}`));
+        } else {
+            console.error(chalk.red('[DEBATE] ❌ Cả AI lẫn regex đều thất bại. Dùng giá trị mặc định.'));
         }
     }
 
@@ -525,5 +575,6 @@ ${pmDecision}`;
         bullDefense,
         pmDecision,
         actionPanelData,
+        providerMap,
     };
 }

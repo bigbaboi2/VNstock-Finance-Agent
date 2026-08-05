@@ -569,6 +569,8 @@ const buildAnalyzePromptParts = (ticker, data, debateResult = null) => {
         return `${i + 1}. [${n.sentiment || 'neutral'}][${n.date || 'Mới nhất'}] ${n.title}`;
     }).join('\n');
     
+    const pMap = debateResult?.providerMap || {};
+
     const debateSection = debateResult ? `
 
     ## ⚔️ [BỔ SUNG] TRANH LUẬN AI QUYẾT ĐỊNH ĐỘC LẬP
@@ -577,28 +579,40 @@ const buildAnalyzePromptParts = (ticker, data, debateResult = null) => {
 
     ### 📐 Góc nhìn Kỹ thuật
     ${debateResult.techAnalysis}
+    > 🤖 *Phân tích bởi AI: **${pMap.tech || 'Hệ thống Kỹ thuật'}***
 
     ### 🏦 Góc nhìn Cơ bản
     ${debateResult.fundAnalysis}
+    > 🤖 *Phân tích bởi AI: **${pMap.fundamental || 'Hệ thống BCTC/Cơ bản'}***
 
     ### 📰 Góc nhìn Tâm lý & Vĩ mô
     ${debateResult.newsAnalysis}
+    > 🤖 *Phân tích bởi AI: **${pMap.news || 'Hệ thống Sentiment & Macro'}***
 
     ### 🟢 Luận điểm Phe Bò
     ${debateResult.bullCase}
+    > 🤖 *Phân tích bởi AI: **${pMap.bull || 'Hệ thống Phân tích Phe Bò'}***
 
     ### 🔴 Phản biện Phe Gấu
     ${debateResult.bearCase}
+    > 🤖 *Phân tích bởi AI: **${pMap.bear || 'Hệ thống Phân tích Phe Gấu'}***
 
     ### 🟢 Phản công Phe Bò
     ${debateResult.bullDefense}
+    > 🤖 *Phân tích bởi AI: **${pMap.bullDefense || 'Hệ thống Phản công Phe Bò'}***
 
     ### 🏛️ Phán quyết Portfolio Manager
     ${debateResult.pmDecision}
+    > 🤖 *Phán quyết bởi AI: **${pMap.pm || 'Chief Portfolio Manager'}***
     ` : '';
     
+    const isFallbackData = debateResult?.actionPanelData && debateResult.actionPanelData.isExtracted === false;
+    const fallbackWarning = isFallbackData 
+        ? `\n> ⚠️ **CẢNH BÁO HỆ THỐNG:** *Tín hiệu tự động chưa trích xuất được dạng JSON hoàn chỉnh từ phán quyết PM. Các thông số bên dưới là mức mặc định tham chiếu. Vui lòng xem chi tiết tại phần Phán quyết Portfolio Manager.*`
+        : '';
+
     const actionPlanInstruction = debateResult?.actionPanelData ? `
-## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
+## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)${fallbackWarning}
 Dựa trên các phân tích định lượng và định tính kỹ lưỡng, BẮT BUỘC SỬ DỤNG CHÍNH XÁC KẾT QUẢ SAU ĐÂY TỪ HỘI ĐỒNG AI:
 - <span style="color:#f59e0b;font-weight:900;font-size:1.125rem">RATING: ${debateResult.actionPanelData.action}</span>
 - **Vùng Mua (Entry):** ${debateResult.actionPanelData.entry}
@@ -607,7 +621,8 @@ Dựa trên các phân tích định lượng và định tính kỹ lưỡng, B
 - **Thời Gian Ngắn Hạn:** ${debateResult.actionPanelData.horizon}
 - **Mục Tiêu Dài Hạn:** ${debateResult.actionPanelData.target2 !== 'N/A' && debateResult.actionPanelData.target2 ? debateResult.actionPanelData.target2 : (debateResult.actionPanelData.longTermTarget || 'Không áp dụng')}
 - **Thời Gian Dài Hạn:** ${debateResult.actionPanelData.longTermHorizon || 'Không áp dụng'}
-- **Kế hoạch Vốn (Position Sizing):** Mức độ tự tin ${debateResult.actionPanelData.conviction}. Lý do: ${debateResult.actionPanelData.reason}` : `
+- **Kế hoạch Vốn (Position Sizing):** Mức độ tự tin ${debateResult.actionPanelData.conviction}. Lý do: ${debateResult.actionPanelData.reason}
+> 🤖 *Trích xuất Action Panel bởi AI: **${pMap.actionPanel || 'AI JSON Extractor'}***` : `
 ## 🎯 KẾT LUẬN & CHIẾN LƯỢC LỆNH (ACTION PLAN)
 Dựa trên mục tiêu lợi nhuận, ( giả định cả đang nắm giữ cho mục tiêu bán) đây là kịch bản chuẩn xác:
 - <span style="color:#f59e0b;font-weight:900;font-size:1.125rem">RATING: [MUA / NẮM GIỮ / BÁN]</span>

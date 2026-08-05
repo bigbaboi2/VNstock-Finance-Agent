@@ -70,3 +70,76 @@ export function parseLlmJson(text, fallback = null) {
         return fallback;
     }
 }
+
+/**
+ * Regex fallback: trích xuất action panel data từ PM decision text.
+ * Dùng khi AI JSON extraction thất bại hoàn toàn.
+ * @param {string} pmText - Văn bản phán quyết PM dạng markdown
+ * @returns {object|null} - Action panel data hoặc null nếu không tìm được gì
+ */
+export function extractActionFromPmText(pmText) {
+    if (!pmText || typeof pmText !== 'string') return null;
+
+    const text = pmText.replace(/\*\*/g, '').replace(/\*/g, '');
+
+    // Helper: tìm giá trị sau label
+    const grab = (patterns) => {
+        for (const p of patterns) {
+            const m = text.match(p);
+            if (m && m[1]?.trim()) return m[1].trim();
+        }
+        return null;
+    };
+
+    const action = grab([
+        /RATING\s*[:：]\s*(.+?)(?:\n|$)/i,
+        /Khuyến\s*nghị\s*[:：]\s*(.+?)(?:\n|$)/i,
+        /Quyết\s*định\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const entry = grab([
+        /(?:Vùng\s*mua|Entry)\s*(?:lý\s*tưởng)?\s*[:：]\s*(.+?)(?:\n|$)/i,
+        /(?:Giá\s*vào|Mua\s*tại|Giá\s*entry)\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const stoploss = grab([
+        /(?:Cắt\s*lỗ|Stoploss|Stop\s*loss|SL)\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const target1 = grab([
+        /(?:Mục\s*tiêu\s*1|Target\s*1|TP\s*1|Chốt\s*lời\s*1|Mục\s*tiêu\s*ngắn\s*hạn)\s*[:：]\s*(.+?)(?:\n|$)/i,
+        /(?:Target\s*ngắn\s*hạn)\s*[:：]?\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const target2 = grab([
+        /(?:Mục\s*tiêu\s*2|Target\s*2|TP\s*2|Chốt\s*lời\s*2|Mục\s*tiêu\s*dài\s*hạn)\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const conviction = grab([
+        /Conviction\s*[:：]\s*(.+?)(?:\n|$)/i,
+        /Mức\s*độ\s*tự\s*tin\s*[:：]\s*(.+?)(?:\n|$)/i,
+        /Độ\s*tin\s*cậy\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const horizon = grab([
+        /(?:Thời\s*gian\s*nắm\s*giữ|Horizon|Thời\s*hạn)\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    const reason = grab([
+        /(?:Lý\s*do\s*(?:quyết\s*định)?|Reason)\s*[:：]\s*(.+?)(?:\n|$)/i,
+    ]);
+
+    // Chỉ trả về nếu tìm được ít nhất action
+    if (!action) return null;
+
+    return {
+        action: action.replace(/[[\]]/g, '').trim(),
+        entry: entry || '---',
+        stoploss: stoploss || '---',
+        target1: target1 || '---',
+        target2: target2 || 'N/A',
+        conviction: conviction || 'Trung bình',
+        horizon: horizon || 'Ngắn hạn',
+        reason: reason || 'Trích xuất từ phán quyết PM.',
+    };
+}
