@@ -220,7 +220,7 @@ async function getDynamicModels() {
                 'gemini-2.5-flash',
                 'gemini-2.5-flash-lite',
                 'gemini-2.5-pro',
-                'gemini-1.5-pro',
+
             ];
             ALL_MODELS_CACHE_TS = Date.now();
             return ALL_MODELS_CACHE;
@@ -508,7 +508,7 @@ export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgre
 
                 try { fs.unlinkSync(tempPdfPath); } catch (_) {}
 
-                const model = genAI_Main.getGenerativeModel({ model: "gemini-1.5-pro" });
+                const model = genAI_Main.getGenerativeModel({ model: "gemini-2.5-flash" });
                 const result = await model.generateContent([
                     { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } },
                     { text: "Hãy bóc tách toàn bộ các bảng số liệu tài chính trong file báo cáo này thành định dạng Markdown (table). Phải giữ sự chính xác tuyệt đối của các con số." }
