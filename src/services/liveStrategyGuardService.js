@@ -1,8 +1,9 @@
 import AutoTrade from '../../models/AutoTrade.js';
 import ExchangeOrder from '../../models/ExchangeOrder.js';
 import { getAutoDuckNumber } from './autoDuckConfigService.js';
+import { ENTRY_STRATEGY_VERSION, OFFICIAL_LIVE_PNL_SOURCE } from './autoTradeStrategyConstants.js';
 
-const officialSources = ['LIVE_FILLS', 'LIVE_FILLS_NET_FEE'];
+const officialSources = [OFFICIAL_LIVE_PNL_SOURCE];
 
 const startOfIctDay = () => {
     const now = new Date();
@@ -39,12 +40,13 @@ export const getLiveReadinessSnapshot = async () => {
         _id: { $in: ids },
         status: 'CLOSED',
         executionMode: 'LIVE',
+        strategyVersion: ENTRY_STRATEGY_VERSION,
         pnlSource: { $in: officialSources },
-    }).select('signalBreakdown.entrySetup signalBreakdown.aiEvaluation cohort direction marketPnl marketPnlPercent markSimPnl markSimPnlPercent pnl pnlPercent closedAt').lean();
+    }).select('setupType signalBreakdown.entrySetup signalBreakdown.aiEvaluation cohort direction marketPnl marketPnlPercent markSimPnl markSimPnlPercent pnl pnlPercent closedAt').lean();
 
     const bySetup = {};
     for (const trade of trades) {
-        const setup = trade.signalBreakdown?.entrySetup || 'UNKNOWN';
+        const setup = trade.setupType || trade.signalBreakdown?.entrySetup || 'UNKNOWN';
         const cohort = trade.cohort || 'CORE';
         const direction = trade.direction || 'LONG';
         const profileKey = `${setup}|${cohort}|${direction}`;
@@ -101,6 +103,7 @@ export const getLiveReadinessSnapshot = async () => {
             aiSoftVetoTrades: aiRows.filter((row) => row.aiEvaluation?.softVeto).length,
             avgAiAdjustment: Math.round(avgAiAdjustment * 100) / 100,
             criteria: { minTrades, minWinRate, minProfitFactor, positivePnl: true },
+            strategyVersion: ENTRY_STRATEGY_VERSION,
         }];
     }));
 };
@@ -121,6 +124,7 @@ export const getSetupReadiness = async (setup) => {
             minProfitFactor: getAutoDuckNumber('AUTODUCK_LIVE_READINESS_MIN_PROFIT_FACTOR') || 1.25,
             positivePnl: true,
         },
+        strategyVersion: ENTRY_STRATEGY_VERSION,
     };
 };
 
@@ -190,6 +194,7 @@ export const evaluateShortCircuitBreaker = async ({ exchangeConnectionId = null 
         status: 'CLOSED',
         executionMode: 'LIVE',
         direction: 'SHORT',
+        strategyVersion: ENTRY_STRATEGY_VERSION,
         pnlSource: { $in: officialSources },
         closedAt: { $gte: since },
     };

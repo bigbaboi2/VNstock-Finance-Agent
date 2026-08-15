@@ -34,6 +34,12 @@ const AutoTradeSchema = new mongoose.Schema({
     signalEdge: { type: Number, default: null },
     marketRegime: { type: String, default: null },
     entryGateReason: { type: String, default: null },
+    strategyVersion: { type: String, default: null, index: true },
+    triggerCandleTime: { type: Date, default: null, index: true },
+    entryReferencePrice: { type: Number, default: null },
+    entryDistanceAtr: { type: Number, default: null },
+    symbolTier: { type: String, enum: ['CORE', 'ALT'], default: null },
+    regimeAdjustments: { type: mongoose.Schema.Types.Mixed, default: {} },
     cohort: { type: String, enum: ['CORE', 'RESEARCH'], default: 'CORE', index: true },
     // ── PARTIAL SCALE-OUT (Policy E) ──
     // Chốt `tp1Fraction` vị thế ở takeProfit1Price, dời SL phần còn lại về breakeven,
@@ -65,6 +71,7 @@ const AutoTradeSchema = new mongoose.Schema({
 
 AutoTradeSchema.index({ symbol: 1, status: 1 });
 AutoTradeSchema.index({ openedAt: -1 });
+AutoTradeSchema.index({ strategyVersion: 1, symbol: 1, direction: 1, setupType: 1, triggerCandleTime: 1 });
 AutoTradeSchema.index(
     { exchangeConnectionId: 1, entryNotificationKey: 1 },
     { unique: true, partialFilterExpression: { entryNotificationKey: { $type: 'string' } } }

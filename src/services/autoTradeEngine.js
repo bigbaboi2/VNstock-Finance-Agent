@@ -83,8 +83,12 @@ import {
     passesLiveQuantGate,
     passesSimQuantGate,
     passesResearchQuantGate,
+    validateEntryQuote,
+    resolveCryptoVolumeProfile,
+    getCryptoMinAtrPct,
     IDLE_PROBE_SETUP_WHITELIST,
 } from './entrySetupEngine.js';
+import { ENTRY_STRATEGY_VERSION } from './autoTradeStrategyConstants.js';
 import {
     refreshAutoDuckConfigCache,
     getAutoDuckBoolean,
@@ -286,6 +290,12 @@ export const deriveResearchDirection = (signal) => {
     return { direction: longScore > shortScore ? 'LONG' : 'SHORT', score, edge };
 };
 
+export const selectExecutionCohort = ({ corePass, researchPass, requiresLiveQuality }) => {
+    if (corePass) return 'CORE';
+    if (requiresLiveQuality) return null;
+    return researchPass ? 'RESEARCH' : null;
+};
+
 const loadCohortQuotaState = async () => {
     const now = new Date();
     const dayStart = startOfIctDay();
@@ -305,13 +315,36 @@ const loadCohortQuotaState = async () => {
 };
 
 export const canUseCohortQuota = (state, cohort) => {
-    const coreMax = Math.max(1, getAutoDuckNumber('AUTODUCK_CORE_DAILY_MAX') || 12);
-    const researchMax = Math.max(0, getAutoDuckNumber('AUTODUCK_RESEARCH_DAILY_MAX') || 8);
-    if (cohort === 'CORE') return state.day.CORE < coreMax;
-    if (state.day.RESEARCH >= researchMax) return false;
-    const share = Math.max(0, Math.min(100, getAutoDuckNumber('AUTODUCK_RESEARCH_MAX_SHARE_PCT') || 40)) / 100;
-    const totalAfter = state.week.CORE + state.week.RESEARCH + 1;
-    return (state.week.RESEARCH + 1) / totalAfter <= share;
+    return true;
+};
+
+export const normalizeTriggerCandleTime = (value) => {
+    if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+        const date = new Date(numeric < 1e12 ? numeric * 1000 : numeric);
+        if (Number.isFinite(date.getTime())) return date;
+    }
+    const parsed = new Date(value);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+};
+
+export const buildEntryTriggerKey = ({ symbol, direction, setupType, triggerCandleTime }) => {
+    const trigger = normalizeTriggerCandleTime(triggerCandleTime);
+    if (!trigger) return null;
+    return `${String(symbol).toUpperCase()}|${String(direction).toUpperCase()}|${setupType}|${trigger.toISOString()}`;
+};
+
+const entryTriggerClaims = new Map();
+export const claimEntryTrigger = (parts, now = Date.now()) => {
+    const key = buildEntryTriggerKey(parts);
+    if (!key) return { claimed: false, key: null, reason: 'TRIGGER_CANDLE_TIME_MISSING' };
+    for (const [cachedKey, expiresAt] of entryTriggerClaims) {
+        if (expiresAt <= now) entryTriggerClaims.delete(cachedKey);
+    }
+    if (entryTriggerClaims.has(key)) return { claimed: false, key, reason: 'DUPLICATE_TRIGGER_CANDLE' };
+    entryTriggerClaims.set(key, now + 24 * 3600_000);
+    return { claimed: true, key };
 };
 
 export const rebaseTradeLevelsFromFill = (trade, filledPrice) => {
@@ -1588,6 +1621,9 @@ export const analyzeTechnicalSignal = (candles, breadthRatio = 50, statusType = 
         score: finalScore,
         breakdown,
         atr: atr || null,
+        ema9: ema9 || null,
+        ema21: ema21 || null,
+        ema50: ema50 || null,
         entryPrice: currentPrice,
         rsi: Math.round(rsi * 10) / 10,
         stochRSI,
@@ -1636,7 +1672,13 @@ const getTradeRewardRiskPct = (entryPrice, takeProfitPrice, stopLossPrice, direc
     };
 };
 
-const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConfig(2)) => {
+export const buildTradePlanFromSignal = (
+    asset,
+    techSignal,
+    quote,
+    config = getRiskConfig(2),
+    { minRR = 0 } = {},
+) => {
     if (asset === 'VN_STOCK' && techSignal.direction === 'SHORT') {
         return null;
     }
@@ -1650,7 +1692,7 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
 
     // Chặn tài sản gần như không biến động (stablecoin USDE/FRAX/TUSD..., coin chết):
     // ATR/giá quá thấp → TP/SL nằm trong vùng nhiễu, ăn không đủ bù phí 0.2% → chỉ churn lỗ.
-    if (asset === 'CRYPTO' && volPct < 0.6) {
+    if (asset === 'CRYPTO' && volPct < getCryptoMinAtrPct(techSignal.symbol)) {
         return null;
     }
 
@@ -1674,6 +1716,10 @@ const buildTradePlanFromSignal = (asset, techSignal, quote, config = getRiskConf
     if (riskFromAtr > maxRiskPct) {
         atrMultiplierSL = (entryPrice * maxRiskPct) / atr;
         atrMultiplierTP = Math.max(atrMultiplierTP, atrMultiplierSL * 1.5);
+    }
+
+    if (Number(minRR) > 0) {
+        atrMultiplierTP = Math.max(atrMultiplierTP, atrMultiplierSL * Number(minRR));
     }
 
     const finalSlDistancePct = (atr * atrMultiplierSL) / entryPrice;
@@ -2165,7 +2211,7 @@ const getAISignalConfirmation = async (asset, signal, marketStatus, diagnosticDe
         const liveVetoMode = options.liveVetoMode === true;
 
         const scoreBiasInstruction = liveVetoMode
-            ? `\nCHẾ ĐỘ LIVE VETO: Tín hiệu đã PASS cổng định lượng (setup=${entrySetupType}, quality=${qualityScore}, confluence=${confluenceScore}). Mặc định CONFIRM. Chỉ trả VETO khi có rủi ro CỨNG: HTF ngược, fake breakout, funding cực đoan, tin cực tiêu cực, orderbook chống hướng lệnh. KHÔNG veto vì thiếu 1-2 chỉ báo phụ.`
+            ? `\nCHẾ ĐỘ LIVE VETO: Hãy đánh giá ĐỘC LẬP setup=${entrySetupType}, quality=${qualityScore}, confluence=${confluenceScore}. Không mặc định CONFIRM và không suy ra chất lượng chỉ từ score. VETO nếu cấu trúc entry chưa xác nhận, có dấu hiệu fake breakout/volume climax, HTF hoặc regime không đồng thuận, funding cực đoan, tin tiêu cực mạnh, hoặc orderbook chống hướng lệnh.`
             : scoreForBias >= 80
             ? `\nLƯU Ý: qualityScore ${qualityScore}/100 cao. Đánh giá khách quan — chỉ VETO khi mâu thuẫn rõ.`
             : `\nLƯU Ý: qualityScore ${qualityScore}/100. Đánh giá cân bằng điểm mạnh/yếu.`;
@@ -2528,8 +2574,15 @@ export const computeAdaptiveGuardFromTrades = (list) => {
 const recomputeAdaptiveGuards = async () => {
     try {
         const since = new Date(Date.now() - 30 * 24 * 3600_000);
-        const trades = await AutoTrade.find({ status: 'CLOSED', closedAt: { $gte: since } })
-            .select('assetType aiScore pnlPercent executionMode').lean();
+        const trades = await AutoTrade.find({
+            status: 'CLOSED',
+            closedAt: { $gte: since },
+            strategyVersion: ENTRY_STRATEGY_VERSION,
+            $or: [
+                { executionMode: { $ne: 'LIVE' } },
+                { executionMode: 'LIVE', pnlSource: 'LIVE_FILLS_NET_FEE' },
+            ],
+        }).select('assetType aiScore pnlPercent executionMode').lean();
 
         for (const asset of Object.keys(adaptiveGuardsSim)) {
             const allAsset = trades.filter(t => t.assetType === asset);
@@ -2904,7 +2957,9 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
         // Cập nhật guard học máy từ kết quả thực tế trước khi quét (vòng phản hồi định lượng).
         await recomputeAdaptiveGuards();
-        const cohortQuotaState = await loadCohortQuotaState();
+        // ENTRY_V3 has no daily entry quota. Exposure, cooldown, one-symbol and
+        // circuit-breaker controls remain authoritative.
+        const cohortQuotaState = { day: { CORE: 0, RESEARCH: 0 }, week: { CORE: 0, RESEARCH: 0 } };
         const shortExecutionEnabled = await isAutoFuturesShortEnabled();
 
         const macroMs = pipelineTimer.lap('macro');
@@ -3081,8 +3136,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const researchMinVolSurge = asset === 'CRYPTO'
                         ? Math.max(1, getAutoDuckNumber('AUTODUCK_RESEARCH_VOLUME_MIN') || 1.2)
                         : minVolSurge;
-                    const coreVolumePass = techSignal.volumeSurge >= minVolSurge;
-                    if (techSignal.volumeSurge < researchMinVolSurge) {
+                    const volumeProfile = asset === 'CRYPTO'
+                        ? resolveCryptoVolumeProfile({ symbol, direction: techSignal.direction, marketCondition: assetMacro.marketStatus })
+                        : { tier: null, volumeFloor: minVolSurge, maxVolume: Infinity, adjustments: {} };
+                    const coreVolumePass = techSignal.volumeSurge >= volumeProfile.volumeFloor
+                        && techSignal.volumeSurge <= volumeProfile.maxVolume;
+                    if (techSignal.volumeSurge < Math.min(researchMinVolSurge, volumeProfile.volumeFloor)
+                        || techSignal.volumeSurge > volumeProfile.maxVolume) {
                         stats.skipVolume = (stats.skipVolume || 0) + 1;
                         funnel.record('vol');
                         appendAuditEvent('candidate', {
@@ -3091,7 +3151,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             score: techSignal.score,
                             setup: techSignal.direction,
                             stage: 'vol',
-                            reason: `volSurge=${techSignal.volumeSurge}x < researchMin=${researchMinVolSurge}x`,
+                            reason: `volSurge=${techSignal.volumeSurge}x outside ${volumeProfile.volumeFloor}-${volumeProfile.maxVolume}x (${volumeProfile.tier || asset})`,
                         }, {
                             event: 'candidate_rejected',
                             source: 'autoTradeEngine',
@@ -3108,7 +3168,7 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         entrySetup = detectEntrySetup(asset, techSignal, htfTrend, candles, executionContext);
                         if (!entrySetup.valid) {
                             stats.skipSetup = (stats.skipSetup || 0) + 1;
-                            funnel.record('setup', { type: entrySetup.type, reason: entrySetup.type });
+                            funnel.record('setup', { type: entrySetup.type, reason: entrySetup.note || entrySetup.type });
                             appendAuditEvent('candidate', {
                                 asset,
                                 symbol,
@@ -3134,19 +3194,24 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         assetType: asset,
                         symbol,
                         setupType: entrySetup.type,
+                        direction: techSignal.direction,
                         marketCondition: assetMacro.marketStatus,
                         idleFloorRelax,
                     });
                     const liveGate = passesLiveQuantGate(entrySetup, techSignal, {
                         effectiveQualityFloor: adaptiveElig.effectiveQualityFloor,
                         effectiveEdgeFloor: adaptiveElig.effectiveEdgeFloor,
+                        minVolume: volumeProfile.volumeFloor,
+                        maxVolume: volumeProfile.maxVolume,
                     });
                     const simGate = passesSimQuantGate(entrySetup, techSignal);
                     const researchGate = passesResearchQuantGate(entrySetup, techSignal);
                     const isShortSignal = techSignal.direction === 'SHORT' || techSignal.direction === 'BÁN';
                     const corePass = coreVolumePass && liveGate.pass && techSignal.score >= liveScoreThreshold;
                     const researchPass = researchGate.pass && (researchSeed || !corePass);
-                    let cohort = corePass ? 'CORE' : (researchPass ? 'RESEARCH' : null);
+                    // RESEARCH is telemetry/shadow only. It must never rescue a signal
+                    // that failed the stricter LIVE gate into real-money execution.
+                    let cohort = selectExecutionCohort({ corePass, researchPass, requiresLiveQuality });
 
                     if (requiresLiveQuality && isShortSignal && !shortExecutionEnabled) {
                         funnel.record('short_disabled', { symbol, score: techSignal.score, setup: entrySetup.type, reason: 'SHORT disabled by UI' });
@@ -3233,7 +3298,32 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     }
 
                     const quote = await fetchRealtimeQuote(symbol, asset);
-                    const tradePlan = buildTradePlanFromSignal(asset, techSignal, quote, currentRiskConfig);
+                    const quoteValidation = validateEntryQuote(entrySetup, techSignal, quote);
+                    if (!quoteValidation.valid) {
+                        stats.skipRisk++;
+                        funnel.record('quote_blocked', {
+                            symbol,
+                            setup: entrySetup.type,
+                            reason: quoteValidation.reason,
+                        });
+                        appendAuditEvent('candidate', {
+                            asset,
+                            symbol,
+                            setup: entrySetup.type,
+                            stage: 'quote_revalidation',
+                            reason: quoteValidation.reason,
+                        }, { event: 'candidate_rejected', source: 'autoTradeEngine' }).catch(() => {});
+                        continue;
+                    }
+
+                    const minLiveRR = Math.max(0, getAutoDuckNumber('AUTODUCK_LIVE_MIN_RR') || 1.8);
+                    const tradePlan = buildTradePlanFromSignal(
+                        asset,
+                        techSignal,
+                        quote,
+                        currentRiskConfig,
+                        { minRR: requiresLiveQuality ? minLiveRR : 0 },
+                    );
 
                     if (!tradePlan) {
                         stats.skipRisk++;
@@ -3243,7 +3333,6 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                     const plannedRisk = Number(tradePlan.riskPct) || 0;
                     const plannedReward = Number(tradePlan.rewardPct) || 0;
                     const plannedRR = plannedRisk > 0 ? plannedReward / plannedRisk : 0;
-                    const minLiveRR = Math.max(0, getAutoDuckNumber('AUTODUCK_LIVE_MIN_RR') || 1.8);
                     if (requiresLiveQuality && plannedRR < minLiveRR) {
                         stats.skipRisk++;
                         funnel.record('risk', { symbol, setup: entrySetup.type, reason: `RR ${plannedRR.toFixed(2)} < ${minLiveRR}` });
@@ -3446,6 +3535,33 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         continue;
                     }
 
+                    const triggerCandleTime = normalizeTriggerCandleTime(
+                        entrySetup.triggerCandleTime
+                        ?? candles.at(-1)?.time
+                        ?? candles.at(-1)?.timestamp
+                        ?? candles.at(-1)?.openTime
+                    );
+                    const triggerParts = {
+                        symbol,
+                        direction: techSignal.direction,
+                        setupType: entrySetup.type,
+                        triggerCandleTime,
+                    };
+                    const duplicateTrade = triggerCandleTime && await AutoTrade.exists({
+                        strategyVersion: ENTRY_STRATEGY_VERSION,
+                        symbol,
+                        direction: techSignal.direction,
+                        setupType: entrySetup.type,
+                        triggerCandleTime,
+                    });
+                    const triggerClaim = duplicateTrade
+                        ? { claimed: false, reason: 'DUPLICATE_TRIGGER_CANDLE_DB' }
+                        : claimEntryTrigger(triggerParts);
+                    if (!triggerClaim.claimed) {
+                        funnel.record('duplicate_trigger', { symbol, setup: entrySetup.type, reason: triggerClaim.reason });
+                        continue;
+                    }
+
                     // Ranked selection: defer allocate/match until all symbols scanned
                     eligibleCandidates.push({
                         symbol,
@@ -3460,6 +3576,10 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         newsContext,
                         liveGate,
                         adaptiveElig,
+                        volumeProfile,
+                        triggerCandleTime,
+                        volumeProfile,
+                        triggerCandleTime,
                         priorityScore,
                         qualityScore: techSignal.breakdown?.qualityScore ?? techSignal.score,
                     });
@@ -3681,7 +3801,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         confluenceCount: techSignal.breakdown?.confluenceCount ?? null,
                         signalEdge: techSignal.breakdown?.edge ?? null,
                         marketRegime: assetMacro.marketStatus || null,
-                        entryGateReason: liveGate.reason || simGate.reason || null,
+                        entryGateReason: liveGate.reason || null,
+                        strategyVersion: ENTRY_STRATEGY_VERSION,
+                        triggerCandleTime,
+                        entryReferencePrice: entrySetup.referencePrice ?? null,
+                        entryDistanceAtr: entrySetup.entryDistanceAtr ?? null,
+                        symbolTier: volumeProfile?.tier ?? null,
+                        regimeAdjustments: adaptiveElig?.adj || {},
                         exitReason: null,
                         exitTag: null,
                         aiReportSnapshot: `priceSource=${quote.source}; contextSource=${executionContext.source || 'N/A'}; fetchedAt=${quote.fetchedAt.toISOString()}; setup=${entrySetup.type}; qualityScore=${techSignal.breakdown?.qualityScore}; confluence=${techSignal.breakdown?.confluenceCount}; legacyScore=${techSignal.breakdown?.legacyScore}; edge=${techSignal.breakdown?.edge}; news=${newsContext.summary}`,
@@ -3692,6 +3818,13 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             ...techSignal.breakdown,
                             originalSL: stopLossPrice,
                             entrySetup: entrySetup.type,
+                            strategyVersion: ENTRY_STRATEGY_VERSION,
+                            setupPattern: entrySetup.setupPattern || null,
+                            triggerCandleTime,
+                            referencePrice: entrySetup.referencePrice ?? null,
+                            entryDistanceAtr: entrySetup.entryDistanceAtr ?? null,
+                            symbolTier: volumeProfile?.tier ?? null,
+                            regimeAdjustments: adaptiveElig?.adj || {},
                             cohort,
                             rsi: techSignal.rsi ?? null,
                             volumeSurge: techSignal.volumeSurge ?? null,
@@ -3766,6 +3899,26 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
 
                         // LIVE: quant gate + quality score (không nới ngưỡng idle).
                         if (userOrder.executionMode === 'LIVE') {
+                            if (!liveGate.pass || cohort !== 'CORE') {
+                                funnel.record('live_gate', {
+                                    symbol,
+                                    setup: entrySetup.type,
+                                    reason: 'LIVE execution requires CORE + liveGate.pass',
+                                });
+                                appendAuditEvent('security', {
+                                    userOrderId: String(userOrder._id),
+                                    symbol,
+                                    setup: entrySetup.type,
+                                    cohort,
+                                    liveGatePass: !!liveGate.pass,
+                                    code: 'LIVE_RESEARCH_BYPASS_BLOCKED',
+                                }, {
+                                    event: 'live_entry_blocked_quant_gate',
+                                    level: 'warn',
+                                    source: 'autoTradeEngine',
+                                }).catch(() => {});
+                                continue;
+                            }
                             if (!canUseCohortQuota(cohortQuotaState, cohort)) {
                                 funnel.record('quota_blocked', { symbol, setup: entrySetup.type, reason: `${cohort} quota` });
                                 continue;

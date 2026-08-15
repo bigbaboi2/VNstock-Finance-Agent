@@ -1,0 +1,14 @@
+export const ENTRY_STRATEGY_VERSION = 'ENTRY_V3_ADAPTIVE_REGIME';
+
+export const DEFAULT_LONG_CORE_SYMBOLS = Object.freeze([
+    'BTCUSDT',
+    'ETHUSDT',
+    'SOLUSDT',
+    'BNBUSDT',
+    'XRPUSDT',
+    'ADAUSDT',
+    'LINKUSDT',
+]);
+
+export const OFFICIAL_LIVE_PNL_SOURCE = 'LIVE_FILLS_NET_FEE';
+
