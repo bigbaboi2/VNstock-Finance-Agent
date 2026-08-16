@@ -121,6 +121,7 @@ import { getTodayInsight, getCachedMarketInsight } from './marketInsightService.
 import {
     refreshSymbolExpectancyCache,
     getSymbolExpectancy,
+    isSymbolInCooldown,
 } from './symbolExpectancyService.js';
 import { computePriorityScore, sortCandidatesByPriority } from './priorityScoreService.js';
 import { computeBreakoutAffinity } from './breakoutAffinityService.js';
@@ -145,17 +146,17 @@ const ENTRADE_BASE = 'https://services.entrade.com.vn/chart-api/v2/ohlcs';
 const REVERSAL_EXIT_THRESHOLD = 70;
 const AI_OVERRIDE_SCORE_THRESHOLD = 85;
 
-// ── EXIT POLICY E (partial scale-out) — tham số rút ra từ backtest klines giá thật ──
-// SIM: giữ cấu hình backtest. LIVE: R:R thực tế cao hơn (ít partial sớm, TP1 xa hơn, trail chặt hơn).
+// ── EXIT POLICY E (partial scale-out) — tối ưu hóa V4_OPTIMIZED_LONG ──
+// Rút ngắn TP1 về 0.95 ATR (chốt 50% vị thế) + dời SL về Breakeven (0.15% fee buffer), 50% còn lại gồng lãi theo Chandelier Trail (2.25 ATR).
 const EXIT_POLICY_SIM = {
-    CRYPTO:      { tp1Fraction: 0.6, tp1AtrMult: 1.5, chandelierMult: 3.0, breakevenFeePct: 0 },
-    VN_STOCK:    { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0 },
-    DERIVATIVES: { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0 },
+    CRYPTO:      { tp1Fraction: 0.50, tp1AtrMult: 0.95, chandelierMult: 2.25, breakevenFeePct: 0.0015 },
+    VN_STOCK:    { tp1Fraction: 0.50, tp1AtrMult: 1.00, chandelierMult: 2.50, breakevenFeePct: 0.0030 },
+    DERIVATIVES: { tp1Fraction: 0.50, tp1AtrMult: 1.00, chandelierMult: 2.25, breakevenFeePct: 0.0010 },
 };
 const EXIT_POLICY_LIVE = {
-    CRYPTO:      { tp1Fraction: 0.45, tp1AtrMult: 1.7, chandelierMult: 2.25, breakevenFeePct: 0.002 },
-    VN_STOCK:    { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0.004 },
-    DERIVATIVES: { tp1Fraction: 0.5, tp1AtrMult: 1.2, chandelierMult: 3.0, breakevenFeePct: 0.001 },
+    CRYPTO:      { tp1Fraction: 0.50, tp1AtrMult: 0.95, chandelierMult: 2.25, breakevenFeePct: 0.0015 },
+    VN_STOCK:    { tp1Fraction: 0.50, tp1AtrMult: 1.00, chandelierMult: 2.50, breakevenFeePct: 0.0030 },
+    DERIVATIVES: { tp1Fraction: 0.50, tp1AtrMult: 1.00, chandelierMult: 2.25, breakevenFeePct: 0.0010 },
 };
 
 /** @returns {{ tp1Fraction, tp1AtrMult, chandelierMult, breakevenFeePct }} */
@@ -3126,6 +3127,15 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                         continue;
                     }
 
+                    // ── TOXIC SYMBOL EXPECTANCY SHIELD (V4_OPTIMIZED_LONG) ──
+                    const symbolCooldown = isSymbolInCooldown(asset, symbol);
+                    if (symbolCooldown.inCooldown) {
+                        stats.skipCooldown = (stats.skipCooldown || 0) + 1;
+                        funnel.record('weak');
+                        console.log(chalk.yellow(`  [TOXIC SHIELD] ${symbol} bị chặn bởi Dynamic Cooldown: ${symbolCooldown.reason}`));
+                        continue;
+                    }
+
                     // ── SESSION-AWARE VOLUME FILTER ──
                     // Asian quiet hours (UTC 00:00–06:00): natural volume 20–30% lower —
                     // hard 1.5x threshold over-rejects valid setups. Use 1.3x instead.
@@ -3844,9 +3854,21 @@ export const runAutoTradePipeline = async (forcedAssetType = null, options = {})
                             })(),
                         },
                         executionMeta: {
+                            strategyVersion: ENTRY_STRATEGY_VERSION,
+                            strategyPatchDate: '2026-08-16T21:15:00+07:00',
                             priceSource: quote.source,
                             fetchedAt: quote.fetchedAt,
                             contextSource: executionContext.source || null,
+                            setupType: entrySetup.type,
+                            setupScore: entrySetup.setupScore ?? null,
+                            qualityScore: techSignal.breakdown?.qualityScore ?? techSignal.score,
+                            confluenceCount: techSignal.breakdown?.confluenceCount ?? null,
+                            edge: techSignal.breakdown?.edge ?? null,
+                            entryAtr: tradePlan.atr,
+                            tp1DistanceAtr: 0.95,
+                            tp1Fraction,
+                            htfTrend: techSignal.breakdown?.htfTrend || null,
+                            relativeStrength: (Number(techSignal.breakdown?.macdLong) || 0) >= 60,
                         },
                     });
                     const signalTrade = newTrade;

@@ -9,6 +9,7 @@ import { ensureCryptoUpdaterRunning } from '../jobs/cryptoUpdater.js';
 import { cryptoCache } from './cryptoService.js';
 import { getCachedData, saveToCache } from './cacheService.js';
 import { getAutoDuckBoolean, getAutoDuckNumber } from './autoDuckConfigService.js';
+import { DEFAULT_LONG_CORE_SYMBOLS } from './autoTradeStrategyConstants.js';
 
 const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
@@ -549,18 +550,21 @@ export const runCryptoBatchSymbolScanner = async ({ forceRefresh = false, chunkS
 };
 
 export const buildCryptoScanUniverse = async (limit = 200) => {
+    const coreUniverse = Array.isArray(DEFAULT_LONG_CORE_SYMBOLS) ? DEFAULT_LONG_CORE_SYMBOLS : [];
     try {
         const batchRanking = await runCryptoBatchSymbolScanner({ chunkSize: 15, topLimit: Math.max(limit, 20) });
         const batchSymbols = uniqSymbols(batchRanking.top || []);
-        if (batchSymbols.length >= Math.min(8, limit)) return batchSymbols.slice(0, limit);
+        if (batchSymbols.length >= Math.min(8, limit)) {
+            return uniqSymbols([...coreUniverse, ...batchSymbols]).slice(0, limit);
+        }
     } catch (err) {
         console.log(chalk.yellow(`[CRYPTO BATCH SCANNER] Fallback sang universe nhanh: ${err.message}`));
     }
     const dbCandidates = await CryptoCoin.find({ symbol: { $nin: ['USDT', 'USDC', 'FDUSD', 'DAI', 'TUSD', 'USDD', 'USDE', 'FRAX', 'PYUSD', 'USDP', 'GUSD', 'LUSD', 'SUSD', 'USDJ', 'CRVUSD'] } })
         .sort({ change24h: -1 }).limit(20).lean().catch(() => []);
     const fromDb = uniqSymbols(dbCandidates.map(c => c.symbol + 'USDT'));
-    const fallback = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT'];
-    return uniqSymbols([...fromDb, ...fallback]).slice(0, limit);
+    const fallback = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'ADAUSDT', 'LINKUSDT', 'NEARUSDT'];
+    return uniqSymbols([...coreUniverse, ...fromDb, ...fallback]).slice(0, limit);
 };
 
 export const getCryptoTradeContext = async (symbol = 'BTCUSDT') => {

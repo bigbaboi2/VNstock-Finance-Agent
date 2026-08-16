@@ -13,6 +13,7 @@ const BASE_LIVE_SETUPS = [
     'TREND_PULLBACK',
     'VWAP_RECLAIM',
     'BREAKOUT_RETEST',
+    'MEAN_REVERSION',
 ];
 
 export const getLiveSetupWhitelist = () => {
@@ -32,28 +33,26 @@ export const IDLE_PROBE_SETUP_WHITELIST = new Set([
     'VWAP_RECLAIM',
 ]);
 
-export const getLiveQualityMin = () => getAutoDuckNumber('AUTODUCK_LIVE_QUALITY_MIN') || 82;
-export const getSimQualityMin = () => getAutoDuckNumber('AUTODUCK_SIM_QUALITY_MIN') || 72;
-export const getLiveConfluenceMin = () => getAutoDuckNumber('AUTODUCK_LIVE_CONFLUENCE_MIN') || 3;
+export const getLiveQualityMin = () => getAutoDuckNumber('AUTODUCK_LIVE_QUALITY_MIN') || 78;
+export const getSimQualityMin = () => getAutoDuckNumber('AUTODUCK_SIM_QUALITY_MIN') || 68;
+export const getLiveConfluenceMin = () => getAutoDuckNumber('AUTODUCK_LIVE_CONFLUENCE_MIN') || 2;
 export const getSimConfluenceMin = () => getAutoDuckNumber('AUTODUCK_SIM_CONFLUENCE_MIN') || 2;
-export const getLiveEdgeMin = () => getAutoDuckNumber('AUTODUCK_LIVE_EDGE_MIN') || 28;
-export const getSimEdgeMin = () => getAutoDuckNumber('AUTODUCK_SIM_EDGE_MIN') || 22;
+export const getLiveEdgeMin = () => getAutoDuckNumber('AUTODUCK_LIVE_EDGE_MIN') || 22;
+export const getSimEdgeMin = () => getAutoDuckNumber('AUTODUCK_SIM_EDGE_MIN') || 18;
 
 /** @deprecated Prefer getters — kept for import compatibility */
-export const LIVE_QUALITY_MIN = 82;
-export const SIM_QUALITY_MIN = 72;
-export const LIVE_CONFLUENCE_MIN = 3;
+export const LIVE_QUALITY_MIN = 78;
+export const SIM_QUALITY_MIN = 68;
+export const LIVE_CONFLUENCE_MIN = 2;
 export const SIM_CONFLUENCE_MIN = 2;
-export const LIVE_EDGE_MIN = 28;
-export const SIM_EDGE_MIN = 22;
+export const LIVE_EDGE_MIN = 22;
+export const SIM_EDGE_MIN = 18;
 
-/** Code default floor when Setting/env override is unset (0). Tuned for ~5 LIVE fills/day.
- * 2026-07-27: lowered 86→84 to increase sample size for monitoring. Override via Setting.
- */
-export const VWAP_RECLAIM_LIVE_QUALITY_DEFAULT = 82;
+/** Code default floor when Setting/env override is unset (0). Tuned for ~5-8 LIVE fills/day. */
+export const VWAP_RECLAIM_LIVE_QUALITY_DEFAULT = 78;
 const VWAP_CLOSE_CONFIRM_MULT = 1.0;
-const VWAP_VOL_CONFIRM = 1.45;
-const VWAP_VOL_SCORE_STRONG = 1.6;
+const VWAP_VOL_CONFIRM = 1.35;
+const VWAP_VOL_SCORE_STRONG = 1.5;
 
 const setupOverrideOr = (key, fallback) => {
     const v = getAutoDuckNumber(key);
@@ -64,18 +63,14 @@ const setupOverrideOr = (key, fallback) => {
 export const getLiveQualityMinForSetup = (setupType) => {
     const globalMin = getLiveQualityMin();
     const map = {
-        EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_EMA_PULLBACK', 82),
-        // VWAP reclaim still needs a higher bar than generic setups (near-VWAP
-        // + volume is common), but 90 starved LIVE fills. Default 84 balances
-        // sample size (~5/day target) vs quality; Setting/env can override.
+        EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_EMA_PULLBACK', 76),
         VWAP_RECLAIM: setupOverrideOr(
             'AUTODUCK_LIVE_MIN_QUALITY_VWAP_RECLAIM',
             VWAP_RECLAIM_LIVE_QUALITY_DEFAULT
         ),
-        // BREAKOUT_RETEST: WR=60% (7-day data) → lower bar from 86→82 to increase throughput.
-        BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', 80),
-        // TREND_PULLBACK: lower bar to 80 to generate more samples (was equal to globalMin=82).
-        TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', 84),
+        BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_BREAKOUT_RETEST', 78),
+        TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_TREND_PULLBACK', 78),
+        MEAN_REVERSION: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_MEAN_REVERSION', 76),
         SHORT_CONTINUATION: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT_CONTINUATION', 82),
         SHORT: setupOverrideOr('AUTODUCK_LIVE_MIN_QUALITY_SHORT', 86),
     };
@@ -92,10 +87,11 @@ const finite = (value, fallback = 0) => {
 export const getLiveEdgeMinForSetup = (setupType) => {
     const globalMin = getLiveEdgeMin();
     const map = {
-        BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_BREAKOUT_RETEST', 26),
-        VWAP_RECLAIM: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_VWAP_RECLAIM', 24),
-        EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_EMA_PULLBACK', 25),
-        TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_TREND_PULLBACK', 28),
+        BREAKOUT_RETEST: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_BREAKOUT_RETEST', 22),
+        VWAP_RECLAIM: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_VWAP_RECLAIM', 22),
+        EMA_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_EMA_PULLBACK', 22),
+        TREND_PULLBACK: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_TREND_PULLBACK', 24),
+        MEAN_REVERSION: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_MEAN_REVERSION', 20),
         SHORT_CONTINUATION: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_SHORT_CONTINUATION', 26),
         SHORT: setupOverrideOr('AUTODUCK_LIVE_MIN_EDGE_SHORT', 30),
     };
@@ -340,16 +336,16 @@ export const evaluateBreakoutRetest = (signal, candles = []) => {
         const low = finite(breakout?.low, open);
         const bodyRatio = Math.abs(close - open) / Math.max(high - low, Number.EPSILON);
         const displacementAtr = atr > 0 ? (close - resistance) / atr : 0;
-        if (!(close > open && displacementAtr >= 0.15 && bodyRatio >= 0.50)) {
+        if (!(close > open && displacementAtr >= 0.12 && bodyRatio >= 0.45)) {
             diagnostics.push('BREAKOUT_DISPLACEMENT_OR_BODY');
             continue;
         }
         const postBreakout = candles.slice(breakoutIndex + 1, Math.min(lastIndex + 1, breakoutIndex + 4));
         const retest = postBreakout.find((c) => {
             const candleLow = finite(c?.low, finite(c?.close));
-            return candleLow >= resistance - atr * 0.40
-                && candleLow <= resistance + atr * 0.40
-                && finite(c?.close) >= resistance;
+            return candleLow >= resistance - atr * 0.55
+                && candleLow <= resistance + atr * 0.55
+                && finite(c?.close) >= resistance - atr * 0.05;
         });
         if (!retest) {
             diagnostics.push('BREAKOUT_RETEST_NOT_TOUCHED_1_3');
@@ -358,11 +354,11 @@ export const evaluateBreakoutRetest = (signal, candles = []) => {
         const current = candles[lastIndex];
         const currentClose = finite(current?.close);
         const entryDistanceAtr = atr > 0 ? (currentClose - resistance) / atr : Infinity;
-        if (currentClose < resistance) {
+        if (currentClose < resistance - atr * 0.08) {
             diagnostics.push('BREAKOUT_RETEST_NOT_HELD');
             continue;
         }
-        if (entryDistanceAtr < 0 || entryDistanceAtr > 0.60) {
+        if (entryDistanceAtr < -0.05 || entryDistanceAtr > 0.65) {
             diagnostics.push('BREAKOUT_ENTRY_OUTSIDE_0_6_ATR');
             continue;
         }
@@ -373,14 +369,14 @@ export const evaluateBreakoutRetest = (signal, candles = []) => {
             + clamp(100 - Math.abs(volumeSurge - 2.2) * 30, 50, 100) * 0.20
         );
         return {
-            valid: score >= 78,
+            valid: score >= 75,
             score,
-            reason: score >= 78 ? 'BREAKOUT_RETEST_CONFIRMED' : 'BREAKOUT_RETEST_SCORE_LOW',
+            reason: score >= 75 ? 'BREAKOUT_RETEST_CONFIRMED' : 'BREAKOUT_RETEST_SCORE_LOW',
             setupPattern: 'BREAKOUT_RETEST_1_3',
             resistance,
             referencePrice: resistance,
-            maxEntryPrice: resistance + atr * 0.60,
-            minEntryPrice: resistance,
+            maxEntryPrice: resistance + atr * 0.65,
+            minEntryPrice: resistance - atr * 0.05,
             entryDistanceAtr,
             displacementAtr,
             triggerCandleTime: current?.time ?? current?.timestamp ?? current?.openTime,
@@ -392,9 +388,10 @@ export const evaluateBreakoutRetest = (signal, candles = []) => {
 const scoreMeanReversion = (signal) => {
     const rsi = signal.rsi ?? 50;
     const k = signal.stochRSI?.k ?? 50;
-    let s = 45;
+    let s = 50;
     if (rsi < 35 || k < 25) s += 25;
-    if (signal.bollinger && signal.entryPrice <= signal.bollinger.lower * 1.01) s += 15;
+    if (rsi < 30 || k < 18) s += 10;
+    if (signal.bollinger && signal.entryPrice <= signal.bollinger.lower * 1.015) s += 15;
     return clamp(s);
 };
 
@@ -435,37 +432,69 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
     const direction = signal.direction;
 
     if (direction === 'LONG') {
-        if (htfTrend === 'DOWN') {
-            return { valid: false, type: 'BLOCK_HTF_DOWN', note: 'HTF 1h giảm — không long ngược xu hướng lớn', setupScore: 0 };
+        const atr = signal.atr || price * 0.02;
+        const nearLowerBand = boll ? price <= boll.lower * 1.015 : false;
+        const macdLong = signal.breakdown?.macdLong ?? 50;
+        const hasRelativeStrength = macdLong >= 65 && (signal.volumeSurge || 0) >= 1.15;
+
+        // 1. Setup MEAN_REVERSION: Ưu tiên bắt đáy quá bán ngay cả khi HTF 1h điều chỉnh
+        if ((rsi < 35 || k < 25) && (nearLowerBand || rsi < 30)) {
+            return {
+                valid: true,
+                type: 'MEAN_REVERSION',
+                note: `Quá bán (RSI ${rsi.toFixed(1)}, K ${k.toFixed(1)})${nearLowerBand ? ' chạm band dưới' : ''}`,
+                setupScore: scoreMeanReversion(signal),
+                referencePrice: boll?.lower || price,
+                minEntryPrice: (boll?.lower || price) - atr * 0.5,
+                maxEntryPrice: price + atr * 0.5,
+                entryDistanceAtr: 0.15,
+                triggerCandleTime: candles.at(-1)?.time ?? candles.at(-1)?.timestamp,
+            };
+        }
+
+        // 2. Setup LIQUIDITY_SWEEP
+        const sweepScore = scoreLiquiditySweep(candles, signal);
+        if (sweepScore >= 65) {
+            return {
+                valid: true,
+                type: 'LIQUIDITY_SWEEP',
+                note: 'Sweep thanh khoản đáy + nến rút chân',
+                setupScore: sweepScore,
+                referencePrice: price,
+                entryDistanceAtr: 0.2,
+                triggerCandleTime: candles.at(-1)?.time ?? candles.at(-1)?.timestamp,
+            };
+        }
+
+        // Chặn HTF DOWN trừ khi coin có Relative Strength (khỏe hơn thị trường rõ rệt)
+        if (htfTrend === 'DOWN' && !hasRelativeStrength) {
+            return { valid: false, type: 'BLOCK_HTF_DOWN', note: 'HTF 1h giảm — không long ngược xu hướng lớn (thiếu Relative Strength)', setupScore: 0 };
         }
 
         const extendedAboveVwap = vwap ? price > vwap * 1.04 : false;
-        // 2026-07-27: raised RSI 72→76 and StochK 88→90.
-        // In crypto bull phases RSI 72-75 is normal momentum — old threshold caused 363 false BLOCK_EXTENDED/week.
         if (rsi > 76 || k > 90 || extendedAboveVwap) {
             return { valid: false, type: 'BLOCK_EXTENDED', note: `Quá căng (RSI ${rsi.toFixed(1)}, K ${k})`, setupScore: 0 };
         }
 
         const ema21 = signal.ema21;
-        const atr = signal.atr || price * 0.02;
         const nearEma21 = ema21 && Math.abs(price - ema21) <= atr;
-        const macdBull = (signal.breakdown?.macdLong ?? 50) >= 65;
+        const macdBull = macdLong >= 60;
         const lastCandle = candles.at(-1);
         const previousCandle = candles.at(-2);
         const beforePreviousCandle = candles.at(-3);
-        const emaPullbackTouched = ema21 && Number(previousCandle?.low) <= ema21 + atr * 0.25;
-        const emaHigherLow = Number(lastCandle?.low) > Number(previousCandle?.low);
+        const emaPullbackTouched = ema21 && Number(previousCandle?.low) <= ema21 + atr * 0.35;
+        const emaHigherLow = Number(lastCandle?.low) >= Number(previousCandle?.low) - atr * 0.05;
         const emaTrigger = Number(lastCandle?.close) > Number(previousCandle?.high)
             || (Number(lastCandle?.close) > Number(previousCandle?.close)
                 && Number(previousCandle?.close) > Number(beforePreviousCandle?.close));
 
-        if (htfTrend === 'UP' && nearEma21 && Math.abs(price - ema21) <= atr * 0.75
-            && rsi >= 42 && rsi <= 55 && macdBull && emaPullbackTouched && emaHigherLow && emaTrigger) {
+        if ((htfTrend === 'UP' || hasRelativeStrength) && nearEma21 && Math.abs(price - ema21) <= atr * 0.85
+            && rsi >= 40 && rsi <= 58 && macdBull && emaPullbackTouched && emaHigherLow && emaTrigger) {
             return {
                 valid: true,
                 type: 'EMA_PULLBACK',
-                note: 'HTF UP + pullback EMA21 + RSI vùng vàng',
-                setupScore: scoreEmaPullback(signal, htfTrend),
+                note: htfTrend === 'UP' ? 'HTF UP + pullback EMA21' : 'Relative Strength + pullback EMA21',
+                setupScore: scoreEmaPullback(signal, htfTrend === 'UP' ? 'UP' : 'NEUTRAL'),
                 referencePrice: ema21,
                 minEntryPrice: ema21 - atr * 0.75,
                 maxEntryPrice: ema21 + atr * 0.75,
@@ -475,46 +504,16 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
             };
         }
 
-        // Near-VWAP is a *candidate* only. Confirmed reclaim → VWAP_RECLAIM;
-        // unconfirmed → fall through to BREAKOUT / TREND_PULLBACK / EMA-class
-        // detectors. Hard BLOCK_VWAP_UNCONFIRMED starved LIVE fills (0–1/day).
-        const maxVwapEntry = vwap ? vwap + atr * 0.35 : null;
+        const maxVwapEntry = vwap ? vwap + atr * 0.40 : null;
         const vwapEvaluation = evaluateVwapReclaim(signal, candles);
-        if (htfTrend === 'UP' && vwapEvaluation.valid) {
+        if ((htfTrend === 'UP' || hasRelativeStrength) && vwapEvaluation.valid) {
             return {
                 valid: true,
                 type: 'VWAP_RECLAIM',
                 note: vwapEvaluation.reason,
-                setupScore: scoreVwapReclaim(signal, htfTrend),
+                setupScore: scoreVwapReclaim(signal, htfTrend === 'UP' ? 'UP' : 'NEUTRAL'),
                 ...vwapEvaluation,
             };
-        }
-        const vwapCandidate = false;
-        if (vwapCandidate) {
-            const recent = (candles || []).slice(-5);
-            const last = recent.at(-1);
-            const prev = recent.at(-2);
-            const lastClose = Number(last?.close);
-            const lastOpen = Number(last?.open);
-            const prevClose = Number(prev?.close);
-            const reclaimedFromBelow = recent.slice(0, -2).some((c) => Number(c?.close) <= vwap);
-            const closedAboveVwap = Number.isFinite(lastClose) && lastClose >= vwap * VWAP_CLOSE_CONFIRM_MULT;
-            const heldAboveVwap = Number.isFinite(prevClose) && prevClose >= vwap;
-            const bullishClose = !Number.isFinite(lastOpen) || lastClose >= lastOpen;
-            const strongVolume = (signal.volumeSurge || 0) >= VWAP_VOL_CONFIRM;
-
-            if (reclaimedFromBelow && heldAboveVwap && closedAboveVwap && bullishClose && strongVolume) {
-                return {
-                    valid: true,
-                    type: 'VWAP_RECLAIM',
-                    note: 'Reclaim VWAP với volume xác nhận',
-                    setupScore: scoreVwapReclaim(signal, htfTrend),
-                    referencePrice: vwap,
-                    minEntryPrice: vwap,
-                    maxEntryPrice: maxVwapEntry,
-                };
-            }
-            // Unconfirmed near-VWAP: skip VWAP label, continue other detectors.
         }
 
         const breakoutRetest = evaluateBreakoutRetest(signal, candles);
@@ -540,21 +539,20 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
         const improvingMomentumTrigger = Number(last?.close) > Number(prev?.close)
             && Number(prev?.close) > Number(before?.close)
             && macdBull;
-        const higherLow = Number(last?.low) > Number(prev?.low);
-        const strictPullback = htfTrend === 'UP'
+        const higherLow = Number(last?.low) >= Number(prev?.low) - atr * 0.05;
+        const strictPullback = (htfTrend === 'UP' || hasRelativeStrength)
             && nearEma21
-            && Math.abs(price - ema21) <= atr
-            && rsi >= 42 && rsi <= 60
+            && Math.abs(price - ema21) <= atr * 1.1
+            && rsi >= 40 && rsi <= 62
             && macdBull
             && (bullishTrigger || improvingMomentumTrigger)
-            && (bullishTrigger || Math.abs(price - ema21) <= atr * 0.60)
             && higherLow;
         if (strictPullback) {
             return {
                 valid: true,
                 type: 'TREND_PULLBACK',
                 note: bullishTrigger ? 'TREND_BREAK_PREVIOUS_HIGH' : 'TREND_TWO_RISING_CLOSES',
-                setupScore: scoreEmaPullback(signal, htfTrend),
+                setupScore: scoreEmaPullback(signal, htfTrend === 'UP' ? 'UP' : 'NEUTRAL'),
                 referencePrice: ema21,
                 minEntryPrice: ema21 - atr,
                 maxEntryPrice: ema21 + atr,
@@ -562,21 +560,6 @@ export const detectEntrySetup = (asset, signal, htfTrend, candles = [], executio
                 setupPattern: bullishTrigger ? 'BREAK_PREVIOUS_HIGH' : 'TWO_RISING_CLOSES',
                 triggerCandleTime: last?.time ?? last?.timestamp ?? last?.openTime,
             };
-        }
-
-        const nearLowerBand = boll ? price <= boll.lower * 1.01 : false;
-        if ((rsi < 35 || k < 25) && (nearLowerBand || rsi < 30)) {
-            return {
-                valid: true,
-                type: 'MEAN_REVERSION',
-                note: 'Quá bán gần đáy band',
-                setupScore: scoreMeanReversion(signal),
-            };
-        }
-
-        const sweepScore = scoreLiquiditySweep(candles, signal);
-        if (sweepScore >= 65) {
-            return { valid: true, type: 'LIQUIDITY_SWEEP', note: 'Sweep đáy + hồi', setupScore: sweepScore };
         }
 
         return {
@@ -653,9 +636,6 @@ export const passesLiveQuantGate = (entrySetup, signal, opts = {}) => {
     const type = entrySetup?.type;
     const liveWhitelist = getLiveSetupWhitelist();
     if (!liveWhitelist.has(type)) return { pass: false, reason: `setup ${type} không trong LIVE whitelist` };
-    if (type === 'MEAN_REVERSION' && (signal.breakdown?.qualityScore ?? signal.score) < 85) {
-        return { pass: false, reason: 'MEAN_REVERSION cần qualityScore >= 85 cho LIVE' };
-    }
     const q = signal.breakdown?.qualityScore ?? signal.score;
     const edge = signal.breakdown?.edge ?? 0;
     const conf = signal.breakdown?.confluenceCount ?? computeConfluenceScore(signal, signal.direction);
@@ -663,17 +643,22 @@ export const passesLiveQuantGate = (entrySetup, signal, opts = {}) => {
     const htfTrend = String(signal.breakdown?.htfTrend || 'NEUTRAL').toUpperCase();
     const momentum = Number(isLong ? signal.breakdown?.macdLong : signal.breakdown?.macdShort) || 0;
     const volumeSurge = Number(signal.volumeSurge) || 0;
+    const isMeanReversion = type === 'MEAN_REVERSION' || type === 'LIQUIDITY_SWEEP';
+    const hasRelativeStrength = (Number(signal.breakdown?.macdLong) || 0) >= 60;
+
     if (signal.assetType === 'CRYPTO' || signal.breakdown?.htfTrend) {
-        if (isLong && htfTrend !== 'UP') return { pass: false, reason: `HTF ${htfTrend} không đồng thuận LONG` };
+        if (isLong && htfTrend !== 'UP' && !isMeanReversion && !hasRelativeStrength) {
+            return { pass: false, reason: `HTF ${htfTrend} không đồng thuận LONG` };
+        }
         if (!isLong && htfTrend !== 'DOWN') return { pass: false, reason: `HTF ${htfTrend} không đồng thuận SHORT` };
-        if (momentum < 60) return { pass: false, reason: `momentum ${momentum} < 60` };
-        const minVolume = Number.isFinite(opts.minVolume) ? opts.minVolume : 1.2;
+        if (!isMeanReversion && momentum < 55) return { pass: false, reason: `momentum ${momentum} < 55` };
+        const minVolume = Number.isFinite(opts.minVolume) ? opts.minVolume : 1.1;
         const maxVolume = Number.isFinite(opts.maxVolume) ? opts.maxVolume : 4.0;
         if (volumeSurge < minVolume) return { pass: false, reason: `volumeSurge ${volumeSurge} < ${minVolume}` };
         if (volumeSurge > maxVolume) return { pass: false, reason: `volumeSurge ${volumeSurge} > ${maxVolume} (climax)` };
     }
     const adx = signal.breakdown?.adx ?? signal.adx?.adx ?? 0;
-    if (adx < 18 && edge < 30) return { pass: false, reason: `ADX ${adx} thấp + edge ${edge} yếu` };
+    if (adx < 15 && edge < 20) return { pass: false, reason: `ADX ${adx} thấp + edge ${edge} yếu` };
     const staticMin = getLiveQualityMinForSetup(type);
     const minQuality = Number.isFinite(opts.effectiveQualityFloor) && opts.effectiveQualityFloor > 0
         ? opts.effectiveQualityFloor
