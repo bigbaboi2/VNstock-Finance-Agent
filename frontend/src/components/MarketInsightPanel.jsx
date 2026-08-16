@@ -114,6 +114,59 @@ function timeAgo(dateObj, t) {
   return t('daysAgo', { count: Math.floor(hrs / 24) });
 }
 
+function formatReportMarkdown(rawReport, insight, lang) {
+  if (!rawReport && !insight) return '';
+  const cleaned = (rawReport || '').replace(/```json[\s\S]*?```/gi, '').trim();
+
+  // If there is actual human-readable markdown text (not raw JSON)
+  const isPureJson = !cleaned || cleaned.startsWith('{') || cleaned.startsWith('[');
+  if (!isPureJson && cleaned.length > 50) {
+    return cleaned;
+  }
+
+  // If rawReport is pure JSON or empty, generate a structured professional Markdown report
+  const isEn = lang === 'en';
+  const sentiment = insight?.marketSentiment || 'TRUNG TÍNH';
+  const summary = (isEn ? insight?.summaryEn : insight?.summary) || insight?.summary || '';
+  const picks = Array.isArray(insight?.topPicks) ? insight.topPicks : [];
+
+  let md = `## 📊 ${isEn ? 'Daily Market Intelligence Overview' : 'Tổng Quan Nhận Định Thị Trường'}\n\n`;
+  md += `**${isEn ? 'Market Sentiment' : 'Tâm lý thị trường'}**: **${sentiment}**\n\n`;
+  if (summary) {
+    md += `> ${summary}\n\n`;
+  }
+
+  if (picks.length > 0) {
+    md += `### 🎯 ${isEn ? 'Key Stock Recommendations & Quality Score' : 'Chi Tiết Khuyến Nghị & Điểm Kỹ Thuật'}\n\n`;
+    md += `| ${isEn ? 'Symbol' : 'Mã CP'} | ${isEn ? 'Action' : 'Khuyến nghị'} | ${isEn ? 'Horizon' : 'Khung TG'} | ${isEn ? 'Score' : 'Điểm'} | ${isEn ? 'Key Technical Rationale' : 'Luận điểm kỹ thuật & Dòng tiền'} |\n`;
+    md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+    for (const p of picks) {
+      const actionBadge = p.action === 'MUA' ? `🟢 **${p.action}**` : p.action === 'TRÁNH' ? `🔴 **${p.action}**` : `🟡 **${p.action}**`;
+      const reason = (isEn && p.reasonEn ? p.reasonEn : p.reason) || 'N/A';
+      const score = p.score != null ? `${p.score}/100` : 'N/A';
+      md += `| **${p.symbol}** | ${actionBadge} | ${p.horizon || 'NGẮN HẠN'} | ${score} | ${reason} |\n`;
+    }
+    md += `\n`;
+  }
+
+  md += `### 💡 ${isEn ? 'Tactical Action & Risk Guidance' : 'Chiến Lược Giao Dịch & Quản Trị Rủi Ro'}\n\n`;
+  if (sentiment === 'TÍCH CỰC') {
+    md += isEn
+      ? `- **Entry Focus:** Prioritize accumulating top breakout & pull-back stocks on volume surges.\n- **Risk Management:** Maintain trailing stop loss to protect profits; avoid chasing overextended prices.\n`
+      : `- **Ưu tiên giải ngân:** Tập trung các nhóm cổ phiếu giữ vững nền giá trên EMA20 và có dòng tiền đột biến.\n- **Quản trị rủi ro:** Duy trì tỷ trọng hợp lý, dời chặn lãi (trailing stop) khi đạt mục tiêu ngắn hạn, tránh mua đuổi.\n`;
+  } else if (sentiment === 'TIÊU CỰC') {
+    md += isEn
+      ? `- **Capital Preservation:** Maintain high cash allocation; avoid bottom-fishing volatile small caps.\n- **Stop Loss Execution:** Strictly respect predefined stop-loss levels on breakdown symbols.\n`
+      : `- **Bảo toàn vốn:** Nâng cao tỷ trọng tiền mặt, cơ cấu hạ tỷ trọng các mã gãy nền hỗ trợ.\n- **Kỷ luật giao dịch:** Tuyệt đối tuân thủ nguyên tắc cắt lỗ khi chạm ngưỡng vi phạm, hạn chế bắt đáy vội vàng.\n`;
+  } else {
+    md += isEn
+      ? `- **Patience & Selectivity:** Trade selectively with smaller sizing on confirmed technical setups.\n- **Observation:** Focus on stocks demonstrating relative strength against index pullbacks.\n`
+      : `- **Giao dịch chọn lọc:** Giữ tỷ trọng vừa phải, kiên nhẫn quan sát tín hiệu thanh khoản và cung cầu.\n- **Chọn lọc kỹ lưỡng:** Ưu tiên các mã thể hiện sức mạnh giá vượt trội (Relative Strength) so với chỉ số chung.\n`;
+  }
+
+  return md;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 /** Card mã cổ phiếu tiềm năng */
@@ -655,8 +708,7 @@ export default function MarketInsightPanel({ isDark, UI, setInput, fetchMarketDa
               prose-h1:text-base prose-h2:text-sm prose-h3:text-xs
             `}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {/* Bỏ block JSON ở cuối khi render Markdown */}
-                {(displayReport || '').replace(/```json[\s\S]*?```/g, '').trim()}
+                {formatReportMarkdown(displayReport, insight, lang)}
               </ReactMarkdown>
             </div>
 
