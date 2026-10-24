@@ -184,6 +184,9 @@ export const getCryptoPrice = async (req, res) => {
 export const saveCryptoSignal = async (req, res) => {
     try {
         const { symbol, currentPrice, technicalScore, techDetails, derivatives, newsList } = req.body;
+        if (typeof symbol !== 'string' || !/^[A-Z0-9._-]{1,24}$/i.test(symbol)) {
+            return res.status(400).json({ success: false, message: 'Mã crypto không hợp lệ.' });
+        }
         const aiDecision = await analyzeCryptoSignalWithGemini(symbol, { currentPrice, technicalScore, techDetails, derivatives, newsList: (newsList || []).slice(0, 5) });
         aiDecision.timestamp = new Date().toISOString();
         try {

@@ -201,12 +201,13 @@ export const getStockInfo = async (req, res) => {
 
 /** Proxy PDF TCBS — tránh Google Viewer và tải file "viewer" lỗi trên trình duyệt. */
 export const streamTcbsPdf = async (req, res) => {
-    const ticker = String(req.params.ticker || '').toUpperCase();
-    if (!ticker) {
+    const ticker = typeof req.params.ticker === 'string' ? req.params.ticker.toUpperCase() : '';
+    if (!/^[A-Z0-9]{1,12}$/.test(ticker)) {
         return res.status(400).json({ success: false, message: 'Thiếu mã cổ phiếu' });
     }
 
     const pdfUrl = getTcbsPdfUrl(ticker);
+    if (!pdfUrl) return res.status(400).json({ success: false, message: 'Mã cổ phiếu không hợp lệ' });
     try {
         const upstream = await axios.get(pdfUrl, {
             responseType: 'stream',

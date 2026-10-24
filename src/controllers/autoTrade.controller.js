@@ -370,7 +370,8 @@ export const createUserExpectationOrder = async (req, res) => {
 
     const isPortfolio = allocationMode === 'PORTFOLIO';
 
-    if (!username || !targetPct || (!isPortfolio && !capital) || (isPortfolio && !totalCapital)) {
+    if (typeof username !== 'string' || !username.trim() || username.length > 128
+        || !targetPct || (!isPortfolio && !capital) || (isPortfolio && !totalCapital)) {
         return res.status(400).json({ success: false, message: 'Thiếu tham số cấu hình gói lệnh rủi ro!' });
     }
 
@@ -419,6 +420,9 @@ export const createUserExpectationOrder = async (req, res) => {
             }
             if (!exchangeConnectionId) {
                 return res.json({ success: false, isFeasible: false, message: 'Chế độ LIVE yêu cầu chọn một kết nối sàn (exchangeConnectionId).' });
+            }
+            if (typeof exchangeConnectionId !== 'string' || !/^[a-f0-9]{24}$/i.test(exchangeConnectionId)) {
+                return res.status(400).json({ success: false, isFeasible: false, message: 'Mã kết nối sàn không hợp lệ.' });
             }
             const { default: ExchangeConnection } = await import('../../models/ExchangeConnection.js');
             const conn = await ExchangeConnection.findById(exchangeConnectionId);

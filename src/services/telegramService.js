@@ -304,11 +304,7 @@ const sendTelegramMessage = async (message, { chatId: chatIdOverride, parseMode 
 
         if (status === 400 && parseMode && parseMode !== 'none' && !_isRetry) {
             console.log(chalk.yellow(`[TELEGRAM] Parse lỗi (400)${apiDesc ? `: ${apiDesc}` : ''}, thử lại plain text...`));
-            const plain = message
-                .replace(/\\/g, '')
-                .replace(/[*_~`]/g, '')
-                .replace(/<[^>]+>/g, '');
-            return sendTelegramMessage(plain, { chatId: targetChatId, parseMode: 'none', _isRetry: true });
+            return sendTelegramMessage(String(message).slice(0, 4096), { chatId: targetChatId, parseMode: 'none', _isRetry: true });
         }
 
         if (!_isRetry && !status) {

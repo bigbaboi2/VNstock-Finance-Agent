@@ -140,9 +140,15 @@ export const getAuditTail = (limit = 50, channel = null) => {
 };
 
 export const readAuditFileTail = async ({ channel = 'funnel', date = null, limit = 100 }) => {
-    const day = date || getIctDayKey(new Date());
+    const requestedDay = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getIctDayKey(new Date());
+    const parsedDay = new Date(`${requestedDay}T00:00:00.000Z`);
+    const day = Number.isNaN(parsedDay.getTime()) || parsedDay.toISOString().slice(0, 10) !== requestedDay
+        ? getIctDayKey(new Date())
+        : requestedDay;
     const safeChannel = allowedChannels.has(channel) ? channel : 'security';
-    const file = path.resolve(process.cwd(), DEFAULT_LOG_DIR, day, `${safeChannel}.jsonl`);
+    const root = path.resolve(process.cwd(), DEFAULT_LOG_DIR);
+    const file = path.resolve(root, day, `${safeChannel}.jsonl`);
+    if (!file.startsWith(`${root}${path.sep}`)) return [];
     const raw = await fs.readFile(file, 'utf8').catch(() => '');
     if (!raw) return [];
     const lines = raw.split('\n').filter(Boolean);

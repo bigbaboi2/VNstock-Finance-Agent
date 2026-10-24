@@ -352,6 +352,7 @@ const TcbsMarkdownCacheModel = mongoose.models.TcbsMarkdownCache || mongoose.mod
 const _tcbsPdfCache = new Map();
 
 export async function getMarkdownFromTcbsPdf(ticker, pdfMode = 'turbo', onProgress = null) {
+    if (typeof ticker !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(ticker)) return null;
     const tickerUpper = ticker.toUpperCase();
     const validModes = ['turbo', 'fast', 'balanced', 'full'];
     const safeMode = validModes.includes(pdfMode) ? pdfMode : 'turbo';
@@ -981,10 +982,14 @@ export async function analyzeCryptoSignalWithGemini(symbol, liveData) {
 // 7. CHAT WITH AI — READ SAVED REPORTS
 // =========================================================
 export async function chatWithStockAI(ticker, question, history = [], aiReport = null, language = 'vi') {
+    if (typeof ticker !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(ticker)) {
+        throw new TypeError('Mã cổ phiếu không hợp lệ.');
+    }
+    const safeTicker = ticker.toUpperCase();
 
      const reportContext = aiReport
-        ? `\n\n[BÁO CÁO PHÂN TÍCH ĐÃ LƯU — ${ticker.toUpperCase()}]\n${aiReport}\n[HẾT BÁO CÁO]`
-        : `\n\n[CẢNH BÁO: Chưa có báo cáo lưu cho ${ticker}. Trả lời dựa trên kiến thức chung về TTCK Việt Nam.]`;
+        ? `\n\n[BÁO CÁO PHÂN TÍCH ĐÃ LƯU — ${safeTicker}]\n${aiReport}\n[HẾT BÁO CÁO]`
+        : `\n\n[CẢNH BÁO: Chưa có báo cáo lưu cho ${safeTicker}. Trả lời dựa trên kiến thức chung về TTCK Việt Nam.]`;
  
      const historyText = history.length > 0
         ? '\n\n[LỊCH SỬ CHAT GẦN ĐÂY]\n' +
@@ -993,7 +998,7 @@ export async function chatWithStockAI(ticker, question, history = [], aiReport =
 
     const langLine = aiLanguageInstruction(language);
  
-    const prompt = `Nhiệm vụ: Trả lời câu hỏi về mã ${ticker.toUpperCase()} dựa trên báo cáo phân tích đã lưu bên dưới.
+    const prompt = `Nhiệm vụ: Trả lời câu hỏi về mã ${safeTicker} dựa trên báo cáo phân tích đã lưu bên dưới.
  
 NGUYÊN TẮC:
 1. Ưu tiên tuyệt đối thông tin từ BÁO CÁO ĐÃ LƯU.
@@ -1012,10 +1017,10 @@ ${langLine}`;
  
     try {
         const answer = await generateWithRole('chat', [prompt]);
-        console.log(chalk.whiteBright(`[THÀNH CÔNG] Đã trả lời Chat cho ${ticker} (${answer.length} ký tự)`));
+        console.log(chalk.whiteBright(`[THÀNH CÔNG] Đã trả lời Chat cho ${safeTicker} (${answer.length} ký tự)`));
         return answer;
     } catch (error) {
-        console.error(chalk.red(`[LỖI] Trả lời Chat ${ticker} thất bại:`), error.message);
+        console.error(chalk.red(`[LỖI] Trả lời Chat ${safeTicker} thất bại:`), error.message);
         throw error;
     }
 }

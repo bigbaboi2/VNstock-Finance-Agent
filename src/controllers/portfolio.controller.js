@@ -3,9 +3,13 @@ import Portfolio from '../../models/Portfolio.js';
 
 export const getPortfolio = async (req, res) => {
     try {
-        let portfolio = await Portfolio.findOne({ username: req.params.username });
+        const username = req.params.username;
+        if (typeof username !== 'string' || !username.trim() || username.length > 128) {
+            return res.status(400).json({ success: false, message: 'Tên người dùng không hợp lệ.' });
+        }
+        let portfolio = await Portfolio.findOne({ username });
         if (!portfolio) {
-            portfolio = new Portfolio({ username: req.params.username });
+            portfolio = new Portfolio({ username });
             await portfolio.save();
         }
         res.json({ success: true, data: portfolio });
@@ -15,7 +19,11 @@ export const getPortfolio = async (req, res) => {
 };
 
 export const cancelOrder = async (req, res) => {
-    const { username, orderId } = req.body;
+    const { username, orderId } = req.body || {};
+    if (typeof username !== 'string' || !username.trim() || username.length > 128
+        || typeof orderId !== 'string' || !/^[a-f0-9]{24}$/i.test(orderId)) {
+        return res.status(400).json({ success: false, message: 'Thông tin người dùng hoặc mã lệnh không hợp lệ.' });
+    }
     
     try {
         let portfolio = await Portfolio.findOne({ username });
@@ -43,7 +51,15 @@ export const cancelOrder = async (req, res) => {
 };
 
 export const tradeOrder = async (req, res) => {
-    const { username, assetType, symbol, type, orderType, volume, price, isMarketOpen } = req.body;
+    const { username, assetType, symbol, type, orderType, volume, price, isMarketOpen } = req.body || {};
+    if (typeof username !== 'string' || !username.trim() || username.length > 128
+        || typeof symbol !== 'string' || !/^[A-Z0-9._-]{1,24}$/i.test(symbol)
+        || !['BUY', 'SELL'].includes(type)
+        || !['VN_STOCKS', 'VN_DERIVATIVES', 'CRYPTO', 'GLOBAL'].includes(assetType)
+        || !Number.isFinite(Number(volume)) || Number(volume) <= 0
+        || !Number.isFinite(Number(price)) || Number(price) <= 0) {
+        return res.status(400).json({ success: false, message: 'Thông tin lệnh không hợp lệ.' });
+    }
     
     try {
         let portfolio = await Portfolio.findOne({ username });

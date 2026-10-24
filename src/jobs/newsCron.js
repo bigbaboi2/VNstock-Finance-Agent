@@ -8,6 +8,7 @@ import { getBrowser } from '../utils/browserManager.js';
 import { decodeGoogleNewsUrl } from '../utils/googleNewsDecoder.js';
 import { detectSentiment } from '../scrapers/vnNewsSearch.js';
 import Setting from '../../models/Setting.js';
+import { isGoogleNewsUrl, isNonGoogleHttpUrl, isSafePublicHttpUrl, safeExternalGet } from '../utils/externalUrlGuard.js';
 
 export let lastNewsSyncTime = new Date();
  
@@ -84,19 +85,15 @@ function extractDomain(url) {
 
 //─── Google News URL helpers ──────────────────────────────────────────────────
 const resolveGoogleLink = async (googleUrl) => {
-    if (!googleUrl || !googleUrl.includes('google.com')) return googleUrl;
+    if (!isGoogleNewsUrl(googleUrl) || !(await isSafePublicHttpUrl(googleUrl))) return null;
 
     try {
-        const res = await axios.get(googleUrl, {
-            maxRedirects: 0,
-            validateStatus: s => s >= 200 && s < 400,
-            timeout: 4000,
-        });
-        if (res.headers.location && !res.headers.location.includes('google.com')) {
+        const res = await safeExternalGet(googleUrl, { timeout: 4000, followRedirects: false });
+        if (res.headers.location && !isGoogleNewsUrl(res.headers.location)) {
             return res.headers.location;
         }
     } catch (err) {
-        if (err.response?.headers?.location && !err.response.headers.location.includes('google.com')) {
+        if (err.response?.headers?.location && !isGoogleNewsUrl(err.response.headers.location)) {
             return err.response.headers.location;
         }
     }
@@ -117,10 +114,10 @@ const resolveGoogleLink = async (googleUrl) => {
                     req.abort(); return;
                 }
                 if (req.isNavigationRequest() && req.frame() === page.mainFrame() &&
-                    !url.includes('news.google.com') && !url.includes('about:blank')) {
+                    !isGoogleNewsUrl(url) && url !== 'about:blank') {
                     clearTimeout(timer); req.abort('aborted'); resolve(url); return;
                 }
-                req.continue();
+                isSafePublicHttpUrl(url).then((safe) => safe ? req.continue() : req.abort()).catch(() => req.abort());
             });
             page.goto(googleUrl).catch(() => {});
         });
@@ -143,7 +140,7 @@ const resolveArticleLinks = async (articles, limit = 5) => {
         const batch = articles.slice(i, i + limit);
         const resolvedBatch = await Promise.all(batch.map(async (article) => {
             let realLink = article.link;
-            if (realLink && realLink.includes('google.com')) {
+            if (isGoogleNewsUrl(realLink)) {
                 const decoded = decodeGoogleNewsUrl(realLink);
                 if (decoded) {
                     realLink = decoded;
@@ -172,9 +169,7 @@ const scrapeWithConcurrencyLimit = async (articles, limit = 5) => {
                 }
 
                 const realLink = article.link; 
-                const isCleanLink = realLink &&
-                    !realLink.includes('google.com') &&
-                    !realLink.includes('googleusercontent.com');
+                const isCleanLink = isNonGoogleHttpUrl(realLink);
 
                 if (!isCleanLink) {
                     return { ...article, content: article.title };
@@ -220,7 +215,7 @@ const scrapeWithConcurrencyLimit = async (articles, limit = 5) => {
 const extractRealLink = (descriptionHtml) => {
     if (!descriptionHtml) return null;
     const match = descriptionHtml.match(/href="([^"]+)"/);
-    if (match && match[1] && !match[1].includes('google.com')) return match[1];
+    if (match && isNonGoogleHttpUrl(match[1])) return match[1];
     return null;
 };
 

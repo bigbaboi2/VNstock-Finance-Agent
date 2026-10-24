@@ -9,11 +9,16 @@ export const TCBS_HTTP_HEADERS = {
 const HEADERS = TCBS_HTTP_HEADERS;
 
 export const getTcbsPdfUrl = (symbol) =>
-    `https://static.tcbs.com.vn/oneclick/${String(symbol).toUpperCase()}.pdf`;
+    typeof symbol === 'string' && /^[A-Z0-9]{1,12}$/i.test(symbol)
+        ? `https://static.tcbs.com.vn/oneclick/${symbol.toUpperCase()}.pdf`
+        : null;
 
 /** HEAD PDF TCBS — dùng etag/last-modified để phát hiện file mới. */
 export const fetchTcbsPdfMeta = async (symbol) => {
-    const ticker = String(symbol).toUpperCase();
+    if (typeof symbol !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(symbol)) {
+        return { url: null, exists: false, revision: null, lastModified: null };
+    }
+    const ticker = symbol.toUpperCase();
     const pdfUrl = getTcbsPdfUrl(ticker);
     try {
         const res = await axios.head(pdfUrl, { headers: HEADERS, timeout: 10000, validateStatus: s => s < 500 });
@@ -37,6 +42,9 @@ export const fetchTcbsPdfMeta = async (symbol) => {
 };
 
 export const fetchTcbsData = async (symbol) => {
+    if (typeof symbol !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(symbol)) {
+        return { success: false, logs: ['[LỖI] Mã cổ phiếu không hợp lệ.'] };
+    }
     const ticker = symbol.toUpperCase();
     let logs = [];
     

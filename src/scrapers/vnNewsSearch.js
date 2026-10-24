@@ -23,6 +23,7 @@ function getActiveCacheTTL() {
 
 //[FIX] Import from shared util — avoid duplicates with newsCron.js
 import { decodeGoogleNewsUrl } from '../utils/googleNewsDecoder.js';
+import { isGoogleNewsUrl, isNonGoogleHttpUrl, isSafePublicHttpUrl, safeExternalGet } from '../utils/externalUrlGuard.js';
 export { decodeGoogleNewsUrl };
 
 const MODE_DATE_WINDOW = {
@@ -762,9 +763,10 @@ const parsePubDate = (s) => {
         : { publishedAt: d, date: d.toLocaleDateString('vi-VN') };
 };
 
-const extractDomain      = (url) => { try { return new URL(url).hostname.replace('www.', ''); } catch { return 'Internet'; } };
-const isValidArticleLink = (url) => url && typeof url === 'string' && url.startsWith('http')
-    && !url.includes('google.com') && !url.includes('googleusercontent.com');
+const extractDomain = (url) => { try { return new URL(url).hostname.replace('www.', ''); } catch { return 'Internet'; } };
+const isValidArticleLink = (url) => {
+    return isNonGoogleHttpUrl(url);
+};
 
 
 const fetchGoogleNewsRSS = async (url, maxItems = 25) => {
@@ -788,8 +790,9 @@ const fetchGoogleNewsRSS = async (url, maxItems = 25) => {
 
 
 const preflightCheck = async (url) => {
+    if (!isGoogleNewsUrl(url) || !(await isSafePublicHttpUrl(url))) return null;
     try {
-        const res = await axios.get(url, { maxRedirects: 0, validateStatus: s => s >= 200 && s < 400, timeout: 4000 });
+        const res = await safeExternalGet(url, { timeout: 4000, followRedirects: false });
         return res.headers.location || url;
     } catch (err) { return err.response?.headers?.location || url; }
 };
@@ -797,7 +800,7 @@ const preflightCheck = async (url) => {
 const resolveOneGoogleLink = async (browser, googleUrl) => {
     if (!googleUrl) return null;
     if (isValidArticleLink(googleUrl)) return googleUrl;
-    if (!googleUrl.includes('google.com')) return null;
+    if (!isGoogleNewsUrl(googleUrl)) return null;
 
     
     const decoded = decodeGoogleNewsUrl(googleUrl);
@@ -805,7 +808,7 @@ const resolveOneGoogleLink = async (browser, googleUrl) => {
 
     
     const preflightUrl = await preflightCheck(googleUrl);
-    if (isValidArticleLink(preflightUrl) && !preflightUrl.includes('google.com')) return preflightUrl;
+    if (isValidArticleLink(preflightUrl)) return preflightUrl;
 
     
     let page;
@@ -818,14 +821,14 @@ const resolveOneGoogleLink = async (browser, googleUrl) => {
             page.on('request', (req) => {
                 const u = req.url();
                 if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) { req.abort(); return; }
-                if (u.includes('consent.google.com')) {
+                if (isGoogleNewsUrl(u) && new URL(u).hostname === 'consent.google.com') {
                     clearTimeout(timer); req.abort('aborted'); resolve(null); return;
                 }
                 if (req.isNavigationRequest() && req.frame() === page.mainFrame()
-                    && !u.includes('news.google.com') && !u.includes('about:blank')) {
+                    && !isGoogleNewsUrl(u) && u !== 'about:blank') {
                     clearTimeout(timer); req.abort('aborted'); resolve(u); return;
                 }
-                req.continue();
+                isSafePublicHttpUrl(u).then((safe) => safe ? req.continue() : req.abort()).catch(() => req.abort());
             });
             page.goto(googleUrl).catch(() => {});
         });
@@ -840,10 +843,12 @@ const PUPPETEER_GLOBAL_TIMEOUT = 60_000;
 // Search mode
 const resolveGoogleLinksParallel = async (items, concurrency = 5, bypassPuppeteer = false) => {
     if (bypassPuppeteer) {
-        return items.map(item => {
+        const decodedRawLinks = new Set();
+        const decodedResults = items.flatMap(item => {
             const decoded = decodeGoogleNewsUrl(item.rawLink);
             if (decoded && isValidArticleLink(decoded)) {
-                return {
+                decodedRawLinks.add(item.rawLink);
+                return [{
                     title:       item.title,
                     link:        decoded,
                     source:      item.sourceName,
@@ -852,10 +857,23 @@ const resolveGoogleLinksParallel = async (items, concurrency = 5, bypassPuppetee
                     publishedAt: item.publishedAt,
                     date:        item.date,
                     fromGoogle:  true,
-                };
+                }];
             }
-            return null;
-        }).filter(Boolean);
+            return [];
+        });
+
+        // Google's current RSS article links are not always decodable by the
+        // legacy base64 parser. Keep fast mode cheap when decoding works, but
+        // resolve the remaining links in Chromium so valid fresh articles do
+        // not disappear from prefetch results.
+        const unresolved = items.filter(item => !decodedRawLinks.has(item.rawLink));
+        if (unresolved.length === 0) return decodedResults;
+
+        console.log(chalk.gray(
+            `[vnNewsSearch] Fast mode: fallback Chromium cho ${unresolved.length} link Google chưa giải mã được.`
+        ));
+        const browserResults = await resolveGoogleLinksParallel(unresolved, concurrency, false);
+        return [...decodedResults, ...browserResults];
     }
 //============================================================================
     const browser = await getBrowser();

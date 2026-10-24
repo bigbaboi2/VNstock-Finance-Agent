@@ -1201,10 +1201,14 @@ export default function CryptoTab({ isDark, UI, uiStyle = 'classic', addLog = []
                                     <div className="flex items-center gap-4 flex-1 min-w-0">
                                         <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 border ${isDark ? 'bg-black/40 border-white/8' : 'bg-white border-slate-300'}`}>
                                             <img
-                                                src={`https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`}
+                                                src={typeof symbol === 'string' && /^[a-z0-9]{1,24}$/i.test(symbol) ? `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png` : undefined}
                                                 alt={symbol}
                                                 className="w-8 h-8 object-contain"
                                                 onError={(e) => {
+                                                    if (typeof symbol !== 'string' || !/^[a-z0-9]{1,24}$/i.test(symbol)) {
+                                                        e.currentTarget.style.display = 'none';
+                                                        return;
+                                                    }
                                                     if (!e.target.dataset.retried) {
                                                         e.target.dataset.retried = 'true';
                                                         e.target.src = `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/${symbol.toLowerCase()}.png`;

@@ -20,6 +20,10 @@ const resolveExecutablePath = () => {
     console.log(chalk.gray(
         `[BrowserManager] Bỏ qua PUPPETEER_EXECUTABLE_PATH (không tồn tại trên máy này): ${configured}`
     ));
+    // Puppeteer reads the same environment variable during launch, even when
+    // launchOptions omits executablePath. Remove the stale override so it can
+    // fall back to the browser installed in Puppeteer's cache.
+    delete process.env.PUPPETEER_EXECUTABLE_PATH;
     return null;
 };
 

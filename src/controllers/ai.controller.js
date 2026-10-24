@@ -217,7 +217,10 @@ export const getLiveNews = async (req, res) => {
             const currentBatch = await searchVnNewsDirectly(ticker, mode, 15, offset, searchNewsMode);
 
             if (currentBatch.length === 0) {
-                console.log(chalk.gray(`[HỆ THỐNG] Trang ${currentPage}: Server không còn tin. Dừng.`));
+                console.log(chalk.gray(
+                    `[HỆ THỐNG] Trang ${currentPage}: nguồn tìm kiếm không trả kết quả phù hợp (offset=${offset}); ` +
+                    'dừng phân trang, chưa thể kết luận không còn tin mới.'
+                ));
                 break;
             }
 
@@ -242,7 +245,10 @@ export const getLiveNews = async (req, res) => {
                     ` (${consecutiveEmptyPages} trang trắng liên tiếp)`
                 ));
                 if (consecutiveEmptyPages >= (shouldScrapeContent ? 4 : 2)) {
-                    console.log(chalk.yellow(`[HỆ THỐNG] Dừng sớm — không còn tin mới.`));
+                    console.log(chalk.yellow(
+                        `[HỆ THỐNG] Dừng sớm — ${consecutiveEmptyPages} trang kết quả liên tiếp chỉ có tin đã lưu; ` +
+                        'không tìm thấy tin mới trong tập kết quả hiện tại.'
+                    ));
                     break;
                 }
             }
@@ -495,9 +501,16 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
 };
 
         export const analyzeStock = async (req, res) => {
-    const ticker = req.params.ticker.toUpperCase();
+    const rawTicker = req.params.ticker;
+    if (typeof rawTicker !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(rawTicker)) {
+        return res.status(400).json({ success: false, message: 'Mã cổ phiếu không hợp lệ.' });
+    }
+    const ticker = rawTicker.toUpperCase();
     const fullData = req.body;
-    const user = fullData.user || 'Unknown';
+    const user = fullData?.user ?? 'Unknown';
+    if (typeof user !== 'string' || user.length > 128) {
+        return res.status(400).json({ success: false, message: 'Tên người dùng không hợp lệ.' });
+    }
 
          try {
         const inputHash = buildStockAnalysisFingerprint(ticker, fullData, user);
@@ -524,9 +537,16 @@ const runStockAnalysis = async (ticker, fullData, user, emitProgress = () => {},
 };
 
         export const analyzeStockStream = async (req, res) => {
-    const ticker = req.params.ticker.toUpperCase();
+    const rawTicker = req.params.ticker;
+    if (typeof rawTicker !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(rawTicker)) {
+        return res.status(400).json({ success: false, message: 'Mã cổ phiếu không hợp lệ.' });
+    }
+    const ticker = rawTicker.toUpperCase();
     const fullData = req.body;
-    const user = fullData.user || 'Unknown';
+    const user = fullData?.user ?? 'Unknown';
+    if (typeof user !== 'string' || user.length > 128) {
+        return res.status(400).json({ success: false, message: 'Tên người dùng không hợp lệ.' });
+    }
     const startedAt = Date.now();
     let lastProgress = 1;
     const reqContext = { isDisconnected: false, language: resolveLanguage(req) };
@@ -836,11 +856,15 @@ export const debugFeed = async (req, res) => {
 };
 
 export const stockChat = async (req, res) => {
-    const ticker = req.params.ticker.toUpperCase();
-    const { question, history = [], aiReport, user } = req.body;
+    const rawTicker = req.params.ticker;
+    if (typeof rawTicker !== 'string' || !/^[A-Z0-9]{1,12}$/i.test(rawTicker)) {
+        return res.status(400).json({ success: false, message: 'Mã cổ phiếu không hợp lệ.' });
+    }
+    const ticker = rawTicker.toUpperCase();
+    const { question, history = [], aiReport, user } = req.body || {};
     const language = resolveLanguage(req);
  
-    if (!question || !question.trim()) {
+    if (typeof question !== 'string' || !question.trim()) {
         return res.status(400).json({
             success: false,
             message: language === 'en' ? 'Question cannot be empty.' : 'Câu hỏi không được để trống.',

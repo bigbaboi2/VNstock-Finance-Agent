@@ -7,6 +7,7 @@ import {
     isATOPeriod,
     isATCPeriod,
 } from './autoTradeEngine.js';
+import { isGoogleHostname, parseExternalHttpUrl } from '../utils/externalUrlGuard.js';
 
 export const MAX_NEWS_DB = 80;
 const MIN_VALID_NEWS = 3;
@@ -22,9 +23,10 @@ export const getVnNewsCacheTtlMs = () => (
 
 export const isBadNewsRecord = (n) => {
     if (!n) return true;
-    if (!n.link || n.link === 'null' || n.link.trim() === '') return true;
+    if (typeof n.link !== 'string' || n.link === 'null' || n.link.trim() === '') return true;
     if (!n.title || n.title === 'null' || n.title.trim() === '') return true;
-    if (n.link.includes('google.com')) return true;
+    const linkUrl = parseExternalHttpUrl(n.link);
+    if (!linkUrl || isGoogleHostname(linkUrl.hostname)) return true;
     return false;
 };
 

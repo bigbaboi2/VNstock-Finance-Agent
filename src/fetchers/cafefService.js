@@ -6,22 +6,29 @@ const HEADERS = {
     'Referer': 'https://s.cafef.vn/'
 };
 
-const decodeHtmlEntities = (str) => {
-    return str
-        .replace(/&agrave;/g, 'à').replace(/&aacute;/g, 'á').replace(/&acirc;/g, 'â').replace(/&atilde;/g, 'ã')
-        .replace(/&egrave;/g, 'è').replace(/&eacute;/g, 'é').replace(/&ecirc;/g, 'ê')
-        .replace(/&igrave;/g, 'ì').replace(/&iacute;/g, 'í')
-        .replace(/&ograve;/g, 'ò').replace(/&oacute;/g, 'ó').replace(/&ocirc;/g, 'ô').replace(/&otilde;/g, 'õ')
-        .replace(/&ugrave;/g, 'ù').replace(/&uacute;/g, 'ú').replace(/&ucirc;/g, 'û')
-        .replace(/&yacute;/g, 'ý')
-        .replace(/&Agrave;/g, 'À').replace(/&Aacute;/g, 'Á').replace(/&Acirc;/g, 'Â')
-        .replace(/&Egrave;/g, 'È').replace(/&Eacute;/g, 'É').replace(/&Ecirc;/g, 'Ê')
-        .replace(/&Ocirc;/g, 'Ô').replace(/&Uacute;/g, 'Ú')
-        .replace(/&amp;/g, '&').replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
-        .replace(/&ldquo;/g, '\u201C').replace(/&rdquo;/g, '\u201D')
-        .replace(/&lsquo;/g, '\u2018').replace(/&rsquo;/g, '\u2019')
-        .replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '');
-};
+const HTML_ENTITIES = Object.freeze({
+    agrave: 'à', aacute: 'á', acirc: 'â', atilde: 'ã', egrave: 'è', eacute: 'é', ecirc: 'ê',
+    igrave: 'ì', iacute: 'í', ograve: 'ò', oacute: 'ó', ocirc: 'ô', otilde: 'õ',
+    ugrave: 'ù', uacute: 'ú', ucirc: 'û', yacute: 'ý', Agrave: 'À', Aacute: 'Á', Acirc: 'Â',
+    Egrave: 'È', Eacute: 'É', Ecirc: 'Ê', Ocirc: 'Ô', Uacute: 'Ú', amp: '&',
+    ndash: '–', mdash: '—', ldquo: '“', rdquo: '”', lsquo: '‘', rsquo: '’', nbsp: ' ',
+});
+
+const decodeHtmlEntities = (input) => String(input).replace(
+    /&(#(?:x[\da-f]{1,6}|\d{1,7})|[a-z][a-z0-9]+);/gi,
+    (entity, code) => {
+        if (code[0] === '#') {
+            const hex = code[1]?.toLowerCase() === 'x';
+            const point = Number.parseInt(code.slice(hex ? 2 : 1), hex ? 16 : 10);
+            if (Number.isInteger(point) && point > 0 && point <= 0x10ffff
+                && !(point >= 0xd800 && point <= 0xdfff)) return String.fromCodePoint(point);
+            return entity;
+        }
+        return Object.prototype.hasOwnProperty.call(HTML_ENTITIES, code)
+            ? HTML_ENTITIES[code]
+            : HTML_ENTITIES[code.toLowerCase()] ?? entity;
+    }
+);
 
 export const fetchCafefData = async (symbol) => {
     const ticker = symbol.toUpperCase();

@@ -1,8 +1,8 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import iconv from 'iconv-lite';
 import chalk from 'chalk';
 import { getBrowser, respawnBrowser } from '../utils/browserManager.js';
+import { isNonGoogleHttpUrl, isSafePublicHttpUrl, safeExternalGet } from '../utils/externalUrlGuard.js';
 
 //─── Selectors ────────────────────────────────────────────────────────────────
 
@@ -51,11 +51,9 @@ const USER_AGENTS = [
 ];
 
 const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-const isValidArticleUrl = (url) =>
-    url && typeof url === 'string' &&
-    url.startsWith('http') &&
-    !url.includes('google.com') &&
-    !url.includes('googleusercontent.com');
+const isValidArticleUrl = (url) => {
+    return isNonGoogleHttpUrl(url);
+};
 
 //─── [FIX-6] Per-domain rate limiter ─────────────────────────────────────────
  
@@ -127,7 +125,7 @@ async function scrapeWithAxios(url, maxChars = 4000) {
     try {
         const domain = (new URL(url)).hostname.replace('www.', '');
 
-         const response = await axios.get(url, {
+         const response = await safeExternalGet(url, {
             timeout: 10000,
             responseType: 'arraybuffer',
             headers: {
@@ -185,9 +183,11 @@ async function scrapeWithPuppeteer(url, maxChars = 4000) {
         }
         await page.setRequestInterception(true);
 
-        page.on('request', (req) => {
+        page.on('request', async (req) => {
             const type = req.resourceType();
             if (['image', 'stylesheet', 'font', 'media', 'other'].includes(type)) {
+                req.abort();
+            } else if (!(await isSafePublicHttpUrl(req.url()))) {
                 req.abort();
             } else {
                 req.continue();
@@ -240,7 +240,7 @@ async function scrapeWithPuppeteer(url, maxChars = 4000) {
 //─── Public API ───────────────────────────────────────────────────────────────
 
 export async function scrapeArticleContent(url, maxChars = 4000) {
-    if (!isValidArticleUrl(url)) {
+    if (!isValidArticleUrl(url) || !(await isSafePublicHttpUrl(url))) {
         console.warn(`[Scraper] Bỏ qua link không hợp lệ hoặc Google: ${url}`);
         return null;
     }
@@ -255,6 +255,6 @@ export async function scrapeArticleContent(url, maxChars = 4000) {
 }
 
 export async function resolveGoogleNewsUrl(url) {
-    if (!url || !url.includes('google.com')) return url;
-    return null;
+    if (!url || !isValidArticleUrl(url)) return null;
+    return url;
 }

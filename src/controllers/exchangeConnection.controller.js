@@ -88,9 +88,10 @@ export const resetEquityBaselineEndpoint = async (req, res) => {
 /** POST /api/exchange-connections — tạo kết nối mới + test ngay */
 export const createConnection = async (req, res) => {
     try {
-        const { username, exchangeName, apiKey, secret, futuresApiKey, futuresSecret, passphrase, label, environment } = req.body;
+        const { username, exchangeName, apiKey, secret, futuresApiKey, futuresSecret, passphrase, label, environment } = req.body || {};
 
-        if (!username || !exchangeName || !apiKey || !secret) {
+        if (typeof username !== 'string' || !username.trim() || username.length > 128
+            || !exchangeName || !apiKey || !secret) {
             return res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc (username, exchangeName, apiKey, secret).' });
         }
         if ((futuresApiKey && !futuresSecret) || (!futuresApiKey && futuresSecret)) {

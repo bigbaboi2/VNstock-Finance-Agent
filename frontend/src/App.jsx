@@ -17,6 +17,7 @@ import AuthScreen from './components/AuthScreen';
 import DerivativesTab from './components/DerivativesTab';
 import DraggableLog from './components/DraggableLog';
 import AutoDuckTab from './components/AutoDuckTab';
+import BrokerConnectionTab from './components/BrokerConnectionTab';
 import PdfViewerModal from './components/PdfViewerModal';
 import { tcbsPdfEmbedUrl, tcbsPdfViewerUrl } from './lib/apiBase';
 import { AI_REPORT_COOLDOWN_MS } from './constants/aiReportCooldown';
